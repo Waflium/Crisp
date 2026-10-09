@@ -1,0 +1,2317 @@
+attr visual/fog_color minecraft:rgb_color true true true false rgb:f:0,f:0,f:0
+attr visual/fog_start_distance minecraft:float true true true false f:0
+attr visual/fog_end_distance minecraft:float true true true false f:44800000
+attr visual/sky_fog_end_distance minecraft:float true true true false f:44000000
+attr visual/cloud_fog_end_distance minecraft:float true true true false f:45000000
+attr visual/water_fog_color minecraft:rgb_color true true true false rgb:f:3ca0a0a1,f:3ca0a0a1,f:3e4ccccd
+attr visual/water_fog_start_distance minecraft:float true true true false f:c1000000
+attr visual/water_fog_end_distance minecraft:float true true true false f:42c00000
+attr visual/sky_color minecraft:rgb_color true true true false rgb:f:0,f:0,f:0
+attr visual/sunrise_sunset_color minecraft:argb_color true true true false argb:f:0,f:0,f:0,f:0
+attr visual/cloud_color minecraft:argb_color true true true false argb:f:0,f:0,f:0,f:0
+attr visual/cloud_height minecraft:float true true true false f:4340547b
+attr visual/sun_angle minecraft:angle_degrees true true true false f:0
+attr visual/moon_angle minecraft:angle_degrees true true true false f:0
+attr visual/star_angle minecraft:angle_degrees true true true false f:0
+attr visual/moon_phase minecraft:moon_phase true true false false full_moon
+attr visual/star_brightness minecraft:float true true true false f:0
+attr visual/block_light_tint minecraft:rgb_color true true true false rgb:f:3f800000,f:3f58d8d9,f:3f0c8c8d
+attr visual/sky_light_color minecraft:rgb_color true true true false rgb:f:3f800000,f:3f800000,f:3f800000
+attr visual/sky_light_factor minecraft:float true true true false f:3f800000
+attr visual/night_vision_color minecraft:rgb_color true true true false rgb:f:3f19999a,f:3f19999a,f:3f19999a
+attr visual/ambient_light_color minecraft:rgb_color true true true false rgb:f:0,f:0,f:0
+attr visual/default_dripstone_particle minecraft:particle true true false false data
+attr visual/ambient_particles minecraft:ambient_particles true true false false particles:
+attr audio/background_music minecraft:background_music true true false false data
+attr audio/music_volume minecraft:float true true false false f:3f800000
+attr audio/ambient_sounds minecraft:ambient_sounds true true false false data
+attr audio/firefly_bush_sounds minecraft:boolean true true false false false
+attr gameplay/sky_light_level minecraft:float true false false false f:41700000
+attr gameplay/can_start_raid minecraft:boolean false true false false true
+attr gameplay/water_evaporates minecraft:boolean true true false false false
+attr gameplay/bed_rule minecraft:bed_rule false true false false bed:when_dark,always,false,false,true
+attr gameplay/straw_bed_rule minecraft:bed_rule false true false false bed:when_dark,never,false,true,true
+attr gameplay/respawn_anchor_works minecraft:boolean false true false false false
+attr gameplay/nether_portal_spawns_piglin minecraft:boolean false true false false false
+attr gameplay/fast_lava minecraft:boolean true false false false false
+attr gameplay/increased_fire_burnout minecraft:boolean false true false false false
+attr gameplay/eyeblossom_open minecraft:tri_state false true false false default
+attr gameplay/turtle_egg_hatch_chance minecraft:float false true false false f:3b03126f
+attr gameplay/piglins_zombify minecraft:boolean true true false false true
+attr gameplay/snow_golem_melts minecraft:boolean false true false false false
+attr gameplay/creaking_active minecraft:boolean true true false false false
+attr gameplay/surface_slime_spawn_chance minecraft:float false true false false f:0
+attr gameplay/cat_waking_up_gift_chance minecraft:float false true false false f:0
+attr gameplay/bees_stay_in_hive minecraft:boolean false true false false false
+attr gameplay/monsters_burn minecraft:boolean false true false false false
+attr gameplay/can_pillager_patrol_spawn minecraft:boolean false true false false true
+attr gameplay/natural_mob_spawns minecraft:mob_spawn_settings false true false true mobs:
+attr gameplay/creature_world_gen_spawn_probability minecraft:float false true false false f:3dcccccd
+attr gameplay/villager_activity minecraft:activity false true false false minecraft:idle
+attr gameplay/baby_villager_activity minecraft:activity false true false false minecraft:idle
+mod float add 0 0 f:3f866666
+mod float add 0 1 f:4089999a
+mod float add 0 2 f:3e99999a
+mod float add 1 0 f:bfe00000
+mod float add 1 1 f:3fc00000
+mod float add 1 2 f:c0200000
+mod float add 2 0 f:417c0000
+mod float add 2 1 f:41980000
+mod float add 2 2 f:41700000
+mod float subtract 0 0 f:bee66666
+mod float subtract 0 1 f:c06ccccd
+mod float subtract 0 2 f:3e99999a
+mod float subtract 1 0 f:c0500000
+mod float subtract 1 1 f:c0d00000
+mod float subtract 1 2 f:c0200000
+mod float subtract 2 0 f:41640000
+mod float subtract 2 1 f:41300000
+mod float subtract 2 2 f:41700000
+mod float multiply 0 0 f:3e666667
+mod float multiply 0 1 f:3f99999a
+mod float multiply 0 2 f:80000000
+mod float multiply 1 0 f:bff00000
+mod float multiply 1 1 f:c1200000
+mod float multiply 1 2 f:0
+mod float multiply 2 0 f:41340000
+mod float multiply 2 1 f:42700000
+mod float multiply 2 2 f:80000000
+mod float minimum 0 0 f:3e99999a
+mod float minimum 0 1 f:3e99999a
+mod float minimum 0 2 f:80000000
+mod float minimum 1 0 f:c0200000
+mod float minimum 1 1 f:c0200000
+mod float minimum 1 2 f:c0200000
+mod float minimum 2 0 f:3f400000
+mod float minimum 2 1 f:40800000
+mod float minimum 2 2 f:80000000
+mod float maximum 0 0 f:3f400000
+mod float maximum 0 1 f:40800000
+mod float maximum 0 2 f:3e99999a
+mod float maximum 1 0 f:3f400000
+mod float maximum 1 1 f:40800000
+mod float maximum 1 2 f:80000000
+mod float maximum 2 0 f:41700000
+mod float maximum 2 1 f:41700000
+mod float maximum 2 2 f:41700000
+mod float alpha_blend 0 0 f:3fba6666
+mod float alpha_blend 0 1 f:3e896666
+mod float alpha_blend 0 2 f:40e00000
+mod float alpha_blend 1 0 f:bef00000
+mod float alpha_blend 1 1 f:bf870ccd
+mod float alpha_blend 1 2 f:40e00000
+mod float alpha_blend 2 0 f:41390000
+mod float alpha_blend 2 1 f:40e6eccd
+mod float alpha_blend 2 2 f:40e00000
+mod bool and false false false
+mod bool and false true false
+mod bool and true false false
+mod bool and true true true
+mod bool nand false false true
+mod bool nand false true true
+mod bool nand true false true
+mod bool nand true true false
+mod bool or false false false
+mod bool or false true true
+mod bool or true false true
+mod bool or true true true
+mod bool nor false false true
+mod bool nor false true false
+mod bool nor true false false
+mod bool nor true true false
+mod bool xor false false false
+mod bool xor false true true
+mod bool xor true false true
+mod bool xor true true false
+mod bool xnor false false true
+mod bool xnor false true false
+mod bool xnor true false false
+mod bool xnor true true true
+mod int add 0 0 i:9
+mod int add 0 1 i:2
+mod int add 1 0 i:-1
+mod int add 1 1 i:-8
+mod int add 2 0 i:-2147483647
+mod int add 2 1 i:2147483642
+mod int subtract 0 0 i:5
+mod int subtract 0 1 i:12
+mod int subtract 1 0 i:-5
+mod int subtract 1 1 i:2
+mod int subtract 2 0 i:2147483645
+mod int subtract 2 1 i:-2147483644
+mod int multiply 0 0 i:14
+mod int multiply 0 1 i:-35
+mod int multiply 1 0 i:-6
+mod int multiply 1 1 i:15
+mod int multiply 2 0 i:-2
+mod int multiply 2 1 i:-2147483643
+mod int minimum 0 0 i:2
+mod int minimum 0 1 i:-5
+mod int minimum 1 0 i:-3
+mod int minimum 1 1 i:-5
+mod int minimum 2 0 i:2
+mod int minimum 2 1 i:-5
+mod int maximum 0 0 i:7
+mod int maximum 0 1 i:7
+mod int maximum 1 0 i:2
+mod int maximum 1 1 i:-3
+mod int maximum 2 0 i:2147483647
+mod int maximum 2 1 i:2147483647
+mod rgb alpha_blend 0 0 rgb:f:3ef22f6d,f:3f19a8b8,f:3f800000
+mod rgb alpha_blend 0 1 rgb:f:3f3c8044,f:3ea6ff57,f:3efefefe
+mod rgb alpha_blend 0 2 rgb:f:3ef0f0f1,f:3f27a7a8,f:3f800000
+mod rgb alpha_blend 0 3 rgb:f:0,f:3f800000,f:0
+mod rgb alpha_blend 0 4 rgb:f:3ed4b89c,f:3f0db3da,f:3f4fdff0
+mod rgb add 0 0 rgb:f:3f72f2f3,f:3f800000,f:3f800000
+mod rgb subtract 0 0 rgb:f:0,f:3e34b4b6,f:0
+mod rgb multiply 0 0 rgb:f:3e668c32,f:3ea06c38,f:3f800000
+mod rgb add 0 1 rgb:f:3f800000,f:3f800000,f:3f800000
+mod rgb subtract 0 1 rgb:f:0,f:0,f:0
+mod rgb multiply 0 1 rgb:f:3ef0f0f1,f:3f27a7a8,f:3f800000
+mod rgb add 0 2 rgb:f:3f078788,f:3f36b6b7,f:3f800000
+mod rgb subtract 0 2 rgb:f:3ed2d2d3,f:3f189899,f:3f70f0f1
+mod rgb multiply 0 2 rgb:f:3ce2c4a7,f:3d1dcaf9,f:3d70f0f1
+mod rgb blend_to_gray 0 0 rgb:f:3ecf2191,f:3ee6b929,f:3f0972aa
+mod rgb blend_to_gray 0 1 rgb:f:3e303352,f:3e3b8652,f:3e50ba40
+mod rgb blend_to_gray 0 2 rgb:f:3dae6db4,f:3dc513b8,f:3def7b90
+mod rgb alpha_blend 1 0 rgb:f:3f2afb4c,f:3f3b9c7d,f:3f800000
+mod rgb alpha_blend 1 1 rgb:f:3f608020,f:3ed7ff26,f:3efefefe
+mod rgb alpha_blend 1 2 rgb:f:3f40c0c1,f:3f58d8d9,f:3f800000
+mod rgb alpha_blend 1 3 rgb:f:0,f:3f800000,f:0
+mod rgb alpha_blend 1 4 rgb:f:3f208060,f:3f328c66,f:3f4fdff0
+mod rgb add 1 0 rgb:f:3f800000,f:3f800000,f:3f800000
+mod rgb subtract 1 0 rgb:f:3e8c8c8d,f:3ebcbcbd,f:0
+mod rgb multiply 1 0 rgb:f:3eb87028,f:3ecf7e2d,f:3f800000
+mod rgb add 1 1 rgb:f:3f800000,f:3f800000,f:3f800000
+mod rgb subtract 1 1 rgb:f:0,f:0,f:0
+mod rgb multiply 1 1 rgb:f:3f40c0c1,f:3f58d8d9,f:3f800000
+mod rgb add 1 2 rgb:f:3f4fcfd0,f:3f67e7e8,f:3f800000
+mod rgb subtract 1 2 rgb:f:3f31b1b2,f:3f49c9ca,f:3f70f0f1
+mod rgb multiply 1 2 rgb:f:3d356a1f,f:3d4c1763,f:3d70f0f1
+mod rgb blend_to_gray 1 0 rgb:f:3f10746c,f:3f167a72,f:3f20443c
+mod rgb blend_to_gray 1 1 rgb:f:3e6f4ea4,f:3e7516fc,f:3e7e7c88
+mod rgb blend_to_gray 1 2 rgb:f:3df55990,f:3e007520,f:3e09dab0
+mod rgb alpha_blend 2 0 rgb:f:3e17c6f7,f:3e17c6f7,f:3e9e9e9f
+mod rgb alpha_blend 2 1 rgb:f:3f008081,f:0,f:0
+mod rgb alpha_blend 2 2 rgb:f:0,f:0,f:0
+mod rgb alpha_blend 2 3 rgb:f:0,f:3f800000,f:0
+mod rgb alpha_blend 2 4 rgb:f:3d810183,f:3d810183,f:3d810183
+mod rgb add 2 0 rgb:f:3ef4f4f5,f:3ef4f4f5,f:3f800000
+mod rgb subtract 2 0 rgb:f:0,f:0,f:0
+mod rgb multiply 2 0 rgb:f:0,f:0,f:0
+mod rgb add 2 1 rgb:f:3f800000,f:3f800000,f:3f800000
+mod rgb subtract 2 1 rgb:f:0,f:0,f:0
+mod rgb multiply 2 1 rgb:f:0,f:0,f:0
+mod rgb add 2 2 rgb:f:3d70f0f1,f:3d70f0f1,f:3d70f0f1
+mod rgb subtract 2 2 rgb:f:0,f:0,f:0
+mod rgb multiply 2 2 rgb:f:0,f:0,f:0
+mod rgb blend_to_gray 2 0 rgb:f:0,f:0,f:0
+mod rgb blend_to_gray 2 1 rgb:f:0,f:0,f:0
+mod rgb blend_to_gray 2 2 rgb:f:0,f:0,f:0
+mod argb alpha_blend 0 0 argb:f:3f50028e,f:3f50028e,f:3f800000,f:3f5ca976
+mod argb multiply 0 0 argb:f:3ef4f4f5,f:3ef4f4f5,f:3f800000,f:3e7dca98
+mod argb alpha_blend 0 1 argb:f:3f800000,f:3ee29080,f:3ee29080,f:3f66801a
+mod argb multiply 0 1 argb:f:3f800000,f:0,f:0,f:3ecd9a68
+mod argb alpha_blend 0 2 argb:f:3f800000,f:3f800000,f:3f800000,f:3f4ccccd
+mod argb multiply 0 2 argb:f:3d909091,f:3e50d0d1,f:3eacacad,f:0
+mod argb alpha_blend 0 3 argb:f:0,f:3f800000,f:0,f:3f800000
+mod argb multiply 0 3 argb:f:0,f:3f800000,f:0,f:3f4ccccd
+mod argb alpha_blend 0 4 argb:f:3f476527,f:3f476527,f:3f476527,f:3f59a674
+mod argb multiply 0 4 argb:f:3e808081,f:3e808081,f:3e808081,f:3e4d9a68
+mod argb add 0 0 argb:f:3f800000,f:3f800000,f:3f800000,f:3f4ccccd
+mod argb subtract 0 0 argb:f:3f058586,f:3f058586,f:0,f:3f4ccccd
+mod argb add 0 1 argb:f:3f800000,f:3f800000,f:3f800000,f:3f4ccccd
+mod argb subtract 0 1 argb:f:0,f:0,f:0,f:3f4ccccd
+mod argb add 0 2 argb:f:3f800000,f:3f800000,f:3f800000,f:3f4ccccd
+mod argb subtract 0 2 argb:f:3f70f0f1,f:3f70f0f1,f:3f70f0f1,f:3f4ccccd
+mod argb blend_to_gray 0 0 argb:f:3f333334,f:3f333334,f:3f333334,f:3f4ccccd
+mod argb blend_to_gray 0 1 argb:f:3e923a2a,f:3e923a2a,f:3e923a2a,f:3f4ccccd
+mod argb blend_to_gray 0 2 argb:f:3e18e21c,f:3e18e21c,f:3e18e21c,f:3f4ccccd
+mod argb alpha_blend 1 0 argb:f:3f2fc063,f:3f1a59e8,f:3f231d18,f:3f1122b4
+mod argb multiply 1 0 argb:f:3ee59647,f:3eb87028,f:3e4ccccd,f:3dec5fd4
+mod argb alpha_blend 1 1 argb:f:3f7baa3c,f:3e5014b6,f:3d5d1602,f:3f300051
+mod argb multiply 1 1 argb:f:3f6feff0,f:0,f:0,f:3e3f7e3e
+mod argb alpha_blend 1 2 argb:f:3f6feff0,f:3f40c0c1,f:3e4ccccd,f:3ebebebf
+mod argb multiply 1 2 argb:f:3d877e76,f:3e1d39d7,f:3d8a23be,f:0
+mod argb alpha_blend 1 3 argb:f:0,f:3f800000,f:0,f:3f800000
+mod argb multiply 1 3 argb:f:0,f:3f40c0c1,f:0,f:3ebebebf
+mod argb alpha_blend 1 4 argb:f:3f1cbee0,f:3f03e779,f:3e658512,f:3f07afd8
+mod argb multiply 1 4 argb:f:3e70e0d2,f:3e418244,f:3d4d9a68,f:3dbf7e3e
+mod argb add 1 0 argb:f:3f800000,f:3f800000,f:3f800000,f:3ebebebf
+mod argb subtract 1 0 argb:f:3eeaeaeb,f:3e8c8c8d,f:0,f:3ebebebf
+mod argb add 1 1 argb:f:3f800000,f:3f800000,f:3f800000,f:3ebebebf
+mod argb subtract 1 1 argb:f:0,f:0,f:0,f:3ebebebf
+mod argb add 1 2 argb:f:3f7efeff,f:3f4fcfd0,f:3e848485,f:3ebebebf
+mod argb subtract 1 2 argb:f:3f60e0e1,f:3f31b1b2,f:3e109091,f:3ebebebf
+mod argb blend_to_gray 1 0 argb:f:3f12160e,f:3f064a42,f:3ec5cdbe,f:3ebebebf
+mod argb blend_to_gray 1 1 argb:f:3e663f70,f:3e5aec70,f:3e38f36d,f:3ebebebf
+mod argb blend_to_gray 1 2 argb:f:3dfbdc88,f:3de53678,f:3da14478,f:3ebebebf
+mod argb alpha_blend 2 0 argb:f:3ef4f4f6,f:3ef4f4f6,f:3f800000,f:3e9e9e9f
+mod argb multiply 2 0 argb:f:0,f:0,f:0,f:0
+mod argb alpha_blend 2 1 argb:f:3f800000,f:0,f:0,f:3f008081
+mod argb multiply 2 1 argb:f:0,f:0,f:0,f:0
+mod argb alpha_blend 2 2 argb:f:0,f:0,f:0,f:0
+mod argb multiply 2 2 argb:f:0,f:0,f:0,f:0
+mod argb alpha_blend 2 3 argb:f:0,f:3f800000,f:0,f:3f800000
+mod argb multiply 2 3 argb:f:0,f:0,f:0,f:0
+mod argb alpha_blend 2 4 argb:f:3e808081,f:3e808081,f:3e808081,f:3e808081
+mod argb multiply 2 4 argb:f:0,f:0,f:0,f:0
+mod argb add 2 0 argb:f:3ef4f4f5,f:3ef4f4f5,f:3f800000,f:0
+mod argb subtract 2 0 argb:f:0,f:0,f:0,f:0
+mod argb add 2 1 argb:f:3f800000,f:3f800000,f:3f800000,f:0
+mod argb subtract 2 1 argb:f:0,f:0,f:0,f:0
+mod argb add 2 2 argb:f:3d70f0f1,f:3d70f0f1,f:3d70f0f1,f:0
+mod argb subtract 2 2 argb:f:0,f:0,f:0,f:0
+mod argb blend_to_gray 2 0 argb:f:0,f:0,f:0,f:0
+mod argb blend_to_gray 2 1 argb:f:0,f:0,f:0,f:0
+mod argb blend_to_gray 2 2 argb:f:0,f:0,f:0,f:0
+mod argb alpha_blend 3 0 argb:f:3f56a26e,f:3f56a26e,f:3f800000,f:3f800000
+mod argb multiply 3 0 argb:f:3ef4f4f5,f:3ef4f4f5,f:3f800000,f:3e9e9e9f
+mod argb alpha_blend 3 1 argb:f:3f800000,f:3efefefe,f:3efefefe,f:3f800000
+mod argb multiply 3 1 argb:f:3f800000,f:0,f:0,f:3f008081
+mod argb alpha_blend 3 2 argb:f:3f800000,f:3f800000,f:3f800000,f:3f800000
+mod argb multiply 3 2 argb:f:3d909091,f:3e50d0d1,f:3eacacad,f:0
+mod argb alpha_blend 3 3 argb:f:0,f:3f800000,f:0,f:3f800000
+mod argb multiply 3 3 argb:f:0,f:3f800000,f:0,f:3f800000
+mod argb alpha_blend 3 4 argb:f:3f4fdff0,f:3f4fdff0,f:3f4fdff0,f:3f800000
+mod argb multiply 3 4 argb:f:3e808081,f:3e808081,f:3e808081,f:3e808081
+mod argb add 3 0 argb:f:3f800000,f:3f800000,f:3f800000,f:3f800000
+mod argb subtract 3 0 argb:f:3f058586,f:3f058586,f:0,f:3f800000
+mod argb add 3 1 argb:f:3f800000,f:3f800000,f:3f800000,f:3f800000
+mod argb subtract 3 1 argb:f:0,f:0,f:0,f:3f800000
+mod argb add 3 2 argb:f:3f800000,f:3f800000,f:3f800000,f:3f800000
+mod argb subtract 3 2 argb:f:3f70f0f1,f:3f70f0f1,f:3f70f0f1,f:3f800000
+mod argb blend_to_gray 3 0 argb:f:3f333334,f:3f333334,f:3f333334,f:3f800000
+mod argb blend_to_gray 3 1 argb:f:3e923a2a,f:3e923a2a,f:3e923a2a,f:3f800000
+mod argb blend_to_gray 3 2 argb:f:3e18e21c,f:3e18e21c,f:3e18e21c,f:3f800000
+mod lerp degrees 0 f:43b18000
+mod lerp float 0 f:43848000
+mod lerp degrees 1 f:432a0000
+mod lerp float 1 f:42aa0000
+mod lerp degrees 2 f:43480000
+mod lerp float 2 f:42d20000
+mod lerp degrees 3 f:42340000
+mod lerp float 3 f:41340000
+mod lerp degrees 4 f:44364000
+mod lerp float 4 f:44004000
+mod lerp int 0 i:6
+mod lerp int 1 i:4
+mod lerp int 2 i:0
+mod lerp rgb rgb:f:3ebb73c6,f:3ef0f615,f:3f2d89b2
+mod lerp argb argb:f:3f7633a4,f:3f596b57,f:3f03126e,f:3f0a0c9c
+mod lerp keyframe 0.0 false
+mod lerp state_change 0.0 true
+mod lerp spatial 0.0 false
+mod lerp keyframe 0.49 false
+mod lerp state_change 0.49 true
+mod lerp spatial 0.49 false
+mod lerp keyframe 0.5 false
+mod lerp state_change 0.5 true
+mod lerp spatial 0.5 true
+mod lerp keyframe 0.99 false
+mod lerp state_change 0.99 true
+mod lerp spatial 0.99 true
+mod lerp keyframe 1.0 true
+mod lerp state_change 1.0 true
+mod lerp spatial 1.0 true
+mod overlay plains plains mobs:monster=minecraft:spider*100,minecraft:zombie*90,minecraft:zombie_villager*5,minecraft:zombie_horse*5,minecraft:skeleton*100,minecraft:creeper*100,minecraft:slime*100,minecraft:enderman*10,minecraft:witch*5,;creature=minecraft:sheep*12,minecraft:pig*10,minecraft:chicken*10,minecraft:cow*8,minecraft:horse*5,minecraft:donkey*1,;ambient=minecraft:bat*10,;underground_water_creature=minecraft:glow_squid*10,;
+mod overlay plains desert mobs:monster=minecraft:spider*100,minecraft:zombie*19,minecraft:zombie_villager*1,minecraft:skeleton*50,minecraft:creeper*100,minecraft:slime*100,minecraft:enderman*10,minecraft:witch*5,minecraft:husk*80,minecraft:parched*50,;creature=minecraft:rabbit*12,minecraft:camel*1,;ambient=minecraft:bat*10,;underground_water_creature=minecraft:glow_squid*10,;
+mod overlay plains mushroom_fields mobs:monster=minecraft:spider*100,minecraft:zombie*90,minecraft:zombie_villager*5,minecraft:zombie_horse*5,minecraft:skeleton*100,minecraft:creeper*100,minecraft:slime*100,minecraft:enderman*10,minecraft:witch*5,;creature=minecraft:mooshroom*8,;ambient=minecraft:bat*10,;underground_water_creature=minecraft:glow_squid*10,;
+mod overlay plains deep_dark mobs:monster=;creature=;ambient=;axolotls=;underground_water_creature=;water_creature=;water_ambient=;misc=;
+mod overlay plains soul_sand_valley mobs:monster=minecraft:skeleton*20,minecraft:ghast*50,minecraft:enderman*1,;creature=minecraft:strider*60,;ambient=minecraft:bat*10,;underground_water_creature=minecraft:glow_squid*10,;cost=minecraft:enderman:3fc3333333333333:3fe6666666666666;cost=minecraft:ghast:3fc3333333333333:3fe6666666666666;cost=minecraft:skeleton:3fc3333333333333:3fe6666666666666;cost=minecraft:strider:3fc3333333333333:3fe6666666666666;
+mod overlay plains the_void mobs:monster=;creature=;ambient=;axolotls=;underground_water_creature=;water_creature=;water_ambient=;misc=;
+mod overlay plains warm_ocean mobs:monster=minecraft:drowned*5,minecraft:spider*100,minecraft:zombie*95,minecraft:zombie_villager*5,minecraft:skeleton*100,minecraft:creeper*100,minecraft:slime*100,minecraft:enderman*10,minecraft:witch*5,;creature=minecraft:sheep*12,minecraft:pig*10,minecraft:chicken*10,minecraft:cow*8,minecraft:horse*5,minecraft:donkey*1,;ambient=minecraft:bat*10,;underground_water_creature=minecraft:glow_squid*10,;water_creature=minecraft:nautilus*5,minecraft:squid*10,minecraft:dolphin*2,;water_ambient=minecraft:pufferfish*15,minecraft:tropical_fish*25,;
+mod overlay desert plains mobs:monster=minecraft:spider*100,minecraft:zombie*90,minecraft:zombie_villager*5,minecraft:zombie_horse*5,minecraft:skeleton*100,minecraft:creeper*100,minecraft:slime*100,minecraft:enderman*10,minecraft:witch*5,;creature=minecraft:sheep*12,minecraft:pig*10,minecraft:chicken*10,minecraft:cow*8,minecraft:horse*5,minecraft:donkey*1,;ambient=minecraft:bat*10,;underground_water_creature=minecraft:glow_squid*10,;
+mod overlay desert desert mobs:monster=minecraft:spider*100,minecraft:zombie*19,minecraft:zombie_villager*1,minecraft:skeleton*50,minecraft:creeper*100,minecraft:slime*100,minecraft:enderman*10,minecraft:witch*5,minecraft:husk*80,minecraft:parched*50,;creature=minecraft:rabbit*12,minecraft:camel*1,;ambient=minecraft:bat*10,;underground_water_creature=minecraft:glow_squid*10,;
+mod overlay desert mushroom_fields mobs:monster=minecraft:spider*100,minecraft:zombie*19,minecraft:zombie_villager*1,minecraft:skeleton*50,minecraft:creeper*100,minecraft:slime*100,minecraft:enderman*10,minecraft:witch*5,minecraft:husk*80,minecraft:parched*50,;creature=minecraft:mooshroom*8,;ambient=minecraft:bat*10,;underground_water_creature=minecraft:glow_squid*10,;
+mod overlay desert deep_dark mobs:monster=;creature=;ambient=;axolotls=;underground_water_creature=;water_creature=;water_ambient=;misc=;
+mod overlay desert soul_sand_valley mobs:monster=minecraft:skeleton*20,minecraft:ghast*50,minecraft:enderman*1,;creature=minecraft:strider*60,;ambient=minecraft:bat*10,;underground_water_creature=minecraft:glow_squid*10,;cost=minecraft:enderman:3fc3333333333333:3fe6666666666666;cost=minecraft:ghast:3fc3333333333333:3fe6666666666666;cost=minecraft:skeleton:3fc3333333333333:3fe6666666666666;cost=minecraft:strider:3fc3333333333333:3fe6666666666666;
+mod overlay desert the_void mobs:monster=;creature=;ambient=;axolotls=;underground_water_creature=;water_creature=;water_ambient=;misc=;
+mod overlay desert warm_ocean mobs:monster=minecraft:drowned*5,minecraft:spider*100,minecraft:zombie*95,minecraft:zombie_villager*5,minecraft:skeleton*100,minecraft:creeper*100,minecraft:slime*100,minecraft:enderman*10,minecraft:witch*5,;creature=minecraft:rabbit*12,minecraft:camel*1,;ambient=minecraft:bat*10,;underground_water_creature=minecraft:glow_squid*10,;water_creature=minecraft:nautilus*5,minecraft:squid*10,minecraft:dolphin*2,;water_ambient=minecraft:pufferfish*15,minecraft:tropical_fish*25,;
+mod overlay mushroom_fields plains mobs:monster=minecraft:spider*100,minecraft:zombie*90,minecraft:zombie_villager*5,minecraft:zombie_horse*5,minecraft:skeleton*100,minecraft:creeper*100,minecraft:slime*100,minecraft:enderman*10,minecraft:witch*5,;creature=minecraft:sheep*12,minecraft:pig*10,minecraft:chicken*10,minecraft:cow*8,minecraft:horse*5,minecraft:donkey*1,;ambient=minecraft:bat*10,;underground_water_creature=minecraft:glow_squid*10,;
+mod overlay mushroom_fields desert mobs:monster=minecraft:spider*100,minecraft:zombie*19,minecraft:zombie_villager*1,minecraft:skeleton*50,minecraft:creeper*100,minecraft:slime*100,minecraft:enderman*10,minecraft:witch*5,minecraft:husk*80,minecraft:parched*50,;creature=minecraft:rabbit*12,minecraft:camel*1,;ambient=minecraft:bat*10,;underground_water_creature=minecraft:glow_squid*10,;
+mod overlay mushroom_fields mushroom_fields mobs:creature=minecraft:mooshroom*8,;ambient=minecraft:bat*10,;underground_water_creature=minecraft:glow_squid*10,;
+mod overlay mushroom_fields deep_dark mobs:monster=;creature=;ambient=;axolotls=;underground_water_creature=;water_creature=;water_ambient=;misc=;
+mod overlay mushroom_fields soul_sand_valley mobs:monster=minecraft:skeleton*20,minecraft:ghast*50,minecraft:enderman*1,;creature=minecraft:strider*60,;ambient=minecraft:bat*10,;underground_water_creature=minecraft:glow_squid*10,;cost=minecraft:enderman:3fc3333333333333:3fe6666666666666;cost=minecraft:ghast:3fc3333333333333:3fe6666666666666;cost=minecraft:skeleton:3fc3333333333333:3fe6666666666666;cost=minecraft:strider:3fc3333333333333:3fe6666666666666;
+mod overlay mushroom_fields the_void mobs:monster=;creature=;ambient=;axolotls=;underground_water_creature=;water_creature=;water_ambient=;misc=;
+mod overlay mushroom_fields warm_ocean mobs:monster=minecraft:drowned*5,minecraft:spider*100,minecraft:zombie*95,minecraft:zombie_villager*5,minecraft:skeleton*100,minecraft:creeper*100,minecraft:slime*100,minecraft:enderman*10,minecraft:witch*5,;creature=minecraft:mooshroom*8,;ambient=minecraft:bat*10,;underground_water_creature=minecraft:glow_squid*10,;water_creature=minecraft:nautilus*5,minecraft:squid*10,minecraft:dolphin*2,;water_ambient=minecraft:pufferfish*15,minecraft:tropical_fish*25,;
+mod overlay deep_dark plains mobs:monster=minecraft:spider*100,minecraft:zombie*90,minecraft:zombie_villager*5,minecraft:zombie_horse*5,minecraft:skeleton*100,minecraft:creeper*100,minecraft:slime*100,minecraft:enderman*10,minecraft:witch*5,;creature=minecraft:sheep*12,minecraft:pig*10,minecraft:chicken*10,minecraft:cow*8,minecraft:horse*5,minecraft:donkey*1,;ambient=minecraft:bat*10,;axolotls=;underground_water_creature=minecraft:glow_squid*10,;water_creature=;water_ambient=;misc=;
+mod overlay deep_dark desert mobs:monster=minecraft:spider*100,minecraft:zombie*19,minecraft:zombie_villager*1,minecraft:skeleton*50,minecraft:creeper*100,minecraft:slime*100,minecraft:enderman*10,minecraft:witch*5,minecraft:husk*80,minecraft:parched*50,;creature=minecraft:rabbit*12,minecraft:camel*1,;ambient=minecraft:bat*10,;axolotls=;underground_water_creature=minecraft:glow_squid*10,;water_creature=;water_ambient=;misc=;
+mod overlay deep_dark mushroom_fields mobs:monster=;creature=minecraft:mooshroom*8,;ambient=minecraft:bat*10,;axolotls=;underground_water_creature=minecraft:glow_squid*10,;water_creature=;water_ambient=;misc=;
+mod overlay deep_dark deep_dark mobs:monster=;creature=;ambient=;axolotls=;underground_water_creature=;water_creature=;water_ambient=;misc=;
+mod overlay deep_dark soul_sand_valley mobs:monster=minecraft:skeleton*20,minecraft:ghast*50,minecraft:enderman*1,;creature=minecraft:strider*60,;ambient=;axolotls=;underground_water_creature=;water_creature=;water_ambient=;misc=;cost=minecraft:enderman:3fc3333333333333:3fe6666666666666;cost=minecraft:ghast:3fc3333333333333:3fe6666666666666;cost=minecraft:skeleton:3fc3333333333333:3fe6666666666666;cost=minecraft:strider:3fc3333333333333:3fe6666666666666;
+mod overlay deep_dark the_void mobs:monster=;creature=;ambient=;axolotls=;underground_water_creature=;water_creature=;water_ambient=;misc=;
+mod overlay deep_dark warm_ocean mobs:monster=minecraft:drowned*5,minecraft:spider*100,minecraft:zombie*95,minecraft:zombie_villager*5,minecraft:skeleton*100,minecraft:creeper*100,minecraft:slime*100,minecraft:enderman*10,minecraft:witch*5,;creature=;ambient=minecraft:bat*10,;axolotls=;underground_water_creature=minecraft:glow_squid*10,;water_creature=minecraft:nautilus*5,minecraft:squid*10,minecraft:dolphin*2,;water_ambient=minecraft:pufferfish*15,minecraft:tropical_fish*25,;misc=;
+mod overlay soul_sand_valley plains mobs:monster=minecraft:spider*100,minecraft:zombie*90,minecraft:zombie_villager*5,minecraft:zombie_horse*5,minecraft:skeleton*100,minecraft:creeper*100,minecraft:slime*100,minecraft:enderman*10,minecraft:witch*5,;creature=minecraft:sheep*12,minecraft:pig*10,minecraft:chicken*10,minecraft:cow*8,minecraft:horse*5,minecraft:donkey*1,;ambient=minecraft:bat*10,;underground_water_creature=minecraft:glow_squid*10,;cost=minecraft:enderman:3fc3333333333333:3fe6666666666666;cost=minecraft:ghast:3fc3333333333333:3fe6666666666666;cost=minecraft:skeleton:3fc3333333333333:3fe6666666666666;cost=minecraft:strider:3fc3333333333333:3fe6666666666666;
+mod overlay soul_sand_valley desert mobs:monster=minecraft:spider*100,minecraft:zombie*19,minecraft:zombie_villager*1,minecraft:skeleton*50,minecraft:creeper*100,minecraft:slime*100,minecraft:enderman*10,minecraft:witch*5,minecraft:husk*80,minecraft:parched*50,;creature=minecraft:rabbit*12,minecraft:camel*1,;ambient=minecraft:bat*10,;underground_water_creature=minecraft:glow_squid*10,;cost=minecraft:enderman:3fc3333333333333:3fe6666666666666;cost=minecraft:ghast:3fc3333333333333:3fe6666666666666;cost=minecraft:skeleton:3fc3333333333333:3fe6666666666666;cost=minecraft:strider:3fc3333333333333:3fe6666666666666;
+mod overlay soul_sand_valley mushroom_fields mobs:monster=minecraft:skeleton*20,minecraft:ghast*50,minecraft:enderman*1,;creature=minecraft:mooshroom*8,;ambient=minecraft:bat*10,;underground_water_creature=minecraft:glow_squid*10,;cost=minecraft:enderman:3fc3333333333333:3fe6666666666666;cost=minecraft:ghast:3fc3333333333333:3fe6666666666666;cost=minecraft:skeleton:3fc3333333333333:3fe6666666666666;cost=minecraft:strider:3fc3333333333333:3fe6666666666666;
+mod overlay soul_sand_valley deep_dark mobs:monster=;creature=;ambient=;axolotls=;underground_water_creature=;water_creature=;water_ambient=;misc=;cost=minecraft:enderman:3fc3333333333333:3fe6666666666666;cost=minecraft:ghast:3fc3333333333333:3fe6666666666666;cost=minecraft:skeleton:3fc3333333333333:3fe6666666666666;cost=minecraft:strider:3fc3333333333333:3fe6666666666666;
+mod overlay soul_sand_valley soul_sand_valley mobs:monster=minecraft:skeleton*20,minecraft:ghast*50,minecraft:enderman*1,;creature=minecraft:strider*60,;cost=minecraft:enderman:3fc3333333333333:3fe6666666666666;cost=minecraft:ghast:3fc3333333333333:3fe6666666666666;cost=minecraft:skeleton:3fc3333333333333:3fe6666666666666;cost=minecraft:strider:3fc3333333333333:3fe6666666666666;
+mod overlay soul_sand_valley the_void mobs:monster=;creature=;ambient=;axolotls=;underground_water_creature=;water_creature=;water_ambient=;misc=;cost=minecraft:enderman:3fc3333333333333:3fe6666666666666;cost=minecraft:ghast:3fc3333333333333:3fe6666666666666;cost=minecraft:skeleton:3fc3333333333333:3fe6666666666666;cost=minecraft:strider:3fc3333333333333:3fe6666666666666;
+mod overlay soul_sand_valley warm_ocean mobs:monster=minecraft:drowned*5,minecraft:spider*100,minecraft:zombie*95,minecraft:zombie_villager*5,minecraft:skeleton*100,minecraft:creeper*100,minecraft:slime*100,minecraft:enderman*10,minecraft:witch*5,;creature=minecraft:strider*60,;ambient=minecraft:bat*10,;underground_water_creature=minecraft:glow_squid*10,;water_creature=minecraft:nautilus*5,minecraft:squid*10,minecraft:dolphin*2,;water_ambient=minecraft:pufferfish*15,minecraft:tropical_fish*25,;cost=minecraft:enderman:3fc3333333333333:3fe6666666666666;cost=minecraft:ghast:3fc3333333333333:3fe6666666666666;cost=minecraft:skeleton:3fc3333333333333:3fe6666666666666;cost=minecraft:strider:3fc3333333333333:3fe6666666666666;
+mod overlay the_void plains mobs:monster=minecraft:spider*100,minecraft:zombie*90,minecraft:zombie_villager*5,minecraft:zombie_horse*5,minecraft:skeleton*100,minecraft:creeper*100,minecraft:slime*100,minecraft:enderman*10,minecraft:witch*5,;creature=minecraft:sheep*12,minecraft:pig*10,minecraft:chicken*10,minecraft:cow*8,minecraft:horse*5,minecraft:donkey*1,;ambient=minecraft:bat*10,;axolotls=;underground_water_creature=minecraft:glow_squid*10,;water_creature=;water_ambient=;misc=;
+mod overlay the_void desert mobs:monster=minecraft:spider*100,minecraft:zombie*19,minecraft:zombie_villager*1,minecraft:skeleton*50,minecraft:creeper*100,minecraft:slime*100,minecraft:enderman*10,minecraft:witch*5,minecraft:husk*80,minecraft:parched*50,;creature=minecraft:rabbit*12,minecraft:camel*1,;ambient=minecraft:bat*10,;axolotls=;underground_water_creature=minecraft:glow_squid*10,;water_creature=;water_ambient=;misc=;
+mod overlay the_void mushroom_fields mobs:monster=;creature=minecraft:mooshroom*8,;ambient=minecraft:bat*10,;axolotls=;underground_water_creature=minecraft:glow_squid*10,;water_creature=;water_ambient=;misc=;
+mod overlay the_void deep_dark mobs:monster=;creature=;ambient=;axolotls=;underground_water_creature=;water_creature=;water_ambient=;misc=;
+mod overlay the_void soul_sand_valley mobs:monster=minecraft:skeleton*20,minecraft:ghast*50,minecraft:enderman*1,;creature=minecraft:strider*60,;ambient=;axolotls=;underground_water_creature=;water_creature=;water_ambient=;misc=;cost=minecraft:enderman:3fc3333333333333:3fe6666666666666;cost=minecraft:ghast:3fc3333333333333:3fe6666666666666;cost=minecraft:skeleton:3fc3333333333333:3fe6666666666666;cost=minecraft:strider:3fc3333333333333:3fe6666666666666;
+mod overlay the_void the_void mobs:monster=;creature=;ambient=;axolotls=;underground_water_creature=;water_creature=;water_ambient=;misc=;
+mod overlay the_void warm_ocean mobs:monster=minecraft:drowned*5,minecraft:spider*100,minecraft:zombie*95,minecraft:zombie_villager*5,minecraft:skeleton*100,minecraft:creeper*100,minecraft:slime*100,minecraft:enderman*10,minecraft:witch*5,;creature=;ambient=minecraft:bat*10,;axolotls=;underground_water_creature=minecraft:glow_squid*10,;water_creature=minecraft:nautilus*5,minecraft:squid*10,minecraft:dolphin*2,;water_ambient=minecraft:pufferfish*15,minecraft:tropical_fish*25,;misc=;
+mod overlay warm_ocean plains mobs:monster=minecraft:spider*100,minecraft:zombie*90,minecraft:zombie_villager*5,minecraft:zombie_horse*5,minecraft:skeleton*100,minecraft:creeper*100,minecraft:slime*100,minecraft:enderman*10,minecraft:witch*5,;creature=minecraft:sheep*12,minecraft:pig*10,minecraft:chicken*10,minecraft:cow*8,minecraft:horse*5,minecraft:donkey*1,;ambient=minecraft:bat*10,;underground_water_creature=minecraft:glow_squid*10,;water_creature=minecraft:nautilus*5,minecraft:squid*10,minecraft:dolphin*2,;water_ambient=minecraft:pufferfish*15,minecraft:tropical_fish*25,;
+mod overlay warm_ocean desert mobs:monster=minecraft:spider*100,minecraft:zombie*19,minecraft:zombie_villager*1,minecraft:skeleton*50,minecraft:creeper*100,minecraft:slime*100,minecraft:enderman*10,minecraft:witch*5,minecraft:husk*80,minecraft:parched*50,;creature=minecraft:rabbit*12,minecraft:camel*1,;ambient=minecraft:bat*10,;underground_water_creature=minecraft:glow_squid*10,;water_creature=minecraft:nautilus*5,minecraft:squid*10,minecraft:dolphin*2,;water_ambient=minecraft:pufferfish*15,minecraft:tropical_fish*25,;
+mod overlay warm_ocean mushroom_fields mobs:monster=minecraft:drowned*5,minecraft:spider*100,minecraft:zombie*95,minecraft:zombie_villager*5,minecraft:skeleton*100,minecraft:creeper*100,minecraft:slime*100,minecraft:enderman*10,minecraft:witch*5,;creature=minecraft:mooshroom*8,;ambient=minecraft:bat*10,;underground_water_creature=minecraft:glow_squid*10,;water_creature=minecraft:nautilus*5,minecraft:squid*10,minecraft:dolphin*2,;water_ambient=minecraft:pufferfish*15,minecraft:tropical_fish*25,;
+mod overlay warm_ocean deep_dark mobs:monster=;creature=;ambient=;axolotls=;underground_water_creature=;water_creature=;water_ambient=;misc=;
+mod overlay warm_ocean soul_sand_valley mobs:monster=minecraft:skeleton*20,minecraft:ghast*50,minecraft:enderman*1,;creature=minecraft:strider*60,;ambient=minecraft:bat*10,;underground_water_creature=minecraft:glow_squid*10,;water_creature=minecraft:nautilus*5,minecraft:squid*10,minecraft:dolphin*2,;water_ambient=minecraft:pufferfish*15,minecraft:tropical_fish*25,;cost=minecraft:enderman:3fc3333333333333:3fe6666666666666;cost=minecraft:ghast:3fc3333333333333:3fe6666666666666;cost=minecraft:skeleton:3fc3333333333333:3fe6666666666666;cost=minecraft:strider:3fc3333333333333:3fe6666666666666;
+mod overlay warm_ocean the_void mobs:monster=;creature=;ambient=;axolotls=;underground_water_creature=;water_creature=;water_ambient=;misc=;
+mod overlay warm_ocean warm_ocean mobs:monster=minecraft:drowned*5,minecraft:spider*100,minecraft:zombie*95,minecraft:zombie_villager*5,minecraft:skeleton*100,minecraft:creeper*100,minecraft:slime*100,minecraft:enderman*10,minecraft:witch*5,;ambient=minecraft:bat*10,;underground_water_creature=minecraft:glow_squid*10,;water_creature=minecraft:nautilus*5,minecraft:squid*10,minecraft:dolphin*2,;water_ambient=minecraft:pufferfish*15,minecraft:tropical_fish*25,;
+ease constant f:0 f:0
+ease constant f:3dcccccd f:0
+ease constant f:3e800000 f:0
+ease constant f:3f000000 f:0
+ease constant f:3f3ae148 f:0
+ease constant f:3f666666 f:0
+ease constant f:3f800000 f:0
+ease linear f:0 f:0
+ease linear f:3dcccccd f:3dcccccd
+ease linear f:3e800000 f:3e800000
+ease linear f:3f000000 f:3f000000
+ease linear f:3f3ae148 f:3f3ae148
+ease linear f:3f666666 f:3f666666
+ease linear f:3f800000 f:3f800000
+ease in_back f:0 f:80000000
+ease in_back f:3dcccccd f:bc6a8632
+ease in_back f:3e800000 f:bd835a08
+ease in_back f:3f000000 f:bdb39ac0
+ease in_back f:3f3ae148 f:3e13a62f
+ease in_back f:3f666666 f:3f17570b
+ease in_back f:3f800000 f:3f800000
+ease in_bounce f:0 f:0
+ease in_bounce f:3dcccccd f:3c428f80
+ease in_bounce f:3e800000 f:3ce00000
+ease in_bounce f:3f000000 f:3e700000
+ease in_bounce f:3f3ae148 f:3ee5bb32
+ease in_bounce f:3f666666 f:3f6ca3d6
+ease in_bounce f:3f800000 f:3f800000
+ease in_circ f:0 f:0
+ease in_circ f:3dcccccd f:3ba44080
+ease in_circ f:3e800000 f:3d0210a0
+ease in_circ f:3f000000 f:3e0930a4
+ease in_circ f:3f3ae148 f:3ea21338
+ease in_circ f:3f666666 f:3f106984
+ease in_circ f:3f800000 f:3f800000
+ease in_cubic f:0 f:0
+ease in_cubic f:3dcccccd f:3a83126f
+ease in_cubic f:3e800000 f:3c800000
+ease in_cubic f:3f000000 f:3e000000
+ease in_cubic f:3f3ae148 f:3ec72d3e
+ease in_cubic f:3f666666 f:3f3a9fbd
+ease in_cubic f:3f800000 f:3f800000
+ease in_elastic f:0 f:0
+ease in_elastic f:3dcccccd f:3b000000
+ease in_elastic f:3e800000 f:bbb504f3
+ease in_elastic f:3f000000 f:bc7ffff6
+ease in_elastic f:3f3ae148 f:3dfefaf4
+ease in_elastic f:3f666666 f:be800007
+ease in_elastic f:3f800000 f:3f800000
+ease in_expo f:0 f:0
+ease in_expo f:3dcccccd f:3b000000
+ease in_expo f:3e800000 f:3bb504f3
+ease in_expo f:3f000000 f:3d000000
+ease in_expo f:3f3ae148 f:3e1d9625
+ease in_expo f:3f666666 f:3efffffd
+ease in_expo f:3f800000 f:3f800000
+ease in_quad f:0 f:0
+ease in_quad f:3dcccccd f:3c23d70b
+ease in_quad f:3e800000 f:3d800000
+ease in_quad f:3f000000 f:3e800000
+ease in_quad f:3f3ae148 f:3f086c23
+ease in_quad f:3f666666 f:3f4f5c28
+ease in_quad f:3f800000 f:3f800000
+ease in_quart f:0 f:0
+ease in_quart f:3dcccccd f:38d1b719
+ease in_quart f:3e800000 f:3b800000
+ease in_quart f:3f000000 f:3d800000
+ease in_quart f:3f3ae148 f:3e916626
+ease in_quart f:3f666666 f:3f27f62a
+ease in_quart f:3f800000 f:3f800000
+ease in_quint f:0 f:0
+ease in_quint f:3dcccccd f:3727c5ae
+ease in_quint f:3e800000 f:3a800000
+ease in_quint f:3f000000 f:3d000000
+ease in_quint f:3f3ae148 f:3e544857
+ease in_quint f:3f666666 f:3f172a59
+ease in_quint f:3f800000 f:3f800000
+ease in_sine f:0 f:0
+ease in_sine f:3dcccccd f:3c499dc0
+ease in_sine f:3e800000 f:3d9be510
+ease in_sine f:3f000000 f:3e95f61a
+ease in_sine f:3f3ae148 f:3f16a52a
+ease in_sine f:3f666666 f:3f57f030
+ease in_sine f:3f800000 f:3f800000
+ease in_out_back f:0 f:80000000
+ease in_out_back f:3dcccccd f:bd19ad0e
+ease in_out_back f:3e800000 f:bdcc25fe
+ease in_out_back f:3f000000 f:3f000000
+ease in_out_back f:3f3ae148 f:3f8c32e7
+ease in_out_back f:3f666666 f:3f84cd69
+ease in_out_back f:3f800000 f:3f800000
+ease in_out_bounce f:0 f:0
+ease in_out_bounce f:3dcccccd f:3cf5c290
+ease in_out_bounce f:3e800000 f:3df00000
+ease in_out_bounce f:3f000000 f:3f000000
+ease in_out_bounce f:3f3ae148 f:3f67119c
+ease in_out_bounce f:3f666666 f:3f7851ec
+ease in_out_bounce f:3f800000 f:3f800000
+ease in_out_circ f:0 f:0
+ease in_out_circ f:3dcccccd f:3c258313
+ease in_out_circ f:3e800000 f:3d8930a3
+ease in_out_circ f:3f000000 f:3f000000
+ease in_out_circ f:3f3ae148 f:3f6bbbae
+ease in_out_circ f:3f666666 f:3f7d69f4
+ease in_out_circ f:3f800000 f:3f800000
+ease in_out_cubic f:0 f:0
+ease in_out_cubic f:3dcccccd f:3b83126f
+ease in_out_cubic f:3e800000 f:3d800000
+ease in_out_cubic f:3f000000 f:3f000000
+ease in_out_cubic f:3f3ae148 f:3f6bd839
+ease in_out_cubic f:3f666666 f:3f7ef9db
+ease in_out_cubic f:3f800000 f:3f800000
+ease in_out_elastic f:0 f:0
+ease in_out_elastic f:3dcccccd f:39b1d101
+ease in_out_elastic f:3e800000 f:3c441b78
+ease in_out_elastic f:3f000000 f:3f000000
+ease in_out_elastic f:3f3ae148 f:3f7ac5f9
+ease in_out_elastic f:3f666666 f:3f7fe9c6
+ease in_out_elastic f:3f800000 f:3f800000
+ease in_out_expo f:0 f:0
+ease in_out_expo f:3dcccccd f:3b000000
+ease in_out_expo f:3e800000 f:3c800000
+ease in_out_expo f:3f000000 f:3f000000
+ease in_out_expo f:3f3ae148 f:3f7ab8d3
+ease in_out_expo f:3f666666 f:3f7f8000
+ease in_out_expo f:3f800000 f:3f800000
+ease in_out_quad f:0 f:0
+ease in_out_quad f:3dcccccd f:3ca3d70b
+ease in_out_quad f:3e800000 f:3e000000
+ease in_out_quad f:3f000000 f:3f000000
+ease in_out_quad f:3f3ae148 f:3f5aacda
+ease in_out_quad f:3f666666 f:3f7ae148
+ease in_out_quad f:3f800000 f:3f800000
+ease in_out_quart f:0 f:0
+ease in_out_quart f:3dcccccd f:3a51b719
+ease in_out_quart f:3e800000 f:3d000000
+ease in_out_quart f:3f000000 f:3f000000
+ease in_out_quart f:3f3ae148 f:3f751db8
+ease in_out_quart f:3f666666 f:3f7fcb92
+ease in_out_quart f:3f800000 f:3f800000
+ease in_out_quint f:0 f:0
+ease in_out_quint f:3dcccccd f:3927c5ad
+ease in_out_quint f:3e800000 f:3c800000
+ease in_out_quint f:3f000000 f:3f000000
+ease in_out_quint f:3f3ae148 f:3f7a1f69
+ease in_out_quint f:3f666666 f:3f7ff584
+ease in_out_quint f:3f800000 f:3f800000
+ease in_out_sine f:0 f:80000000
+ease in_out_sine f:3dcccccd f:3cc86020
+ease in_out_sine f:3e800000 f:3e15f61a
+ease in_out_sine f:3f000000 f:3f000000
+ease in_out_sine f:3f3ae148 f:3f54a45c
+ease in_out_sine f:3f666666 f:3f79bc06
+ease in_out_sine f:3f800000 f:3f800000
+ease out_back f:0 f:0
+ease out_back f:3dcccccd f:3ed151e8
+ease out_back f:3e800000 f:3f5141c4
+ease out_back f:3f000000 f:3f8b39ac
+ease out_back f:3f3ae148 f:3f891244
+ease out_back f:3f666666 f:3f81d50c
+ease out_back f:3f800000 f:3f800000
+ease out_bounce f:0 f:0
+ease out_bounce f:3dcccccd f:3d9ae148
+ease out_bounce f:3e800000 f:3ef20000
+ease out_bounce f:3f000000 f:3f440000
+ease out_bounce f:3f3ae148 f:3f7f0ded
+ease out_bounce f:3f666666 f:3f7cf5c2
+ease out_bounce f:3f800000 f:3f800000
+ease out_circ f:0 f:0
+ease out_circ f:3dcccccd f:3edf2cf8
+ease out_circ f:3e800000 f:3f2953fd
+ease out_circ f:3f000000 f:3f5db3d7
+ease out_circ f:3f3ae148 f:3f767e04
+ease out_circ f:3f666666 f:3f7eb77f
+ease out_circ f:3f800000 f:3f800000
+ease out_cubic f:0 f:0
+ease out_cubic f:3dcccccd f:3e8ac086
+ease out_cubic f:3e800000 f:3f140000
+ease out_cubic f:3f000000 f:3f600000
+ease out_cubic f:3f3ae148 f:3f7af60e
+ease out_cubic f:3f666666 f:3f7fbe77
+ease out_cubic f:3f800000 f:3f800000
+ease out_elastic f:0 f:0
+ease out_elastic f:3dcccccd f:3fa00000
+ease out_elastic f:3e800000 f:3f695f61
+ease out_elastic f:3f000000 f:3f820000
+ease out_elastic f:3f3ae148 f:3f80bdf6
+ease out_elastic f:3f666666 f:3f7f8000
+ease out_elastic f:3f800000 f:3f800000
+ease out_expo f:0 f:0
+ease out_expo f:3dcccccd f:3f000000
+ease out_expo f:3e800000 f:3f52bec3
+ease out_expo f:3f000000 f:3f780000
+ease out_expo f:3f3ae148 f:3f7e6020
+ease out_expo f:3f666666 f:3f7f8000
+ease out_expo f:3f800000 f:3f800000
+ease out_quad f:0 f:0
+ease out_quad f:3dcccccd f:3e428f60
+ease out_quad f:3e800000 f:3ee00000
+ease out_quad f:3f000000 f:3f400000
+ease out_quad f:3f3ae148 f:3f6d566d
+ease out_quad f:3f666666 f:3f7d70a4
+ease out_quad f:3f800000 f:3f800000
+ease out_quart f:0 f:0
+ease out_quart f:3dcccccd f:3eb013ac
+ease out_quart f:3e800000 f:3f2f0000
+ease out_quart f:3f000000 f:3f700000
+ease out_quart f:3f3ae148 f:3f7ea3b7
+ease out_quart f:3f666666 f:3f7ff972
+ease out_quart f:3f800000 f:3f800000
+ease out_quint f:0 f:0
+ease out_quint f:3dcccccd f:3ed1ab4c
+ease out_quint f:3e800000 f:3f434000
+ease out_quint f:3f000000 f:3f780000
+ease out_quint f:3f3ae148 f:3f7fa1f7
+ease out_quint f:3f666666 f:3f7fff58
+ease out_quint f:3f800000 f:3f800000
+ease out_sine f:0 f:0
+ease out_sine f:3dcccccd f:3e20266d
+ease out_sine f:3e800000 f:3ec3ef15
+ease out_sine f:3f000000 f:3f3504f3
+ease out_sine f:3f3ae148 f:3f6950e6
+ease out_sine f:3f666666 f:3f7cd88e
+ease out_sine f:3f800000 f:3f800000
+ease bezier f:0 f:0
+ease bezier f:3dcccccd f:3d995be5
+ease bezier f:3e800000 f:3e5ccd49
+ease bezier f:3f000000 f:3f000000
+ease bezier f:3f3ae148 f:3f436f03
+ease bezier f:3f666666 f:3f6cd484
+ease bezier f:3f800000 f:3f800000
+dim overworld 0 f:0 f:0 visual/fog_color rgb:f:3f335ee8,f:3f49cac5,f:3f6ebec1
+dim overworld 0 f:0 f:0 visual/sky_color rgb:f:3edf2afd,f:3f1b49a6,f:3f6d1dad
+dim overworld 0 f:0 f:0 visual/sunrise_sunset_color argb:f:3f6e1f0a,f:3f1d487f,f:3e4ccccd,f:3ee3f92c
+dim overworld 0 f:0 f:0 visual/cloud_color argb:f:3f6ef7a1,f:3f6ef7a1,f:3f6fee16,f:3f4ccccd
+dim overworld 0 f:0 f:0 visual/sun_angle f:438d2fea
+dim overworld 0 f:0 f:0 visual/moon_angle f:43e72fea
+dim overworld 0 f:0 f:0 visual/star_angle f:438d2fea
+dim overworld 0 f:0 f:0 visual/star_brightness f:3d5fc264
+dim overworld 0 f:0 f:0 visual/sky_light_color rgb:f:3f4be06a,f:3f4be06a,f:3f800000
+dim overworld 0 f:0 f:0 visual/sky_light_factor f:3f340c7c
+dim overworld 0 f:0 f:0 visual/ambient_light_color rgb:f:3d20a0a1,f:3d20a0a1,f:3d20a0a1
+dim overworld 0 f:0 f:0 gameplay/sky_light_level f:41630467
+dim overworld 0 f:0 f:0 gameplay/nether_portal_spawns_piglin true
+dim overworld 0 f:0 f:0 gameplay/eyeblossom_open false
+dim overworld 0 f:0 f:0 gameplay/surface_slime_spawn_chance f:3f000000
+dim overworld 0 f:0 f:0 gameplay/cat_waking_up_gift_chance f:3f333333
+dim overworld 0 f:0 f:0 gameplay/monsters_burn true
+dim overworld 0 f:0 f:0 gameplay/can_pillager_patrol_spawn false
+dim overworld 0 f:0 f:0 gameplay/villager_activity minecraft:rest
+dim overworld 0 f:0 f:0 gameplay/baby_villager_activity minecraft:rest
+dim overworld 0 f:3ecccccd f:0 visual/fog_color rgb:f:3f0f5b1c,f:3f214680,f:3f488bc1
+dim overworld 0 f:3ecccccd f:0 visual/sky_color rgb:f:3ed2a43a,f:3f07e9d2,f:3f413170
+dim overworld 0 f:3ecccccd f:0 visual/sunrise_sunset_color argb:f:3f3e4f6c,f:3efb6809,f:3e2c0831,f:3ee3f92c
+dim overworld 0 f:3ecccccd f:0 visual/cloud_color argb:f:3f4aa63c,f:3f4aa63c,f:3f4b6b66,f:3f4ccccd
+dim overworld 0 f:3ecccccd f:0 visual/sun_angle f:438d2fea
+dim overworld 0 f:3ecccccd f:0 visual/moon_angle f:43e72fea
+dim overworld 0 f:3ecccccd f:0 visual/star_angle f:438d2fea
+dim overworld 0 f:3ecccccd f:0 visual/star_brightness f:3d06416f
+dim overworld 0 f:3ecccccd f:0 visual/sky_light_color rgb:f:3f41ca25,f:3f41ca25,f:3f800000
+dim overworld 0 f:3ecccccd f:0 visual/sky_light_factor f:3f253901
+dim overworld 0 f:3ecccccd f:0 visual/ambient_light_color rgb:f:3d20a0a1,f:3d20a0a1,f:3d20a0a1
+dim overworld 0 f:3ecccccd f:0 gameplay/sky_light_level f:414ea3da
+dim overworld 0 f:3ecccccd f:0 gameplay/nether_portal_spawns_piglin true
+dim overworld 0 f:3ecccccd f:0 gameplay/eyeblossom_open false
+dim overworld 0 f:3ecccccd f:0 gameplay/surface_slime_spawn_chance f:3f000000
+dim overworld 0 f:3ecccccd f:0 gameplay/cat_waking_up_gift_chance f:3f333333
+dim overworld 0 f:3ecccccd f:0 gameplay/bees_stay_in_hive true
+dim overworld 0 f:3ecccccd f:0 gameplay/monsters_burn true
+dim overworld 0 f:3ecccccd f:0 gameplay/can_pillager_patrol_spawn false
+dim overworld 0 f:3ecccccd f:0 gameplay/villager_activity minecraft:rest
+dim overworld 0 f:3ecccccd f:0 gameplay/baby_villager_activity minecraft:rest
+dim overworld 0 f:3f800000 f:3f19999a visual/fog_color rgb:f:3e9d2f7e,f:3eb0d56f,f:3ee82951
+dim overworld 0 f:3f800000 f:3f19999a visual/sky_color rgb:f:3e7fb5e9,f:3e9a8834,f:3ecc7ae1
+dim overworld 0 f:3f800000 f:3f19999a visual/sunrise_sunset_color argb:f:3ed0ab69,f:3e89d471,f:3dc72701,f:3ee3f92c
+dim overworld 0 f:3f800000 f:3f19999a visual/cloud_color argb:f:3ec66f69,f:3ec66f69,f:3ec71b57,f:3f4ccccd
+dim overworld 0 f:3f800000 f:3f19999a visual/sun_angle f:438d2fea
+dim overworld 0 f:3f800000 f:3f19999a visual/moon_angle f:43e72fea
+dim overworld 0 f:3f800000 f:3f19999a visual/star_angle f:438d2fea
+dim overworld 0 f:3f800000 f:3f19999a visual/star_brightness f:3c56cf18
+dim overworld 0 f:3f800000 f:3f19999a visual/sky_light_color rgb:f:3f2b4e3d,f:3f2b4e3d,f:3f800000
+dim overworld 0 f:3f800000 f:3f19999a visual/sky_light_factor f:3f04629c
+dim overworld 0 f:3f800000 f:3f19999a visual/ambient_light_color rgb:f:3d20a0a1,f:3d20a0a1,f:3d20a0a1
+dim overworld 0 f:3f800000 f:3f19999a gameplay/sky_light_level f:41218202
+dim overworld 0 f:3f800000 f:3f19999a gameplay/nether_portal_spawns_piglin true
+dim overworld 0 f:3f800000 f:3f19999a gameplay/eyeblossom_open false
+dim overworld 0 f:3f800000 f:3f19999a gameplay/surface_slime_spawn_chance f:3f000000
+dim overworld 0 f:3f800000 f:3f19999a gameplay/cat_waking_up_gift_chance f:3f333333
+dim overworld 0 f:3f800000 f:3f19999a gameplay/bees_stay_in_hive true
+dim overworld 0 f:3f800000 f:3f19999a gameplay/monsters_burn true
+dim overworld 0 f:3f800000 f:3f19999a gameplay/can_pillager_patrol_spawn false
+dim overworld 0 f:3f800000 f:3f19999a gameplay/villager_activity minecraft:rest
+dim overworld 0 f:3f800000 f:3f19999a gameplay/baby_villager_activity minecraft:rest
+dim overworld 133 f:0 f:0 visual/fog_color rgb:f:3f40c0c1,f:3f58d8d9,f:3f800000
+dim overworld 133 f:0 f:0 visual/sky_color rgb:f:3ef0f0f1,f:3f27a7a8,f:3f800000
+dim overworld 133 f:0 f:0 visual/sunrise_sunset_color argb:f:3f717ff6,f:3f29a110,f:3e4ccccd,f:3ea29e56
+dim overworld 133 f:0 f:0 visual/cloud_color argb:f:3f800000,f:3f800000,f:3f800000,f:3f4ccccd
+dim overworld 133 f:0 f:0 visual/sun_angle f:438e37d5
+dim overworld 133 f:0 f:0 visual/moon_angle f:43e837d5
+dim overworld 133 f:0 f:0 visual/star_angle f:438e37d5
+dim overworld 133 f:0 f:0 visual/star_brightness f:3d0bf00f
+dim overworld 133 f:0 f:0 visual/sky_light_color rgb:f:3f555f81,f:3f555f81,f:3f800000
+dim overworld 133 f:0 f:0 visual/sky_light_factor f:3f41e2ef
+dim overworld 133 f:0 f:0 visual/ambient_light_color rgb:f:3d20a0a1,f:3d20a0a1,f:3d20a0a1
+dim overworld 133 f:0 f:0 gameplay/nether_portal_spawns_piglin true
+dim overworld 133 f:0 f:0 gameplay/eyeblossom_open false
+dim overworld 133 f:0 f:0 gameplay/surface_slime_spawn_chance f:3f000000
+dim overworld 133 f:0 f:0 gameplay/cat_waking_up_gift_chance f:3f333333
+dim overworld 133 f:0 f:0 gameplay/monsters_burn true
+dim overworld 133 f:0 f:0 gameplay/can_pillager_patrol_spawn false
+dim overworld 133 f:3ecccccd f:0 visual/fog_color rgb:f:3f1a0d1a,f:3f2d4ebd,f:3f570a3e
+dim overworld 133 f:3ecccccd f:0 visual/sky_color rgb:f:3ee36acb,f:3f12bcd3,f:3f509444
+dim overworld 133 f:3ecccccd f:0 visual/sunrise_sunset_color argb:f:3f4102ae,f:3f0791fe,f:3e2c0831,f:3ea29e56
+dim overworld 133 f:3ecccccd f:0 visual/cloud_color argb:f:3f591687,f:3f591687,f:3f591687,f:3f4ccccd
+dim overworld 133 f:3ecccccd f:0 visual/sun_angle f:438e37d5
+dim overworld 133 f:3ecccccd f:0 visual/moon_angle f:43e837d5
+dim overworld 133 f:3ecccccd f:0 visual/star_angle f:438e37d5
+dim overworld 133 f:3ecccccd f:0 visual/star_brightness f:3ca7ecde
+dim overworld 133 f:3ecccccd f:0 visual/sky_light_color rgb:f:3f4a1bf8,f:3f4a1bf8,f:3f800000
+dim overworld 133 f:3ecccccd f:0 visual/sky_light_factor f:3f3154a6
+dim overworld 133 f:3ecccccd f:0 visual/ambient_light_color rgb:f:3d20a0a1,f:3d20a0a1,f:3d20a0a1
+dim overworld 133 f:3ecccccd f:0 gameplay/sky_light_level f:415a0000
+dim overworld 133 f:3ecccccd f:0 gameplay/nether_portal_spawns_piglin true
+dim overworld 133 f:3ecccccd f:0 gameplay/eyeblossom_open false
+dim overworld 133 f:3ecccccd f:0 gameplay/surface_slime_spawn_chance f:3f000000
+dim overworld 133 f:3ecccccd f:0 gameplay/cat_waking_up_gift_chance f:3f333333
+dim overworld 133 f:3ecccccd f:0 gameplay/bees_stay_in_hive true
+dim overworld 133 f:3ecccccd f:0 gameplay/monsters_burn true
+dim overworld 133 f:3ecccccd f:0 gameplay/can_pillager_patrol_spawn false
+dim overworld 133 f:3f800000 f:3f19999a visual/fog_color rgb:f:3ea8e99f,f:3ebe06d3,f:3ef8f0c0
+dim overworld 133 f:3f800000 f:3f19999a visual/sky_color rgb:f:3e8a09ac,f:3ea6d6d0,f:3edcc3d3
+dim overworld 133 f:3f800000 f:3f19999a visual/sunrise_sunset_color argb:f:3ed3a15b,f:3e94a61a,f:3dc72701,f:3ea29e56
+dim overworld 133 f:3f800000 f:3f19999a visual/cloud_color argb:f:3ed4905a,f:3ed4905a,f:3ed4905a,f:3f4ccccd
+dim overworld 133 f:3f800000 f:3f19999a visual/sun_angle f:438e37d5
+dim overworld 133 f:3f800000 f:3f19999a visual/moon_angle f:43e837d5
+dim overworld 133 f:3f800000 f:3f19999a visual/star_angle f:438e37d5
+dim overworld 133 f:3f800000 f:3f19999a visual/star_brightness f:3c065718
+dim overworld 133 f:3f800000 f:3f19999a visual/sky_light_color rgb:f:3f31008b,f:3f31008b,f:3f800000
+dim overworld 133 f:3f800000 f:3f19999a visual/sky_light_factor f:3f0ca981
+dim overworld 133 f:3f800000 f:3f19999a visual/ambient_light_color rgb:f:3d20a0a1,f:3d20a0a1,f:3d20a0a1
+dim overworld 133 f:3f800000 f:3f19999a gameplay/sky_light_level f:41294600
+dim overworld 133 f:3f800000 f:3f19999a gameplay/nether_portal_spawns_piglin true
+dim overworld 133 f:3f800000 f:3f19999a gameplay/eyeblossom_open false
+dim overworld 133 f:3f800000 f:3f19999a gameplay/surface_slime_spawn_chance f:3f000000
+dim overworld 133 f:3f800000 f:3f19999a gameplay/cat_waking_up_gift_chance f:3f333333
+dim overworld 133 f:3f800000 f:3f19999a gameplay/bees_stay_in_hive true
+dim overworld 133 f:3f800000 f:3f19999a gameplay/monsters_burn true
+dim overworld 133 f:3f800000 f:3f19999a gameplay/can_pillager_patrol_spawn false
+dim overworld 1000 f:0 f:0 visual/fog_color rgb:f:3f40c0c1,f:3f58d8d9,f:3f800000
+dim overworld 1000 f:0 f:0 visual/sky_color rgb:f:3ef0f0f1,f:3f27a7a8,f:3f800000
+dim overworld 1000 f:0 f:0 visual/sunrise_sunset_color argb:f:3f800000,f:3f65e5e6,f:3e4ccccd,f:0
+dim overworld 1000 f:0 f:0 visual/cloud_color argb:f:3f800000,f:3f800000,f:3f800000,f:3f4ccccd
+dim overworld 1000 f:0 f:0 visual/sun_angle f:4394c5da
+dim overworld 1000 f:0 f:0 visual/moon_angle f:43eec5da
+dim overworld 1000 f:0 f:0 visual/star_angle f:4394c5da
+dim overworld 1000 f:0 f:0 visual/ambient_light_color rgb:f:3d20a0a1,f:3d20a0a1,f:3d20a0a1
+dim overworld 1000 f:0 f:0 gameplay/nether_portal_spawns_piglin true
+dim overworld 1000 f:0 f:0 gameplay/eyeblossom_open false
+dim overworld 1000 f:0 f:0 gameplay/surface_slime_spawn_chance f:3f000000
+dim overworld 1000 f:0 f:0 gameplay/monsters_burn true
+dim overworld 1000 f:0 f:0 gameplay/can_pillager_patrol_spawn false
+dim overworld 1000 f:3ecccccd f:0 visual/fog_color rgb:f:3f1a0d1a,f:3f2d4ebd,f:3f570a3e
+dim overworld 1000 f:3ecccccd f:0 visual/sky_color rgb:f:3ee36acb,f:3f12bcd3,f:3f509444
+dim overworld 1000 f:3ecccccd f:0 visual/sunrise_sunset_color argb:f:3f4c9966,f:3f37bcf5,f:3e2c0831,f:0
+dim overworld 1000 f:3ecccccd f:0 visual/cloud_color argb:f:3f591687,f:3f591687,f:3f591687,f:3f4ccccd
+dim overworld 1000 f:3ecccccd f:0 visual/sun_angle f:4394c5da
+dim overworld 1000 f:3ecccccd f:0 visual/moon_angle f:43eec5da
+dim overworld 1000 f:3ecccccd f:0 visual/star_angle f:4394c5da
+dim overworld 1000 f:3ecccccd f:0 visual/sky_light_color rgb:f:3f6f742c,f:3f6f742c,f:3f800000
+dim overworld 1000 f:3ecccccd f:0 visual/sky_light_factor f:3f67ae14
+dim overworld 1000 f:3ecccccd f:0 visual/ambient_light_color rgb:f:3d20a0a1,f:3d20a0a1,f:3d20a0a1
+dim overworld 1000 f:3ecccccd f:0 gameplay/sky_light_level f:415a0000
+dim overworld 1000 f:3ecccccd f:0 gameplay/nether_portal_spawns_piglin true
+dim overworld 1000 f:3ecccccd f:0 gameplay/eyeblossom_open false
+dim overworld 1000 f:3ecccccd f:0 gameplay/surface_slime_spawn_chance f:3f000000
+dim overworld 1000 f:3ecccccd f:0 gameplay/bees_stay_in_hive true
+dim overworld 1000 f:3ecccccd f:0 gameplay/monsters_burn true
+dim overworld 1000 f:3ecccccd f:0 gameplay/can_pillager_patrol_spawn false
+dim overworld 1000 f:3f800000 f:3f19999a visual/fog_color rgb:f:3ea8e99f,f:3ebe06d3,f:3ef8f0c0
+dim overworld 1000 f:3f800000 f:3f19999a visual/sky_color rgb:f:3e8a09ac,f:3ea6d6d0,f:3edcc3d3
+dim overworld 1000 f:3f800000 f:3f19999a visual/sunrise_sunset_color argb:f:3ee05646,f:3ec976a5,f:3dc72701,f:0
+dim overworld 1000 f:3f800000 f:3f19999a visual/cloud_color argb:f:3ed4905a,f:3ed4905a,f:3ed4905a,f:3f4ccccd
+dim overworld 1000 f:3f800000 f:3f19999a visual/sun_angle f:4394c5da
+dim overworld 1000 f:3f800000 f:3f19999a visual/moon_angle f:43eec5da
+dim overworld 1000 f:3f800000 f:3f19999a visual/star_angle f:4394c5da
+dim overworld 1000 f:3f800000 f:3f19999a visual/sky_light_color rgb:f:3f4a9278,f:3f4a9278,f:3f800000
+dim overworld 1000 f:3f800000 f:3f19999a visual/sky_light_factor f:3f31d0a4
+dim overworld 1000 f:3f800000 f:3f19999a visual/ambient_light_color rgb:f:3d20a0a1,f:3d20a0a1,f:3d20a0a1
+dim overworld 1000 f:3f800000 f:3f19999a gameplay/sky_light_level f:41294600
+dim overworld 1000 f:3f800000 f:3f19999a gameplay/nether_portal_spawns_piglin true
+dim overworld 1000 f:3f800000 f:3f19999a gameplay/eyeblossom_open false
+dim overworld 1000 f:3f800000 f:3f19999a gameplay/surface_slime_spawn_chance f:3f000000
+dim overworld 1000 f:3f800000 f:3f19999a gameplay/bees_stay_in_hive true
+dim overworld 1000 f:3f800000 f:3f19999a gameplay/monsters_burn true
+dim overworld 1000 f:3f800000 f:3f19999a gameplay/can_pillager_patrol_spawn false
+dim overworld 6000 f:0 f:0 visual/fog_color rgb:f:3f40c0c1,f:3f58d8d9,f:3f800000
+dim overworld 6000 f:0 f:0 visual/sky_color rgb:f:3ef0f0f1,f:3f27a7a8,f:3f800000
+dim overworld 6000 f:0 f:0 visual/sunrise_sunset_color argb:f:3f800000,f:3f65e5e6,f:3e4ccccd,f:0
+dim overworld 6000 f:0 f:0 visual/cloud_color argb:f:3f800000,f:3f800000,f:3f800000,f:3f4ccccd
+dim overworld 6000 f:0 f:0 visual/moon_angle f:43340000
+dim overworld 6000 f:0 f:0 visual/ambient_light_color rgb:f:3d20a0a1,f:3d20a0a1,f:3d20a0a1
+dim overworld 6000 f:0 f:0 gameplay/nether_portal_spawns_piglin true
+dim overworld 6000 f:0 f:0 gameplay/eyeblossom_open false
+dim overworld 6000 f:0 f:0 gameplay/surface_slime_spawn_chance f:3f000000
+dim overworld 6000 f:0 f:0 gameplay/monsters_burn true
+dim overworld 6000 f:0 f:0 gameplay/can_pillager_patrol_spawn false
+dim overworld 6000 f:0 f:0 gameplay/villager_activity minecraft:work
+dim overworld 6000 f:3ecccccd f:0 visual/fog_color rgb:f:3f1a0d1a,f:3f2d4ebd,f:3f570a3e
+dim overworld 6000 f:3ecccccd f:0 visual/sky_color rgb:f:3ee36acb,f:3f12bcd3,f:3f509444
+dim overworld 6000 f:3ecccccd f:0 visual/sunrise_sunset_color argb:f:3f4c9966,f:3f37bcf5,f:3e2c0831,f:0
+dim overworld 6000 f:3ecccccd f:0 visual/cloud_color argb:f:3f591687,f:3f591687,f:3f591687,f:3f4ccccd
+dim overworld 6000 f:3ecccccd f:0 visual/moon_angle f:43340000
+dim overworld 6000 f:3ecccccd f:0 visual/sky_light_color rgb:f:3f6f742c,f:3f6f742c,f:3f800000
+dim overworld 6000 f:3ecccccd f:0 visual/sky_light_factor f:3f67ae14
+dim overworld 6000 f:3ecccccd f:0 visual/ambient_light_color rgb:f:3d20a0a1,f:3d20a0a1,f:3d20a0a1
+dim overworld 6000 f:3ecccccd f:0 gameplay/sky_light_level f:415a0000
+dim overworld 6000 f:3ecccccd f:0 gameplay/nether_portal_spawns_piglin true
+dim overworld 6000 f:3ecccccd f:0 gameplay/eyeblossom_open false
+dim overworld 6000 f:3ecccccd f:0 gameplay/surface_slime_spawn_chance f:3f000000
+dim overworld 6000 f:3ecccccd f:0 gameplay/bees_stay_in_hive true
+dim overworld 6000 f:3ecccccd f:0 gameplay/monsters_burn true
+dim overworld 6000 f:3ecccccd f:0 gameplay/can_pillager_patrol_spawn false
+dim overworld 6000 f:3ecccccd f:0 gameplay/villager_activity minecraft:work
+dim overworld 6000 f:3f800000 f:3f19999a visual/fog_color rgb:f:3ea8e99f,f:3ebe06d3,f:3ef8f0c0
+dim overworld 6000 f:3f800000 f:3f19999a visual/sky_color rgb:f:3e8a09ac,f:3ea6d6d0,f:3edcc3d3
+dim overworld 6000 f:3f800000 f:3f19999a visual/sunrise_sunset_color argb:f:3ee05646,f:3ec976a5,f:3dc72701,f:0
+dim overworld 6000 f:3f800000 f:3f19999a visual/cloud_color argb:f:3ed4905a,f:3ed4905a,f:3ed4905a,f:3f4ccccd
+dim overworld 6000 f:3f800000 f:3f19999a visual/moon_angle f:43340000
+dim overworld 6000 f:3f800000 f:3f19999a visual/sky_light_color rgb:f:3f4a9278,f:3f4a9278,f:3f800000
+dim overworld 6000 f:3f800000 f:3f19999a visual/sky_light_factor f:3f31d0a4
+dim overworld 6000 f:3f800000 f:3f19999a visual/ambient_light_color rgb:f:3d20a0a1,f:3d20a0a1,f:3d20a0a1
+dim overworld 6000 f:3f800000 f:3f19999a gameplay/sky_light_level f:41294600
+dim overworld 6000 f:3f800000 f:3f19999a gameplay/nether_portal_spawns_piglin true
+dim overworld 6000 f:3f800000 f:3f19999a gameplay/eyeblossom_open false
+dim overworld 6000 f:3f800000 f:3f19999a gameplay/surface_slime_spawn_chance f:3f000000
+dim overworld 6000 f:3f800000 f:3f19999a gameplay/bees_stay_in_hive true
+dim overworld 6000 f:3f800000 f:3f19999a gameplay/monsters_burn true
+dim overworld 6000 f:3f800000 f:3f19999a gameplay/can_pillager_patrol_spawn false
+dim overworld 6000 f:3f800000 f:3f19999a gameplay/villager_activity minecraft:work
+dim overworld 12000 f:0 f:0 visual/fog_color rgb:f:3f335ee8,f:3f49cac5,f:3f6ebec1
+dim overworld 12000 f:0 f:0 visual/sky_color rgb:f:3edf2afd,f:3f1b49a6,f:3f6d1dad
+dim overworld 12000 f:0 f:0 visual/sunrise_sunset_color argb:f:3f6e1f0a,f:3f1d487f,f:3e4ccccd,f:3ee3f92c
+dim overworld 12000 f:0 f:0 visual/cloud_color argb:f:3f6ef7a1,f:3f6ef7a1,f:3f6fee16,f:3f4ccccd
+dim overworld 12000 f:0 f:0 visual/sun_angle f:429b4057
+dim overworld 12000 f:0 f:0 visual/moon_angle f:4380d016
+dim overworld 12000 f:0 f:0 visual/star_angle f:429b4057
+dim overworld 12000 f:0 f:0 visual/star_brightness f:3d5a0275
+dim overworld 12000 f:0 f:0 visual/sky_light_color rgb:f:3f4be069,f:3f4be069,f:3f800000
+dim overworld 12000 f:0 f:0 visual/sky_light_factor f:3f340c7c
+dim overworld 12000 f:0 f:0 visual/ambient_light_color rgb:f:3d20a0a1,f:3d20a0a1,f:3d20a0a1
+dim overworld 12000 f:0 f:0 gameplay/sky_light_level f:41630467
+dim overworld 12000 f:0 f:0 gameplay/nether_portal_spawns_piglin true
+dim overworld 12000 f:0 f:0 gameplay/eyeblossom_open false
+dim overworld 12000 f:0 f:0 gameplay/surface_slime_spawn_chance f:3f000000
+dim overworld 12000 f:0 f:0 gameplay/monsters_burn true
+dim overworld 12000 f:0 f:0 gameplay/can_pillager_patrol_spawn false
+dim overworld 12000 f:0 f:0 gameplay/villager_activity minecraft:rest
+dim overworld 12000 f:0 f:0 gameplay/baby_villager_activity minecraft:rest
+dim overworld 12000 f:3ecccccd f:0 visual/fog_color rgb:f:3f0f5b1c,f:3f214680,f:3f488bc1
+dim overworld 12000 f:3ecccccd f:0 visual/sky_color rgb:f:3ed2a43a,f:3f07e9d2,f:3f413170
+dim overworld 12000 f:3ecccccd f:0 visual/sunrise_sunset_color argb:f:3f3e4f6c,f:3efb6809,f:3e2c0831,f:3ee3f92c
+dim overworld 12000 f:3ecccccd f:0 visual/cloud_color argb:f:3f4aa63c,f:3f4aa63c,f:3f4b6b66,f:3f4ccccd
+dim overworld 12000 f:3ecccccd f:0 visual/sun_angle f:429b4057
+dim overworld 12000 f:3ecccccd f:0 visual/moon_angle f:4380d016
+dim overworld 12000 f:3ecccccd f:0 visual/star_angle f:429b4057
+dim overworld 12000 f:3ecccccd f:0 visual/star_brightness f:3d02ce46
+dim overworld 12000 f:3ecccccd f:0 visual/sky_light_color rgb:f:3f41ca24,f:3f41ca24,f:3f800000
+dim overworld 12000 f:3ecccccd f:0 visual/sky_light_factor f:3f253901
+dim overworld 12000 f:3ecccccd f:0 visual/ambient_light_color rgb:f:3d20a0a1,f:3d20a0a1,f:3d20a0a1
+dim overworld 12000 f:3ecccccd f:0 gameplay/sky_light_level f:414ea3da
+dim overworld 12000 f:3ecccccd f:0 gameplay/nether_portal_spawns_piglin true
+dim overworld 12000 f:3ecccccd f:0 gameplay/eyeblossom_open false
+dim overworld 12000 f:3ecccccd f:0 gameplay/surface_slime_spawn_chance f:3f000000
+dim overworld 12000 f:3ecccccd f:0 gameplay/bees_stay_in_hive true
+dim overworld 12000 f:3ecccccd f:0 gameplay/monsters_burn true
+dim overworld 12000 f:3ecccccd f:0 gameplay/can_pillager_patrol_spawn false
+dim overworld 12000 f:3ecccccd f:0 gameplay/villager_activity minecraft:rest
+dim overworld 12000 f:3ecccccd f:0 gameplay/baby_villager_activity minecraft:rest
+dim overworld 12000 f:3f800000 f:3f19999a visual/fog_color rgb:f:3e9d2f7e,f:3eb0d56f,f:3ee82951
+dim overworld 12000 f:3f800000 f:3f19999a visual/sky_color rgb:f:3e7fb5e9,f:3e9a8834,f:3ecc7ae1
+dim overworld 12000 f:3f800000 f:3f19999a visual/sunrise_sunset_color argb:f:3ed0ab69,f:3e89d471,f:3dc72701,f:3ee3f92c
+dim overworld 12000 f:3f800000 f:3f19999a visual/cloud_color argb:f:3ec66f69,f:3ec66f69,f:3ec71b57,f:3f4ccccd
+dim overworld 12000 f:3f800000 f:3f19999a visual/sun_angle f:429b4057
+dim overworld 12000 f:3f800000 f:3f19999a visual/moon_angle f:4380d016
+dim overworld 12000 f:3f800000 f:3f19999a visual/star_angle f:429b4057
+dim overworld 12000 f:3f800000 f:3f19999a visual/star_brightness f:3c514a08
+dim overworld 12000 f:3f800000 f:3f19999a visual/sky_light_color rgb:f:3f2b4e3d,f:3f2b4e3d,f:3f800000
+dim overworld 12000 f:3f800000 f:3f19999a visual/sky_light_factor f:3f04629c
+dim overworld 12000 f:3f800000 f:3f19999a visual/ambient_light_color rgb:f:3d20a0a1,f:3d20a0a1,f:3d20a0a1
+dim overworld 12000 f:3f800000 f:3f19999a gameplay/sky_light_level f:41218202
+dim overworld 12000 f:3f800000 f:3f19999a gameplay/nether_portal_spawns_piglin true
+dim overworld 12000 f:3f800000 f:3f19999a gameplay/eyeblossom_open false
+dim overworld 12000 f:3f800000 f:3f19999a gameplay/surface_slime_spawn_chance f:3f000000
+dim overworld 12000 f:3f800000 f:3f19999a gameplay/bees_stay_in_hive true
+dim overworld 12000 f:3f800000 f:3f19999a gameplay/monsters_burn true
+dim overworld 12000 f:3f800000 f:3f19999a gameplay/can_pillager_patrol_spawn false
+dim overworld 12000 f:3f800000 f:3f19999a gameplay/villager_activity minecraft:rest
+dim overworld 12000 f:3f800000 f:3f19999a gameplay/baby_villager_activity minecraft:rest
+dim overworld 12600 f:0 f:0 visual/fog_color rgb:f:3eedffeb,f:3f05dff4,f:3f20e754
+dim overworld 12600 f:0 f:0 visual/sky_color rgb:f:3e8efce2,f:3ec6fdcc,f:3f17ecb0
+dim overworld 12600 f:0 f:0 visual/sunrise_sunset_color argb:f:3f5e411b,f:3ed8a5f5,f:3e4ccccd,f:3f7548ee
+dim overworld 12600 f:0 f:0 visual/cloud_color argb:f:3f2220c8,f:3f2220c8,f:3f276f10,f:3f4ccccd
+dim overworld 12600 f:0 f:0 visual/sun_angle f:42ae2a54
+dim overworld 12600 f:0 f:0 visual/moon_angle f:43858a95
+dim overworld 12600 f:0 f:0 visual/star_angle f:42ae2a54
+dim overworld 12600 f:0 f:0 visual/star_brightness f:3e5a2896
+dim overworld 12600 f:0 f:0 visual/sky_light_color rgb:f:3f210914,f:3f210914,f:3f800000
+dim overworld 12600 f:0 f:0 visual/sky_light_factor f:3eeb3f08
+dim overworld 12600 f:0 f:0 visual/ambient_light_color rgb:f:3d20a0a1,f:3d20a0a1,f:3d20a0a1
+dim overworld 12600 f:0 f:0 audio/firefly_bush_sounds true
+dim overworld 12600 f:0 f:0 gameplay/sky_light_level f:412872b9
+dim overworld 12600 f:0 f:0 gameplay/nether_portal_spawns_piglin true
+dim overworld 12600 f:0 f:0 gameplay/eyeblossom_open true
+dim overworld 12600 f:0 f:0 gameplay/creaking_active true
+dim overworld 12600 f:0 f:0 gameplay/surface_slime_spawn_chance f:3f000000
+dim overworld 12600 f:0 f:0 gameplay/bees_stay_in_hive true
+dim overworld 12600 f:0 f:0 gameplay/can_pillager_patrol_spawn false
+dim overworld 12600 f:0 f:0 gameplay/villager_activity minecraft:rest
+dim overworld 12600 f:0 f:0 gameplay/baby_villager_activity minecraft:rest
+dim overworld 12600 f:3ecccccd f:0 visual/fog_color rgb:f:3ebe368c,f:3ed5fd5e,f:3f0728b7
+dim overworld 12600 f:3ecccccd f:0 visual/sky_color rgb:f:3e86f640,f:3eae2a17,f:3ef79098
+dim overworld 12600 f:3ecccccd f:0 visual/sunrise_sunset_color argb:f:3f31a10f,f:3ead2611,f:3e2c0831,f:3f7548ee
+dim overworld 12600 f:3ecccccd f:0 visual/cloud_color argb:f:3f09833a,f:3f09833a,f:3f0dc1da,f:3f4ccccd
+dim overworld 12600 f:3ecccccd f:0 visual/sun_angle f:42ae2a54
+dim overworld 12600 f:3ecccccd f:0 visual/moon_angle f:43858a95
+dim overworld 12600 f:3ecccccd f:0 visual/star_angle f:42ae2a54
+dim overworld 12600 f:3ecccccd f:0 visual/star_brightness f:3e02e526
+dim overworld 12600 f:3ecccccd f:0 visual/sky_light_color rgb:f:3f1c41e6,f:3f1c41e6,f:3f800000
+dim overworld 12600 f:3ecccccd f:0 visual/sky_light_factor f:3edd3350
+dim overworld 12600 f:3ecccccd f:0 visual/ambient_light_color rgb:f:3d20a0a1,f:3d20a0a1,f:3d20a0a1
+dim overworld 12600 f:3ecccccd f:0 audio/firefly_bush_sounds true
+dim overworld 12600 f:3ecccccd f:0 gameplay/sky_light_level f:411b6462
+dim overworld 12600 f:3ecccccd f:0 gameplay/nether_portal_spawns_piglin true
+dim overworld 12600 f:3ecccccd f:0 gameplay/eyeblossom_open true
+dim overworld 12600 f:3ecccccd f:0 gameplay/creaking_active true
+dim overworld 12600 f:3ecccccd f:0 gameplay/surface_slime_spawn_chance f:3f000000
+dim overworld 12600 f:3ecccccd f:0 gameplay/bees_stay_in_hive true
+dim overworld 12600 f:3ecccccd f:0 gameplay/can_pillager_patrol_spawn false
+dim overworld 12600 f:3ecccccd f:0 gameplay/villager_activity minecraft:rest
+dim overworld 12600 f:3ecccccd f:0 gameplay/baby_villager_activity minecraft:rest
+dim overworld 12600 f:3f800000 f:3f19999a visual/fog_color rgb:f:3e509023,f:3e6aa227,f:3e9c776c
+dim overworld 12600 f:3f800000 f:3f19999a visual/sky_color rgb:f:3e23d6a8,f:3e4605ea,f:3e83039e
+dim overworld 12600 f:3f800000 f:3f19999a visual/sunrise_sunset_color argb:f:3ec2c3de,f:3e3dda3a,f:3dc72701,f:3f7548ee
+dim overworld 12600 f:3f800000 f:3f19999a visual/cloud_color argb:f:3e86b266,f:3e86b266,f:3e8a65ef,f:3f4ccccd
+dim overworld 12600 f:3f800000 f:3f19999a visual/sun_angle f:42ae2a54
+dim overworld 12600 f:3f800000 f:3f19999a visual/moon_angle f:43858a95
+dim overworld 12600 f:3f800000 f:3f19999a visual/star_angle f:42ae2a54
+dim overworld 12600 f:3f800000 f:3f19999a visual/star_brightness f:3d516ea4
+dim overworld 12600 f:3f800000 f:3f19999a visual/sky_light_color rgb:f:3f119b6b,f:3f119b6b,f:3f800000
+dim overworld 12600 f:3f800000 f:3f19999a visual/sky_light_factor f:3ebe175c
+dim overworld 12600 f:3f800000 f:3f19999a visual/ambient_light_color rgb:f:3d20a0a1,f:3d20a0a1,f:3d20a0a1
+dim overworld 12600 f:3f800000 f:3f19999a audio/firefly_bush_sounds true
+dim overworld 12600 f:3f800000 f:3f19999a gameplay/sky_light_level f:40fcf33e
+dim overworld 12600 f:3f800000 f:3f19999a gameplay/nether_portal_spawns_piglin true
+dim overworld 12600 f:3f800000 f:3f19999a gameplay/eyeblossom_open true
+dim overworld 12600 f:3f800000 f:3f19999a gameplay/creaking_active true
+dim overworld 12600 f:3f800000 f:3f19999a gameplay/surface_slime_spawn_chance f:3f000000
+dim overworld 12600 f:3f800000 f:3f19999a gameplay/bees_stay_in_hive true
+dim overworld 12600 f:3f800000 f:3f19999a gameplay/can_pillager_patrol_spawn false
+dim overworld 12600 f:3f800000 f:3f19999a gameplay/villager_activity minecraft:rest
+dim overworld 12600 f:3f800000 f:3f19999a gameplay/baby_villager_activity minecraft:rest
+dim overworld 13000 f:0 f:0 visual/fog_color rgb:f:3e9d8152,f:3eb1317c,f:3eda04c2
+dim overworld 13000 f:0 f:0 visual/sky_color rgb:f:3e3311a2,f:3e793446,f:3ebe42bc
+dim overworld 13000 f:0 f:0 visual/sunrise_sunset_color argb:f:3f53baa8,f:3ea69eb4,f:3e4ccccd,f:3f702f87
+dim overworld 13000 f:0 f:0 visual/cloud_color argb:f:3eddcdc2,f:3eddcdc2,f:3eee34c6,f:3f4ccccd
+dim overworld 13000 f:0 f:0 visual/sun_angle f:42bb0aec
+dim overworld 13000 f:0 f:0 visual/moon_angle f:4388c2bb
+dim overworld 13000 f:0 f:0 visual/star_angle f:42bb0aec
+dim overworld 13000 f:0 f:0 visual/star_brightness f:3ec762f4
+dim overworld 13000 f:0 f:0 visual/sky_light_color rgb:f:3f047986,f:3f047986,f:3f800000
+dim overworld 13000 f:0 f:0 visual/sky_light_factor f:3e980310
+dim overworld 13000 f:0 f:0 visual/ambient_light_color rgb:f:3d20a0a1,f:3d20a0a1,f:3d20a0a1
+dim overworld 13000 f:0 f:0 audio/firefly_bush_sounds true
+dim overworld 13000 f:0 f:0 gameplay/sky_light_level f:410166f1
+dim overworld 13000 f:0 f:0 gameplay/nether_portal_spawns_piglin true
+dim overworld 13000 f:0 f:0 gameplay/eyeblossom_open true
+dim overworld 13000 f:0 f:0 gameplay/creaking_active true
+dim overworld 13000 f:0 f:0 gameplay/surface_slime_spawn_chance f:3f000000
+dim overworld 13000 f:0 f:0 gameplay/bees_stay_in_hive true
+dim overworld 13000 f:0 f:0 gameplay/can_pillager_patrol_spawn false
+dim overworld 13000 f:0 f:0 gameplay/villager_activity minecraft:rest
+dim overworld 13000 f:0 f:0 gameplay/baby_villager_activity minecraft:rest
+dim overworld 13000 f:3ecccccd f:0 visual/fog_color rgb:f:3e7bc2dd,f:3e8d9d9c,f:3eb722b8
+dim overworld 13000 f:3ecccccd f:0 visual/sky_color rgb:f:3e29048b,f:3e5a1cca,f:3e9b046a
+dim overworld 13000 f:3ecccccd f:0 visual/sunrise_sunset_color argb:f:3f29379d,f:3e852a4f,f:3e2c0831,f:3f702f87
+dim overworld 13000 f:3ecccccd f:0 visual/cloud_color argb:f:3ebc2d1a,f:3ebc2d1a,f:3ec94c50,f:3f4ccccd
+dim overworld 13000 f:3ecccccd f:0 visual/sun_angle f:42bb0aec
+dim overworld 13000 f:3ecccccd f:0 visual/moon_angle f:4388c2bb
+dim overworld 13000 f:3ecccccd f:0 visual/star_angle f:42bb0aec
+dim overworld 13000 f:3ecccccd f:0 visual/star_brightness f:3e6f438b
+dim overworld 13000 f:3ecccccd f:0 visual/sky_light_color rgb:f:3f033c67,f:3f033c67,f:3f800000
+dim overworld 13000 f:3ecccccd f:0 visual/sky_light_factor f:3e945ed7
+dim overworld 13000 f:3ecccccd f:0 visual/ambient_light_color rgb:f:3d20a0a1,f:3d20a0a1,f:3d20a0a1
+dim overworld 13000 f:3ecccccd f:0 audio/firefly_bush_sounds true
+dim overworld 13000 f:3ecccccd f:0 gameplay/sky_light_level f:40f27426
+dim overworld 13000 f:3ecccccd f:0 gameplay/nether_portal_spawns_piglin true
+dim overworld 13000 f:3ecccccd f:0 gameplay/eyeblossom_open true
+dim overworld 13000 f:3ecccccd f:0 gameplay/creaking_active true
+dim overworld 13000 f:3ecccccd f:0 gameplay/surface_slime_spawn_chance f:3f000000
+dim overworld 13000 f:3ecccccd f:0 gameplay/bees_stay_in_hive true
+dim overworld 13000 f:3ecccccd f:0 gameplay/can_pillager_patrol_spawn false
+dim overworld 13000 f:3ecccccd f:0 gameplay/villager_activity minecraft:rest
+dim overworld 13000 f:3ecccccd f:0 gameplay/baby_villager_activity minecraft:rest
+dim overworld 13000 f:3f800000 f:3f19999a visual/fog_color rgb:f:3e0a063e,f:3e1b4704,f:3e5401a4
+dim overworld 13000 f:3f800000 f:3f19999a visual/sky_color rgb:f:3dcd2e53,f:3df7fdd6,f:3e2412e2
+dim overworld 13000 f:3f800000 f:3f19999a visual/sunrise_sunset_color argb:f:3eb98aae,f:3e120306,f:3dc72701,f:3f702f87
+dim overworld 13000 f:3f800000 f:3f19999a visual/cloud_color argb:f:3e3868c5,f:3e3868c5,f:3e43da00,f:3f4ccccd
+dim overworld 13000 f:3f800000 f:3f19999a visual/sun_angle f:42bb0aec
+dim overworld 13000 f:3f800000 f:3f19999a visual/moon_angle f:4388c2bb
+dim overworld 13000 f:3f800000 f:3f19999a visual/star_angle f:42bb0aec
+dim overworld 13000 f:3f800000 f:3f19999a visual/star_brightness f:3dbf693c
+dim overworld 13000 f:3f800000 f:3f19999a visual/sky_light_color rgb:f:3f007989,f:3f007989,f:3f800000
+dim overworld 13000 f:3f800000 f:3f19999a visual/sky_light_factor f:3e8c4e1c
+dim overworld 13000 f:3f800000 f:3f19999a visual/ambient_light_color rgb:f:3d20a0a1,f:3d20a0a1,f:3d20a0a1
+dim overworld 13000 f:3f800000 f:3f19999a audio/firefly_bush_sounds true
+dim overworld 13000 f:3f800000 f:3f19999a gameplay/sky_light_level f:40ce3d66
+dim overworld 13000 f:3f800000 f:3f19999a gameplay/nether_portal_spawns_piglin true
+dim overworld 13000 f:3f800000 f:3f19999a gameplay/eyeblossom_open true
+dim overworld 13000 f:3f800000 f:3f19999a gameplay/creaking_active true
+dim overworld 13000 f:3f800000 f:3f19999a gameplay/surface_slime_spawn_chance f:3f000000
+dim overworld 13000 f:3f800000 f:3f19999a gameplay/bees_stay_in_hive true
+dim overworld 13000 f:3f800000 f:3f19999a gameplay/can_pillager_patrol_spawn false
+dim overworld 13000 f:3f800000 f:3f19999a gameplay/villager_activity minecraft:rest
+dim overworld 13000 f:3f800000 f:3f19999a gameplay/baby_villager_activity minecraft:rest
+dim overworld 13670 f:0 f:0 visual/fog_color rgb:f:3d356a1f,f:3d4c1763,f:3db0b0b1
+dim overworld 13670 f:0 f:0 visual/sunrise_sunset_color argb:f:3f41911c,f:3e69c318,f:3e4ccccd,f:3ea4747c
+dim overworld 13670 f:0 f:0 visual/cloud_color argb:f:3dc8c8c9,f:3dc8c8c9,f:3e189899,f:3f4ccccd
+dim overworld 13670 f:0 f:0 visual/sun_angle f:42d10d30
+dim overworld 13670 f:0 f:0 visual/moon_angle f:438e434c
+dim overworld 13670 f:0 f:0 visual/star_angle f:42d10d30
+dim overworld 13670 f:0 f:0 visual/star_brightness f:3f000000
+dim overworld 13670 f:0 f:0 visual/sky_light_color rgb:f:3ef4f4f5,f:3ef4f4f5,f:3f800000
+dim overworld 13670 f:0 f:0 visual/sky_light_factor f:3e75c28f
+dim overworld 13670 f:0 f:0 visual/ambient_light_color rgb:f:3d20a0a1,f:3d20a0a1,f:3d20a0a1
+dim overworld 13670 f:0 f:0 audio/firefly_bush_sounds true
+dim overworld 13670 f:0 f:0 gameplay/sky_light_level f:40800000
+dim overworld 13670 f:0 f:0 gameplay/nether_portal_spawns_piglin true
+dim overworld 13670 f:0 f:0 gameplay/eyeblossom_open true
+dim overworld 13670 f:0 f:0 gameplay/creaking_active true
+dim overworld 13670 f:0 f:0 gameplay/surface_slime_spawn_chance f:3f000000
+dim overworld 13670 f:0 f:0 gameplay/bees_stay_in_hive true
+dim overworld 13670 f:0 f:0 gameplay/can_pillager_patrol_spawn false
+dim overworld 13670 f:0 f:0 gameplay/villager_activity minecraft:rest
+dim overworld 13670 f:0 f:0 gameplay/baby_villager_activity minecraft:rest
+dim overworld 13670 f:3ecccccd f:0 visual/fog_color rgb:f:3d10fd46,f:3d231cee,f:3d946b76
+dim overworld 13670 f:3ecccccd f:0 visual/sunrise_sunset_color argb:f:3f1ab39f,f:3e3ad38a,f:3e2c0831,f:3ea4747c
+dim overworld 13670 f:3ecccccd f:0 visual/cloud_color argb:f:3daad0fe,f:3daad0fe,f:3dfe57b8,f:3f4ccccd
+dim overworld 13670 f:3ecccccd f:0 visual/sun_angle f:42d10d30
+dim overworld 13670 f:3ecccccd f:0 visual/moon_angle f:438e434c
+dim overworld 13670 f:3ecccccd f:0 visual/star_angle f:42d10d30
+dim overworld 13670 f:3ecccccd f:0 visual/star_brightness f:3e99999a
+dim overworld 13670 f:3ecccccd f:0 visual/sky_light_color rgb:f:3ef4f4f5,f:3ef4f4f5,f:3f800000
+dim overworld 13670 f:3ecccccd f:0 visual/sky_light_factor f:3e75c28f
+dim overworld 13670 f:3ecccccd f:0 visual/ambient_light_color rgb:f:3d20a0a1,f:3d20a0a1,f:3d20a0a1
+dim overworld 13670 f:3ecccccd f:0 audio/firefly_bush_sounds true
+dim overworld 13670 f:3ecccccd f:0 gameplay/sky_light_level f:40800000
+dim overworld 13670 f:3ecccccd f:0 gameplay/nether_portal_spawns_piglin true
+dim overworld 13670 f:3ecccccd f:0 gameplay/eyeblossom_open true
+dim overworld 13670 f:3ecccccd f:0 gameplay/creaking_active true
+dim overworld 13670 f:3ecccccd f:0 gameplay/surface_slime_spawn_chance f:3f000000
+dim overworld 13670 f:3ecccccd f:0 gameplay/bees_stay_in_hive true
+dim overworld 13670 f:3ecccccd f:0 gameplay/can_pillager_patrol_spawn false
+dim overworld 13670 f:3ecccccd f:0 gameplay/villager_activity minecraft:rest
+dim overworld 13670 f:3ecccccd f:0 gameplay/baby_villager_activity minecraft:rest
+dim overworld 13670 f:3f800000 f:3f19999a visual/fog_color rgb:f:3c9ef9ff,f:3cb2d93e,f:3d2bd155
+dim overworld 13670 f:3f800000 f:3f19999a visual/sunrise_sunset_color argb:f:3ea9a036,f:3dccd97d,f:3dc72701,f:3ea4747c
+dim overworld 13670 f:3f800000 f:3f19999a visual/cloud_color argb:f:3d283dbb,f:3d283dbb,f:3d711378,f:3f4ccccd
+dim overworld 13670 f:3f800000 f:3f19999a visual/sun_angle f:42d10d30
+dim overworld 13670 f:3f800000 f:3f19999a visual/moon_angle f:438e434c
+dim overworld 13670 f:3f800000 f:3f19999a visual/star_angle f:42d10d30
+dim overworld 13670 f:3f800000 f:3f19999a visual/star_brightness f:3df5c290
+dim overworld 13670 f:3f800000 f:3f19999a visual/sky_light_color rgb:f:3ef4f4f5,f:3ef4f4f5,f:3f800000
+dim overworld 13670 f:3f800000 f:3f19999a visual/sky_light_factor f:3e75c28f
+dim overworld 13670 f:3f800000 f:3f19999a visual/ambient_light_color rgb:f:3d20a0a1,f:3d20a0a1,f:3d20a0a1
+dim overworld 13670 f:3f800000 f:3f19999a audio/firefly_bush_sounds true
+dim overworld 13670 f:3f800000 f:3f19999a gameplay/sky_light_level f:40800000
+dim overworld 13670 f:3f800000 f:3f19999a gameplay/nether_portal_spawns_piglin true
+dim overworld 13670 f:3f800000 f:3f19999a gameplay/eyeblossom_open true
+dim overworld 13670 f:3f800000 f:3f19999a gameplay/creaking_active true
+dim overworld 13670 f:3f800000 f:3f19999a gameplay/surface_slime_spawn_chance f:3f000000
+dim overworld 13670 f:3f800000 f:3f19999a gameplay/bees_stay_in_hive true
+dim overworld 13670 f:3f800000 f:3f19999a gameplay/can_pillager_patrol_spawn false
+dim overworld 13670 f:3f800000 f:3f19999a gameplay/villager_activity minecraft:rest
+dim overworld 13670 f:3f800000 f:3f19999a gameplay/baby_villager_activity minecraft:rest
+dim overworld 18000 f:0 f:0 visual/fog_color rgb:f:3d356a1f,f:3d4c1763,f:3db0b0b1
+dim overworld 18000 f:0 f:0 visual/sunrise_sunset_color argb:f:3f33332f,f:3e4ccccd,f:3e4ccccd,f:0
+dim overworld 18000 f:0 f:0 visual/cloud_color argb:f:3dc8c8c9,f:3dc8c8c9,f:3e189899,f:3f4ccccd
+dim overworld 18000 f:0 f:0 visual/sun_angle f:43340000
+dim overworld 18000 f:0 f:0 visual/moon_angle f:43b40000
+dim overworld 18000 f:0 f:0 visual/star_angle f:43340000
+dim overworld 18000 f:0 f:0 visual/star_brightness f:3f000000
+dim overworld 18000 f:0 f:0 visual/sky_light_color rgb:f:3ef4f4f5,f:3ef4f4f5,f:3f800000
+dim overworld 18000 f:0 f:0 visual/sky_light_factor f:3e75c28f
+dim overworld 18000 f:0 f:0 visual/ambient_light_color rgb:f:3d20a0a1,f:3d20a0a1,f:3d20a0a1
+dim overworld 18000 f:0 f:0 audio/firefly_bush_sounds true
+dim overworld 18000 f:0 f:0 gameplay/sky_light_level f:40800000
+dim overworld 18000 f:0 f:0 gameplay/nether_portal_spawns_piglin true
+dim overworld 18000 f:0 f:0 gameplay/eyeblossom_open true
+dim overworld 18000 f:0 f:0 gameplay/creaking_active true
+dim overworld 18000 f:0 f:0 gameplay/surface_slime_spawn_chance f:3f000000
+dim overworld 18000 f:0 f:0 gameplay/bees_stay_in_hive true
+dim overworld 18000 f:0 f:0 gameplay/can_pillager_patrol_spawn false
+dim overworld 18000 f:0 f:0 gameplay/villager_activity minecraft:rest
+dim overworld 18000 f:0 f:0 gameplay/baby_villager_activity minecraft:rest
+dim overworld 18000 f:3ecccccd f:0 visual/fog_color rgb:f:3d10fd46,f:3d231cee,f:3d946b76
+dim overworld 18000 f:3ecccccd f:0 visual/sunrise_sunset_color argb:f:3f0f382a,f:3e23adec,f:3e2c0831,f:0
+dim overworld 18000 f:3ecccccd f:0 visual/cloud_color argb:f:3daad0fe,f:3daad0fe,f:3dfe57b8,f:3f4ccccd
+dim overworld 18000 f:3ecccccd f:0 visual/sun_angle f:43340000
+dim overworld 18000 f:3ecccccd f:0 visual/moon_angle f:43b40000
+dim overworld 18000 f:3ecccccd f:0 visual/star_angle f:43340000
+dim overworld 18000 f:3ecccccd f:0 visual/star_brightness f:3e99999a
+dim overworld 18000 f:3ecccccd f:0 visual/sky_light_color rgb:f:3ef4f4f5,f:3ef4f4f5,f:3f800000
+dim overworld 18000 f:3ecccccd f:0 visual/sky_light_factor f:3e75c28f
+dim overworld 18000 f:3ecccccd f:0 visual/ambient_light_color rgb:f:3d20a0a1,f:3d20a0a1,f:3d20a0a1
+dim overworld 18000 f:3ecccccd f:0 audio/firefly_bush_sounds true
+dim overworld 18000 f:3ecccccd f:0 gameplay/sky_light_level f:40800000
+dim overworld 18000 f:3ecccccd f:0 gameplay/nether_portal_spawns_piglin true
+dim overworld 18000 f:3ecccccd f:0 gameplay/eyeblossom_open true
+dim overworld 18000 f:3ecccccd f:0 gameplay/creaking_active true
+dim overworld 18000 f:3ecccccd f:0 gameplay/surface_slime_spawn_chance f:3f000000
+dim overworld 18000 f:3ecccccd f:0 gameplay/bees_stay_in_hive true
+dim overworld 18000 f:3ecccccd f:0 gameplay/can_pillager_patrol_spawn false
+dim overworld 18000 f:3ecccccd f:0 gameplay/villager_activity minecraft:rest
+dim overworld 18000 f:3ecccccd f:0 gameplay/baby_villager_activity minecraft:rest
+dim overworld 18000 f:3f800000 f:3f19999a visual/fog_color rgb:f:3c9ef9ff,f:3cb2d93e,f:3d2bd155
+dim overworld 18000 f:3f800000 f:3f19999a visual/sunrise_sunset_color argb:f:3e9d092e,f:3db37839,f:3dc72701,f:0
+dim overworld 18000 f:3f800000 f:3f19999a visual/cloud_color argb:f:3d283dbb,f:3d283dbb,f:3d711378,f:3f4ccccd
+dim overworld 18000 f:3f800000 f:3f19999a visual/sun_angle f:43340000
+dim overworld 18000 f:3f800000 f:3f19999a visual/moon_angle f:43b40000
+dim overworld 18000 f:3f800000 f:3f19999a visual/star_angle f:43340000
+dim overworld 18000 f:3f800000 f:3f19999a visual/star_brightness f:3df5c290
+dim overworld 18000 f:3f800000 f:3f19999a visual/sky_light_color rgb:f:3ef4f4f5,f:3ef4f4f5,f:3f800000
+dim overworld 18000 f:3f800000 f:3f19999a visual/sky_light_factor f:3e75c28f
+dim overworld 18000 f:3f800000 f:3f19999a visual/ambient_light_color rgb:f:3d20a0a1,f:3d20a0a1,f:3d20a0a1
+dim overworld 18000 f:3f800000 f:3f19999a audio/firefly_bush_sounds true
+dim overworld 18000 f:3f800000 f:3f19999a gameplay/sky_light_level f:40800000
+dim overworld 18000 f:3f800000 f:3f19999a gameplay/nether_portal_spawns_piglin true
+dim overworld 18000 f:3f800000 f:3f19999a gameplay/eyeblossom_open true
+dim overworld 18000 f:3f800000 f:3f19999a gameplay/creaking_active true
+dim overworld 18000 f:3f800000 f:3f19999a gameplay/surface_slime_spawn_chance f:3f000000
+dim overworld 18000 f:3f800000 f:3f19999a gameplay/bees_stay_in_hive true
+dim overworld 18000 f:3f800000 f:3f19999a gameplay/can_pillager_patrol_spawn false
+dim overworld 18000 f:3f800000 f:3f19999a gameplay/villager_activity minecraft:rest
+dim overworld 18000 f:3f800000 f:3f19999a gameplay/baby_villager_activity minecraft:rest
+dim overworld 23460 f:0 f:0 visual/fog_color rgb:f:3efa12e8,f:3f0caaa3,f:3f28b012
+dim overworld 23460 f:0 f:0 visual/sky_color rgb:f:3e97017f,f:3ed2265a,f:3f207197
+dim overworld 23460 f:0 f:0 visual/sunrise_sunset_color argb:f:3f6018fd,f:3ee0fd6f,f:3e4ccccd,f:3f6ca589
+dim overworld 23460 f:0 f:0 visual/cloud_color argb:f:3f29cfdd,f:3f29cfdd,f:3f2eaef8,f:3f4ccccd
+dim overworld 23460 f:0 f:0 visual/sun_angle f:4388efe4
+dim overworld 23460 f:0 f:0 visual/moon_angle f:43e2efe4
+dim overworld 23460 f:0 f:0 visual/star_angle f:4388efe4
+dim overworld 23460 f:0 f:0 visual/star_brightness f:3e458cec
+dim overworld 23460 f:0 f:0 visual/sky_light_color rgb:f:3f2551d0,f:3f2551d0,f:3f800000
+dim overworld 23460 f:0 f:0 visual/sky_light_factor f:3ef7bb38
+dim overworld 23460 f:0 f:0 visual/ambient_light_color rgb:f:3d20a0a1,f:3d20a0a1,f:3d20a0a1
+dim overworld 23460 f:0 f:0 gameplay/sky_light_level f:412e4e18
+dim overworld 23460 f:0 f:0 gameplay/nether_portal_spawns_piglin true
+dim overworld 23460 f:0 f:0 gameplay/eyeblossom_open false
+dim overworld 23460 f:0 f:0 gameplay/surface_slime_spawn_chance f:3f000000
+dim overworld 23460 f:0 f:0 gameplay/monsters_burn true
+dim overworld 23460 f:0 f:0 gameplay/can_pillager_patrol_spawn false
+dim overworld 23460 f:0 f:0 gameplay/villager_activity minecraft:rest
+dim overworld 23460 f:0 f:0 gameplay/baby_villager_activity minecraft:rest
+dim overworld 23460 f:3ecccccd f:0 visual/fog_color rgb:f:3ec7dcea,f:3ee0d888,f:3f0db29f
+dim overworld 23460 f:3ecccccd f:0 visual/sky_color rgb:f:3e8e87a7,f:3eb7ee40,f:3f02b937
+dim overworld 23460 f:3ecccccd f:0 visual/sunrise_sunset_color argb:f:3f331a32,f:3eb3d0c6,f:3e2c0831,f:3f6ca589
+dim overworld 23460 f:3ecccccd f:0 visual/cloud_color argb:f:3f1006b9,f:3f1006b9,f:3f13ec69,f:3f4ccccd
+dim overworld 23460 f:3ecccccd f:0 visual/sun_angle f:4388efe4
+dim overworld 23460 f:3ecccccd f:0 visual/moon_angle f:43e2efe4
+dim overworld 23460 f:3ecccccd f:0 visual/star_angle f:4388efe4
+dim overworld 23460 f:3ecccccd f:0 visual/star_brightness f:3ded0f81
+dim overworld 23460 f:3ecccccd f:0 visual/sky_light_color rgb:f:3f2002b9,f:3f2002b9,f:3f800000
+dim overworld 23460 f:3ecccccd f:0 visual/sky_light_factor f:3ee81ffa
+dim overworld 23460 f:3ecccccd f:0 visual/ambient_light_color rgb:f:3d20a0a1,f:3d20a0a1,f:3d20a0a1
+dim overworld 23460 f:3ecccccd f:0 gameplay/sky_light_level f:41208455
+dim overworld 23460 f:3ecccccd f:0 gameplay/nether_portal_spawns_piglin true
+dim overworld 23460 f:3ecccccd f:0 gameplay/eyeblossom_open false
+dim overworld 23460 f:3ecccccd f:0 gameplay/surface_slime_spawn_chance f:3f000000
+dim overworld 23460 f:3ecccccd f:0 gameplay/bees_stay_in_hive true
+dim overworld 23460 f:3ecccccd f:0 gameplay/monsters_burn true
+dim overworld 23460 f:3ecccccd f:0 gameplay/can_pillager_patrol_spawn false
+dim overworld 23460 f:3ecccccd f:0 gameplay/villager_activity minecraft:rest
+dim overworld 23460 f:3ecccccd f:0 gameplay/baby_villager_activity minecraft:rest
+dim overworld 23460 f:3f800000 f:3f19999a visual/fog_color rgb:f:3e5b24d2,f:3e76896d,f:3ea40935
+dim overworld 23460 f:3f800000 f:3f19999a visual/sky_color rgb:f:3e2d0698,f:3e512091,f:3e8a5c58
+dim overworld 23460 f:3f800000 f:3f19999a visual/sunrise_sunset_color argb:f:3ec46164,f:3e452995,f:3dc72701,f:3f6ca589
+dim overworld 23460 f:3f800000 f:3f19999a visual/cloud_color argb:f:3e8d1219,f:3e8d1219,f:3e907814,f:3f4ccccd
+dim overworld 23460 f:3f800000 f:3f19999a visual/sun_angle f:4388efe4
+dim overworld 23460 f:3f800000 f:3f19999a visual/moon_angle f:43e2efe4
+dim overworld 23460 f:3f800000 f:3f19999a visual/star_angle f:4388efe4
+dim overworld 23460 f:3f800000 f:3f19999a visual/star_brightness f:3d3da600
+dim overworld 23460 f:3f800000 f:3f19999a visual/sky_light_color rgb:f:3f142d4d,f:3f142d4d,f:3f800000
+dim overworld 23460 f:3f800000 f:3f19999a visual/sky_light_factor f:3ec58f24
+dim overworld 23460 f:3f800000 f:3f19999a visual/ambient_light_color rgb:f:3d20a0a1,f:3d20a0a1,f:3d20a0a1
+dim overworld 23460 f:3f800000 f:3f19999a gameplay/sky_light_level f:4101fa76
+dim overworld 23460 f:3f800000 f:3f19999a gameplay/nether_portal_spawns_piglin true
+dim overworld 23460 f:3f800000 f:3f19999a gameplay/eyeblossom_open false
+dim overworld 23460 f:3f800000 f:3f19999a gameplay/surface_slime_spawn_chance f:3f000000
+dim overworld 23460 f:3f800000 f:3f19999a gameplay/bees_stay_in_hive true
+dim overworld 23460 f:3f800000 f:3f19999a gameplay/monsters_burn true
+dim overworld 23460 f:3f800000 f:3f19999a gameplay/can_pillager_patrol_spawn false
+dim overworld 23460 f:3f800000 f:3f19999a gameplay/villager_activity minecraft:rest
+dim overworld 23460 f:3f800000 f:3f19999a gameplay/baby_villager_activity minecraft:rest
+dim overworld 23999 f:0 f:0 visual/fog_color rgb:f:3f334527,f:3f49adcb,f:3f6e9d8b
+dim overworld 23999 f:0 f:0 visual/sky_color rgb:f:3edf08c8,f:3f1b31d8,f:3f6cf954
+dim overworld 23999 f:0 f:0 visual/sunrise_sunset_color argb:f:3f6e187e,f:3f1d3194,f:3e4ccccd,f:3ee47f68
+dim overworld 23999 f:0 f:0 visual/cloud_color argb:f:3f6ed6d8,f:3f6ed6d8,f:3f6fcf27,f:3f4ccccd
+dim overworld 23999 f:0 f:0 visual/sun_angle f:438d2ded
+dim overworld 23999 f:0 f:0 visual/moon_angle f:43e72ded
+dim overworld 23999 f:0 f:0 visual/star_angle f:438d2ded
+dim overworld 23999 f:0 f:0 visual/star_brightness f:3d608b50
+dim overworld 23999 f:0 f:0 visual/sky_light_color rgb:f:3f4bce22,f:3f4bce22,f:3f800000
+dim overworld 23999 f:0 f:0 visual/sky_light_factor f:3f33f1da
+dim overworld 23999 f:0 f:0 visual/ambient_light_color rgb:f:3d20a0a1,f:3d20a0a1,f:3d20a0a1
+dim overworld 23999 f:0 f:0 gameplay/sky_light_level f:4162eb6b
+dim overworld 23999 f:0 f:0 gameplay/nether_portal_spawns_piglin true
+dim overworld 23999 f:0 f:0 gameplay/eyeblossom_open false
+dim overworld 23999 f:0 f:0 gameplay/surface_slime_spawn_chance f:3f000000
+dim overworld 23999 f:0 f:0 gameplay/cat_waking_up_gift_chance f:3f333333
+dim overworld 23999 f:0 f:0 gameplay/monsters_burn true
+dim overworld 23999 f:0 f:0 gameplay/can_pillager_patrol_spawn false
+dim overworld 23999 f:0 f:0 gameplay/villager_activity minecraft:rest
+dim overworld 23999 f:0 f:0 gameplay/baby_villager_activity minecraft:rest
+dim overworld 23999 f:3ecccccd f:0 visual/fog_color rgb:f:3f0f4687,f:3f212f57,f:3f486fdb
+dim overworld 23999 f:3ecccccd f:0 visual/sky_color rgb:f:3ed283f1,f:3f07d4fd,f:3f4113d4
+dim overworld 23999 f:3ecccccd f:0 visual/sunrise_sunset_color argb:f:3f3e4a30,f:3efb4367,f:3e2c0831,f:3ee47f68
+dim overworld 23999 f:3ecccccd f:0 visual/cloud_color argb:f:3f4a8a71,f:3f4a8a71,f:3f4b5117,f:3f4ccccd
+dim overworld 23999 f:3ecccccd f:0 visual/sun_angle f:438d2ded
+dim overworld 23999 f:3ecccccd f:0 visual/moon_angle f:43e72ded
+dim overworld 23999 f:3ecccccd f:0 visual/star_angle f:438d2ded
+dim overworld 23999 f:3ecccccd f:0 visual/star_brightness f:3d06b9fc
+dim overworld 23999 f:3ecccccd f:0 visual/sky_light_color rgb:f:3f41ba21,f:3f41ba21,f:3f800000
+dim overworld 23999 f:3ecccccd f:0 visual/sky_light_factor f:3f2521b3
+dim overworld 23999 f:3ecccccd f:0 visual/ambient_light_color rgb:f:3d20a0a1,f:3d20a0a1,f:3d20a0a1
+dim overworld 23999 f:3ecccccd f:0 gameplay/sky_light_level f:414e8dfe
+dim overworld 23999 f:3ecccccd f:0 gameplay/nether_portal_spawns_piglin true
+dim overworld 23999 f:3ecccccd f:0 gameplay/eyeblossom_open false
+dim overworld 23999 f:3ecccccd f:0 gameplay/surface_slime_spawn_chance f:3f000000
+dim overworld 23999 f:3ecccccd f:0 gameplay/cat_waking_up_gift_chance f:3f333333
+dim overworld 23999 f:3ecccccd f:0 gameplay/bees_stay_in_hive true
+dim overworld 23999 f:3ecccccd f:0 gameplay/monsters_burn true
+dim overworld 23999 f:3ecccccd f:0 gameplay/can_pillager_patrol_spawn false
+dim overworld 23999 f:3ecccccd f:0 gameplay/villager_activity minecraft:rest
+dim overworld 23999 f:3ecccccd f:0 gameplay/baby_villager_activity minecraft:rest
+dim overworld 23999 f:3f800000 f:3f19999a visual/fog_color rgb:f:3e9d18ed,f:3eb0bc0a,f:3ee80905
+dim overworld 23999 f:3f800000 f:3f19999a visual/sky_color rgb:f:3e7f8eb8,f:3e9a7084,f:3ecc5b8a
+dim overworld 23999 f:3f800000 f:3f19999a visual/sunrise_sunset_color argb:f:3ed0a5ac,f:3e89c05c,f:3dc72701,f:3ee47f68
+dim overworld 23999 f:3f800000 f:3f19999a visual/cloud_color argb:f:3ec65438,f:3ec65438,f:3ec70170,f:3f4ccccd
+dim overworld 23999 f:3f800000 f:3f19999a visual/sun_angle f:438d2ded
+dim overworld 23999 f:3f800000 f:3f19999a visual/moon_angle f:43e72ded
+dim overworld 23999 f:3f800000 f:3f19999a visual/star_angle f:438d2ded
+dim overworld 23999 f:3f800000 f:3f19999a visual/star_brightness f:3c578ffa
+dim overworld 23999 f:3f800000 f:3f19999a visual/sky_light_color rgb:f:3f2b4346,f:3f2b4346,f:3f800000
+dim overworld 23999 f:3f800000 f:3f19999a visual/sky_light_factor f:3f0452ad
+dim overworld 23999 f:3f800000 f:3f19999a visual/ambient_light_color rgb:f:3d20a0a1,f:3d20a0a1,f:3d20a0a1
+dim overworld 23999 f:3f800000 f:3f19999a gameplay/sky_light_level f:41217310
+dim overworld 23999 f:3f800000 f:3f19999a gameplay/nether_portal_spawns_piglin true
+dim overworld 23999 f:3f800000 f:3f19999a gameplay/eyeblossom_open false
+dim overworld 23999 f:3f800000 f:3f19999a gameplay/surface_slime_spawn_chance f:3f000000
+dim overworld 23999 f:3f800000 f:3f19999a gameplay/cat_waking_up_gift_chance f:3f333333
+dim overworld 23999 f:3f800000 f:3f19999a gameplay/bees_stay_in_hive true
+dim overworld 23999 f:3f800000 f:3f19999a gameplay/monsters_burn true
+dim overworld 23999 f:3f800000 f:3f19999a gameplay/can_pillager_patrol_spawn false
+dim overworld 23999 f:3f800000 f:3f19999a gameplay/villager_activity minecraft:rest
+dim overworld 23999 f:3f800000 f:3f19999a gameplay/baby_villager_activity minecraft:rest
+dim overworld 30000 f:0 f:0 visual/fog_color rgb:f:3f40c0c1,f:3f58d8d9,f:3f800000
+dim overworld 30000 f:0 f:0 visual/sky_color rgb:f:3ef0f0f1,f:3f27a7a8,f:3f800000
+dim overworld 30000 f:0 f:0 visual/sunrise_sunset_color argb:f:3f800000,f:3f65e5e6,f:3e4ccccd,f:0
+dim overworld 30000 f:0 f:0 visual/cloud_color argb:f:3f800000,f:3f800000,f:3f800000,f:3f4ccccd
+dim overworld 30000 f:0 f:0 visual/moon_angle f:43340000
+dim overworld 30000 f:0 f:0 visual/moon_phase waning_gibbous
+dim overworld 30000 f:0 f:0 visual/ambient_light_color rgb:f:3d20a0a1,f:3d20a0a1,f:3d20a0a1
+dim overworld 30000 f:0 f:0 gameplay/nether_portal_spawns_piglin true
+dim overworld 30000 f:0 f:0 gameplay/eyeblossom_open false
+dim overworld 30000 f:0 f:0 gameplay/surface_slime_spawn_chance f:3ec00000
+dim overworld 30000 f:0 f:0 gameplay/monsters_burn true
+dim overworld 30000 f:0 f:0 gameplay/can_pillager_patrol_spawn false
+dim overworld 30000 f:0 f:0 gameplay/villager_activity minecraft:work
+dim overworld 30000 f:3ecccccd f:0 visual/fog_color rgb:f:3f1a0d1a,f:3f2d4ebd,f:3f570a3e
+dim overworld 30000 f:3ecccccd f:0 visual/sky_color rgb:f:3ee36acb,f:3f12bcd3,f:3f509444
+dim overworld 30000 f:3ecccccd f:0 visual/sunrise_sunset_color argb:f:3f4c9966,f:3f37bcf5,f:3e2c0831,f:0
+dim overworld 30000 f:3ecccccd f:0 visual/cloud_color argb:f:3f591687,f:3f591687,f:3f591687,f:3f4ccccd
+dim overworld 30000 f:3ecccccd f:0 visual/moon_angle f:43340000
+dim overworld 30000 f:3ecccccd f:0 visual/moon_phase waning_gibbous
+dim overworld 30000 f:3ecccccd f:0 visual/sky_light_color rgb:f:3f6f742c,f:3f6f742c,f:3f800000
+dim overworld 30000 f:3ecccccd f:0 visual/sky_light_factor f:3f67ae14
+dim overworld 30000 f:3ecccccd f:0 visual/ambient_light_color rgb:f:3d20a0a1,f:3d20a0a1,f:3d20a0a1
+dim overworld 30000 f:3ecccccd f:0 gameplay/sky_light_level f:415a0000
+dim overworld 30000 f:3ecccccd f:0 gameplay/nether_portal_spawns_piglin true
+dim overworld 30000 f:3ecccccd f:0 gameplay/eyeblossom_open false
+dim overworld 30000 f:3ecccccd f:0 gameplay/surface_slime_spawn_chance f:3ec00000
+dim overworld 30000 f:3ecccccd f:0 gameplay/bees_stay_in_hive true
+dim overworld 30000 f:3ecccccd f:0 gameplay/monsters_burn true
+dim overworld 30000 f:3ecccccd f:0 gameplay/can_pillager_patrol_spawn false
+dim overworld 30000 f:3ecccccd f:0 gameplay/villager_activity minecraft:work
+dim overworld 30000 f:3f800000 f:3f19999a visual/fog_color rgb:f:3ea8e99f,f:3ebe06d3,f:3ef8f0c0
+dim overworld 30000 f:3f800000 f:3f19999a visual/sky_color rgb:f:3e8a09ac,f:3ea6d6d0,f:3edcc3d3
+dim overworld 30000 f:3f800000 f:3f19999a visual/sunrise_sunset_color argb:f:3ee05646,f:3ec976a5,f:3dc72701,f:0
+dim overworld 30000 f:3f800000 f:3f19999a visual/cloud_color argb:f:3ed4905a,f:3ed4905a,f:3ed4905a,f:3f4ccccd
+dim overworld 30000 f:3f800000 f:3f19999a visual/moon_angle f:43340000
+dim overworld 30000 f:3f800000 f:3f19999a visual/moon_phase waning_gibbous
+dim overworld 30000 f:3f800000 f:3f19999a visual/sky_light_color rgb:f:3f4a9278,f:3f4a9278,f:3f800000
+dim overworld 30000 f:3f800000 f:3f19999a visual/sky_light_factor f:3f31d0a4
+dim overworld 30000 f:3f800000 f:3f19999a visual/ambient_light_color rgb:f:3d20a0a1,f:3d20a0a1,f:3d20a0a1
+dim overworld 30000 f:3f800000 f:3f19999a gameplay/sky_light_level f:41294600
+dim overworld 30000 f:3f800000 f:3f19999a gameplay/nether_portal_spawns_piglin true
+dim overworld 30000 f:3f800000 f:3f19999a gameplay/eyeblossom_open false
+dim overworld 30000 f:3f800000 f:3f19999a gameplay/surface_slime_spawn_chance f:3ec00000
+dim overworld 30000 f:3f800000 f:3f19999a gameplay/bees_stay_in_hive true
+dim overworld 30000 f:3f800000 f:3f19999a gameplay/monsters_burn true
+dim overworld 30000 f:3f800000 f:3f19999a gameplay/can_pillager_patrol_spawn false
+dim overworld 30000 f:3f800000 f:3f19999a gameplay/villager_activity minecraft:work
+dim overworld 100000 f:0 f:0 visual/fog_color rgb:f:3f40c0c1,f:3f58d8d9,f:3f800000
+dim overworld 100000 f:0 f:0 visual/sky_color rgb:f:3ef0f0f1,f:3f27a7a8,f:3f800000
+dim overworld 100000 f:0 f:0 visual/sunrise_sunset_color argb:f:3f800000,f:3f65e5e6,f:3e4ccccd,f:0
+dim overworld 100000 f:0 f:0 visual/cloud_color argb:f:3f800000,f:3f800000,f:3f800000,f:3f4ccccd
+dim overworld 100000 f:0 f:0 visual/sun_angle f:43a8f888
+dim overworld 100000 f:0 f:0 visual/moon_angle f:44017c44
+dim overworld 100000 f:0 f:0 visual/star_angle f:43a8f888
+dim overworld 100000 f:0 f:0 visual/moon_phase new_moon
+dim overworld 100000 f:0 f:0 visual/ambient_light_color rgb:f:3d20a0a1,f:3d20a0a1,f:3d20a0a1
+dim overworld 100000 f:0 f:0 gameplay/nether_portal_spawns_piglin true
+dim overworld 100000 f:0 f:0 gameplay/eyeblossom_open false
+dim overworld 100000 f:0 f:0 gameplay/monsters_burn true
+dim overworld 100000 f:0 f:0 gameplay/can_pillager_patrol_spawn false
+dim overworld 100000 f:0 f:0 gameplay/villager_activity minecraft:work
+dim overworld 100000 f:0 f:0 gameplay/baby_villager_activity minecraft:play
+dim overworld 100000 f:3ecccccd f:0 visual/fog_color rgb:f:3f1a0d1a,f:3f2d4ebd,f:3f570a3e
+dim overworld 100000 f:3ecccccd f:0 visual/sky_color rgb:f:3ee36acb,f:3f12bcd3,f:3f509444
+dim overworld 100000 f:3ecccccd f:0 visual/sunrise_sunset_color argb:f:3f4c9966,f:3f37bcf5,f:3e2c0831,f:0
+dim overworld 100000 f:3ecccccd f:0 visual/cloud_color argb:f:3f591687,f:3f591687,f:3f591687,f:3f4ccccd
+dim overworld 100000 f:3ecccccd f:0 visual/sun_angle f:43a8f888
+dim overworld 100000 f:3ecccccd f:0 visual/moon_angle f:44017c44
+dim overworld 100000 f:3ecccccd f:0 visual/star_angle f:43a8f888
+dim overworld 100000 f:3ecccccd f:0 visual/moon_phase new_moon
+dim overworld 100000 f:3ecccccd f:0 visual/sky_light_color rgb:f:3f6f742c,f:3f6f742c,f:3f800000
+dim overworld 100000 f:3ecccccd f:0 visual/sky_light_factor f:3f67ae14
+dim overworld 100000 f:3ecccccd f:0 visual/ambient_light_color rgb:f:3d20a0a1,f:3d20a0a1,f:3d20a0a1
+dim overworld 100000 f:3ecccccd f:0 gameplay/sky_light_level f:415a0000
+dim overworld 100000 f:3ecccccd f:0 gameplay/nether_portal_spawns_piglin true
+dim overworld 100000 f:3ecccccd f:0 gameplay/eyeblossom_open false
+dim overworld 100000 f:3ecccccd f:0 gameplay/bees_stay_in_hive true
+dim overworld 100000 f:3ecccccd f:0 gameplay/monsters_burn true
+dim overworld 100000 f:3ecccccd f:0 gameplay/can_pillager_patrol_spawn false
+dim overworld 100000 f:3ecccccd f:0 gameplay/villager_activity minecraft:work
+dim overworld 100000 f:3ecccccd f:0 gameplay/baby_villager_activity minecraft:play
+dim overworld 100000 f:3f800000 f:3f19999a visual/fog_color rgb:f:3ea8e99f,f:3ebe06d3,f:3ef8f0c0
+dim overworld 100000 f:3f800000 f:3f19999a visual/sky_color rgb:f:3e8a09ac,f:3ea6d6d0,f:3edcc3d3
+dim overworld 100000 f:3f800000 f:3f19999a visual/sunrise_sunset_color argb:f:3ee05646,f:3ec976a5,f:3dc72701,f:0
+dim overworld 100000 f:3f800000 f:3f19999a visual/cloud_color argb:f:3ed4905a,f:3ed4905a,f:3ed4905a,f:3f4ccccd
+dim overworld 100000 f:3f800000 f:3f19999a visual/sun_angle f:43a8f888
+dim overworld 100000 f:3f800000 f:3f19999a visual/moon_angle f:44017c44
+dim overworld 100000 f:3f800000 f:3f19999a visual/star_angle f:43a8f888
+dim overworld 100000 f:3f800000 f:3f19999a visual/moon_phase new_moon
+dim overworld 100000 f:3f800000 f:3f19999a visual/sky_light_color rgb:f:3f4a9278,f:3f4a9278,f:3f800000
+dim overworld 100000 f:3f800000 f:3f19999a visual/sky_light_factor f:3f31d0a4
+dim overworld 100000 f:3f800000 f:3f19999a visual/ambient_light_color rgb:f:3d20a0a1,f:3d20a0a1,f:3d20a0a1
+dim overworld 100000 f:3f800000 f:3f19999a gameplay/sky_light_level f:41294600
+dim overworld 100000 f:3f800000 f:3f19999a gameplay/nether_portal_spawns_piglin true
+dim overworld 100000 f:3f800000 f:3f19999a gameplay/eyeblossom_open false
+dim overworld 100000 f:3f800000 f:3f19999a gameplay/bees_stay_in_hive true
+dim overworld 100000 f:3f800000 f:3f19999a gameplay/monsters_burn true
+dim overworld 100000 f:3f800000 f:3f19999a gameplay/can_pillager_patrol_spawn false
+dim overworld 100000 f:3f800000 f:3f19999a gameplay/villager_activity minecraft:work
+dim overworld 100000 f:3f800000 f:3f19999a gameplay/baby_villager_activity minecraft:play
+dim overworld 191000 f:0 f:0 visual/fog_color rgb:f:3e9d8152,f:3eb1317c,f:3eda04c2
+dim overworld 191000 f:0 f:0 visual/sky_color rgb:f:3e3311a2,f:3e793446,f:3ebe42bc
+dim overworld 191000 f:0 f:0 visual/sunrise_sunset_color argb:f:3f53baa8,f:3ea69eb4,f:3e4ccccd,f:3f702f87
+dim overworld 191000 f:0 f:0 visual/cloud_color argb:f:3eddcdc3,f:3eddcdc3,f:3eee34c6,f:3f4ccccd
+dim overworld 191000 f:0 f:0 visual/sun_angle f:43853d45
+dim overworld 191000 f:0 f:0 visual/moon_angle f:43df3d45
+dim overworld 191000 f:0 f:0 visual/star_angle f:43853d45
+dim overworld 191000 f:0 f:0 visual/moon_phase waxing_gibbous
+dim overworld 191000 f:0 f:0 visual/star_brightness f:3ec2f026
+dim overworld 191000 f:0 f:0 visual/sky_light_color rgb:f:3f047986,f:3f047986,f:3f800000
+dim overworld 191000 f:0 f:0 visual/sky_light_factor f:3e980311
+dim overworld 191000 f:0 f:0 visual/ambient_light_color rgb:f:3d20a0a1,f:3d20a0a1,f:3d20a0a1
+dim overworld 191000 f:0 f:0 audio/firefly_bush_sounds true
+dim overworld 191000 f:0 f:0 gameplay/sky_light_level f:410166f2
+dim overworld 191000 f:0 f:0 gameplay/nether_portal_spawns_piglin true
+dim overworld 191000 f:0 f:0 gameplay/eyeblossom_open true
+dim overworld 191000 f:0 f:0 gameplay/creaking_active true
+dim overworld 191000 f:0 f:0 gameplay/surface_slime_spawn_chance f:3ec00000
+dim overworld 191000 f:0 f:0 gameplay/bees_stay_in_hive true
+dim overworld 191000 f:0 f:0 gameplay/villager_activity minecraft:rest
+dim overworld 191000 f:0 f:0 gameplay/baby_villager_activity minecraft:rest
+dim overworld 191000 f:3ecccccd f:0 visual/fog_color rgb:f:3e7bc2dd,f:3e8d9d9c,f:3eb722b8
+dim overworld 191000 f:3ecccccd f:0 visual/sky_color rgb:f:3e29048b,f:3e5a1cca,f:3e9b046a
+dim overworld 191000 f:3ecccccd f:0 visual/sunrise_sunset_color argb:f:3f29379d,f:3e852a4f,f:3e2c0831,f:3f702f87
+dim overworld 191000 f:3ecccccd f:0 visual/cloud_color argb:f:3ebc2d1a,f:3ebc2d1a,f:3ec94c50,f:3f4ccccd
+dim overworld 191000 f:3ecccccd f:0 visual/sun_angle f:43853d45
+dim overworld 191000 f:3ecccccd f:0 visual/moon_angle f:43df3d45
+dim overworld 191000 f:3ecccccd f:0 visual/star_angle f:43853d45
+dim overworld 191000 f:3ecccccd f:0 visual/moon_phase waxing_gibbous
+dim overworld 191000 f:3ecccccd f:0 visual/star_brightness f:3e69ecfa
+dim overworld 191000 f:3ecccccd f:0 visual/sky_light_color rgb:f:3f033c67,f:3f033c67,f:3f800000
+dim overworld 191000 f:3ecccccd f:0 visual/sky_light_factor f:3e945ed8
+dim overworld 191000 f:3ecccccd f:0 visual/ambient_light_color rgb:f:3d20a0a1,f:3d20a0a1,f:3d20a0a1
+dim overworld 191000 f:3ecccccd f:0 audio/firefly_bush_sounds true
+dim overworld 191000 f:3ecccccd f:0 gameplay/sky_light_level f:40f27428
+dim overworld 191000 f:3ecccccd f:0 gameplay/nether_portal_spawns_piglin true
+dim overworld 191000 f:3ecccccd f:0 gameplay/eyeblossom_open true
+dim overworld 191000 f:3ecccccd f:0 gameplay/creaking_active true
+dim overworld 191000 f:3ecccccd f:0 gameplay/surface_slime_spawn_chance f:3ec00000
+dim overworld 191000 f:3ecccccd f:0 gameplay/bees_stay_in_hive true
+dim overworld 191000 f:3ecccccd f:0 gameplay/villager_activity minecraft:rest
+dim overworld 191000 f:3ecccccd f:0 gameplay/baby_villager_activity minecraft:rest
+dim overworld 191000 f:3f800000 f:3f19999a visual/fog_color rgb:f:3e0a063e,f:3e1b4704,f:3e5401a4
+dim overworld 191000 f:3f800000 f:3f19999a visual/sky_color rgb:f:3dcd2e53,f:3df7fdd6,f:3e2412e2
+dim overworld 191000 f:3f800000 f:3f19999a visual/sunrise_sunset_color argb:f:3eb98aae,f:3e120306,f:3dc72701,f:3f702f87
+dim overworld 191000 f:3f800000 f:3f19999a visual/cloud_color argb:f:3e3868c6,f:3e3868c6,f:3e43da00,f:3f4ccccd
+dim overworld 191000 f:3f800000 f:3f19999a visual/sun_angle f:43853d45
+dim overworld 191000 f:3f800000 f:3f19999a visual/moon_angle f:43df3d45
+dim overworld 191000 f:3f800000 f:3f19999a visual/star_angle f:43853d45
+dim overworld 191000 f:3f800000 f:3f19999a visual/moon_phase waxing_gibbous
+dim overworld 191000 f:3f800000 f:3f19999a visual/star_brightness f:3dbb23fc
+dim overworld 191000 f:3f800000 f:3f19999a visual/sky_light_color rgb:f:3f007989,f:3f007989,f:3f800000
+dim overworld 191000 f:3f800000 f:3f19999a visual/sky_light_factor f:3e8c4e1d
+dim overworld 191000 f:3f800000 f:3f19999a visual/ambient_light_color rgb:f:3d20a0a1,f:3d20a0a1,f:3d20a0a1
+dim overworld 191000 f:3f800000 f:3f19999a audio/firefly_bush_sounds true
+dim overworld 191000 f:3f800000 f:3f19999a gameplay/sky_light_level f:40ce3d67
+dim overworld 191000 f:3f800000 f:3f19999a gameplay/nether_portal_spawns_piglin true
+dim overworld 191000 f:3f800000 f:3f19999a gameplay/eyeblossom_open true
+dim overworld 191000 f:3f800000 f:3f19999a gameplay/creaking_active true
+dim overworld 191000 f:3f800000 f:3f19999a gameplay/surface_slime_spawn_chance f:3ec00000
+dim overworld 191000 f:3f800000 f:3f19999a gameplay/bees_stay_in_hive true
+dim overworld 191000 f:3f800000 f:3f19999a gameplay/villager_activity minecraft:rest
+dim overworld 191000 f:3f800000 f:3f19999a gameplay/baby_villager_activity minecraft:rest
+dim the_nether 0 f:0 f:0 visual/fog_start_distance f:41200000
+dim the_nether 0 f:0 f:0 visual/fog_end_distance f:42c00000
+dim the_nether 0 f:0 f:0 visual/sky_light_color rgb:f:3ef4f4f5,f:3ef4f4f5,f:3f800000
+dim the_nether 0 f:0 f:0 visual/sky_light_factor f:0
+dim the_nether 0 f:0 f:0 visual/ambient_light_color rgb:f:3e40c0c1,f:3e20a0a1,f:3e048485
+dim the_nether 0 f:0 f:0 gameplay/sky_light_level f:40800000
+dim the_nether 0 f:0 f:0 gameplay/can_start_raid false
+dim the_nether 0 f:0 f:0 gameplay/water_evaporates true
+dim the_nether 0 f:0 f:0 gameplay/bed_rule bed:never,never,true,false,false
+dim the_nether 0 f:0 f:0 gameplay/straw_bed_rule bed:never,never,true,false,false
+dim the_nether 0 f:0 f:0 gameplay/respawn_anchor_works true
+dim the_nether 0 f:0 f:0 gameplay/fast_lava true
+dim the_nether 0 f:0 f:0 gameplay/piglins_zombify false
+dim the_nether 0 f:0 f:0 gameplay/snow_golem_melts true
+dim the_nether 0 f:0 f:0 gameplay/villager_activity minecraft:rest
+dim the_nether 0 f:0 f:0 gameplay/baby_villager_activity minecraft:rest
+dim the_nether 133 f:0 f:0 visual/fog_start_distance f:41200000
+dim the_nether 133 f:0 f:0 visual/fog_end_distance f:42c00000
+dim the_nether 133 f:0 f:0 visual/sky_light_color rgb:f:3ef4f4f5,f:3ef4f4f5,f:3f800000
+dim the_nether 133 f:0 f:0 visual/sky_light_factor f:0
+dim the_nether 133 f:0 f:0 visual/ambient_light_color rgb:f:3e40c0c1,f:3e20a0a1,f:3e048485
+dim the_nether 133 f:0 f:0 gameplay/sky_light_level f:40800000
+dim the_nether 133 f:0 f:0 gameplay/can_start_raid false
+dim the_nether 133 f:0 f:0 gameplay/water_evaporates true
+dim the_nether 133 f:0 f:0 gameplay/bed_rule bed:never,never,true,false,false
+dim the_nether 133 f:0 f:0 gameplay/straw_bed_rule bed:never,never,true,false,false
+dim the_nether 133 f:0 f:0 gameplay/respawn_anchor_works true
+dim the_nether 133 f:0 f:0 gameplay/fast_lava true
+dim the_nether 133 f:0 f:0 gameplay/piglins_zombify false
+dim the_nether 133 f:0 f:0 gameplay/snow_golem_melts true
+dim the_nether 1000 f:0 f:0 visual/fog_start_distance f:41200000
+dim the_nether 1000 f:0 f:0 visual/fog_end_distance f:42c00000
+dim the_nether 1000 f:0 f:0 visual/sky_light_color rgb:f:3ef4f4f5,f:3ef4f4f5,f:3f800000
+dim the_nether 1000 f:0 f:0 visual/sky_light_factor f:0
+dim the_nether 1000 f:0 f:0 visual/ambient_light_color rgb:f:3e40c0c1,f:3e20a0a1,f:3e048485
+dim the_nether 1000 f:0 f:0 gameplay/sky_light_level f:40800000
+dim the_nether 1000 f:0 f:0 gameplay/can_start_raid false
+dim the_nether 1000 f:0 f:0 gameplay/water_evaporates true
+dim the_nether 1000 f:0 f:0 gameplay/bed_rule bed:never,never,true,false,false
+dim the_nether 1000 f:0 f:0 gameplay/straw_bed_rule bed:never,never,true,false,false
+dim the_nether 1000 f:0 f:0 gameplay/respawn_anchor_works true
+dim the_nether 1000 f:0 f:0 gameplay/fast_lava true
+dim the_nether 1000 f:0 f:0 gameplay/piglins_zombify false
+dim the_nether 1000 f:0 f:0 gameplay/snow_golem_melts true
+dim the_nether 6000 f:0 f:0 visual/fog_start_distance f:41200000
+dim the_nether 6000 f:0 f:0 visual/fog_end_distance f:42c00000
+dim the_nether 6000 f:0 f:0 visual/sky_light_color rgb:f:3ef4f4f5,f:3ef4f4f5,f:3f800000
+dim the_nether 6000 f:0 f:0 visual/sky_light_factor f:0
+dim the_nether 6000 f:0 f:0 visual/ambient_light_color rgb:f:3e40c0c1,f:3e20a0a1,f:3e048485
+dim the_nether 6000 f:0 f:0 gameplay/sky_light_level f:40800000
+dim the_nether 6000 f:0 f:0 gameplay/can_start_raid false
+dim the_nether 6000 f:0 f:0 gameplay/water_evaporates true
+dim the_nether 6000 f:0 f:0 gameplay/bed_rule bed:never,never,true,false,false
+dim the_nether 6000 f:0 f:0 gameplay/straw_bed_rule bed:never,never,true,false,false
+dim the_nether 6000 f:0 f:0 gameplay/respawn_anchor_works true
+dim the_nether 6000 f:0 f:0 gameplay/fast_lava true
+dim the_nether 6000 f:0 f:0 gameplay/piglins_zombify false
+dim the_nether 6000 f:0 f:0 gameplay/snow_golem_melts true
+dim the_nether 6000 f:0 f:0 gameplay/villager_activity minecraft:work
+dim the_nether 12000 f:0 f:0 visual/fog_start_distance f:41200000
+dim the_nether 12000 f:0 f:0 visual/fog_end_distance f:42c00000
+dim the_nether 12000 f:0 f:0 visual/sky_light_color rgb:f:3ef4f4f5,f:3ef4f4f5,f:3f800000
+dim the_nether 12000 f:0 f:0 visual/sky_light_factor f:0
+dim the_nether 12000 f:0 f:0 visual/ambient_light_color rgb:f:3e40c0c1,f:3e20a0a1,f:3e048485
+dim the_nether 12000 f:0 f:0 gameplay/sky_light_level f:40800000
+dim the_nether 12000 f:0 f:0 gameplay/can_start_raid false
+dim the_nether 12000 f:0 f:0 gameplay/water_evaporates true
+dim the_nether 12000 f:0 f:0 gameplay/bed_rule bed:never,never,true,false,false
+dim the_nether 12000 f:0 f:0 gameplay/straw_bed_rule bed:never,never,true,false,false
+dim the_nether 12000 f:0 f:0 gameplay/respawn_anchor_works true
+dim the_nether 12000 f:0 f:0 gameplay/fast_lava true
+dim the_nether 12000 f:0 f:0 gameplay/piglins_zombify false
+dim the_nether 12000 f:0 f:0 gameplay/snow_golem_melts true
+dim the_nether 12000 f:0 f:0 gameplay/villager_activity minecraft:rest
+dim the_nether 12000 f:0 f:0 gameplay/baby_villager_activity minecraft:rest
+dim the_nether 12600 f:0 f:0 visual/fog_start_distance f:41200000
+dim the_nether 12600 f:0 f:0 visual/fog_end_distance f:42c00000
+dim the_nether 12600 f:0 f:0 visual/sky_light_color rgb:f:3ef4f4f5,f:3ef4f4f5,f:3f800000
+dim the_nether 12600 f:0 f:0 visual/sky_light_factor f:0
+dim the_nether 12600 f:0 f:0 visual/ambient_light_color rgb:f:3e40c0c1,f:3e20a0a1,f:3e048485
+dim the_nether 12600 f:0 f:0 gameplay/sky_light_level f:40800000
+dim the_nether 12600 f:0 f:0 gameplay/can_start_raid false
+dim the_nether 12600 f:0 f:0 gameplay/water_evaporates true
+dim the_nether 12600 f:0 f:0 gameplay/bed_rule bed:never,never,true,false,false
+dim the_nether 12600 f:0 f:0 gameplay/straw_bed_rule bed:never,never,true,false,false
+dim the_nether 12600 f:0 f:0 gameplay/respawn_anchor_works true
+dim the_nether 12600 f:0 f:0 gameplay/fast_lava true
+dim the_nether 12600 f:0 f:0 gameplay/piglins_zombify false
+dim the_nether 12600 f:0 f:0 gameplay/snow_golem_melts true
+dim the_nether 12600 f:0 f:0 gameplay/villager_activity minecraft:rest
+dim the_nether 12600 f:0 f:0 gameplay/baby_villager_activity minecraft:rest
+dim the_nether 13000 f:0 f:0 visual/fog_start_distance f:41200000
+dim the_nether 13000 f:0 f:0 visual/fog_end_distance f:42c00000
+dim the_nether 13000 f:0 f:0 visual/sky_light_color rgb:f:3ef4f4f5,f:3ef4f4f5,f:3f800000
+dim the_nether 13000 f:0 f:0 visual/sky_light_factor f:0
+dim the_nether 13000 f:0 f:0 visual/ambient_light_color rgb:f:3e40c0c1,f:3e20a0a1,f:3e048485
+dim the_nether 13000 f:0 f:0 gameplay/sky_light_level f:40800000
+dim the_nether 13000 f:0 f:0 gameplay/can_start_raid false
+dim the_nether 13000 f:0 f:0 gameplay/water_evaporates true
+dim the_nether 13000 f:0 f:0 gameplay/bed_rule bed:never,never,true,false,false
+dim the_nether 13000 f:0 f:0 gameplay/straw_bed_rule bed:never,never,true,false,false
+dim the_nether 13000 f:0 f:0 gameplay/respawn_anchor_works true
+dim the_nether 13000 f:0 f:0 gameplay/fast_lava true
+dim the_nether 13000 f:0 f:0 gameplay/piglins_zombify false
+dim the_nether 13000 f:0 f:0 gameplay/snow_golem_melts true
+dim the_nether 13000 f:0 f:0 gameplay/villager_activity minecraft:rest
+dim the_nether 13000 f:0 f:0 gameplay/baby_villager_activity minecraft:rest
+dim the_nether 13670 f:0 f:0 visual/fog_start_distance f:41200000
+dim the_nether 13670 f:0 f:0 visual/fog_end_distance f:42c00000
+dim the_nether 13670 f:0 f:0 visual/sky_light_color rgb:f:3ef4f4f5,f:3ef4f4f5,f:3f800000
+dim the_nether 13670 f:0 f:0 visual/sky_light_factor f:0
+dim the_nether 13670 f:0 f:0 visual/ambient_light_color rgb:f:3e40c0c1,f:3e20a0a1,f:3e048485
+dim the_nether 13670 f:0 f:0 gameplay/sky_light_level f:40800000
+dim the_nether 13670 f:0 f:0 gameplay/can_start_raid false
+dim the_nether 13670 f:0 f:0 gameplay/water_evaporates true
+dim the_nether 13670 f:0 f:0 gameplay/bed_rule bed:never,never,true,false,false
+dim the_nether 13670 f:0 f:0 gameplay/straw_bed_rule bed:never,never,true,false,false
+dim the_nether 13670 f:0 f:0 gameplay/respawn_anchor_works true
+dim the_nether 13670 f:0 f:0 gameplay/fast_lava true
+dim the_nether 13670 f:0 f:0 gameplay/piglins_zombify false
+dim the_nether 13670 f:0 f:0 gameplay/snow_golem_melts true
+dim the_nether 13670 f:0 f:0 gameplay/villager_activity minecraft:rest
+dim the_nether 13670 f:0 f:0 gameplay/baby_villager_activity minecraft:rest
+dim the_nether 18000 f:0 f:0 visual/fog_start_distance f:41200000
+dim the_nether 18000 f:0 f:0 visual/fog_end_distance f:42c00000
+dim the_nether 18000 f:0 f:0 visual/sky_light_color rgb:f:3ef4f4f5,f:3ef4f4f5,f:3f800000
+dim the_nether 18000 f:0 f:0 visual/sky_light_factor f:0
+dim the_nether 18000 f:0 f:0 visual/ambient_light_color rgb:f:3e40c0c1,f:3e20a0a1,f:3e048485
+dim the_nether 18000 f:0 f:0 gameplay/sky_light_level f:40800000
+dim the_nether 18000 f:0 f:0 gameplay/can_start_raid false
+dim the_nether 18000 f:0 f:0 gameplay/water_evaporates true
+dim the_nether 18000 f:0 f:0 gameplay/bed_rule bed:never,never,true,false,false
+dim the_nether 18000 f:0 f:0 gameplay/straw_bed_rule bed:never,never,true,false,false
+dim the_nether 18000 f:0 f:0 gameplay/respawn_anchor_works true
+dim the_nether 18000 f:0 f:0 gameplay/fast_lava true
+dim the_nether 18000 f:0 f:0 gameplay/piglins_zombify false
+dim the_nether 18000 f:0 f:0 gameplay/snow_golem_melts true
+dim the_nether 18000 f:0 f:0 gameplay/villager_activity minecraft:rest
+dim the_nether 18000 f:0 f:0 gameplay/baby_villager_activity minecraft:rest
+dim the_nether 23460 f:0 f:0 visual/fog_start_distance f:41200000
+dim the_nether 23460 f:0 f:0 visual/fog_end_distance f:42c00000
+dim the_nether 23460 f:0 f:0 visual/sky_light_color rgb:f:3ef4f4f5,f:3ef4f4f5,f:3f800000
+dim the_nether 23460 f:0 f:0 visual/sky_light_factor f:0
+dim the_nether 23460 f:0 f:0 visual/ambient_light_color rgb:f:3e40c0c1,f:3e20a0a1,f:3e048485
+dim the_nether 23460 f:0 f:0 gameplay/sky_light_level f:40800000
+dim the_nether 23460 f:0 f:0 gameplay/can_start_raid false
+dim the_nether 23460 f:0 f:0 gameplay/water_evaporates true
+dim the_nether 23460 f:0 f:0 gameplay/bed_rule bed:never,never,true,false,false
+dim the_nether 23460 f:0 f:0 gameplay/straw_bed_rule bed:never,never,true,false,false
+dim the_nether 23460 f:0 f:0 gameplay/respawn_anchor_works true
+dim the_nether 23460 f:0 f:0 gameplay/fast_lava true
+dim the_nether 23460 f:0 f:0 gameplay/piglins_zombify false
+dim the_nether 23460 f:0 f:0 gameplay/snow_golem_melts true
+dim the_nether 23460 f:0 f:0 gameplay/villager_activity minecraft:rest
+dim the_nether 23460 f:0 f:0 gameplay/baby_villager_activity minecraft:rest
+dim the_nether 23999 f:0 f:0 visual/fog_start_distance f:41200000
+dim the_nether 23999 f:0 f:0 visual/fog_end_distance f:42c00000
+dim the_nether 23999 f:0 f:0 visual/sky_light_color rgb:f:3ef4f4f5,f:3ef4f4f5,f:3f800000
+dim the_nether 23999 f:0 f:0 visual/sky_light_factor f:0
+dim the_nether 23999 f:0 f:0 visual/ambient_light_color rgb:f:3e40c0c1,f:3e20a0a1,f:3e048485
+dim the_nether 23999 f:0 f:0 gameplay/sky_light_level f:40800000
+dim the_nether 23999 f:0 f:0 gameplay/can_start_raid false
+dim the_nether 23999 f:0 f:0 gameplay/water_evaporates true
+dim the_nether 23999 f:0 f:0 gameplay/bed_rule bed:never,never,true,false,false
+dim the_nether 23999 f:0 f:0 gameplay/straw_bed_rule bed:never,never,true,false,false
+dim the_nether 23999 f:0 f:0 gameplay/respawn_anchor_works true
+dim the_nether 23999 f:0 f:0 gameplay/fast_lava true
+dim the_nether 23999 f:0 f:0 gameplay/piglins_zombify false
+dim the_nether 23999 f:0 f:0 gameplay/snow_golem_melts true
+dim the_nether 23999 f:0 f:0 gameplay/villager_activity minecraft:rest
+dim the_nether 23999 f:0 f:0 gameplay/baby_villager_activity minecraft:rest
+dim the_nether 30000 f:0 f:0 visual/fog_start_distance f:41200000
+dim the_nether 30000 f:0 f:0 visual/fog_end_distance f:42c00000
+dim the_nether 30000 f:0 f:0 visual/sky_light_color rgb:f:3ef4f4f5,f:3ef4f4f5,f:3f800000
+dim the_nether 30000 f:0 f:0 visual/sky_light_factor f:0
+dim the_nether 30000 f:0 f:0 visual/ambient_light_color rgb:f:3e40c0c1,f:3e20a0a1,f:3e048485
+dim the_nether 30000 f:0 f:0 gameplay/sky_light_level f:40800000
+dim the_nether 30000 f:0 f:0 gameplay/can_start_raid false
+dim the_nether 30000 f:0 f:0 gameplay/water_evaporates true
+dim the_nether 30000 f:0 f:0 gameplay/bed_rule bed:never,never,true,false,false
+dim the_nether 30000 f:0 f:0 gameplay/straw_bed_rule bed:never,never,true,false,false
+dim the_nether 30000 f:0 f:0 gameplay/respawn_anchor_works true
+dim the_nether 30000 f:0 f:0 gameplay/fast_lava true
+dim the_nether 30000 f:0 f:0 gameplay/piglins_zombify false
+dim the_nether 30000 f:0 f:0 gameplay/snow_golem_melts true
+dim the_nether 30000 f:0 f:0 gameplay/villager_activity minecraft:work
+dim the_nether 100000 f:0 f:0 visual/fog_start_distance f:41200000
+dim the_nether 100000 f:0 f:0 visual/fog_end_distance f:42c00000
+dim the_nether 100000 f:0 f:0 visual/sky_light_color rgb:f:3ef4f4f5,f:3ef4f4f5,f:3f800000
+dim the_nether 100000 f:0 f:0 visual/sky_light_factor f:0
+dim the_nether 100000 f:0 f:0 visual/ambient_light_color rgb:f:3e40c0c1,f:3e20a0a1,f:3e048485
+dim the_nether 100000 f:0 f:0 gameplay/sky_light_level f:40800000
+dim the_nether 100000 f:0 f:0 gameplay/can_start_raid false
+dim the_nether 100000 f:0 f:0 gameplay/water_evaporates true
+dim the_nether 100000 f:0 f:0 gameplay/bed_rule bed:never,never,true,false,false
+dim the_nether 100000 f:0 f:0 gameplay/straw_bed_rule bed:never,never,true,false,false
+dim the_nether 100000 f:0 f:0 gameplay/respawn_anchor_works true
+dim the_nether 100000 f:0 f:0 gameplay/fast_lava true
+dim the_nether 100000 f:0 f:0 gameplay/piglins_zombify false
+dim the_nether 100000 f:0 f:0 gameplay/snow_golem_melts true
+dim the_nether 100000 f:0 f:0 gameplay/villager_activity minecraft:work
+dim the_nether 100000 f:0 f:0 gameplay/baby_villager_activity minecraft:play
+dim the_nether 191000 f:0 f:0 visual/fog_start_distance f:41200000
+dim the_nether 191000 f:0 f:0 visual/fog_end_distance f:42c00000
+dim the_nether 191000 f:0 f:0 visual/sky_light_color rgb:f:3ef4f4f5,f:3ef4f4f5,f:3f800000
+dim the_nether 191000 f:0 f:0 visual/sky_light_factor f:0
+dim the_nether 191000 f:0 f:0 visual/ambient_light_color rgb:f:3e40c0c1,f:3e20a0a1,f:3e048485
+dim the_nether 191000 f:0 f:0 gameplay/sky_light_level f:40800000
+dim the_nether 191000 f:0 f:0 gameplay/can_start_raid false
+dim the_nether 191000 f:0 f:0 gameplay/water_evaporates true
+dim the_nether 191000 f:0 f:0 gameplay/bed_rule bed:never,never,true,false,false
+dim the_nether 191000 f:0 f:0 gameplay/straw_bed_rule bed:never,never,true,false,false
+dim the_nether 191000 f:0 f:0 gameplay/respawn_anchor_works true
+dim the_nether 191000 f:0 f:0 gameplay/fast_lava true
+dim the_nether 191000 f:0 f:0 gameplay/piglins_zombify false
+dim the_nether 191000 f:0 f:0 gameplay/snow_golem_melts true
+dim the_nether 191000 f:0 f:0 gameplay/villager_activity minecraft:rest
+dim the_nether 191000 f:0 f:0 gameplay/baby_villager_activity minecraft:rest
+dim the_end 0 f:0 f:0 visual/fog_color rgb:f:3dc0c0c1,f:3d989899,f:3dc0c0c1
+dim the_end 0 f:0 f:0 visual/sky_light_color rgb:f:3f2cacad,f:3ec0c0c1,f:3f4dcdce
+dim the_end 0 f:0 f:0 visual/sky_light_factor f:0
+dim the_end 0 f:0 f:0 visual/ambient_light_color rgb:f:3e7cfcfd,f:3e8e8e8f,f:3e7cfcfd
+dim the_end 0 f:0 f:0 gameplay/bed_rule bed:never,never,true,false,false
+dim the_end 0 f:0 f:0 gameplay/straw_bed_rule bed:never,never,true,false,false
+dim the_end 0 f:0 f:0 gameplay/villager_activity minecraft:rest
+dim the_end 0 f:0 f:0 gameplay/baby_villager_activity minecraft:rest
+dim the_end 133 f:0 f:0 visual/fog_color rgb:f:3dc0c0c1,f:3d989899,f:3dc0c0c1
+dim the_end 133 f:0 f:0 visual/sky_light_color rgb:f:3f2cacad,f:3ec0c0c1,f:3f4dcdce
+dim the_end 133 f:0 f:0 visual/sky_light_factor f:0
+dim the_end 133 f:0 f:0 visual/ambient_light_color rgb:f:3e7cfcfd,f:3e8e8e8f,f:3e7cfcfd
+dim the_end 133 f:0 f:0 gameplay/bed_rule bed:never,never,true,false,false
+dim the_end 133 f:0 f:0 gameplay/straw_bed_rule bed:never,never,true,false,false
+dim the_end 1000 f:0 f:0 visual/fog_color rgb:f:3dc0c0c1,f:3d989899,f:3dc0c0c1
+dim the_end 1000 f:0 f:0 visual/sky_light_color rgb:f:3f2cacad,f:3ec0c0c1,f:3f4dcdce
+dim the_end 1000 f:0 f:0 visual/sky_light_factor f:0
+dim the_end 1000 f:0 f:0 visual/ambient_light_color rgb:f:3e7cfcfd,f:3e8e8e8f,f:3e7cfcfd
+dim the_end 1000 f:0 f:0 gameplay/bed_rule bed:never,never,true,false,false
+dim the_end 1000 f:0 f:0 gameplay/straw_bed_rule bed:never,never,true,false,false
+dim the_end 6000 f:0 f:0 visual/fog_color rgb:f:3dc0c0c1,f:3d989899,f:3dc0c0c1
+dim the_end 6000 f:0 f:0 visual/sky_light_color rgb:f:3f2cacad,f:3ec0c0c1,f:3f4dcdce
+dim the_end 6000 f:0 f:0 visual/sky_light_factor f:0
+dim the_end 6000 f:0 f:0 visual/ambient_light_color rgb:f:3e7cfcfd,f:3e8e8e8f,f:3e7cfcfd
+dim the_end 6000 f:0 f:0 gameplay/bed_rule bed:never,never,true,false,false
+dim the_end 6000 f:0 f:0 gameplay/straw_bed_rule bed:never,never,true,false,false
+dim the_end 6000 f:0 f:0 gameplay/villager_activity minecraft:work
+dim the_end 12000 f:0 f:0 visual/fog_color rgb:f:3dc0c0c1,f:3d989899,f:3dc0c0c1
+dim the_end 12000 f:0 f:0 visual/sky_light_color rgb:f:3f2cacad,f:3ec0c0c1,f:3f4dcdce
+dim the_end 12000 f:0 f:0 visual/sky_light_factor f:0
+dim the_end 12000 f:0 f:0 visual/ambient_light_color rgb:f:3e7cfcfd,f:3e8e8e8f,f:3e7cfcfd
+dim the_end 12000 f:0 f:0 gameplay/bed_rule bed:never,never,true,false,false
+dim the_end 12000 f:0 f:0 gameplay/straw_bed_rule bed:never,never,true,false,false
+dim the_end 12000 f:0 f:0 gameplay/villager_activity minecraft:rest
+dim the_end 12000 f:0 f:0 gameplay/baby_villager_activity minecraft:rest
+dim the_end 12600 f:0 f:0 visual/fog_color rgb:f:3dc0c0c1,f:3d989899,f:3dc0c0c1
+dim the_end 12600 f:0 f:0 visual/sky_light_color rgb:f:3f2cacad,f:3ec0c0c1,f:3f4dcdce
+dim the_end 12600 f:0 f:0 visual/sky_light_factor f:0
+dim the_end 12600 f:0 f:0 visual/ambient_light_color rgb:f:3e7cfcfd,f:3e8e8e8f,f:3e7cfcfd
+dim the_end 12600 f:0 f:0 gameplay/bed_rule bed:never,never,true,false,false
+dim the_end 12600 f:0 f:0 gameplay/straw_bed_rule bed:never,never,true,false,false
+dim the_end 12600 f:0 f:0 gameplay/villager_activity minecraft:rest
+dim the_end 12600 f:0 f:0 gameplay/baby_villager_activity minecraft:rest
+dim the_end 13000 f:0 f:0 visual/fog_color rgb:f:3dc0c0c1,f:3d989899,f:3dc0c0c1
+dim the_end 13000 f:0 f:0 visual/sky_light_color rgb:f:3f2cacad,f:3ec0c0c1,f:3f4dcdce
+dim the_end 13000 f:0 f:0 visual/sky_light_factor f:0
+dim the_end 13000 f:0 f:0 visual/ambient_light_color rgb:f:3e7cfcfd,f:3e8e8e8f,f:3e7cfcfd
+dim the_end 13000 f:0 f:0 gameplay/bed_rule bed:never,never,true,false,false
+dim the_end 13000 f:0 f:0 gameplay/straw_bed_rule bed:never,never,true,false,false
+dim the_end 13000 f:0 f:0 gameplay/villager_activity minecraft:rest
+dim the_end 13000 f:0 f:0 gameplay/baby_villager_activity minecraft:rest
+dim the_end 13670 f:0 f:0 visual/fog_color rgb:f:3dc0c0c1,f:3d989899,f:3dc0c0c1
+dim the_end 13670 f:0 f:0 visual/sky_light_color rgb:f:3f2cacad,f:3ec0c0c1,f:3f4dcdce
+dim the_end 13670 f:0 f:0 visual/sky_light_factor f:0
+dim the_end 13670 f:0 f:0 visual/ambient_light_color rgb:f:3e7cfcfd,f:3e8e8e8f,f:3e7cfcfd
+dim the_end 13670 f:0 f:0 gameplay/bed_rule bed:never,never,true,false,false
+dim the_end 13670 f:0 f:0 gameplay/straw_bed_rule bed:never,never,true,false,false
+dim the_end 13670 f:0 f:0 gameplay/villager_activity minecraft:rest
+dim the_end 13670 f:0 f:0 gameplay/baby_villager_activity minecraft:rest
+dim the_end 18000 f:0 f:0 visual/fog_color rgb:f:3dc0c0c1,f:3d989899,f:3dc0c0c1
+dim the_end 18000 f:0 f:0 visual/sky_light_color rgb:f:3f2cacad,f:3ec0c0c1,f:3f4dcdce
+dim the_end 18000 f:0 f:0 visual/sky_light_factor f:0
+dim the_end 18000 f:0 f:0 visual/ambient_light_color rgb:f:3e7cfcfd,f:3e8e8e8f,f:3e7cfcfd
+dim the_end 18000 f:0 f:0 gameplay/bed_rule bed:never,never,true,false,false
+dim the_end 18000 f:0 f:0 gameplay/straw_bed_rule bed:never,never,true,false,false
+dim the_end 18000 f:0 f:0 gameplay/villager_activity minecraft:rest
+dim the_end 18000 f:0 f:0 gameplay/baby_villager_activity minecraft:rest
+dim the_end 23460 f:0 f:0 visual/fog_color rgb:f:3dc0c0c1,f:3d989899,f:3dc0c0c1
+dim the_end 23460 f:0 f:0 visual/sky_light_color rgb:f:3f2cacad,f:3ec0c0c1,f:3f4dcdce
+dim the_end 23460 f:0 f:0 visual/sky_light_factor f:0
+dim the_end 23460 f:0 f:0 visual/ambient_light_color rgb:f:3e7cfcfd,f:3e8e8e8f,f:3e7cfcfd
+dim the_end 23460 f:0 f:0 gameplay/bed_rule bed:never,never,true,false,false
+dim the_end 23460 f:0 f:0 gameplay/straw_bed_rule bed:never,never,true,false,false
+dim the_end 23460 f:0 f:0 gameplay/villager_activity minecraft:rest
+dim the_end 23460 f:0 f:0 gameplay/baby_villager_activity minecraft:rest
+dim the_end 23999 f:0 f:0 visual/fog_color rgb:f:3dc0c0c1,f:3d989899,f:3dc0c0c1
+dim the_end 23999 f:0 f:0 visual/sky_light_color rgb:f:3f2cacad,f:3ec0c0c1,f:3f4dcdce
+dim the_end 23999 f:0 f:0 visual/sky_light_factor f:0
+dim the_end 23999 f:0 f:0 visual/ambient_light_color rgb:f:3e7cfcfd,f:3e8e8e8f,f:3e7cfcfd
+dim the_end 23999 f:0 f:0 gameplay/bed_rule bed:never,never,true,false,false
+dim the_end 23999 f:0 f:0 gameplay/straw_bed_rule bed:never,never,true,false,false
+dim the_end 23999 f:0 f:0 gameplay/villager_activity minecraft:rest
+dim the_end 23999 f:0 f:0 gameplay/baby_villager_activity minecraft:rest
+dim the_end 30000 f:0 f:0 visual/fog_color rgb:f:3dc0c0c1,f:3d989899,f:3dc0c0c1
+dim the_end 30000 f:0 f:0 visual/sky_light_color rgb:f:3f2cacad,f:3ec0c0c1,f:3f4dcdce
+dim the_end 30000 f:0 f:0 visual/sky_light_factor f:0
+dim the_end 30000 f:0 f:0 visual/ambient_light_color rgb:f:3e7cfcfd,f:3e8e8e8f,f:3e7cfcfd
+dim the_end 30000 f:0 f:0 gameplay/bed_rule bed:never,never,true,false,false
+dim the_end 30000 f:0 f:0 gameplay/straw_bed_rule bed:never,never,true,false,false
+dim the_end 30000 f:0 f:0 gameplay/villager_activity minecraft:work
+dim the_end 100000 f:0 f:0 visual/fog_color rgb:f:3dc0c0c1,f:3d989899,f:3dc0c0c1
+dim the_end 100000 f:0 f:0 visual/sky_light_color rgb:f:3f2cacad,f:3ec0c0c1,f:3f4dcdce
+dim the_end 100000 f:0 f:0 visual/sky_light_factor f:0
+dim the_end 100000 f:0 f:0 visual/ambient_light_color rgb:f:3e7cfcfd,f:3e8e8e8f,f:3e7cfcfd
+dim the_end 100000 f:0 f:0 gameplay/bed_rule bed:never,never,true,false,false
+dim the_end 100000 f:0 f:0 gameplay/straw_bed_rule bed:never,never,true,false,false
+dim the_end 100000 f:0 f:0 gameplay/villager_activity minecraft:work
+dim the_end 100000 f:0 f:0 gameplay/baby_villager_activity minecraft:play
+dim the_end 191000 f:0 f:0 visual/fog_color rgb:f:3dc0c0c1,f:3d989899,f:3dc0c0c1
+dim the_end 191000 f:0 f:0 visual/sky_light_color rgb:f:3f2cacad,f:3ec0c0c1,f:3f4dcdce
+dim the_end 191000 f:0 f:0 visual/sky_light_factor f:0
+dim the_end 191000 f:0 f:0 visual/ambient_light_color rgb:f:3e7cfcfd,f:3e8e8e8f,f:3e7cfcfd
+dim the_end 191000 f:0 f:0 gameplay/bed_rule bed:never,never,true,false,false
+dim the_end 191000 f:0 f:0 gameplay/straw_bed_rule bed:never,never,true,false,false
+dim the_end 191000 f:0 f:0 gameplay/villager_activity minecraft:rest
+dim the_end 191000 f:0 f:0 gameplay/baby_villager_activity minecraft:rest
+pos -4032 70 -4032 biome badlands
+pos -4032 70 -4032 gameplay/creature_world_gen_spawn_probability f:3cf5c28f
+pos -4032 70 -4032 gameplay/natural_mob_spawns mobs#dda602fb
+pos -4032 70 -4032 gameplay/snow_golem_melts true
+pos -4032 70 -4032 visual/sky_color rgb:f:3e24257f,f:3e841034,f:3ebe42bc
+pos -4032 70 -4032 visual/fog_color rgb:f:3e9d8152,f:3eb1317c,f:3eda04c2
+pos -4032 70 -4032 gameplay/can_pillager_patrol_spawn false
+pos -4031 70 -4032 biome badlands
+pos -4031 70 -4032 gameplay/creature_world_gen_spawn_probability f:3cf5c28f
+pos -4031 70 -4032 gameplay/natural_mob_spawns mobs#dda602fb
+pos -4031 70 -4032 gameplay/snow_golem_melts true
+pos -4031 70 -4032 visual/sky_color rgb:f:3e24257f,f:3e841034,f:3ebe42bc
+pos -4031 70 -4032 visual/fog_color rgb:f:3e9d8152,f:3eb1317c,f:3eda04c2
+pos -4031 70 -4032 gameplay/can_pillager_patrol_spawn false
+pos -2592 70 2880 biome bamboo_jungle
+pos -2592 70 2880 gameplay/natural_mob_spawns mobs#698070b5
+pos -2592 70 2880 visual/sky_color rgb:f:3e31939e,f:3e7ab24a,f:3ebe42bc
+pos -2592 70 2880 gameplay/increased_fire_burnout true
+pos -2592 70 2880 visual/fog_color rgb:f:3e9d8152,f:3eb1317c,f:3eda04c2
+pos -2592 70 2880 gameplay/can_pillager_patrol_spawn false
+pos -2591 70 2880 biome bamboo_jungle
+pos -2591 70 2880 gameplay/natural_mob_spawns mobs#698070b5
+pos -2591 70 2880 visual/sky_color rgb:f:3e31939e,f:3e7ab24a,f:3ebe42bc
+pos -2591 70 2880 gameplay/increased_fire_burnout true
+pos -2591 70 2880 visual/fog_color rgb:f:3e9d8152,f:3eb1317c,f:3eda04c2
+pos -2591 70 2880 gameplay/can_pillager_patrol_spawn false
+pos -1248 70 1632 biome beach
+pos -1248 70 1632 gameplay/natural_mob_spawns mobs#793bbe61
+pos -1248 70 1632 visual/sky_color rgb:f:3e3311a2,f:3e793446,f:3ebe42bc
+pos -1248 70 1632 visual/fog_color rgb:f:3e9d8152,f:3eb1317c,f:3eda04c2
+pos -1248 70 1632 gameplay/can_pillager_patrol_spawn false
+pos -1247 70 1632 biome beach
+pos -1247 70 1632 gameplay/natural_mob_spawns mobs#793bbe61
+pos -1247 70 1632 visual/sky_color rgb:f:3e3311a2,f:3e793446,f:3ebe42bc
+pos -1247 70 1632 visual/fog_color rgb:f:3e9d8152,f:3eb1317c,f:3eda04c2
+pos -1247 70 1632 gameplay/can_pillager_patrol_spawn false
+pos -480 70 -480 biome birch_forest
+pos -480 70 -480 gameplay/natural_mob_spawns mobs#fa605783
+pos -480 70 -480 visual/sky_color rgb:f:3e360da9,f:3e76383f,f:3ebe42bc
+pos -480 70 -480 visual/fog_color rgb:f:3e9d8152,f:3eb1317c,f:3eda04c2
+pos -480 70 -480 gameplay/can_pillager_patrol_spawn false
+pos -479 70 -480 biome birch_forest
+pos -479 70 -480 gameplay/natural_mob_spawns mobs#fa605783
+pos -479 70 -480 visual/sky_color rgb:f:3e360da9,f:3e76383f,f:3ebe42bc
+pos -479 70 -480 visual/fog_color rgb:f:3e9d8152,f:3eb1317c,f:3eda04c2
+pos -479 70 -480 gameplay/can_pillager_patrol_spawn false
+pos 576 70 -864 biome cherry_grove
+pos 576 70 -864 gameplay/natural_mob_spawns mobs#9225914a
+pos 576 70 -864 visual/sky_color rgb:f:3e378bac,f:3e74ba3c,f:3ebe42bc
+pos 576 70 -864 visual/fog_color rgb:f:3e9d8152,f:3eb1317c,f:3eda04c2
+pos 576 70 -864 visual/water_fog_color rgb:f:3ebababb,f:3f37b7b8,f:3f6feff0
+pos 576 70 -864 gameplay/can_pillager_patrol_spawn false
+pos 577 70 -864 biome cherry_grove
+pos 577 70 -864 gameplay/natural_mob_spawns mobs#9225914a
+pos 577 70 -864 visual/sky_color rgb:f:3e378bac,f:3e74ba3c,f:3ebe42bc
+pos 577 70 -864 visual/fog_color rgb:f:3e9d8152,f:3eb1317c,f:3eda04c2
+pos 577 70 -864 visual/water_fog_color rgb:f:3ebababb,f:3f37b7b8,f:3f6feff0
+pos 577 70 -864 gameplay/can_pillager_patrol_spawn false
+pos 192 70 384 biome cold_ocean
+pos 192 70 384 gameplay/natural_mob_spawns mobs#9cf931f4
+pos 192 70 384 visual/sky_color rgb:f:3e378bac,f:3e74ba3c,f:3ebe42bc
+pos 192 70 384 visual/fog_color rgb:f:3e9d8152,f:3eb1317c,f:3eda04c2
+pos 192 70 384 gameplay/can_pillager_patrol_spawn false
+pos 193 70 384 biome cold_ocean
+pos 193 70 384 gameplay/natural_mob_spawns mobs#9cf931f4
+pos 193 70 384 visual/sky_color rgb:f:3e378bac,f:3e74ba3c,f:3ebe42bc
+pos 193 70 384 visual/fog_color rgb:f:3e9d8152,f:3eb1317c,f:3eda04c2
+pos 193 70 384 gameplay/can_pillager_patrol_spawn false
+pos 576 70 -768 biome dappled_forest
+pos 576 70 -768 gameplay/natural_mob_spawns mobs#9dbc558c
+pos 576 70 -768 visual/sky_color rgb:f:3e3909b0,f:3e733c38,f:3ebe42bc
+pos 576 70 -768 visual/fog_color rgb:f:3ea75967,f:3eb1317c,f:3ec1396d
+pos 576 70 -768 visual/water_fog_color rgb:f:3e5cdcdd,f:3ea2a2a3,f:3ea8a8a9
+pos 576 70 -768 gameplay/can_pillager_patrol_spawn false
+pos 577 70 -768 biome dappled_forest
+pos 577 70 -768 gameplay/natural_mob_spawns mobs#9dbc558c
+pos 577 70 -768 visual/sky_color rgb:f:3e3909b0,f:3e733c38,f:3ebe42bc
+pos 577 70 -768 visual/fog_color rgb:f:3ea75967,f:3eb1317c,f:3ec1396d
+pos 577 70 -768 visual/water_fog_color rgb:f:3e5cdcdd,f:3ea2a2a3,f:3ea8a8a9
+pos 577 70 -768 gameplay/can_pillager_patrol_spawn false
+pos -96 70 -384 biome dark_forest
+pos -96 70 -384 gameplay/natural_mob_spawns mobs#fa605783
+pos -96 70 -384 visual/sky_color rgb:f:3e348fa5,f:3e77b643,f:3ebe42bc
+pos -96 70 -384 visual/fog_color rgb:f:3e9d8152,f:3eb1317c,f:3eda04c2
+pos -96 70 -384 gameplay/can_pillager_patrol_spawn false
+pos -95 70 -384 biome dark_forest
+pos -95 70 -384 gameplay/natural_mob_spawns mobs#fa605783
+pos -95 70 -384 visual/sky_color rgb:f:3e348fa5,f:3e77b643,f:3ebe42bc
+pos -95 70 -384 visual/fog_color rgb:f:3e9d8152,f:3eb1317c,f:3eda04c2
+pos -95 70 -384 gameplay/can_pillager_patrol_spawn false
+pos 480 70 -1824 biome deep_cold_ocean
+pos 480 70 -1824 gameplay/natural_mob_spawns mobs#9cf931f4
+pos 480 70 -1824 visual/sky_color rgb:f:3e378bac,f:3e74ba3c,f:3ebe42bc
+pos 480 70 -1824 visual/fog_color rgb:f:3e9d8152,f:3eb1317c,f:3eda04c2
+pos 480 70 -1824 gameplay/can_pillager_patrol_spawn false
+pos 481 70 -1824 biome deep_cold_ocean
+pos 481 70 -1824 gameplay/natural_mob_spawns mobs#9cf931f4
+pos 481 70 -1824 visual/sky_color rgb:f:3e378bac,f:3e74ba3c,f:3ebe42bc
+pos 481 70 -1824 visual/fog_color rgb:f:3e9d8152,f:3eb1317c,f:3eda04c2
+pos 481 70 -1824 gameplay/can_pillager_patrol_spawn false
+pos 5376 70 5472 biome deep_dark
+pos 5376 70 5472 gameplay/natural_mob_spawns mobs#30e4928
+pos 5376 70 5472 visual/sky_color rgb:f:3e3311a2,f:3e793446,f:3ebe42bc
+pos 5376 70 5472 visual/fog_color rgb:f:3e9d8152,f:3eb1317c,f:3eda04c2
+pos 5376 70 5472 gameplay/can_pillager_patrol_spawn false
+pos 5377 70 5472 biome deep_dark
+pos 5377 70 5472 gameplay/natural_mob_spawns mobs#30e4928
+pos 5377 70 5472 visual/sky_color rgb:f:3e3311a2,f:3e793446,f:3ebe42bc
+pos 5377 70 5472 visual/fog_color rgb:f:3e9d8152,f:3eb1317c,f:3eda04c2
+pos 5377 70 5472 gameplay/can_pillager_patrol_spawn false
+pos 288 70 1632 biome deep_frozen_ocean
+pos 288 70 1632 gameplay/natural_mob_spawns mobs#3a196af5
+pos 288 70 1632 visual/sky_color rgb:f:3e378bac,f:3e74ba3c,f:3ebe42bc
+pos 288 70 1632 visual/fog_color rgb:f:3e9d8152,f:3eb1317c,f:3eda04c2
+pos 288 70 1632 gameplay/can_pillager_patrol_spawn false
+pos 289 70 1632 biome deep_frozen_ocean
+pos 289 70 1632 gameplay/natural_mob_spawns mobs#3a196af5
+pos 289 70 1632 visual/sky_color rgb:f:3e378bac,f:3e74ba3c,f:3ebe42bc
+pos 289 70 1632 visual/fog_color rgb:f:3e9d8152,f:3eb1317c,f:3eda04c2
+pos 289 70 1632 gameplay/can_pillager_patrol_spawn false
+pos -1728 70 1728 biome deep_lukewarm_ocean
+pos -1728 70 1728 gameplay/natural_mob_spawns mobs#d068f2e1
+pos -1728 70 1728 visual/sky_color rgb:f:3e378bac,f:3e74ba3c,f:3ebe42bc
+pos -1728 70 1728 visual/fog_color rgb:f:3e9d8152,f:3eb1317c,f:3eda04c2
+pos -1728 70 1728 visual/water_fog_color rgb:f:3c808081,f:3db0b0b1,f:3e4ccccd
+pos -1728 70 1728 gameplay/can_pillager_patrol_spawn false
+pos -1727 70 1728 biome deep_lukewarm_ocean
+pos -1727 70 1728 gameplay/natural_mob_spawns mobs#d068f2e1
+pos -1727 70 1728 visual/sky_color rgb:f:3e378bac,f:3e74ba3c,f:3ebe42bc
+pos -1727 70 1728 visual/fog_color rgb:f:3e9d8152,f:3eb1317c,f:3eda04c2
+pos -1727 70 1728 visual/water_fog_color rgb:f:3c808081,f:3db0b0b1,f:3e4ccccd
+pos -1727 70 1728 gameplay/can_pillager_patrol_spawn false
+pos 96 70 384 biome deep_ocean
+pos 96 70 384 gameplay/natural_mob_spawns mobs#1af73a1
+pos 96 70 384 visual/sky_color rgb:f:3e378bac,f:3e74ba3c,f:3ebe42bc
+pos 96 70 384 visual/fog_color rgb:f:3e9d8152,f:3eb1317c,f:3eda04c2
+pos 96 70 384 gameplay/can_pillager_patrol_spawn false
+pos 97 70 384 biome deep_ocean
+pos 97 70 384 gameplay/natural_mob_spawns mobs#1af73a1
+pos 97 70 384 visual/sky_color rgb:f:3e378bac,f:3e74ba3c,f:3ebe42bc
+pos 97 70 384 visual/fog_color rgb:f:3e9d8152,f:3eb1317c,f:3eda04c2
+pos 97 70 384 gameplay/can_pillager_patrol_spawn false
+pos -3744 70 -4224 biome desert
+pos -3744 70 -4224 gameplay/natural_mob_spawns mobs#d93f9f7c
+pos -3744 70 -4224 gameplay/snow_golem_melts true
+pos -3744 70 -4224 visual/sky_color rgb:f:3e24257f,f:3e841034,f:3ebe42bc
+pos -3744 70 -4224 visual/fog_color rgb:f:3e9d8152,f:3eb1317c,f:3eda04c2
+pos -3744 70 -4224 gameplay/can_pillager_patrol_spawn false
+pos -3743 70 -4224 biome desert
+pos -3743 70 -4224 gameplay/natural_mob_spawns mobs#d93f9f7c
+pos -3743 70 -4224 gameplay/snow_golem_melts true
+pos -3743 70 -4224 visual/sky_color rgb:f:3e24257f,f:3e841034,f:3ebe42bc
+pos -3743 70 -4224 visual/fog_color rgb:f:3e9d8152,f:3eb1317c,f:3eda04c2
+pos -3743 70 -4224 gameplay/can_pillager_patrol_spawn false
+pos -768 70 768 biome dripstone_caves
+pos -768 70 768 gameplay/natural_mob_spawns mobs#fccfe5e6
+pos -768 70 768 visual/sky_color rgb:f:3e3311a2,f:3e793446,f:3ebe42bc
+pos -768 70 768 visual/fog_color rgb:f:3e9d8152,f:3eb1317c,f:3eda04c2
+pos -768 70 768 gameplay/can_pillager_patrol_spawn false
+pos -767 70 768 biome dripstone_caves
+pos -767 70 768 gameplay/natural_mob_spawns mobs#fccfe5e6
+pos -767 70 768 visual/sky_color rgb:f:3e3311a2,f:3e793446,f:3ebe42bc
+pos -767 70 768 visual/fog_color rgb:f:3e9d8152,f:3eb1317c,f:3eda04c2
+pos -767 70 768 gameplay/can_pillager_patrol_spawn false
+pos 96 70 -2112 biome flower_forest
+pos 96 70 -2112 gameplay/natural_mob_spawns mobs#878546ec
+pos 96 70 -2112 visual/sky_color rgb:f:3e348fa5,f:3e77b643,f:3ebe42bc
+pos 96 70 -2112 visual/fog_color rgb:f:3e9d8152,f:3eb1317c,f:3eda04c2
+pos 96 70 -2112 gameplay/can_pillager_patrol_spawn false
+pos 97 70 -2112 biome flower_forest
+pos 97 70 -2112 gameplay/natural_mob_spawns mobs#878546ec
+pos 97 70 -2112 visual/sky_color rgb:f:3e348fa5,f:3e77b643,f:3ebe42bc
+pos 97 70 -2112 visual/fog_color rgb:f:3e9d8152,f:3eb1317c,f:3eda04c2
+pos 97 70 -2112 gameplay/can_pillager_patrol_spawn false
+pos -288 70 -288 biome forest
+pos -288 70 -288 gameplay/natural_mob_spawns mobs#ceb724e5
+pos -288 70 -288 visual/sky_color rgb:f:3e348fa5,f:3e77b643,f:3ebe42bc
+pos -288 70 -288 visual/fog_color rgb:f:3e9d8152,f:3eb1317c,f:3eda04c2
+pos -288 70 -288 gameplay/can_pillager_patrol_spawn false
+pos -287 70 -288 biome forest
+pos -287 70 -288 gameplay/natural_mob_spawns mobs#ceb724e5
+pos -287 70 -288 visual/sky_color rgb:f:3e348fa5,f:3e77b643,f:3ebe42bc
+pos -287 70 -288 visual/fog_color rgb:f:3e9d8152,f:3eb1317c,f:3eda04c2
+pos -287 70 -288 gameplay/can_pillager_patrol_spawn false
+pos 864 70 864 biome frozen_ocean
+pos 864 70 864 gameplay/natural_mob_spawns mobs#3a196af5
+pos 864 70 864 visual/sky_color rgb:f:3e3d83ba,f:3e704031,f:3ebe42bc
+pos 864 70 864 visual/fog_color rgb:f:3e9d8152,f:3eb1317c,f:3eda04c2
+pos 864 70 864 gameplay/can_pillager_patrol_spawn false
+pos 865 70 864 biome frozen_ocean
+pos 865 70 864 gameplay/natural_mob_spawns mobs#3a196af5
+pos 865 70 864 visual/sky_color rgb:f:3e3d83ba,f:3e704031,f:3ebe42bc
+pos 865 70 864 visual/fog_color rgb:f:3e9d8152,f:3eb1317c,f:3eda04c2
+pos 865 70 864 gameplay/can_pillager_patrol_spawn false
+pos 384 70 576 biome frozen_peaks
+pos 384 70 576 gameplay/natural_mob_spawns mobs#555046c0
+pos 384 70 576 visual/sky_color rgb:f:3e4677d0,f:3e6a4823,f:3ebe42bc
+pos 384 70 576 gameplay/increased_fire_burnout true
+pos 384 70 576 visual/fog_color rgb:f:3e9d8152,f:3eb1317c,f:3eda04c2
+pos 384 70 576 gameplay/can_pillager_patrol_spawn false
+pos 385 70 576 biome frozen_peaks
+pos 385 70 576 gameplay/natural_mob_spawns mobs#555046c0
+pos 385 70 576 visual/sky_color rgb:f:3e4677d0,f:3e6a4823,f:3ebe42bc
+pos 385 70 576 gameplay/increased_fire_burnout true
+pos 385 70 576 visual/fog_color rgb:f:3e9d8152,f:3eb1317c,f:3eda04c2
+pos 385 70 576 gameplay/can_pillager_patrol_spawn false
+pos 384 70 864 biome frozen_river
+pos 384 70 864 gameplay/natural_mob_spawns mobs#64b60781
+pos 384 70 864 visual/sky_color rgb:f:3e3d83ba,f:3e704031,f:3ebe42bc
+pos 384 70 864 visual/fog_color rgb:f:3e9d8152,f:3eb1317c,f:3eda04c2
+pos 384 70 864 gameplay/can_pillager_patrol_spawn false
+pos 385 70 864 biome frozen_river
+pos 385 70 864 gameplay/natural_mob_spawns mobs#64b60781
+pos 385 70 864 visual/sky_color rgb:f:3e3d83ba,f:3e704031,f:3ebe42bc
+pos 385 70 864 visual/fog_color rgb:f:3e9d8152,f:3eb1317c,f:3eda04c2
+pos 385 70 864 gameplay/can_pillager_patrol_spawn false
+pos 384 70 672 biome grove
+pos 384 70 672 gameplay/natural_mob_spawns mobs#88c440e0
+pos 384 70 672 visual/sky_color rgb:f:3e407fc2,f:3e6ec22e,f:3ebe42bc
+pos 384 70 672 visual/fog_color rgb:f:3e9d8152,f:3eb1317c,f:3eda04c2
+pos 384 70 672 gameplay/can_pillager_patrol_spawn false
+pos 385 70 672 biome grove
+pos 385 70 672 gameplay/natural_mob_spawns mobs#88c440e0
+pos 385 70 672 visual/sky_color rgb:f:3e407fc2,f:3e6ec22e,f:3ebe42bc
+pos 385 70 672 visual/fog_color rgb:f:3e9d8152,f:3eb1317c,f:3eda04c2
+pos 385 70 672 gameplay/can_pillager_patrol_spawn false
+pos 672 70 -768 biome ice_spikes
+pos 672 70 -768 gameplay/creature_world_gen_spawn_probability f:3d8f5c29
+pos 672 70 -768 gameplay/natural_mob_spawns mobs#c233c4cf
+pos 672 70 -768 visual/sky_color rgb:f:3e3d83ba,f:3e704031,f:3ebe42bc
+pos 672 70 -768 visual/fog_color rgb:f:3e9d8152,f:3eb1317c,f:3eda04c2
+pos 672 70 -768 gameplay/can_pillager_patrol_spawn false
+pos 673 70 -768 biome ice_spikes
+pos 673 70 -768 gameplay/creature_world_gen_spawn_probability f:3d8f5c29
+pos 673 70 -768 gameplay/natural_mob_spawns mobs#c233c4cf
+pos 673 70 -768 visual/sky_color rgb:f:3e3d83ba,f:3e704031,f:3ebe42bc
+pos 673 70 -768 visual/fog_color rgb:f:3e9d8152,f:3eb1317c,f:3eda04c2
+pos 673 70 -768 gameplay/can_pillager_patrol_spawn false
+pos -384 70 -576 biome jagged_peaks
+pos -384 70 -576 gameplay/natural_mob_spawns mobs#555046c0
+pos -384 70 -576 visual/sky_color rgb:f:3e4677d0,f:3e6a4823,f:3ebe42bc
+pos -384 70 -576 gameplay/increased_fire_burnout true
+pos -384 70 -576 visual/fog_color rgb:f:3e9d8152,f:3eb1317c,f:3eda04c2
+pos -384 70 -576 gameplay/can_pillager_patrol_spawn false
+pos -383 70 -576 biome jagged_peaks
+pos -383 70 -576 gameplay/natural_mob_spawns mobs#555046c0
+pos -383 70 -576 visual/sky_color rgb:f:3e4677d0,f:3e6a4823,f:3ebe42bc
+pos -383 70 -576 gameplay/increased_fire_burnout true
+pos -383 70 -576 visual/fog_color rgb:f:3e9d8152,f:3eb1317c,f:3eda04c2
+pos -383 70 -576 gameplay/can_pillager_patrol_spawn false
+pos -576 70 -576 biome jungle
+pos -576 70 -576 gameplay/natural_mob_spawns mobs#cccb8966
+pos -576 70 -576 visual/sky_color rgb:f:3e31939e,f:3e7ab24a,f:3ebe42bc
+pos -576 70 -576 gameplay/increased_fire_burnout true
+pos -576 70 -576 visual/fog_color rgb:f:3e9d8152,f:3eb1317c,f:3eda04c2
+pos -576 70 -576 gameplay/can_pillager_patrol_spawn false
+pos -575 70 -576 biome jungle
+pos -575 70 -576 gameplay/natural_mob_spawns mobs#cccb8966
+pos -575 70 -576 visual/sky_color rgb:f:3e31939e,f:3e7ab24a,f:3ebe42bc
+pos -575 70 -576 gameplay/increased_fire_burnout true
+pos -575 70 -576 visual/fog_color rgb:f:3e9d8152,f:3eb1317c,f:3eda04c2
+pos -575 70 -576 gameplay/can_pillager_patrol_spawn false
+pos -1632 70 1632 biome lukewarm_ocean
+pos -1632 70 1632 gameplay/natural_mob_spawns mobs#9a025f40
+pos -1632 70 1632 visual/sky_color rgb:f:3e378bac,f:3e74ba3c,f:3ebe42bc
+pos -1632 70 1632 visual/fog_color rgb:f:3e9d8152,f:3eb1317c,f:3eda04c2
+pos -1632 70 1632 visual/water_fog_color rgb:f:3c808081,f:3db0b0b1,f:3e4ccccd
+pos -1632 70 1632 gameplay/can_pillager_patrol_spawn false
+pos -1631 70 1632 biome lukewarm_ocean
+pos -1631 70 1632 gameplay/natural_mob_spawns mobs#9a025f40
+pos -1631 70 1632 visual/sky_color rgb:f:3e378bac,f:3e74ba3c,f:3ebe42bc
+pos -1631 70 1632 visual/fog_color rgb:f:3e9d8152,f:3eb1317c,f:3eda04c2
+pos -1631 70 1632 visual/water_fog_color rgb:f:3c808081,f:3db0b0b1,f:3e4ccccd
+pos -1631 70 1632 gameplay/can_pillager_patrol_spawn false
+pos 96 70 -96 biome lush_caves
+pos 96 70 -96 gameplay/natural_mob_spawns mobs#5ab6c5c8
+pos 96 70 -96 visual/sky_color rgb:f:3e378bac,f:3e74ba3c,f:3ebe42bc
+pos 96 70 -96 visual/fog_color rgb:f:3e9d8152,f:3eb1317c,f:3eda04c2
+pos 96 70 -96 gameplay/can_pillager_patrol_spawn false
+pos 97 70 -96 biome lush_caves
+pos 97 70 -96 gameplay/natural_mob_spawns mobs#5ab6c5c8
+pos 97 70 -96 visual/sky_color rgb:f:3e378bac,f:3e74ba3c,f:3ebe42bc
+pos 97 70 -96 visual/fog_color rgb:f:3e9d8152,f:3eb1317c,f:3eda04c2
+pos 97 70 -96 gameplay/can_pillager_patrol_spawn false
+pos -2880 70 -5280 biome mangrove_swamp
+pos -2880 70 -5280 gameplay/natural_mob_spawns mobs#2e847f3e
+pos -2880 70 -5280 visual/sky_color rgb:f:3e3311a2,f:3e793446,f:3ebe42bc
+pos -2880 70 -5280 gameplay/increased_fire_burnout true
+pos -2880 70 -5280 visual/fog_color rgb:f:3e9d8152,f:3eb1317c,f:3eda04c2
+pos -2880 70 -5280 visual/water_fog_color rgb:f:3e9a9a9b,f:3ef4f4f5,f:3ec0c0c1
+pos -2880 70 -5280 visual/water_fog_end_distance f:42a33334
+pos -2880 70 -5280 gameplay/can_pillager_patrol_spawn false
+pos -2879 70 -5280 biome mangrove_swamp
+pos -2879 70 -5280 gameplay/natural_mob_spawns mobs#2e847f3e
+pos -2879 70 -5280 visual/sky_color rgb:f:3e3311a2,f:3e793446,f:3ebe42bc
+pos -2879 70 -5280 gameplay/increased_fire_burnout true
+pos -2879 70 -5280 visual/fog_color rgb:f:3e9d8152,f:3eb1317c,f:3eda04c2
+pos -2879 70 -5280 visual/water_fog_color rgb:f:3e9a9a9b,f:3ef4f4f5,f:3ec0c0c1
+pos -2879 70 -5280 visual/water_fog_end_distance f:42a33334
+pos -2879 70 -5280 gameplay/can_pillager_patrol_spawn false
+pos 480 70 576 biome meadow
+pos 480 70 576 gameplay/natural_mob_spawns mobs#12a8e57a
+pos 480 70 576 visual/sky_color rgb:f:3e378bac,f:3e74ba3c,f:3ebe42bc
+pos 480 70 576 visual/fog_color rgb:f:3e9d8152,f:3eb1317c,f:3eda04c2
+pos 480 70 576 gameplay/can_pillager_patrol_spawn false
+pos 481 70 576 biome meadow
+pos 481 70 576 gameplay/natural_mob_spawns mobs#12a8e57a
+pos 481 70 576 visual/sky_color rgb:f:3e378bac,f:3e74ba3c,f:3ebe42bc
+pos 481 70 576 visual/fog_color rgb:f:3e9d8152,f:3eb1317c,f:3eda04c2
+pos 481 70 576 gameplay/can_pillager_patrol_spawn false
+pos 4128 70 4416 biome mushroom_fields
+pos 4128 70 4416 gameplay/natural_mob_spawns mobs#1269c040
+pos 4128 70 4416 visual/sky_color rgb:f:3e31939e,f:3e7ab24a,f:3ebe42bc
+pos 4128 70 4416 gameplay/increased_fire_burnout true
+pos 4128 70 4416 visual/fog_color rgb:f:3e9d8152,f:3eb1317c,f:3eda04c2
+pos 4128 70 4416 gameplay/can_pillager_patrol_spawn false
+pos 4129 70 4416 biome mushroom_fields
+pos 4129 70 4416 gameplay/natural_mob_spawns mobs#1269c040
+pos 4129 70 4416 visual/sky_color rgb:f:3e31939e,f:3e7ab24a,f:3ebe42bc
+pos 4129 70 4416 gameplay/increased_fire_burnout true
+pos 4129 70 4416 visual/fog_color rgb:f:3e9d8152,f:3eb1317c,f:3eda04c2
+pos 4129 70 4416 gameplay/can_pillager_patrol_spawn false
+pos 0 70 0 biome ocean
+pos 0 70 0 gameplay/natural_mob_spawns mobs#1af73a1
+pos 0 70 0 visual/sky_color rgb:f:3e378bac,f:3e74ba3c,f:3ebe42bc
+pos 0 70 0 visual/fog_color rgb:f:3e9d8152,f:3eb1317c,f:3eda04c2
+pos 0 70 0 gameplay/can_pillager_patrol_spawn false
+pos 1 70 0 biome ocean
+pos 1 70 0 gameplay/natural_mob_spawns mobs#1af73a1
+pos 1 70 0 visual/sky_color rgb:f:3e378bac,f:3e74ba3c,f:3ebe42bc
+pos 1 70 0 visual/fog_color rgb:f:3e9d8152,f:3eb1317c,f:3eda04c2
+pos 1 70 0 gameplay/can_pillager_patrol_spawn false
+pos -576 70 -768 biome old_growth_birch_forest
+pos -576 70 -768 gameplay/natural_mob_spawns mobs#fa605783
+pos -576 70 -768 visual/sky_color rgb:f:3e360da9,f:3e76383f,f:3ebe42bc
+pos -576 70 -768 visual/fog_color rgb:f:3e9d8152,f:3eb1317c,f:3eda04c2
+pos -576 70 -768 gameplay/can_pillager_patrol_spawn false
+pos -575 70 -768 biome old_growth_birch_forest
+pos -575 70 -768 gameplay/natural_mob_spawns mobs#fa605783
+pos -575 70 -768 visual/sky_color rgb:f:3e360da9,f:3e76383f,f:3ebe42bc
+pos -575 70 -768 visual/fog_color rgb:f:3e9d8152,f:3eb1317c,f:3eda04c2
+pos -575 70 -768 gameplay/can_pillager_patrol_spawn false
+pos 480 70 480 biome old_growth_pine_taiga
+pos 480 70 480 gameplay/natural_mob_spawns mobs#cc31fff4
+pos 480 70 480 visual/sky_color rgb:f:3e3909b0,f:3e733c38,f:3ebe42bc
+pos 480 70 480 visual/fog_color rgb:f:3e9d8152,f:3eb1317c,f:3eda04c2
+pos 480 70 480 gameplay/can_pillager_patrol_spawn false
+pos 481 70 480 biome old_growth_pine_taiga
+pos 481 70 480 gameplay/natural_mob_spawns mobs#cc31fff4
+pos 481 70 480 visual/sky_color rgb:f:3e3909b0,f:3e733c38,f:3ebe42bc
+pos 481 70 480 visual/fog_color rgb:f:3e9d8152,f:3eb1317c,f:3eda04c2
+pos 481 70 480 gameplay/can_pillager_patrol_spawn false
+pos 4416 70 5856 biome pale_garden
+pos 4416 70 5856 gameplay/natural_mob_spawns mobs#63fdeb14
+pos 4416 70 5856 visual/sky_color rgb:f:3e8a0842,f:3e8a0842,f:3e8a0842
+pos 4416 70 5856 visual/fog_color rgb:f:3e53a5c6,f:3e433da2,f:3e3f83ae
+pos 4416 70 5856 visual/water_fog_color rgb:f:3eaaaaab,f:3ed2d2d3,f:3f008081
+pos 4416 70 5856 gameplay/can_pillager_patrol_spawn false
+pos 4416 70 5856 audio/music_volume f:0
+pos 4417 70 5856 biome pale_garden
+pos 4417 70 5856 gameplay/natural_mob_spawns mobs#63fdeb14
+pos 4417 70 5856 visual/sky_color rgb:f:3e8a0842,f:3e8a0842,f:3e8a0842
+pos 4417 70 5856 visual/fog_color rgb:f:3e53a5c6,f:3e433da2,f:3e3f83ae
+pos 4417 70 5856 visual/water_fog_color rgb:f:3eaaaaab,f:3ed2d2d3,f:3f008081
+pos 4417 70 5856 gameplay/can_pillager_patrol_spawn false
+pos 4417 70 5856 audio/music_volume f:0
+pos -384 70 384 biome plains
+pos -384 70 384 gameplay/natural_mob_spawns mobs#794c7025
+pos -384 70 384 visual/sky_color rgb:f:3e3311a2,f:3e793446,f:3ebe42bc
+pos -384 70 384 visual/fog_color rgb:f:3e9d8152,f:3eb1317c,f:3eda04c2
+pos -384 70 384 gameplay/can_pillager_patrol_spawn false
+pos -383 70 384 biome plains
+pos -383 70 384 gameplay/natural_mob_spawns mobs#794c7025
+pos -383 70 384 visual/sky_color rgb:f:3e3311a2,f:3e793446,f:3ebe42bc
+pos -383 70 384 visual/fog_color rgb:f:3e9d8152,f:3eb1317c,f:3eda04c2
+pos -383 70 384 gameplay/can_pillager_patrol_spawn false
+pos -96 70 -288 biome river
+pos -96 70 -288 gameplay/natural_mob_spawns mobs#8f150d81
+pos -96 70 -288 visual/sky_color rgb:f:3e378bac,f:3e74ba3c,f:3ebe42bc
+pos -96 70 -288 visual/fog_color rgb:f:3e9d8152,f:3eb1317c,f:3eda04c2
+pos -96 70 -288 gameplay/can_pillager_patrol_spawn false
+pos -95 70 -288 biome river
+pos -95 70 -288 gameplay/natural_mob_spawns mobs#8f150d81
+pos -95 70 -288 visual/sky_color rgb:f:3e378bac,f:3e74ba3c,f:3ebe42bc
+pos -95 70 -288 visual/fog_color rgb:f:3e9d8152,f:3eb1317c,f:3eda04c2
+pos -95 70 -288 gameplay/can_pillager_patrol_spawn false
+pos -1344 70 -1440 biome savanna
+pos -1344 70 -1440 gameplay/natural_mob_spawns mobs#f2dc6e66
+pos -1344 70 -1440 gameplay/snow_golem_melts true
+pos -1344 70 -1440 visual/sky_color rgb:f:3e24257f,f:3e841034,f:3ebe42bc
+pos -1344 70 -1440 visual/fog_color rgb:f:3e9d8152,f:3eb1317c,f:3eda04c2
+pos -1344 70 -1440 gameplay/can_pillager_patrol_spawn false
+pos -1343 70 -1440 biome savanna
+pos -1343 70 -1440 gameplay/natural_mob_spawns mobs#f2dc6e66
+pos -1343 70 -1440 gameplay/snow_golem_melts true
+pos -1343 70 -1440 visual/sky_color rgb:f:3e24257f,f:3e841034,f:3ebe42bc
+pos -1343 70 -1440 visual/fog_color rgb:f:3e9d8152,f:3eb1317c,f:3eda04c2
+pos -1343 70 -1440 gameplay/can_pillager_patrol_spawn false
+pos -1056 70 -1440 biome savanna_plateau
+pos -1056 70 -1440 gameplay/natural_mob_spawns mobs#47a0a01b
+pos -1056 70 -1440 gameplay/snow_golem_melts true
+pos -1056 70 -1440 visual/sky_color rgb:f:3e24257f,f:3e841034,f:3ebe42bc
+pos -1056 70 -1440 visual/fog_color rgb:f:3e9d8152,f:3eb1317c,f:3eda04c2
+pos -1056 70 -1440 gameplay/can_pillager_patrol_spawn false
+pos -1055 70 -1440 biome savanna_plateau
+pos -1055 70 -1440 gameplay/natural_mob_spawns mobs#47a0a01b
+pos -1055 70 -1440 gameplay/snow_golem_melts true
+pos -1055 70 -1440 visual/sky_color rgb:f:3e24257f,f:3e841034,f:3ebe42bc
+pos -1055 70 -1440 visual/fog_color rgb:f:3e9d8152,f:3eb1317c,f:3eda04c2
+pos -1055 70 -1440 gameplay/can_pillager_patrol_spawn false
+pos 768 70 960 biome snowy_beach
+pos 768 70 960 gameplay/natural_mob_spawns mobs#63fdeb14
+pos 768 70 960 visual/sky_color rgb:f:3e3d83ba,f:3e704031,f:3ebe42bc
+pos 768 70 960 visual/fog_color rgb:f:3e9d8152,f:3eb1317c,f:3eda04c2
+pos 768 70 960 gameplay/can_pillager_patrol_spawn false
+pos 769 70 960 biome snowy_beach
+pos 769 70 960 gameplay/natural_mob_spawns mobs#63fdeb14
+pos 769 70 960 visual/sky_color rgb:f:3e3d83ba,f:3e704031,f:3ebe42bc
+pos 769 70 960 visual/fog_color rgb:f:3e9d8152,f:3eb1317c,f:3eda04c2
+pos 769 70 960 gameplay/can_pillager_patrol_spawn false
+pos 672 70 -672 biome snowy_plains
+pos 672 70 -672 gameplay/creature_world_gen_spawn_probability f:3d8f5c29
+pos 672 70 -672 gameplay/natural_mob_spawns mobs#9cce29c6
+pos 672 70 -672 visual/sky_color rgb:f:3e3d83ba,f:3e704031,f:3ebe42bc
+pos 672 70 -672 visual/fog_color rgb:f:3e9d8152,f:3eb1317c,f:3eda04c2
+pos 672 70 -672 gameplay/can_pillager_patrol_spawn false
+pos 673 70 -672 biome snowy_plains
+pos 673 70 -672 gameplay/creature_world_gen_spawn_probability f:3d8f5c29
+pos 673 70 -672 gameplay/natural_mob_spawns mobs#9cce29c6
+pos 673 70 -672 visual/sky_color rgb:f:3e3d83ba,f:3e704031,f:3ebe42bc
+pos 673 70 -672 visual/fog_color rgb:f:3e9d8152,f:3eb1317c,f:3eda04c2
+pos 673 70 -672 gameplay/can_pillager_patrol_spawn false
+pos -384 70 768 biome snowy_slopes
+pos -384 70 768 gameplay/natural_mob_spawns mobs#3c531e93
+pos -384 70 768 visual/sky_color rgb:f:3e41fdc5,f:3e6d442a,f:3ebe42bc
+pos -384 70 768 gameplay/increased_fire_burnout true
+pos -384 70 768 visual/fog_color rgb:f:3e9d8152,f:3eb1317c,f:3eda04c2
+pos -384 70 768 gameplay/can_pillager_patrol_spawn false
+pos -383 70 768 biome snowy_slopes
+pos -383 70 768 gameplay/natural_mob_spawns mobs#3c531e93
+pos -383 70 768 visual/sky_color rgb:f:3e41fdc5,f:3e6d442a,f:3ebe42bc
+pos -383 70 768 gameplay/increased_fire_burnout true
+pos -383 70 768 visual/fog_color rgb:f:3e9d8152,f:3eb1317c,f:3eda04c2
+pos -383 70 768 gameplay/can_pillager_patrol_spawn false
+pos 576 70 672 biome snowy_taiga
+pos 576 70 672 gameplay/natural_mob_spawns mobs#3e25bc0b
+pos 576 70 672 visual/sky_color rgb:f:3e437bc9,f:3e6bc627,f:3ebe42bc
+pos 576 70 672 visual/fog_color rgb:f:3e9d8152,f:3eb1317c,f:3eda04c2
+pos 576 70 672 gameplay/can_pillager_patrol_spawn false
+pos 577 70 672 biome snowy_taiga
+pos 577 70 672 gameplay/natural_mob_spawns mobs#3e25bc0b
+pos 577 70 672 visual/sky_color rgb:f:3e437bc9,f:3e6bc627,f:3ebe42bc
+pos 577 70 672 visual/fog_color rgb:f:3e9d8152,f:3eb1317c,f:3eda04c2
+pos 577 70 672 gameplay/can_pillager_patrol_spawn false
+pos -672 70 -672 biome sparse_jungle
+pos -672 70 -672 gameplay/natural_mob_spawns mobs#f4da494f
+pos -672 70 -672 visual/sky_color rgb:f:3e31939e,f:3e7ab24a,f:3ebe42bc
+pos -672 70 -672 visual/fog_color rgb:f:3e9d8152,f:3eb1317c,f:3eda04c2
+pos -672 70 -672 gameplay/can_pillager_patrol_spawn false
+pos -671 70 -672 biome sparse_jungle
+pos -671 70 -672 gameplay/natural_mob_spawns mobs#f4da494f
+pos -671 70 -672 visual/sky_color rgb:f:3e31939e,f:3e7ab24a,f:3ebe42bc
+pos -671 70 -672 visual/fog_color rgb:f:3e9d8152,f:3eb1317c,f:3eda04c2
+pos -671 70 -672 gameplay/can_pillager_patrol_spawn false
+pos -2784 70 -3744 biome stony_peaks
+pos -2784 70 -3744 gameplay/natural_mob_spawns mobs#63fdeb14
+pos -2784 70 -3744 visual/sky_color rgb:f:3e30159b,f:3e7ab24a,f:3ebe42bc
+pos -2784 70 -3744 visual/fog_color rgb:f:3e9d8152,f:3eb1317c,f:3eda04c2
+pos -2784 70 -3744 gameplay/can_pillager_patrol_spawn false
+pos -2783 70 -3744 biome stony_peaks
+pos -2783 70 -3744 gameplay/natural_mob_spawns mobs#63fdeb14
+pos -2783 70 -3744 visual/sky_color rgb:f:3e30159b,f:3e7ab24a,f:3ebe42bc
+pos -2783 70 -3744 visual/fog_color rgb:f:3e9d8152,f:3eb1317c,f:3eda04c2
+pos -2783 70 -3744 gameplay/can_pillager_patrol_spawn false
+pos 0 70 -192 biome stony_shore
+pos 0 70 -192 gameplay/natural_mob_spawns mobs#63fdeb14
+pos 0 70 -192 visual/sky_color rgb:f:3e3a87b3,f:3e71be35,f:3ebe42bc
+pos 0 70 -192 visual/fog_color rgb:f:3e9d8152,f:3eb1317c,f:3eda04c2
+pos 0 70 -192 gameplay/can_pillager_patrol_spawn false
+pos 1 70 -192 biome stony_shore
+pos 1 70 -192 gameplay/natural_mob_spawns mobs#63fdeb14
+pos 1 70 -192 visual/sky_color rgb:f:3e3a87b3,f:3e71be35,f:3ebe42bc
+pos 1 70 -192 visual/fog_color rgb:f:3e9d8152,f:3eb1317c,f:3eda04c2
+pos 1 70 -192 gameplay/can_pillager_patrol_spawn false
+pos 576 -40 1824 biome sulfur_caves
+pos 576 -40 1824 gameplay/natural_mob_spawns mobs#d233105e
+pos 576 -40 1824 visual/sky_color rgb:f:3e3311a2,f:3e793446,f:3ebe42bc
+pos 576 -40 1824 visual/fog_color rgb:f:3e65b1ed,f:3e96f143,f:3da79338
+pos 576 -40 1824 visual/water_fog_color rgb:f:3db8b8b9,f:3ea8a8a9,f:3e70f0f1
+pos 576 -40 1824 gameplay/can_pillager_patrol_spawn false
+pos 577 -40 1824 biome sulfur_caves
+pos 577 -40 1824 gameplay/natural_mob_spawns mobs#d233105e
+pos 577 -40 1824 visual/sky_color rgb:f:3e3311a2,f:3e793446,f:3ebe42bc
+pos 577 -40 1824 visual/fog_color rgb:f:3e65b1ed,f:3e96f143,f:3da79338
+pos 577 -40 1824 visual/water_fog_color rgb:f:3db8b8b9,f:3ea8a8a9,f:3e70f0f1
+pos 577 -40 1824 gameplay/can_pillager_patrol_spawn false
+pos -480 70 480 biome sunflower_plains
+pos -480 70 480 gameplay/natural_mob_spawns mobs#794c7025
+pos -480 70 480 visual/sky_color rgb:f:3e3311a2,f:3e793446,f:3ebe42bc
+pos -480 70 480 visual/fog_color rgb:f:3e9d8152,f:3eb1317c,f:3eda04c2
+pos -480 70 480 gameplay/can_pillager_patrol_spawn false
+pos -479 70 480 biome sunflower_plains
+pos -479 70 480 gameplay/natural_mob_spawns mobs#794c7025
+pos -479 70 480 visual/sky_color rgb:f:3e3311a2,f:3e793446,f:3ebe42bc
+pos -479 70 480 visual/fog_color rgb:f:3e9d8152,f:3eb1317c,f:3eda04c2
+pos -479 70 480 gameplay/can_pillager_patrol_spawn false
+pos -1728 70 -1728 biome swamp
+pos -1728 70 -1728 gameplay/natural_mob_spawns mobs#a1ba54d1
+pos -1728 70 -1728 visual/sky_color rgb:f:3e3311a2,f:3e793446,f:3ebe42bc
+pos -1728 70 -1728 gameplay/increased_fire_burnout true
+pos -1728 70 -1728 visual/fog_color rgb:f:3e9d8152,f:3eb1317c,f:3eda04c2
+pos -1728 70 -1728 visual/water_fog_color rgb:f:3e0c8c8d,f:3e0c8c8d,f:3db8b8b9
+pos -1728 70 -1728 visual/water_fog_end_distance f:42a33334
+pos -1728 70 -1728 gameplay/can_pillager_patrol_spawn false
+pos -1727 70 -1728 biome swamp
+pos -1727 70 -1728 gameplay/natural_mob_spawns mobs#a1ba54d1
+pos -1727 70 -1728 visual/sky_color rgb:f:3e3311a2,f:3e793446,f:3ebe42bc
+pos -1727 70 -1728 gameplay/increased_fire_burnout true
+pos -1727 70 -1728 visual/fog_color rgb:f:3e9d8152,f:3eb1317c,f:3eda04c2
+pos -1727 70 -1728 visual/water_fog_color rgb:f:3e0c8c8d,f:3e0c8c8d,f:3db8b8b9
+pos -1727 70 -1728 visual/water_fog_end_distance f:42a33334
+pos -1727 70 -1728 gameplay/can_pillager_patrol_spawn false
+pos 384 70 -576 biome taiga
+pos 384 70 -576 gameplay/natural_mob_spawns mobs#3e25bc0b
+pos 384 70 -576 visual/sky_color rgb:f:3e3a87b3,f:3e733c38,f:3ebe42bc
+pos 384 70 -576 visual/fog_color rgb:f:3e9d8152,f:3eb1317c,f:3eda04c2
+pos 384 70 -576 gameplay/can_pillager_patrol_spawn false
+pos 385 70 -576 biome taiga
+pos 385 70 -576 gameplay/natural_mob_spawns mobs#3e25bc0b
+pos 385 70 -576 visual/sky_color rgb:f:3e3a87b3,f:3e733c38,f:3ebe42bc
+pos 385 70 -576 visual/fog_color rgb:f:3e9d8152,f:3eb1317c,f:3eda04c2
+pos 385 70 -576 gameplay/can_pillager_patrol_spawn false
+pos -4992 70 -4992 biome warm_ocean
+pos -4992 70 -4992 gameplay/natural_mob_spawns mobs#4b9c7ee0
+pos -4992 70 -4992 visual/sky_color rgb:f:3e378bac,f:3e74ba3c,f:3ebe42bc
+pos -4992 70 -4992 visual/fog_color rgb:f:3e9d8152,f:3eb1317c,f:3eda04c2
+pos -4992 70 -4992 visual/water_fog_color rgb:f:3c808081,f:3df8f8f9,f:3e4ccccd
+pos -4992 70 -4992 gameplay/can_pillager_patrol_spawn false
+pos -4991 70 -4992 biome warm_ocean
+pos -4991 70 -4992 gameplay/natural_mob_spawns mobs#4b9c7ee0
+pos -4991 70 -4992 visual/sky_color rgb:f:3e378bac,f:3e74ba3c,f:3ebe42bc
+pos -4991 70 -4992 visual/fog_color rgb:f:3e9d8152,f:3eb1317c,f:3eda04c2
+pos -4991 70 -4992 visual/water_fog_color rgb:f:3c808081,f:3df8f8f9,f:3e4ccccd
+pos -4991 70 -4992 gameplay/can_pillager_patrol_spawn false
+pos -1632 70 -1632 biome windswept_forest
+pos -1632 70 -1632 gameplay/natural_mob_spawns mobs#3aaa9fca
+pos -1632 70 -1632 visual/sky_color rgb:f:3e3a87b3,f:3e71be35,f:3ebe42bc
+pos -1632 70 -1632 visual/fog_color rgb:f:3e9d8152,f:3eb1317c,f:3eda04c2
+pos -1632 70 -1632 gameplay/can_pillager_patrol_spawn false
+pos -1631 70 -1632 biome windswept_forest
+pos -1631 70 -1632 gameplay/natural_mob_spawns mobs#3aaa9fca
+pos -1631 70 -1632 visual/sky_color rgb:f:3e3a87b3,f:3e71be35,f:3ebe42bc
+pos -1631 70 -1632 visual/fog_color rgb:f:3e9d8152,f:3eb1317c,f:3eda04c2
+pos -1631 70 -1632 gameplay/can_pillager_patrol_spawn false
+pos 1248 70 1536 biome windswept_gravelly_hills
+pos 1248 70 1536 gameplay/natural_mob_spawns mobs#3aaa9fca
+pos 1248 70 1536 visual/sky_color rgb:f:3e3a87b3,f:3e71be35,f:3ebe42bc
+pos 1248 70 1536 visual/fog_color rgb:f:3e9d8152,f:3eb1317c,f:3eda04c2
+pos 1248 70 1536 gameplay/can_pillager_patrol_spawn false
+pos 1249 70 1536 biome windswept_gravelly_hills
+pos 1249 70 1536 gameplay/natural_mob_spawns mobs#3aaa9fca
+pos 1249 70 1536 visual/sky_color rgb:f:3e3a87b3,f:3e71be35,f:3ebe42bc
+pos 1249 70 1536 visual/fog_color rgb:f:3e9d8152,f:3eb1317c,f:3eda04c2
+pos 1249 70 1536 gameplay/can_pillager_patrol_spawn false
+pos 0 70 1824 biome windswept_hills
+pos 0 70 1824 gameplay/natural_mob_spawns mobs#3aaa9fca
+pos 0 70 1824 visual/sky_color rgb:f:3e3a87b3,f:3e71be35,f:3ebe42bc
+pos 0 70 1824 visual/fog_color rgb:f:3e9d8152,f:3eb1317c,f:3eda04c2
+pos 0 70 1824 gameplay/can_pillager_patrol_spawn false
+pos 1 70 1824 biome windswept_hills
+pos 1 70 1824 gameplay/natural_mob_spawns mobs#3aaa9fca
+pos 1 70 1824 visual/sky_color rgb:f:3e3a87b3,f:3e71be35,f:3ebe42bc
+pos 1 70 1824 visual/fog_color rgb:f:3e9d8152,f:3eb1317c,f:3eda04c2
+pos 1 70 1824 gameplay/can_pillager_patrol_spawn false
+pos 1344 70 -3744 biome windswept_savanna
+pos 1344 70 -3744 gameplay/natural_mob_spawns mobs#f2dc6e66
+pos 1344 70 -3744 gameplay/snow_golem_melts true
+pos 1344 70 -3744 visual/sky_color rgb:f:3e24257f,f:3e841034,f:3ebe42bc
+pos 1344 70 -3744 visual/fog_color rgb:f:3e9d8152,f:3eb1317c,f:3eda04c2
+pos 1344 70 -3744 gameplay/can_pillager_patrol_spawn false
+pos 1345 70 -3744 biome windswept_savanna
+pos 1345 70 -3744 gameplay/natural_mob_spawns mobs#f2dc6e66
+pos 1345 70 -3744 gameplay/snow_golem_melts true
+pos 1345 70 -3744 visual/sky_color rgb:f:3e24257f,f:3e841034,f:3ebe42bc
+pos 1345 70 -3744 visual/fog_color rgb:f:3e9d8152,f:3eb1317c,f:3eda04c2
+pos 1345 70 -3744 gameplay/can_pillager_patrol_spawn false
+pos -4224 70 -4224 biome wooded_badlands
+pos -4224 70 -4224 gameplay/creature_world_gen_spawn_probability f:3d23d70a
+pos -4224 70 -4224 gameplay/natural_mob_spawns mobs#3312d66a
+pos -4224 70 -4224 gameplay/snow_golem_melts true
+pos -4224 70 -4224 visual/sky_color rgb:f:3e24257f,f:3e841034,f:3ebe42bc
+pos -4224 70 -4224 visual/fog_color rgb:f:3e9d8152,f:3eb1317c,f:3eda04c2
+pos -4224 70 -4224 gameplay/can_pillager_patrol_spawn false
+pos -4223 70 -4224 biome wooded_badlands
+pos -4223 70 -4224 gameplay/creature_world_gen_spawn_probability f:3d23d70a
+pos -4223 70 -4224 gameplay/natural_mob_spawns mobs#3312d66a
+pos -4223 70 -4224 gameplay/snow_golem_melts true
+pos -4223 70 -4224 visual/sky_color rgb:f:3e24257f,f:3e841034,f:3ebe42bc
+pos -4223 70 -4224 visual/fog_color rgb:f:3e9d8152,f:3eb1317c,f:3eda04c2
+pos -4223 70 -4224 gameplay/can_pillager_patrol_spawn false

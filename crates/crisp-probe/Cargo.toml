@@ -1,0 +1,13 @@
+[package]
+name = "crisp-probe"
+version.workspace = true
+edition.workspace = true
+publish = false
+
+[dependencies]
+anyhow.workspace = true
+crisp-data.workspace = true
+crisp-protocol.workspace = true
+flate2 = "1.1.10"
+serde_json.workspace = true
+tokio = { workspace = true, features = ["fs"] }

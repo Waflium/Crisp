@@ -1,0 +1,7 @@
+[package]
+name = "crisp-core"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+md-5 = "0.11.0"

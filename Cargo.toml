@@ -1,0 +1,15 @@
+[workspace]
+resolver = "3"
+members = ["crates/crisp-core", "crates/crisp-data", "crates/crisp-probe", "crates/crisp-protocol", "crates/crisp-server", "xtask"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+
+[workspace.dependencies]
+crisp-core = { path = "crates/crisp-core" }
+crisp-data = { path = "crates/crisp-data" }
+crisp-protocol = { path = "crates/crisp-protocol" }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "io-util", "io-std", "signal", "sync", "time"] }
+serde_json = "1"
+anyhow = "1"

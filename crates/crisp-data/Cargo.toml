@@ -1,0 +1,11 @@
+[package]
+name = "crisp-data"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+crisp-core.workspace = true
+
+[build-dependencies]
+anyhow.workspace = true
+serde_json = { workspace = true, features = ["preserve_order"] }

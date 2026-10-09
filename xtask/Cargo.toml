@@ -1,0 +1,11 @@
+[package]
+name = "xtask"
+version.workspace = true
+edition.workspace = true
+publish = false
+
+[dependencies]
+anyhow.workspace = true
+sha1_smol = "1.0.1"
+ureq = "3.4.2"
+zip = { version = "8.6.0", default-features = false, features = ["deflate"] }

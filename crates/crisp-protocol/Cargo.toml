@@ -1,0 +1,11 @@
+[package]
+name = "crisp-protocol"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+flate2 = "1.1.10"
+tokio.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["rt", "macros"] }

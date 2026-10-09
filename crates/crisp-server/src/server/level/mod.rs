@@ -1,0 +1,1285 @@
+pub mod block_entities;
+pub mod chunk_cache;
+pub mod chunk_holder;
+pub mod chunk_level;
+pub mod chunk_map;
+pub mod chunk_task_dispatcher;
+pub mod chunk_tracker;
+pub mod chunk_workers;
+pub mod distance_manager;
+pub mod events;
+pub mod game_mode;
+pub mod player;
+pub mod player_spawn_finder;
+pub mod progress;
+mod precipitation;
+pub mod server_boss_event;
+pub mod server_entity;
+pub mod threaded_level_light_engine;
+pub mod ticket;
+
+use crate::util::FastIndexMap;
+
+use crisp_core::random::{LegacyRandomSource, RandomSource};
+use crisp_core::{AABB, BlockPos, ChunkPos, Direction, Vec3, mth};
+use crisp_data::packets::play::clientbound;
+use crisp_data::{Block, BlockState, DimensionType, Fluid, blocks};
+
+use crate::network::connection::encode;
+use crate::world::attribute::environment_attribute_system::{EnvironmentAccess, EnvironmentAttributeReader};
+use crate::world::attribute::EnvironmentAttributeSystem;
+use crate::world::clock::ServerClockManager;
+use crate::world::entity::{Entity, EntityId, ItemEntity, LevelEntity};
+use crate::world::item::ItemStack;
+use crate::world::level::BlockGetter;
+use crate::world::level::block;
+use crate::world::level::block::entity::BlockEntity;
+use crate::world::level::border::world_border::{Settings, WorldBorder};
+use crate::world::level::chunk::block_entities::EntityCreationType;
+use crate::world::level::chunk::storage::RegionStorage;
+use crate::world::level::entity::PersistentEntitySectionManager;
+use crate::world::level::entity::entity_tick_list::EntityTickList;
+use crate::world::level::gamerules::GameRules;
+use crate::world::level::saveddata::weather_data::WeatherData;
+use crate::world::tick_rate_manager::TickRateManager;
+use crate::world::level::storage::loot::{LootContext, generate};
+use crate::world::level::update_flags::*;
+use crate::world::scores::scoreboard::Scoreboard;
+use crate::world::ticks::{ScheduledTick, TickPriority};
+use chunk_cache::ChunkCache;
+use chunk_map::{ChunkMap, TrackingConfig};
+use player::ServerPlayer;
+use server_entity::UpdateInterval;
+
+#[derive(Clone, Debug, Default)]
+pub struct SpawnProtection {
+    pub radius: i32,
+    pub spawn: BlockPos,
+    pub ops: Vec<u128>,
+}
+
+pub const RAIN_DELAY: (i32, i32) = (12000, 180000);
+pub const RAIN_DURATION: (i32, i32) = (12000, 24000);
+pub const THUNDER_DELAY: (i32, i32) = (12000, 180000);
+pub const THUNDER_DURATION: (i32, i32) = (3600, 15600);
+
+const GAME_EVENT_START_RAINING: u8 = 1;
+const GAME_EVENT_STOP_RAINING: u8 = 2;
+const GAME_EVENT_RAIN_LEVEL_CHANGE: u8 = 7;
+const GAME_EVENT_THUNDER_LEVEL_CHANGE: u8 = 8;
+
+const UPDATE_ORDER: [Direction; 6] = [Direction::West, Direction::East, Direction::Down, Direction::Up, Direction::North, Direction::South];
+
+pub const UPDATE_SHAPE_ORDER: [Direction; 6] = [Direction::West, Direction::East, Direction::North, Direction::South, Direction::Down, Direction::Up];
+
+const MAX_CHAINED_NEIGHBOR_UPDATES: i32 = 1_000_000;
+
+enum NeighborUpdates {
+    Shape { direction: Direction, neighbor_state: BlockState, pos: BlockPos, neighbor_pos: BlockPos, flags: i32, update_limit: i32 },
+    Simple { pos: BlockPos, block: Block },
+    Full { state: BlockState, pos: BlockPos, block: Block, moved_by_piston: bool },
+    Multi { source_pos: BlockPos, source_block: Block, skip: Option<Direction>, idx: usize },
+}
+
+enum NeighborStep {
+    Shape { direction: Direction, neighbor_state: BlockState, pos: BlockPos, neighbor_pos: BlockPos, flags: i32, update_limit: i32 },
+    Changed { state: Option<BlockState>, pos: BlockPos, block: Block, moved_by_piston: bool },
+}
+
+#[derive(Default)]
+struct NeighborUpdater {
+    stack: Vec<NeighborUpdates>,
+    added_this_layer: Vec<NeighborUpdates>,
+    count: i32,
+}
+
+pub struct ServerLevel {
+    pub game_rules: GameRules,
+    pub spawn_protection: SpawnProtection,
+    pub difficulty: crate::world::difficulty::Difficulty,
+    pub no_save: bool,
+    pub weather: WeatherData,
+    pub scoreboard: Scoreboard,
+    pub world_border: WorldBorder,
+    pub rain_level: f32,
+    pub o_rain_level: f32,
+    pub thunder_level: f32,
+    pub o_thunder_level: f32,
+    pub dimension: &'static str,
+    pub dimension_type_id: i32,
+    pub chunks: ChunkCache,
+    pub chunk_map: ChunkMap,
+    pub players: FastIndexMap<EntityId, ServerPlayer>,
+    pub player_names_array: std::sync::Arc<std::sync::RwLock<std::sync::Arc<[String]>>>,
+    pub entities: FastIndexMap<EntityId, LevelEntity>,
+    pub entity_manager: PersistentEntitySectionManager,
+    pub(crate) tick_list: EntityTickList,
+    pub random: LegacyRandomSource,
+    pub thread_safe_random: LegacyRandomSource,
+    neighbor_updater: NeighborUpdater,
+    sub_tick_count: i64,
+    rand_value: i32,
+    pub biome_zoom_seed: i64,
+    pub overworld_clock_time: i64,
+    pub simulation_distance: i32,
+    empty_time: i32,
+    pub tick_rate_manager: TickRateManager,
+    block_events: Vec<(BlockPos, Block, i32, i32)>,
+    pub game_time: i64,
+    pub redstone_torch_toggles: Vec<(BlockPos, i64)>,
+    environment_attributes: EnvironmentAttributeSystem,
+    pub clock_ticks: Vec<i64>,
+    pub(crate) sky_darken: i32,
+}
+
+impl EnvironmentAccess for ServerLevel {
+    fn biome(&self, x: i32, y: i32, z: i32) -> crate::world::level::chunk::Biome {
+        self.get_biome(BlockPos::new(x, y, z))
+    }
+
+    fn noise_biome(&self, quart_x: i32, quart_y: i32, quart_z: i32) -> crate::world::level::chunk::Biome {
+        self.get_noise_biome(quart_x, quart_y, quart_z)
+    }
+
+    fn clock_total_ticks(&self, clock: usize) -> i64 {
+        self.clock_ticks[clock]
+    }
+
+    fn rain_level(&self) -> f32 {
+        self.get_rain_level(1.0)
+    }
+
+    fn thunder_level(&self) -> f32 {
+        self.get_thunder_level(1.0)
+    }
+}
+
+impl ServerLevel {
+    pub fn new(
+        dimension: &'static str,
+        dimension_type_id: i32,
+        mut chunks: ChunkCache,
+        entity_storage: Option<RegionStorage>,
+        view_distance: i32,
+        simulation_distance: i32,
+    ) -> ServerLevel {
+        chunks.set_view_distance(view_distance);
+        chunks.set_simulation_distance(simulation_distance);
+        let mut level = ServerLevel {
+            game_rules: GameRules::default(),
+            difficulty: crate::world::difficulty::Difficulty::Easy,
+            no_save: false,
+            spawn_protection: SpawnProtection::default(),
+            weather: WeatherData::default(),
+            rain_level: 0.0,
+            o_rain_level: 0.0,
+            thunder_level: 0.0,
+            o_thunder_level: 0.0,
+            dimension,
+            dimension_type_id,
+            chunks,
+            chunk_map: ChunkMap::new(view_distance),
+            players: FastIndexMap::default(),
+            player_names_array: Default::default(),
+            entities: FastIndexMap::default(),
+            entity_manager: PersistentEntitySectionManager::new(entity_storage),
+            tick_list: EntityTickList::default(),
+            random: LegacyRandomSource::create(),
+            thread_safe_random: LegacyRandomSource::create(),
+            neighbor_updater: NeighborUpdater::default(),
+            sub_tick_count: 0,
+            rand_value: LegacyRandomSource::create().next_int(),
+            biome_zoom_seed: 0,
+            overworld_clock_time: 0,
+            simulation_distance,
+            empty_time: 0,
+            tick_rate_manager: TickRateManager::default(),
+            block_events: Vec::new(),
+            game_time: 0,
+            redstone_torch_toggles: Vec::new(),
+            scoreboard: Scoreboard::default(),
+            world_border: WorldBorder::new(Settings::DEFAULT, None),
+            environment_attributes: EnvironmentAttributeSystem::default(),
+            clock_ticks: ServerClockManager::new().clocks.iter().map(|c| c.total_ticks).collect(),
+            sky_darken: 0,
+        };
+        level.environment_attributes = EnvironmentAttributeSystem::builder().add_default_layers(level.dimension_type(), level.can_have_weather()).build();
+        level.update_sky_brightness();
+        level
+    }
+
+    pub fn environment_attributes(&self) -> EnvironmentAttributeReader<'_, ServerLevel> {
+        self.environment_attributes.reader(self)
+    }
+
+    pub fn sync_clocks(&mut self, clocks: &ServerClockManager) {
+        self.clock_ticks = clocks.clocks.iter().map(|c| c.total_ticks).collect();
+        self.environment_attributes.invalidate_tick_cache();
+    }
+
+    pub fn prepare_weather(&mut self, weather: WeatherData) {
+        self.weather = weather;
+        if weather.raining {
+            self.rain_level = 1.0;
+            if weather.thundering {
+                self.thunder_level = 1.0;
+            }
+        }
+    }
+
+    pub fn can_have_weather(&self) -> bool {
+        let dimension = self.dimension_type();
+        dimension.has_skylight && !dimension.has_ceiling && self.dimension != "minecraft:the_end"
+    }
+
+    pub fn get_rain_level(&self, a: f32) -> f32 {
+        mth::lerp_f(a, self.o_rain_level, self.rain_level)
+    }
+
+    pub fn get_thunder_level(&self, a: f32) -> f32 {
+        mth::lerp_f(a, self.o_thunder_level, self.thunder_level) * self.get_rain_level(a)
+    }
+
+    pub fn is_raining(&self) -> bool {
+        self.can_have_weather() && self.get_rain_level(1.0) as f64 > 0.2
+    }
+
+    pub fn is_thundering(&self) -> bool {
+        self.can_have_weather() && self.get_thunder_level(1.0) as f64 > 0.9
+    }
+
+    fn advance_weather_cycle(&mut self) {
+        let was_raining = self.is_raining();
+        if self.can_have_weather() {
+            if self.game_rules.get_bool(crisp_data::game_rule::ADVANCE_WEATHER) {
+                let w = &mut self.weather;
+                if w.clear_weather_time > 0 {
+                    w.clear_weather_time -= 1;
+                    w.thunder_time = if w.thundering { 0 } else { 1 };
+                    w.rain_time = if w.raining { 0 } else { 1 };
+                    w.thundering = false;
+                    w.raining = false;
+                } else {
+                    let sample = |random: &mut LegacyRandomSource, (min, max): (i32, i32)| mth::random_between_inclusive(random, min, max);
+                    if w.thunder_time > 0 {
+                        w.thunder_time -= 1;
+                        if w.thunder_time == 0 {
+                            w.thundering = !w.thundering;
+                        }
+                    } else if w.thundering {
+                        w.thunder_time = sample(&mut self.random, THUNDER_DURATION);
+                    } else {
+                        w.thunder_time = sample(&mut self.random, THUNDER_DELAY);
+                    }
+                    if w.rain_time > 0 {
+                        w.rain_time -= 1;
+                        if w.rain_time == 0 {
+                            w.raining = !w.raining;
+                        }
+                    } else if w.raining {
+                        w.rain_time = sample(&mut self.random, RAIN_DURATION);
+                    } else {
+                        w.rain_time = sample(&mut self.random, RAIN_DELAY);
+                    }
+                }
+            }
+            self.o_thunder_level = self.thunder_level;
+            self.thunder_level = mth::clamp_f(self.thunder_level + if self.weather.thundering { 0.01 } else { -0.01 }, 0.0, 1.0);
+            self.o_rain_level = self.rain_level;
+            self.rain_level = mth::clamp_f(self.rain_level + if self.weather.raining { 0.01 } else { -0.01 }, 0.0, 1.0);
+        }
+        if self.o_rain_level != self.rain_level {
+            self.broadcast_game_event(GAME_EVENT_RAIN_LEVEL_CHANGE, self.rain_level);
+        }
+        if self.o_thunder_level != self.thunder_level {
+            self.broadcast_game_event(GAME_EVENT_THUNDER_LEVEL_CHANGE, self.thunder_level);
+        }
+        if was_raining != self.is_raining() {
+            self.broadcast_game_event(if was_raining { GAME_EVENT_STOP_RAINING } else { GAME_EVENT_START_RAINING }, 0.0);
+            self.broadcast_game_event(GAME_EVENT_RAIN_LEVEL_CHANGE, self.rain_level);
+            self.broadcast_game_event(GAME_EVENT_THUNDER_LEVEL_CHANGE, self.thunder_level);
+        }
+    }
+
+    pub fn write_weather_for_joining(&self, out: &crate::network::connection::Outbound) {
+        if self.is_raining() {
+            for (event, value) in [(GAME_EVENT_START_RAINING, 0.0), (GAME_EVENT_RAIN_LEVEL_CHANGE, self.get_rain_level(1.0)), (GAME_EVENT_THUNDER_LEVEL_CHANGE, self.get_thunder_level(1.0))] {
+                out.send(clientbound::GAME_EVENT, |p| {
+                    p.u8(event);
+                    p.f32(value);
+                });
+            }
+        }
+    }
+
+    fn broadcast_game_event(&self, event: u8, value: f32) {
+        let packet = encode(clientbound::GAME_EVENT, |p| {
+            p.u8(event);
+            p.f32(value);
+        });
+        for player in self.players.values() {
+            player.connection.send_raw(packet.clone());
+        }
+    }
+
+    pub fn is_under_spawn_protection(&self, pos: BlockPos, player: EntityId) -> bool {
+        let protection = &self.spawn_protection;
+        if protection.ops.is_empty() || protection.ops.contains(&self.player(player).profile.uuid) || protection.radius <= 0 {
+            return false;
+        }
+        let distance = (pos.x - protection.spawn.x).abs().max((pos.z - protection.spawn.z).abs());
+        distance <= protection.radius
+    }
+
+    pub fn may_interact(&self, player: EntityId, pos: BlockPos) -> bool {
+        !self.is_under_spawn_protection(pos, player) && self.world_border.is_within_bounds_pos(pos)
+    }
+
+    pub fn send_spawn_protection_message(&self, player: EntityId, pos: BlockPos) {
+        use crate::network::chat::{Arg, ChatFormatting, Component};
+        let message = Component::translatable_with("build.spawn_protection", vec![Arg::String(format!("{}, {}, {}", pos.x, pos.y, pos.z))]).with_color(ChatFormatting::Red);
+        self.player(player).connection.send(clientbound::SYSTEM_CHAT, |p| {
+            message.write(p);
+            p.bool(true);
+        });
+    }
+
+    pub fn send_overlay_message(&self, player: EntityId, message: &crate::network::chat::Component) {
+        self.player(player).connection.send(clientbound::SYSTEM_CHAT, |p| {
+            message.write(p);
+            p.bool(true);
+        });
+    }
+
+    pub fn send_build_limit_message(&self, player: EntityId, too_high: bool, limit: i32) {
+        use crate::network::chat::{Arg, ChatFormatting, Component};
+        let message = Component::translatable_with(if too_high { "build.tooHigh" } else { "build.tooLow" }, vec![Arg::Int(limit)]).with_color(ChatFormatting::Red);
+        self.player(player).connection.send(clientbound::SYSTEM_CHAT, |p| {
+            message.write(p);
+            p.bool(true);
+        });
+    }
+
+    pub fn set_chunk_forced(&mut self, x: i32, z: i32, forced: bool) -> bool {
+        let pos = ChunkPos::new(x, z);
+        let updated = self.chunks.update_chunk_forced(pos, forced);
+        if forced && updated {
+            self.chunks.chunk(pos);
+        }
+        updated
+    }
+
+    pub fn dimension_type(&self) -> &'static DimensionType {
+        self.chunks.dimension
+    }
+
+    pub fn player(&self, id: EntityId) -> &ServerPlayer {
+        &self.players[&id]
+    }
+
+    pub fn player_mut(&mut self, id: EntityId) -> &mut ServerPlayer {
+        self.players.get_mut(&id).expect("player in this level")
+    }
+
+    pub fn entity_ref(&self, id: EntityId) -> Option<&Entity> {
+        match self.players.get(&id) {
+            Some(p) => Some(&p.entity),
+            None => self.entities.get(&id).map(LevelEntity::entity),
+        }
+    }
+
+    pub fn all_entities(&self) -> impl Iterator<Item = EntityId> + '_ {
+        self.entity_manager.visible_entity_storage.all_entities()
+    }
+
+    pub fn is_in_valid_bounds(&self, pos: BlockPos) -> bool {
+        !self.chunks.is_outside_build_height(pos.y) && (-30_000_000..30_000_000).contains(&pos.x) && (-30_000_000..30_000_000).contains(&pos.z)
+    }
+
+    pub fn set_block(&mut self, pos: BlockPos, state: BlockState, flags: i32) -> bool {
+        self.set_block_with_limit(pos, state, flags, UPDATE_LIMIT)
+    }
+
+    pub fn set_block_with_limit(&mut self, pos: BlockPos, state: BlockState, flags: i32, update_limit: i32) -> bool {
+        self.set_block_removing(pos, state, flags, update_limit, &mut None)
+    }
+
+    pub fn set_block_removing(&mut self, pos: BlockPos, state: BlockState, flags: i32, update_limit: i32, removed: &mut Option<BlockEntity>) -> bool {
+        if !self.is_in_valid_bounds(pos) {
+            return false;
+        }
+        let Some(old) = self.chunks.set_block_state(pos, state) else { return false };
+        let new_block = state.block();
+        let block_changed = old.block() != new_block;
+        let moved_by_piston = flags & UPDATE_MOVE_BY_PISTON != 0;
+        if block_changed && old.has_block_entity() && !block::of(state).should_changed_state_keep_block_entity(old) {
+            if flags & UPDATE_SKIP_BLOCK_ENTITY_SIDEEFFECTS == 0 {
+                self.pre_remove_side_effects(pos);
+            }
+            *removed = self.chunks.remove_block_entity(pos);
+        }
+        if (block_changed || new_block.is_instance_of("BaseRailBlock")) && (flags & UPDATE_NEIGHBORS != 0 || moved_by_piston) {
+            block::of(old).affect_neighbors_after_removal(old, self, pos, moved_by_piston);
+        }
+        if !self.block_state(pos).is_block(new_block) {
+            return false;
+        }
+        if flags & UPDATE_SKIP_ON_PLACE == 0 {
+            block::of(state).on_place(state, self, pos, old, moved_by_piston);
+        }
+        if state.has_block_entity() && self.block_state(pos).is_block(new_block) {
+            let existing = self.chunks.block_entity(pos, EntityCreationType::Check).map(|e| e.is_valid_block_state(state));
+            if existing == Some(false) {
+                let ty = self.chunks.block_entity_ref(pos).map(BlockEntity::ty);
+                warn!("Found mismatched block entity @ {pos:?}: type = {ty:?}, state = {state:?}");
+                self.chunks.remove_block_entity(pos);
+            }
+            if existing == Some(true) {
+                if let Some(entity) = self.chunks.block_entity(pos, EntityCreationType::Check) {
+                    entity.set_block_state(state);
+                }
+                self.chunks.update_block_entity_ticker(pos);
+            } else if let Some(entity) = BlockEntity::new_for(pos, state) {
+                self.chunks.add_and_register_block_entity(entity);
+            }
+        }
+        if self.block_state(pos) == state {
+            if flags & UPDATE_CLIENTS != 0 {
+                self.send_block_updated(pos);
+            }
+            if flags & UPDATE_NEIGHBORS != 0 {
+                self.update_neighbors_at(pos, old.block());
+                if state.has_analog_output_signal() {
+                    self.update_neighbour_for_output_signal(pos, new_block);
+                }
+            }
+            if flags & UPDATE_KNOWN_SHAPE == 0 && update_limit > 0 {
+                let neighbour_flags = flags & !(UPDATE_NEIGHBORS | UPDATE_SUPPRESS_DROPS);
+                block::of(old).update_indirect_neighbour_shapes(old, self, pos, neighbour_flags, update_limit - 1);
+                self.update_neighbour_shapes(state, pos, neighbour_flags, update_limit - 1);
+                block::of(state).update_indirect_neighbour_shapes(state, self, pos, neighbour_flags, update_limit - 1);
+            }
+        }
+        true
+    }
+
+    pub fn send_block_updated(&mut self, pos: BlockPos) {
+        if self.chunks.is_ticking(pos.chunk()) {
+            self.chunk_map.block_changed(pos);
+        }
+    }
+
+    pub fn remove_block(&mut self, pos: BlockPos, moved_by_piston: bool) -> bool {
+        let fluid = self.fluid_state(pos);
+        let flags = UPDATE_ALL | if moved_by_piston { UPDATE_MOVE_BY_PISTON } else { 0 };
+        self.set_block(pos, legacy_block(fluid), flags)
+    }
+
+    pub fn destroy_block(&mut self, pos: BlockPos, drop_resources: bool, breaker: Option<EntityId>, update_limit: i32) -> bool {
+        let state = self.block_state(pos);
+        if state.is_air() {
+            return false;
+        }
+        self.level_event(None, events::PARTICLES_AND_SOUND_DESTROY_BLOCK, pos, state.id() as i32);
+        if drop_resources {
+            let block_entity = if state.has_block_entity() { self.get_block_entity(pos).cloned() } else { None };
+            self.drop_resources_with_entity(state, pos, block_entity.as_ref(), breaker, None);
+        }
+        let fluid = self.fluid_state(pos);
+        self.set_block_with_limit(pos, legacy_block(fluid), UPDATE_ALL, update_limit)
+    }
+
+    pub fn drop_resources(&mut self, state: BlockState, pos: BlockPos, breaker: Option<EntityId>, tool: Option<ItemStack>) {
+        self.drop_resources_with_entity(state, pos, None, breaker, tool);
+    }
+
+    pub fn drop_resources_with_entity(&mut self, state: BlockState, pos: BlockPos, block_entity: Option<&BlockEntity>, _breaker: Option<EntityId>, tool: Option<ItemStack>) {
+        let Some(table) = state.block().info().loot_table else { return };
+        let ctx = LootContext { block_state: Some(state), tool: tool.as_ref(), explosion_radius: None, block_entity };
+        for stack in generate(table, &ctx, &mut rand::rng()) {
+            self.pop_resource(pos, stack);
+        }
+    }
+
+    pub fn pop_resource(&mut self, pos: BlockPos, stack: ItemStack) {
+        let half_height = ItemEntity::DIMENSIONS.height as f64 / 2.0;
+        let x = pos.x as f64 + 0.5 + mth::next_double(&mut self.random, -0.25, 0.25);
+        let y = pos.y as f64 + 0.5 + mth::next_double(&mut self.random, -0.25, 0.25) - half_height;
+        let z = pos.z as f64 + 0.5 + mth::next_double(&mut self.random, -0.25, 0.25);
+        if stack.count <= 0 {
+            return;
+        }
+        let mut item = ItemEntity::new(Vec3::new(x, y, z), stack);
+        item.set_default_pickup_delay();
+        self.add_fresh_entity(LevelEntity::Item(item));
+    }
+
+    pub fn update_neighbors_at(&mut self, pos: BlockPos, block: Block) {
+        self.update_neighbors_at_except_from_facing(pos, block, None);
+    }
+
+    pub fn update_neighbors_at_except_from_facing(&mut self, pos: BlockPos, block: Block, skip: Option<Direction>) {
+        let idx = usize::from(skip == Some(UPDATE_ORDER[0]));
+        self.add_and_run(NeighborUpdates::Multi { source_pos: pos, source_block: block, skip, idx });
+    }
+
+    pub fn neighbor_changed(&mut self, pos: BlockPos, block: Block) {
+        self.add_and_run(NeighborUpdates::Simple { pos, block });
+    }
+
+    pub fn neighbor_changed_with_state(&mut self, state: BlockState, pos: BlockPos, block: Block, moved_by_piston: bool) {
+        self.add_and_run(NeighborUpdates::Full { state, pos, block, moved_by_piston });
+    }
+
+    pub fn neighbor_shape_changed(&mut self, direction: Direction, pos: BlockPos, neighbor_pos: BlockPos, neighbor_state: BlockState, flags: i32, update_limit: i32) {
+        self.add_and_run(NeighborUpdates::Shape { direction, neighbor_state, pos, neighbor_pos, flags, update_limit });
+    }
+
+    pub fn update_neighbour_shapes(&mut self, state: BlockState, pos: BlockPos, flags: i32, update_limit: i32) {
+        for direction in UPDATE_SHAPE_ORDER {
+            self.neighbor_shape_changed(direction.opposite(), pos.relative(direction), pos, state, flags, update_limit);
+        }
+    }
+
+    fn add_and_run(&mut self, update: NeighborUpdates) {
+        let updater = &mut self.neighbor_updater;
+        let running_already = updater.count > 0;
+        let too_many = updater.count >= MAX_CHAINED_NEIGHBOR_UPDATES;
+        updater.count += 1;
+        if !too_many {
+            if running_already {
+                updater.added_this_layer.push(update);
+            } else {
+                updater.stack.push(update);
+            }
+        } else if updater.count - 1 == MAX_CHAINED_NEIGHBOR_UPDATES {
+            error!("Too many chained neighbor updates. Skipping the rest.");
+        }
+        if !running_already {
+            self.run_neighbor_updates();
+        }
+    }
+
+    fn run_neighbor_updates(&mut self) {
+        loop {
+            let updater = &mut self.neighbor_updater;
+            if updater.stack.is_empty() && updater.added_this_layer.is_empty() {
+                break;
+            }
+            while let Some(update) = updater.added_this_layer.pop() {
+                updater.stack.push(update);
+            }
+            while self.neighbor_updater.added_this_layer.is_empty() {
+                let (step, more) = self.next_neighbor_step();
+                self.execute_neighbor_step(step);
+                if !more {
+                    self.neighbor_updater.stack.pop();
+                    break;
+                }
+            }
+        }
+        let updater = &mut self.neighbor_updater;
+        updater.stack.clear();
+        updater.added_this_layer.clear();
+        updater.count = 0;
+    }
+
+    fn next_neighbor_step(&mut self) -> (NeighborStep, bool) {
+        match self.neighbor_updater.stack.last_mut().expect("a queued update") {
+            &mut NeighborUpdates::Shape { direction, neighbor_state, pos, neighbor_pos, flags, update_limit } => {
+                (NeighborStep::Shape { direction, neighbor_state, pos, neighbor_pos, flags, update_limit }, false)
+            }
+            &mut NeighborUpdates::Simple { pos, block } => (NeighborStep::Changed { state: None, pos, block, moved_by_piston: false }, false),
+            &mut NeighborUpdates::Full { state, pos, block, moved_by_piston } => (NeighborStep::Changed { state: Some(state), pos, block, moved_by_piston }, false),
+            NeighborUpdates::Multi { source_pos, source_block, skip, idx } => {
+                let direction = UPDATE_ORDER[*idx];
+                *idx += 1;
+                if *idx < UPDATE_ORDER.len() && Some(UPDATE_ORDER[*idx]) == *skip {
+                    *idx += 1;
+                }
+                let step = NeighborStep::Changed { state: None, pos: source_pos.relative(direction), block: *source_block, moved_by_piston: false };
+                (step, *idx < UPDATE_ORDER.len())
+            }
+        }
+    }
+
+    fn execute_neighbor_step(&mut self, step: NeighborStep) {
+        match step {
+            NeighborStep::Shape { direction, neighbor_state, pos, neighbor_pos, flags, update_limit } => {
+                let current = self.block_state(pos);
+                if flags & UPDATE_SKIP_SHAPE_UPDATE_ON_WIRE != 0 && current.is_block(blocks::REDSTONE_WIRE) {
+                    return;
+                }
+                let new = block::of(current).update_shape(current, self, pos, direction, neighbor_pos, neighbor_state);
+                self.update_or_destroy(current, new, pos, flags, update_limit);
+            }
+            NeighborStep::Changed { state, pos, block, moved_by_piston } => {
+                let state = state.unwrap_or_else(|| self.block_state(pos));
+                block::of(state).neighbor_changed(state, self, pos, block, moved_by_piston);
+            }
+        }
+    }
+
+    pub fn update_or_destroy(&mut self, old: BlockState, new: BlockState, pos: BlockPos, flags: i32, update_limit: i32) {
+        if new != old {
+            if new.is_air() {
+                self.destroy_block(pos, flags & UPDATE_SUPPRESS_DROPS == 0, None, update_limit);
+            } else {
+                self.set_block_with_limit(pos, new, flags & !UPDATE_SUPPRESS_DROPS, update_limit);
+            }
+        }
+    }
+
+    pub fn update_neighbours_on_block_set(&mut self, pos: BlockPos, old: BlockState) {
+        let state = self.block_state(pos);
+        let block = state.block();
+        if !old.is_block(block) {
+            block::of(old).affect_neighbors_after_removal(old, self, pos, false);
+        }
+        self.update_neighbors_at(pos, block);
+        if state.has_analog_output_signal() {
+            self.update_neighbour_for_output_signal(pos, block);
+        }
+    }
+
+    pub fn update_from_neighbour_shapes(&mut self, state: BlockState, pos: BlockPos) -> BlockState {
+        let mut new = state;
+        for direction in UPDATE_SHAPE_ORDER {
+            let neighbour_pos = pos.relative(direction);
+            let neighbour = self.block_state(neighbour_pos);
+            new = block::of(new).update_shape(new, self, pos, direction, neighbour_pos, neighbour);
+        }
+        new
+    }
+
+    pub fn block_event(&mut self, pos: BlockPos, block: Block, b0: i32, b1: i32) {
+        if !self.block_events.contains(&(pos, block, b0, b1)) {
+            self.block_events.push((pos, block, b0, b1));
+        }
+    }
+
+    fn run_block_events(&mut self) {
+        while !self.block_events.is_empty() {
+            let (pos, block, b0, b1) = self.block_events.remove(0);
+            let state = self.block_state(pos);
+            if state.is_block(block) && block::of(state).trigger_event(state, self, pos, b0, b1) {
+                let packet = encode(clientbound::BLOCK_EVENT, |p| {
+                    p.position(pos.x, pos.y, pos.z);
+                    p.u8(b0 as u8);
+                    p.u8(b1 as u8);
+                    p.varint(block.0 as i32);
+                });
+                self.broadcast_near(None, pos.x as f64, pos.y as f64, pos.z as f64, 64.0, &packet);
+            }
+        }
+    }
+
+    pub fn broadcast_near(&self, except: Option<EntityId>, x: f64, y: f64, z: f64, range: f64, packet: &[u8]) {
+        for p in self.players.values() {
+            if Some(p.entity.id) == except {
+                continue;
+            }
+            let (dx, dy, dz) = (x - p.entity.x(), y - p.entity.y(), z - p.entity.z());
+            if dx * dx + dy * dy + dz * dz < range * range {
+                p.connection.send_raw(packet.to_vec());
+            }
+        }
+    }
+
+    pub fn level_event(&self, source: Option<EntityId>, event: i32, pos: BlockPos, data: i32) {
+        let packet = encode(clientbound::LEVEL_EVENT, |p| {
+            p.i32(event);
+            p.position(pos.x, pos.y, pos.z);
+            p.i32(data);
+            p.bool(false);
+        });
+        self.broadcast_near(source, pos.x as f64, pos.y as f64, pos.z as f64, 64.0, &packet);
+    }
+
+    pub fn play_sound(&mut self, except: Option<EntityId>, pos: BlockPos, sound: i32, source: SoundSource, volume: f32, pitch: f32) {
+        let seed = self.thread_safe_random.next_long();
+        let (x, y, z) = (pos.x as f64 + 0.5, pos.y as f64 + 0.5, pos.z as f64 + 0.5);
+        let packet = encode(clientbound::SOUND, |p| {
+            p.varint(sound + 1);
+            p.varint(source as i32);
+            p.i32((x * 8.0) as i32);
+            p.i32((y * 8.0) as i32);
+            p.i32((z * 8.0) as i32);
+            p.f32(volume);
+            p.f32(pitch);
+            p.i64(seed);
+        });
+        let range = if volume > 1.0 { 16.0 * volume } else { 16.0 } as f64;
+        self.broadcast_near(except, x, y, z, range, &packet);
+    }
+
+    pub fn broadcast_entity_event(&self, entity: EntityId, event: u8) {
+        let packet = encode(clientbound::ENTITY_EVENT, |p| {
+            p.i32(entity);
+            p.u8(event);
+        });
+        self.send_to_tracking_players_and_self(entity, &packet);
+    }
+
+    pub fn add_fresh_entity(&mut self, entity: LevelEntity) -> bool {
+        if entity.entity().is_removed() {
+            let ty = crisp_data::registry::ENTITY_TYPE[entity.entity().entity_type as usize];
+            warn!("Tried to add entity {ty} but it was marked as removed already");
+            return false;
+        }
+        self.add_entity(entity)
+    }
+
+    pub fn add_player(&mut self, player: ServerPlayer) {
+        let (id, uuid) = (player.entity.id, player.entity.uuid);
+        self.scoreboard.server.add_connection(id, player.connection.clone());
+        self.world_border.listener.add_connection(id, player.connection.clone());
+        self.players.insert(id, player);
+        self.update_player_names_array();
+        self.entity_manager.add_player_uuid(uuid);
+        self.entity_manager.visible_entity_storage.add(id, uuid);
+        self.add_player_to_section(id);
+        self.tick_list.add(id);
+        let config = TrackingConfig { range: 32 * 16, update_interval: UpdateInterval::Periodic(2), track_deltas: false, stepped: true, is_item: false };
+        self.track_entity(id, config);
+    }
+
+    pub fn remove_player(&mut self, id: EntityId) -> Option<ServerPlayer> {
+        self.scoreboard.server.remove_connection(id);
+        self.world_border.listener.remove_connection(id);
+        self.player_left_level(id);
+        let player = self.players.shift_remove(&id);
+        self.update_player_names_array();
+        player
+    }
+
+    fn update_player_names_array(&self) {
+        let names: std::sync::Arc<[String]> = self.players.values().map(|p| p.profile.name.clone()).collect();
+        *self.player_names_array.write().unwrap() = names;
+    }
+
+    pub fn player_left_level(&mut self, id: EntityId) {
+        let uuid = self.player(id).entity.uuid;
+        self.untrack_entity(id);
+        self.remove_player_from_section(id);
+        self.entity_manager.visible_entity_storage.remove(id, uuid);
+        self.entity_manager.remove_player_uuid(uuid);
+        self.tick_list.remove(id);
+    }
+
+    pub fn remove_entity(&mut self, id: EntityId) {
+        let reason = self.entities.get(&id).and_then(|e| e.entity().removal);
+        self.entity_removed(id, reason);
+        self.entities.swap_remove(&id);
+    }
+
+    pub fn close(&mut self) {
+        if self.world_border.save().is_err() {
+            error!("Could not save data to world_border.dat");
+        }
+        if self.chunks.save(self.game_time).is_err() {
+            warn!("Failed to synchronize chunks");
+        }
+        self.save_all_entities();
+    }
+
+    pub fn get_entities(&self, except: Option<EntityId>, area: &AABB) -> Vec<EntityId> {
+        let mut found = Vec::new();
+        self.entity_manager.section_storage.for_each_accessible_non_empty_section(area, |section| {
+            for &id in section.entities() {
+                if Some(id) != except
+                    && let Some(entity) = self.entity_ref(id)
+                    && !entity.is_removed()
+                    && entity.bounding_box().intersects(area)
+                    && !self.is_spectator(id)
+                {
+                    found.push(id);
+                }
+            }
+        });
+        found
+    }
+
+    pub fn items_in(&self, area: &AABB, except: Option<EntityId>) -> Vec<EntityId> {
+        let mut found = Vec::new();
+        self.entity_manager.section_storage.for_each_accessible_non_empty_section(area, |section| {
+            for &id in section.entities() {
+                if Some(id) != except
+                    && let Some(LevelEntity::Item(item)) = self.entities.get(&id)
+                    && !item.entity.is_removed()
+                    && item.entity.bounding_box().intersects(area)
+                {
+                    found.push(id);
+                }
+            }
+        });
+        found
+    }
+
+    pub fn tick(&mut self) {
+        self.environment_attributes.invalidate_tick_cache();
+        let runs = self.tick_rate_manager.runs_normally();
+        if runs {
+            self.world_border.tick();
+            self.advance_weather_cycle();
+        }
+        self.update_sky_brightness();
+        if runs {
+            self.game_time += 1;
+            self.chunks.game_time = self.game_time;
+            self.tick_block_ticks();
+            self.tick_fluid_ticks();
+        }
+        if runs {
+            self.chunks.purge_stale_tickets();
+        }
+        self.chunks.run_distance_manager_updates();
+        self.process_chunk_events();
+        if runs {
+            self.tick_chunks();
+        }
+        self.broadcast_changed_chunks();
+        self.tick_chunk_map();
+        self.chunks.tick_unloads(self.no_save);
+        if runs {
+            self.run_block_events();
+        }
+        if self.chunks.has_active_tickets() {
+            self.empty_time = 0;
+        }
+        if runs {
+            self.empty_time += 1;
+        }
+        if self.empty_time < 300 {
+            let end = self.tick_list.begin_iteration();
+            for i in 0..end {
+                let Some(id) = self.tick_list.at(i) else { continue };
+                if self.players.contains_key(&id) {
+                    self.common_tick(id);
+                    self.tick_player_entity(id);
+                } else if let Some(entity) = self.entities.get(&id) {
+                    if entity.entity().is_removed() {
+                        self.remove_entity(id);
+                    } else if !self.tick_rate_manager.is_entity_frozen() && self.in_entity_ticking_range(entity.entity().chunk_position()) {
+                        self.common_tick(id);
+                        self.tick_entity(id);
+                    }
+                }
+            }
+            self.tick_list.end_iteration();
+            self.tick_block_entities();
+        }
+        self.tick_entity_manager();
+    }
+
+    fn create_tick<T>(&mut self, pos: BlockPos, ty: T, delay: i32, priority: TickPriority) -> ScheduledTick<T> {
+        let sub_tick_order = self.sub_tick_count;
+        self.sub_tick_count += 1;
+        ScheduledTick { ty, pos, trigger_tick: self.game_time + delay as i64, priority, sub_tick_order }
+    }
+
+    pub fn schedule_tick(&mut self, pos: BlockPos, block: Block, delay: i32) {
+        self.schedule_tick_with_priority(pos, block, delay, TickPriority::NORMAL);
+    }
+
+    pub fn schedule_tick_with_priority(&mut self, pos: BlockPos, block: Block, delay: i32, priority: TickPriority) {
+        let tick = self.create_tick(pos, block, delay, priority);
+        self.chunks.block_ticks.schedule(tick);
+    }
+
+    pub fn schedule_fluid_tick(&mut self, pos: BlockPos, fluid: Fluid, delay: i32) {
+        let tick = self.create_tick(pos, fluid, delay, TickPriority::NORMAL);
+        self.chunks.fluid_ticks.schedule(tick);
+    }
+
+    pub fn has_scheduled_tick(&self, pos: BlockPos, block: Block) -> bool {
+        self.chunks.block_ticks.has_scheduled_tick(pos, block)
+    }
+
+    pub fn will_tick_this_tick(&self, pos: BlockPos, block: Block) -> bool {
+        self.chunks.block_ticks.will_tick_this_tick(pos, block)
+    }
+
+    fn tick_block_ticks(&mut self) {
+        let entity_manager = &self.entity_manager;
+        let due = self.chunks.collect_block_ticks(self.game_time, 65536, |c| entity_manager.are_entities_loaded(c.pack()));
+        for tick in due {
+            self.chunks.block_ticks.ran(tick.pos, tick.ty);
+            let state = self.block_state(tick.pos);
+            if state.is_block(tick.ty) {
+                block::of(state).tick(state, self, tick.pos);
+            }
+        }
+    }
+
+    fn tick_fluid_ticks(&mut self) {
+        let entity_manager = &self.entity_manager;
+        let due = self.chunks.collect_fluid_ticks(self.game_time, 65536, |c| entity_manager.are_entities_loaded(c.pack()));
+        for tick in due {
+            self.chunks.fluid_ticks.ran(tick.pos, tick.ty);
+            let state = self.block_state(tick.pos);
+            if state.fluid_state().fluid == tick.ty {
+                crate::world::level::material::tick(self, tick.pos, state);
+            }
+        }
+    }
+
+    pub fn in_entity_ticking_range(&self, chunk: ChunkPos) -> bool {
+        self.chunks.distance_manager.in_entity_ticking_range(chunk.pack())
+    }
+
+    pub fn in_block_ticking_range(&self, chunk: ChunkPos) -> bool {
+        self.chunks.distance_manager.in_block_ticking_range(chunk.pack())
+    }
+
+    pub fn set_simulation_distance(&mut self, simulation_distance: i32) {
+        self.simulation_distance = simulation_distance;
+        self.chunks.set_simulation_distance(simulation_distance);
+    }
+
+    fn tick_chunks(&mut self) {
+        self.chunks.distance_manager.natural_spawn_chunk_count();
+        let tick_speed = self.game_rules.get_int(crisp_data::game_rule::RANDOM_TICK_SPEED);
+        let mut spawning_chunks = self.collect_spawning_chunks();
+        crate::util::shuffle(&mut spawning_chunks, &mut self.random);
+        for chunk in spawning_chunks {
+            self.tick_spawning_chunk(chunk);
+        }
+        for chunk in self.chunks.block_ticking_chunks() {
+            self.tick_chunk(chunk, tick_speed);
+        }
+    }
+
+    fn collect_spawning_chunks(&mut self) -> Vec<ChunkPos> {
+        let candidates = self.chunks.distance_manager.spawn_candidate_chunks();
+        candidates
+            .into_iter()
+            .map(ChunkPos::unpack)
+            .filter(|&pos| self.chunks.is_ticking(pos) && self.any_player_close_enough_for_spawning(pos))
+            .collect()
+    }
+
+    fn any_player_close_enough_for_spawning(&self, pos: ChunkPos) -> bool {
+        let (x, z) = ((pos.min_block_x() + 8) as f64, (pos.min_block_z() + 8) as f64);
+        self.players.values().any(|p| {
+            let (dx, dz) = (x - p.entity.x(), z - p.entity.z());
+            !self.is_spectator(p.entity.id) && dx * dx + dz * dz < 16384.0
+        })
+    }
+
+    fn tick_spawning_chunk(&mut self, pos: ChunkPos) {
+        if let Some(chunk) = self.chunks.chunk_if_present(pos) {
+            chunk.inhabited_time += 1;
+        }
+        if self.in_entity_ticking_range(pos) {
+            self.tick_thunder(pos);
+        }
+    }
+
+    fn tick_thunder(&mut self, pos: ChunkPos) {
+        if self.is_raining() && self.is_thundering() && self.random.next_int_bounded(100000) == 0 {
+            let target = self.block_random_pos(pos.min_block_x(), 0, pos.min_block_z(), 15);
+            let target = self.find_lightning_target_around(target);
+            if self.is_raining_at(target) {
+                let difficulty = self.current_difficulty_at(target);
+                let is_trap = self.game_rules.get_bool(crisp_data::game_rule::SPAWN_MOBS)
+                    && self.random.next_double() < difficulty.effective_difficulty as f64 * 0.01
+                    && !self.block_state(target.below()).is(&crisp_data::block_tags::LIGHTNING_RODS);
+                self.strike_lightning(target, is_trap);
+            }
+        }
+    }
+
+    fn find_lightning_target_around(&mut self, pos: BlockPos) -> BlockPos {
+        let chunk = self.chunks.chunk(pos.chunk());
+        let height = chunk.height_at(crate::world::level::chunk::HeightmapType::MotionBlocking, pos.x, pos.z) + 1;
+        let mut center = BlockPos::new(pos.x, height, pos.z);
+        let search = AABB::new(center.x as f64, center.y as f64, center.z as f64, center.x as f64 + 1.0, (self.chunks.max_y() + 2) as f64, center.z as f64 + 1.0)
+            .inflate(3.0, 3.0, 3.0);
+        let targets: Vec<BlockPos> = self
+            .players
+            .values()
+            .filter(|p| self.is_alive(p.entity.id) && p.entity.bounding_box().intersects(&search))
+            .map(|p| p.entity.block_position())
+            .filter(|&p| self.brightness(crate::world::level::light_layer::LightLayer::Sky, p) >= 15)
+            .collect();
+        if !targets.is_empty() {
+            return targets[self.random.next_int_bounded(targets.len() as i32) as usize];
+        }
+        if center.y == self.chunks.min_y() - 1 {
+            center = BlockPos::new(center.x, center.y + 2, center.z);
+        }
+        center
+    }
+
+    fn block_random_pos(&mut self, x: i32, y: i32, z: i32, y_mask: i32) -> BlockPos {
+        self.rand_value = self.rand_value.wrapping_mul(3).wrapping_add(1013904223);
+        let val = self.rand_value >> 2;
+        BlockPos::new(x + (val & 15), y + (val >> 16 & y_mask), z + (val >> 8 & 15))
+    }
+
+    fn tick_chunk(&mut self, pos: ChunkPos, tick_speed: i32) {
+        let (min_x, min_z) = (pos.min_block_x(), pos.min_block_z());
+        for _ in 0..tick_speed {
+            if self.random.next_int_bounded(48) == 0 {
+                let pos = self.block_random_pos(min_x, 0, min_z, 15);
+                self.tick_precipitation(pos);
+            }
+        }
+        if tick_speed <= 0 {
+            return;
+        }
+        let mut index = 0;
+        loop {
+            let Some(chunk) = self.chunks.loaded_chunk(pos) else { return };
+            let Some(next) = (index..chunk.sections.len()).find(|&i| chunk.sections[i].is_randomly_ticking()) else { return };
+            index = next + 1;
+            let min_y = self.chunks.min_y() + next as i32 * 16;
+            for _ in 0..tick_speed {
+                let block_pos = self.block_random_pos(min_x, min_y, min_z, 15);
+                let Some(state) = self.chunks.loaded_chunk(pos).map(|c| c.block_state(block_pos)) else { return };
+                if state.is_randomly_ticking() {
+                    block::of(state).random_tick(state, self, block_pos);
+                }
+                let fluid = state.fluid_state();
+                if fluid.is_randomly_ticking() {
+                    crate::world::level::material::random_tick(self, block_pos, fluid);
+                }
+            }
+        }
+    }
+
+    pub(crate) fn common_tick(&mut self, id: EntityId) {
+        let e = self.entity_mut(id);
+        e.set_old_pos();
+        e.tick_count += 1;
+    }
+
+    fn tick_player_entity(&mut self, id: EntityId) {
+        self.player_mut(id).movement.tick_client_load_timeout();
+        self.tick_game_mode(id);
+        let living = &mut self.player_mut(id).living;
+        if living.damage_cooldown_time > 0 {
+            living.damage_cooldown_time -= 1;
+        }
+        self.player_mut(id).sync_inventory();
+        self.tick_container_menu(id);
+        if let crate::world::inventory::Kind::CraftingTable { pos } = self.player(id).window.kind {
+            let center = Vec3::at_center_of(pos);
+            let distance = self.player(id).entity.position().distance_to_sqr(center);
+            if distance > 64.0 || !self.block_state(pos).is_block(blocks::CRAFTING_TABLE) {
+                self.close_container(id, true);
+            }
+        }
+        let p = self.player_mut(id);
+        if p.entity.fall_distance > 0.0 && p.starting_to_fall_position.is_none() {
+            p.starting_to_fall_position = Some(p.entity.position());
+        }
+        p.update_player_attributes();
+    }
+
+    fn tick_entity(&mut self, id: EntityId) {
+        match self.entities.get(&id) {
+            Some(LevelEntity::Item(_)) => self.tick_item(id),
+            Some(LevelEntity::LightningBolt(_)) => self.tick_lightning_bolt(id),
+            Some(LevelEntity::PrimedTnt(_)) => self.tick_primed_tnt(id),
+            None => return,
+        }
+        if self.entities.get(&id).is_some_and(|e| e.entity().is_removed()) {
+            self.remove_entity(id);
+        }
+    }
+
+    pub(crate) fn merge_with_neighbours(&mut self, id: EntityId) {
+        let Some(item) = self.entities[&id].as_item() else { return };
+        if !item.is_mergeable() {
+            return;
+        }
+        let area = item.merge_area();
+        for other in self.items_in(&area, Some(id)) {
+            let [Some(LevelEntity::Item(this)), Some(LevelEntity::Item(that))] = self.entities.get_disjoint_mut([&id, &other]) else { continue };
+            if !that.is_mergeable() {
+                continue;
+            }
+            ItemEntity::try_to_merge(this, that);
+            if that.entity.is_removed() {
+                self.remove_entity(other);
+            }
+            if self.entities[&id].entity().is_removed() {
+                self.remove_entity(id);
+                break;
+            }
+        }
+    }
+
+    pub fn pick_up_items(&mut self, player: EntityId) {
+        let area = self.player(player).entity.bounding_box().inflate(1.0, 0.5, 1.0);
+        for id in self.items_in(&area, None) {
+            let Some(LevelEntity::Item(item)) = self.entities.get_mut(&id) else { continue };
+            if item.pickup_delay != 0 || item.target.is_some_and(|t| t != self.players[&player].profile.uuid) {
+                continue;
+            }
+            let original = item.item.count;
+            let stack = item.item.clone();
+            let left = self.player_mut(player).pick_up(stack);
+            if left == original {
+                continue;
+            }
+            let packet = encode(clientbound::TAKE_ITEM_ENTITY, |p| {
+                p.varint(id);
+                p.varint(player);
+                p.varint(original);
+            });
+            self.send_to_tracking_players(id, &packet);
+            let Some(LevelEntity::Item(item)) = self.entities.get_mut(&id) else { continue };
+            item.item.count = left;
+            if left == 0 {
+                item.entity.discard();
+                item.item.count = original;
+                self.remove_entity(id);
+            }
+        }
+    }
+
+    pub fn drop_from_player(&mut self, player: EntityId, stack: ItemStack, randomly: bool) {
+        let item = self.create_item_stack_to_drop(player, stack, randomly, false);
+        self.add_fresh_entity(LevelEntity::Item(item));
+    }
+
+    pub fn create_item_stack_to_drop(&mut self, player: EntityId, stack: ItemStack, randomly: bool, thrown_from_hand: bool) -> ItemEntity {
+        let p = self.player_mut(player);
+        let uuid = p.profile.uuid;
+        let e = &mut p.entity;
+        let y = e.eye_y() - 0.3f32 as f64;
+        let mut item = ItemEntity::new(Vec3::new(e.x(), y, e.z()), stack);
+        item.pickup_delay = 40;
+        if thrown_from_hand {
+            item.thrower = Some(uuid);
+        }
+        if randomly {
+            let pow = e.random.next_float() * 0.5;
+            let dir = e.random.next_float() * (std::f32::consts::PI * 2.0);
+            item.entity.delta_movement = Vec3::new((-mth::sin(dir as f64) * pow) as f64, 0.2f32 as f64, (mth::cos(dir as f64) * pow) as f64);
+        } else {
+            let sin_x = mth::sin((e.x_rot * mth::DEG_TO_RAD) as f64);
+            let cos_x = mth::cos((e.x_rot * mth::DEG_TO_RAD) as f64);
+            let sin_y = mth::sin((e.y_rot * mth::DEG_TO_RAD) as f64);
+            let cos_y = mth::cos((e.y_rot * mth::DEG_TO_RAD) as f64);
+            let dir = e.random.next_float() * (std::f32::consts::PI * 2.0);
+            let pow2 = 0.02 * e.random.next_float();
+            let jitter = (e.random.next_float() - e.random.next_float()) * 0.1;
+            item.entity.delta_movement = Vec3::new(
+                (-sin_y * cos_x * 0.3) as f64 + (dir as f64).cos() * pow2 as f64,
+                (-sin_x * 0.3 + 0.1 + jitter) as f64,
+                (cos_y * cos_x * 0.3) as f64 + (dir as f64).sin() * pow2 as f64,
+            );
+        }
+        item
+    }
+}
+
+impl BlockGetter for ServerLevel {
+    fn block_state(&mut self, pos: BlockPos) -> BlockState {
+        self.chunks.block_state(pos)
+    }
+}
+
+pub fn legacy_block(fluid: crisp_data::FluidState) -> BlockState {
+    use crisp_data::Fluid;
+    use crisp_data::properties::LEVEL;
+    match fluid.fluid {
+        Fluid::Empty => blocks::AIR.default_state(),
+        Fluid::Water | Fluid::FlowingWater => blocks::WATER.default_state().set(LEVEL, fluid_block_level(fluid)),
+        Fluid::Lava | Fluid::FlowingLava => blocks::LAVA.default_state().set(LEVEL, fluid_block_level(fluid)),
+    }
+}
+
+fn fluid_block_level(fluid: crisp_data::FluidState) -> i32 {
+    if fluid.is_source() { 0 } else { 8 - (fluid.amount as i32).min(8) + if fluid.falling { 8 } else { 0 } }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum SoundSource {
+    Master,
+    Music,
+    Records,
+    Weather,
+    Blocks,
+    Hostile,
+    Neutral,
+    Players,
+    Ambient,
+    Voice,
+    Ui,
+}
+
+impl SoundSource {
+    pub const VALUES: [SoundSource; 11] = [
+        SoundSource::Master,
+        SoundSource::Music,
+        SoundSource::Records,
+        SoundSource::Weather,
+        SoundSource::Blocks,
+        SoundSource::Hostile,
+        SoundSource::Neutral,
+        SoundSource::Players,
+        SoundSource::Ambient,
+        SoundSource::Voice,
+        SoundSource::Ui,
+    ];
+
+    pub fn name(self) -> &'static str {
+        match self {
+            SoundSource::Master => "master",
+            SoundSource::Music => "music",
+            SoundSource::Records => "record",
+            SoundSource::Weather => "weather",
+            SoundSource::Blocks => "block",
+            SoundSource::Hostile => "hostile",
+            SoundSource::Neutral => "neutral",
+            SoundSource::Players => "player",
+            SoundSource::Ambient => "ambient",
+            SoundSource::Voice => "voice",
+            SoundSource::Ui => "ui",
+        }
+    }
+
+    pub fn by_name(name: &str) -> Option<SoundSource> {
+        SoundSource::VALUES.into_iter().find(|s| s.name() == name)
+    }
+}
+
+#[cfg(test)]
+pub mod testing {
+    use crisp_core::{BlockPos, Vec3};
+
+    use super::ServerLevel;
+    use super::chunk_cache::ChunkCache;
+    use super::player::ServerPlayer;
+    use crate::network::configuration::ClientInfo;
+    use crate::network::connection::Outbound;
+    use crate::network::login::Profile;
+    use crate::world::entity::EntityId;
+    use crate::world::level::chunk::FlatLevelSource;
+
+    pub fn level() -> ServerLevel {
+        let dimension = &crisp_data::DIMENSION_TYPES[0];
+        let chunks = ChunkCache::new(dimension, FlatLevelSource::default(), None);
+        ServerLevel::new(super::super::OVERWORLD, 0, chunks, None, 10, 10)
+    }
+
+    pub fn player(level: &mut ServerLevel, pos: Vec3, y_rot: f32, x_rot: f32) -> EntityId {
+        player_with_profile(level, Profile { uuid: 1, name: "Tester".into(), properties: Vec::new() }, pos, y_rot, x_rot)
+    }
+
+    pub fn player_with_profile(level: &mut ServerLevel, profile: Profile, pos: Vec3, y_rot: f32, x_rot: f32) -> EntityId {
+        let mut player = ServerPlayer::new(profile, ClientInfo::default(), Outbound::detached(), BlockPos::ZERO);
+        player.entity.set_pos(pos);
+        player.entity.y_rot = y_rot;
+        player.entity.x_rot = x_rot;
+        let id = player.entity.id;
+        level.add_player(player);
+        level.finish_chunk_work();
+        id
+    }
+}
