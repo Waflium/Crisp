@@ -6,7 +6,11 @@ use std::sync::Arc;
 use super::metadata::{self, FormatRange, PackFormat};
 use super::{PackLocationInfo, PackResources, PackSource, SharedZip};
 use crate::network::chat::Component;
+use crate::server::dedicated::settings::java_io_exception;
+use crate::util::basic_file_attributes::BasicFileAttributes;
 use crate::world::flag::FeatureFlagSet;
+use crate::world::level::validation::directory_validator::DirectoryValidator;
+use crate::world::level::validation::{ForbiddenSymlinkInfo, content_validation_message};
 
 pub const VANILLA_ID: &str = "vanilla";
 const FEATURE_PACKS: [&str; 3] = ["minecart_improvements", "redstone_experiments", "trade_rebalance"];
@@ -244,7 +248,7 @@ fn read_file_pack_metadata(location: &PackLocationInfo, resources: &ResourcesSup
 #[derive(Clone, Debug)]
 pub enum RepositorySource {
     ServerPacks,
-    Folder { folder: PathBuf, pack_source: PackSource },
+    Folder { folder: PathBuf, pack_source: PackSource, validator: Arc<DirectoryValidator> },
 }
 
 impl RepositorySource {
@@ -262,9 +266,9 @@ impl RepositorySource {
                     }
                 }
             }
-            RepositorySource::Folder { folder, pack_source } => {
+            RepositorySource::Folder { folder, pack_source, validator } => {
                 let discovered = std::fs::create_dir_all(folder).and_then(|_| {
-                    discover_packs(folder, &mut |content, resources| {
+                    discover_packs(folder, validator, &mut |content, resources| {
                         let name = content.file_name().unwrap_or_default().to_string_lossy().into_owned();
                         let location = PackLocationInfo { id: format!("file/{name}"), title: Component::literal(&name), source: *pack_source };
                         if let Some(pack) = Pack::read_meta_and_create(location, resources, DISCOVERED_PACK_SELECTION_CONFIG) {
@@ -280,55 +284,44 @@ impl RepositorySource {
     }
 }
 
-pub fn discover_packs(folder: &Path, result: &mut dyn FnMut(&Path, ResourcesSupplier)) -> io::Result<()> {
+pub fn discover_packs(folder: &Path, validator: &DirectoryValidator, result: &mut dyn FnMut(&Path, ResourcesSupplier)) -> io::Result<()> {
     for entry in std::fs::read_dir(folder)? {
         let content = entry?.path();
         let mut issues = Vec::new();
-        match detect_pack_resources(&content, &mut issues) {
-            Ok(_) if !issues.is_empty() => {
-                let entries: Vec<String> = issues.iter().map(|(link, target): &(PathBuf, PathBuf)| format!("{}->{}", link.display(), target.display())).collect();
-                warn!("Ignoring potential pack entry: Failed to validate '{}'. Found forbidden symlinks: {}", content.display(), entries.join(", "));
-            }
+        match detect_pack_resources(&content, validator, &mut issues) {
+            Ok(_) if !issues.is_empty() => warn!("Ignoring potential pack entry: {}", content_validation_message(&content, &issues)),
             Ok(Some(resources)) => result(&content, resources),
             Ok(None) => info!("Found non-pack entry '{}', ignoring", content.display()),
-            Err(e) => warn!("Failed to read properties of '{}', ignoring\njava.io.IOException: {e}", content.display()),
+            Err(e) => warn!("Failed to read properties of '{}', ignoring\n{e}", content.display()),
         }
     }
     Ok(())
 }
 
-fn detect_pack_resources(content: &Path, issues: &mut Vec<(PathBuf, PathBuf)>) -> io::Result<Option<ResourcesSupplier>> {
-    let attributes = match std::fs::symlink_metadata(content) {
+fn detect_pack_resources(content: &Path, validator: &DirectoryValidator, issues: &mut Vec<ForbiddenSymlinkInfo>) -> Result<Option<ResourcesSupplier>, String> {
+    let mut attributes = match BasicFileAttributes::read(content) {
         Ok(attributes) => attributes,
         Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(None),
-        Err(e) => return Err(e),
+        Err(e) => return Err(java_io_exception(&e, content)),
     };
-    if attributes.file_type().is_symlink() {
-        issues.push((content.to_path_buf(), std::fs::read_link(content)?));
-        return Ok(None);
-    }
-    if attributes.is_dir() {
-        validate_known_directory(content, issues)?;
+    let mut target_context = content.to_path_buf();
+    if attributes.symbolic_link {
+        validator.validate_symlink(content, issues)?;
         if !issues.is_empty() {
             return Ok(None);
         }
-        return Ok(content.join("pack.mcmeta").is_file().then(|| ResourcesSupplier::Path(content.to_path_buf())));
+        target_context = std::fs::read_link(content).map_err(|e| java_io_exception(&e, content))?;
+        attributes = BasicFileAttributes::read(&target_context).map_err(|e| java_io_exception(&e, &target_context))?;
     }
-    let is_zip = content.file_name().is_some_and(|name| name.to_string_lossy().ends_with(".zip"));
-    Ok((attributes.is_file() && is_zip).then(|| ResourcesSupplier::File(content.to_path_buf())))
-}
-
-fn validate_known_directory(directory: &Path, issues: &mut Vec<(PathBuf, PathBuf)>) -> io::Result<()> {
-    for entry in std::fs::read_dir(directory)? {
-        let path = entry?.path();
-        let file_type = std::fs::symlink_metadata(&path)?.file_type();
-        if file_type.is_symlink() {
-            issues.push((path.clone(), std::fs::read_link(&path)?));
-        } else if file_type.is_dir() {
-            validate_known_directory(&path, issues)?;
+    if attributes.directory {
+        validator.validate_known_directory(&target_context, issues)?;
+        if !issues.is_empty() {
+            return Ok(None);
         }
+        return Ok(target_context.join("pack.mcmeta").is_file().then_some(ResourcesSupplier::Path(target_context)));
     }
-    Ok(())
+    let is_zip = target_context.file_name().is_some_and(|name| name.to_string_lossy().ends_with(".zip"));
+    Ok((attributes.regular_file && is_zip).then_some(ResourcesSupplier::File(target_context)))
 }
 
 #[derive(Debug)]
@@ -343,8 +336,8 @@ impl PackRepository {
         PackRepository { sources, available: BTreeMap::new(), selected: Vec::new() }
     }
 
-    pub fn create_pack_repository(datapack_dir: PathBuf) -> PackRepository {
-        PackRepository::new(vec![RepositorySource::ServerPacks, RepositorySource::Folder { folder: datapack_dir, pack_source: PackSource::World }])
+    pub fn create_pack_repository(datapack_dir: PathBuf, validator: Arc<DirectoryValidator>) -> PackRepository {
+        PackRepository::new(vec![RepositorySource::ServerPacks, RepositorySource::Folder { folder: datapack_dir, pack_source: PackSource::World, validator }])
     }
 
     pub fn create_vanilla_trusted_repository() -> PackRepository {

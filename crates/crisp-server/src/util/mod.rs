@@ -1,4 +1,5 @@
 pub mod argb;
+pub mod basic_file_attributes;
 pub mod dependency_sorter;
 pub mod ease;
 pub mod easing_type;

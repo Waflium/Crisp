@@ -21,6 +21,8 @@ use crate::world::level::chunk::{Biome, ChunkGenerator, FlatLevelSource};
 use crate::world::level::levelgen::NoiseBasedChunkGenerator;
 use crate::world::level::levelgen::flat::StructureOverrides;
 use crate::world::level::saveddata::weather_data::WeatherData;
+use crate::world::level::validation::directory_validator::{DirectoryValidator, SymlinkTargetAllowList};
+use crate::world::level::validation::path_allow_list::PathAllowList;
 use crate::world::level::world_data_configuration::WorldDataConfiguration;
 
 const LEVEL_NBT_VERSION: i32 = 19133;
@@ -61,6 +63,22 @@ fn save_level_dat(dir: &WorldDir, root: &Nbt) -> io::Result<()> {
         return Err(e);
     }
     Ok(())
+}
+
+pub const ALLOWED_SYMLINKS_CONFIG_NAME: &str = "allowed_symlinks.txt";
+
+pub fn parse_validator(config_path: &Path) -> DirectoryValidator {
+    if config_path.exists() {
+        let list = fs::read(config_path)
+            .map_err(|e| crate::server::dedicated::settings::java_io_exception(&e, config_path))
+            .and_then(|bytes| String::from_utf8(bytes).map_err(|_| "java.io.UncheckedIOException: java.nio.charset.MalformedInputException: Input length = 1".to_string()))
+            .and_then(|text| PathAllowList::read_plain(&text));
+        match list {
+            Ok(list) => return DirectoryValidator::new(SymlinkTargetAllowList::PathAllowList(list)),
+            Err(e) => error!("Failed to parse {ALLOWED_SYMLINKS_CONFIG_NAME}, disallowing all symbolic links\n{e}"),
+        }
+    }
+    DirectoryValidator::new(SymlinkTargetAllowList::Nothing)
 }
 
 pub struct WorldDir {

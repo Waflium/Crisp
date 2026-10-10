@@ -1,4 +1,5 @@
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use super::dedicated::dedicated_server_settings::DedicatedServerSettings;
@@ -14,7 +15,8 @@ use crate::world::level::data_pack_config::DataPackConfig;
 use crate::world::level::world_data_configuration::WorldDataConfiguration;
 use crate::world::level::chunk::ChunkGenerator;
 use crate::world::level::levelgen::{NoiseBasedChunkGenerator, flat};
-use crate::world::level::storage::{WorldData, WorldDir};
+use crate::world::level::storage::{self, WorldData, WorldDir};
+use crate::world::level::validation::content_validation_message;
 use crate::{Listen, ServerConfig, serve_world};
 
 const HELP: &[&str] = &[
@@ -178,7 +180,27 @@ pub fn main(args: Vec<String>) {
         }
     };
     let level_name = options.value_of("world").map_or_else(|| properties.level_name.clone(), str::to_string);
-    let _lock = match crate::util::directory_lock::DirectoryLock::create(&universe.join(&level_name)) {
+    if let Err(e) = std::fs::create_dir_all(&universe) {
+        error!("Failed to start the minecraft server\njava.io.UncheckedIOException: {}", super::dedicated::settings::java_io_exception(&e, &universe));
+        runtime.shutdown_background();
+        return;
+    }
+    let world_dir_validator = Arc::new(storage::parse_validator(&universe.join(storage::ALLOWED_SYMLINKS_CONFIG_NAME)));
+    let level_path = universe.join(&level_name);
+    match world_dir_validator.validate_directory(&level_path, true) {
+        Ok(issues) if issues.is_empty() => {}
+        Ok(issues) => {
+            error!("Failed to start the minecraft server\nnet.minecraft.world.level.validation.ContentValidationException: {}", content_validation_message(&level_path, &issues));
+            runtime.shutdown_background();
+            return;
+        }
+        Err(e) => {
+            error!("Failed to start the minecraft server\n{e}");
+            runtime.shutdown_background();
+            return;
+        }
+    }
+    let _lock =match crate::util::directory_lock::DirectoryLock::create(&universe.join(&level_name)) {
         Ok(lock) => lock,
         Err(e) => {
             error!("Failed to start the minecraft server\n{e}");
@@ -199,7 +221,7 @@ pub fn main(args: Vec<String>) {
     if safe_mode {
         warn!("Safe mode active, only vanilla datapack will be loaded");
     }
-    let mut pack_repository = PackRepository::create_pack_repository(world_dir.root.join("datapacks"));
+    let mut pack_repository = PackRepository::create_pack_repository(world_dir.root.join("datapacks"), world_dir_validator);
     let (init_mode, initial_data_config) = load_or_create_config(properties, level_data.as_ref());
     let data_configuration = configure_pack_repository(&mut pack_repository, &initial_data_config, init_mode, safe_mode);
     let resource_manager = MultiPackResourceManager::new(pack_repository.open_all_selected());

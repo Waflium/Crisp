@@ -198,7 +198,10 @@ impl Server {
             None => None,
         };
         let mut pack_repository = match &config.world {
-            Some(root) => PackRepository::create_pack_repository(root.join("datapacks")),
+            Some(root) => {
+                let validator = crate::world::level::storage::parse_validator(&root.parent().unwrap_or(Path::new("")).join(crate::world::level::storage::ALLOWED_SYMLINKS_CONFIG_NAME));
+                PackRepository::create_pack_repository(root.join("datapacks"), Arc::new(validator))
+            }
             None => PackRepository::create_vanilla_trusted_repository(),
         };
         let initial_data_config = saved.as_ref().map_or_else(WorldDataConfiguration::default_configuration, |data| data.data_configuration.clone());
