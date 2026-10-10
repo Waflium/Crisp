@@ -63,7 +63,7 @@ impl Stopwatches {
                 }
             }
         }
-        Stopwatches { dir, stopwatches, dirty: false }
+        Stopwatches { dir, stopwatches, dirty: data.is_none() }
     }
 
     pub fn ids(&self) -> impl Iterator<Item = &str> {

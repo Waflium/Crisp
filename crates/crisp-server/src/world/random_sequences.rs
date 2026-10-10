@@ -54,7 +54,10 @@ impl RandomSequences {
             }
         });
         let mut sequences = RandomSequences::empty(dir);
-        let Some(data) = data else { return sequences };
+        let Some(data) = data else {
+            sequences.dirty = true;
+            return sequences;
+        };
         let Some(salt) = data.get("salt").and_then(Nbt::as_i64) else { return sequences };
         let flag = |key: &str| data.get(key).and_then(Nbt::as_i64).is_none_or(|v| v != 0);
         sequences.salt = salt as i32;
@@ -124,12 +127,15 @@ impl RandomSequences {
                 (key.to_string(), Nbt::Compound(vec![("source".into(), Nbt::LongArray(vec![lo, hi]))]))
             })
             .collect();
-        Nbt::Compound(vec![
-            ("salt".into(), Nbt::Int(self.salt)),
-            ("include_world_seed".into(), Nbt::Byte(self.include_world_seed as i8)),
-            ("include_sequence_id".into(), Nbt::Byte(self.include_sequence_id as i8)),
-            ("sequences".into(), Nbt::Compound(sequences)),
-        ])
+        let mut fields = vec![("salt".into(), Nbt::Int(self.salt))];
+        if !self.include_world_seed {
+            fields.push(("include_world_seed".into(), Nbt::Byte(0)));
+        }
+        if !self.include_sequence_id {
+            fields.push(("include_sequence_id".into(), Nbt::Byte(0)));
+        }
+        fields.push(("sequences".into(), Nbt::Compound(sequences)));
+        Nbt::Compound(fields)
     }
 
     pub fn save(&mut self) -> io::Result<()> {

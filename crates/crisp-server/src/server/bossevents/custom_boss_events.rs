@@ -32,6 +32,7 @@ impl CustomBossEvents {
             }
         });
         let mut events = JavaHashMap::new(identifier_hash);
+        let dirty = data.is_none();
         if let Some(Nbt::Compound(entries)) = data {
             let mut random = LegacyRandomSource::create();
             for (id, packed) in entries {
@@ -40,7 +41,7 @@ impl CustomBossEvents {
                 }
             }
         }
-        CustomBossEvents { dir, events, dirty: false }
+        CustomBossEvents { dir, events, dirty }
     }
 
     pub fn get(&self, id: &str) -> Option<&CustomBossEvent> {
