@@ -6,6 +6,7 @@ mod block_item_command_tests;
 mod clear_inventory_commands;
 mod clone_commands;
 mod damage_command;
+mod data_pack_command;
 mod command_response_tracker;
 mod data;
 mod de_op_commands;
@@ -18,6 +19,7 @@ mod emote_commands;
 mod execute_command;
 mod fill_command;
 mod force_load_command;
+mod function_command;
 mod give_command;
 #[cfg(test)]
 mod entity_command_tests;
@@ -32,6 +34,8 @@ mod msg_command;
 mod op_command;
 mod play_sound_command;
 mod random_command;
+mod reload_command;
+mod return_command;
 mod rotate_command;
 mod save_commands;
 mod say_command;
@@ -84,6 +88,8 @@ pub fn executors() -> Vec<(String, CommandFn)> {
     all.extend(effect_commands::executors());
     all.extend(attribute_command::executors());
     all.extend(world_border_command::executors());
+    all.extend(data_pack_command::executors());
+    all.push(("reload".into(), reload_command::reload));
     all
 }
 
@@ -556,6 +562,16 @@ pub fn suggestion_providers() -> Vec<(String, crate::commands::SuggestFn)> {
         all.push((path.to_string(), score_holders));
     }
     all.push(("scoreboard players enable targets objective".into(), scoreboard_command::suggest_triggers));
+    let functions: SuggestFn = function_command::suggest_function;
+    all.push(("function name".into(), functions));
+    all.push(("execute if function name".into(), functions));
+    all.push(("execute unless function name".into(), functions));
+    let unselected_packs: SuggestFn = data_pack_command::suggest_unselected_packs;
+    let selected_packs: SuggestFn = data_pack_command::suggest_selected_packs;
+    all.push(("datapack enable name".into(), unselected_packs));
+    all.push(("datapack enable name after existing".into(), selected_packs));
+    all.push(("datapack enable name before existing".into(), selected_packs));
+    all.push(("datapack disable name".into(), selected_packs));
     all.push(("time set timemarker".into(), time_markers));
     all.push(("time of clock set timemarker".into(), time_markers));
     all.push(("time query timeline".into(), timelines));
@@ -577,9 +593,13 @@ pub fn suggestion_providers() -> Vec<(String, crate::commands::SuggestFn)> {
 }
 
 pub fn custom_executors() -> Vec<(String, crate::commands::CustomCommandFn)> {
-    Vec::new()
+    let mut all = function_command::custom_executors();
+    all.extend(return_command::custom_executors());
+    all
 }
 
 pub fn custom_modifiers() -> Vec<(String, crate::commands::CustomModifierFn)> {
-    Vec::new()
+    let mut all = execute_command::custom_modifiers();
+    all.extend(return_command::custom_modifiers());
+    all
 }

@@ -10,7 +10,7 @@ path = "src/main.rs"
 [dependencies]
 crisp-protocol.workspace = true
 tokio.workspace = true
-serde_json = { workspace = true, features = ["float_roundtrip"] }
+serde_json = { workspace = true, features = ["float_roundtrip", "preserve_order"] }
 anyhow.workspace = true
 crisp-data.workspace = true
 crisp-core.workspace = true

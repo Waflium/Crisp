@@ -14,6 +14,7 @@ pub mod services;
 #[cfg(test)]
 mod scoreboard_tests;
 pub mod server_function_library;
+pub mod server_function_manager;
 pub mod server_links;
 pub mod server_scoreboard;
 pub mod world_stem;
@@ -76,6 +77,7 @@ use self::packs::repository::PackRepository;
 use self::packs::resources::MultiPackResourceManager;
 use self::reloadable_server_resources::ReloadableServerResources;
 use self::world_stem::WorldStem;
+use self::server_function_manager::ServerFunctionManager;
 use crate::world::flag::{FeatureFlagSet, print_missing_flags};
 use crate::world::level::data_pack_config::DataPackConfig;
 use crate::world::level::world_data_configuration::WorldDataConfiguration;
@@ -167,7 +169,7 @@ pub struct Server {
     pub custom_boss_events: CustomBossEvents,
     pub stopwatches: Stopwatches,
     pub services: Services,
-    pub functions: server_function_library::ServerFunctionLibrary,
+    pub functions: ServerFunctionManager,
     pub pack_repository: PackRepository,
     pub data_configuration: WorldDataConfiguration,
     pub scoreboard_save_data: ScoreboardSaveData,
@@ -316,7 +318,7 @@ impl Server {
             custom_boss_events: CustomBossEvents::load(world_dir.as_ref().map(WorldDir::data_folder)),
             stopwatches: Stopwatches::load(world_dir.as_ref().map(WorldDir::data_folder)),
             services: Services::offline(),
-            functions: data_packs.function_library,
+            functions: ServerFunctionManager::new(data_packs.function_library),
             pack_repository,
             data_configuration,
             scoreboard_save_data,
@@ -546,6 +548,21 @@ impl Server {
 
     pub fn halt(&mut self) {
         self.stopping = true;
+    }
+
+    pub fn reload_resources<S: AsRef<str>>(&mut self, packs_to_enable: &[S]) {
+        let packs_to_load = packs_to_enable.iter().filter_map(|id| self.pack_repository.pack(id.as_ref())).map(|pack| pack.open()).collect();
+        let resource_manager = MultiPackResourceManager::new(packs_to_load);
+        let resources = ReloadableServerResources::load_resources(&resource_manager, self.config.function_permission_level);
+        self.pack_repository.set_selected(packs_to_enable);
+        self.data_configuration = WorldDataConfiguration::new(get_selected_packs(&self.pack_repository, true), self.data_configuration.enabled_features);
+        for player in self.level.players.values() {
+            self.save_player(player);
+        }
+        for player in self.level.players.values() {
+            player.connection.send(clientbound::UPDATE_TAGS, crate::network::configuration::write_tags);
+        }
+        self.functions.replace_library(resources.function_library);
     }
 
     fn stop_server(&mut self) {
@@ -1113,6 +1130,7 @@ impl Server {
         }
         self.tick_count += 1;
         self.level.tick_rate_manager.tick();
+        ServerFunctionManager::tick(self);
         if self.level.tick_rate_manager.runs_normally() {
             self.clocks.tick(self.game_rules.get_bool(game_rule::ADVANCE_TIME));
         }

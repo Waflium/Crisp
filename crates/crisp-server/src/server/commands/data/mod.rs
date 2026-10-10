@@ -152,7 +152,7 @@ fn remove_data(server: &mut Server, context: &CommandContext, source: &CommandSo
     Ok(count)
 }
 
-fn get_single_tag(server: &mut Server, path: &NbtPath, accessor: &DataAccessor) -> Result<Nbt, CommandSyntaxException> {
+pub fn get_single_tag(server: &mut Server, path: &NbtPath, accessor: &DataAccessor) -> Result<Nbt, CommandSyntaxException> {
     let mut tags = path.get(&accessor.get_data(server)?)?;
     if tags.len() > 1 {
         return Err(ERROR_MULTIPLE_TAGS.create());

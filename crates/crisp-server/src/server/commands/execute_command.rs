@@ -1,14 +1,20 @@
+use std::sync::{Arc, Mutex};
+
 use crisp_core::{Vec3, mth};
 use crisp_data::commands::CommandNode;
 use crisp_protocol::nbt::Nbt;
 
 use super::data::data_accessor::{DataAccessor, KINDS};
+use super::function_command::modify_sender_for_execution;
 use super::look_at::anchor_apply;
-use crate::commands::{CommandFn, ModifierFn};
+use crate::commands::{CommandFn, CustomModifierFn, ModifierFn};
 use crate::commands::arguments::ArgumentValue;
 use crate::commands::arguments::ERROR_INVALID_DIMENSION;
-use crate::commands::brigadier::{CommandContext, CommandSyntaxException, DynamicCommandExceptionType, SimpleCommandExceptionType, tr};
-use crate::commands::source::{Anchor, CommandSourceStack};
+use crate::commands::arguments::function_argument;
+use crate::commands::brigadier::{CommandContext, CommandSyntaxException, Dynamic2CommandExceptionType, DynamicCommandExceptionType, SimpleCommandExceptionType, tr};
+use crate::commands::execution::tasks::{BuildContexts, IsolatedCall};
+use crate::commands::execution::{ChainModifiers, ChainStage, ContinuationSources, EntryAction, ExecutionControl};
+use crate::commands::source::{Anchor, CommandResultCallback, CommandSourceStack};
 use crate::network::chat::{Arg, Component};
 use crate::server::Server;
 use crate::world::entity::EntityId;
@@ -402,4 +408,88 @@ pub fn summon(server: &mut Server, context: &CommandContext, source: &CommandSou
     let entity_type = super::summon_command::summonable_entity_type(context, "entity")?;
     let id = super::summon_command::create_entity(server, &entity_type, source.position, &Nbt::Compound(Vec::new()))?;
     Ok(vec![source.with_entity(id)])
+}
+
+static ERROR_FUNCTION_CONDITION_INSTANTATION_FAILURE: Dynamic2CommandExceptionType =
+    Dynamic2CommandExceptionType(|id, reason| tr("commands.execute.function.instantiationFailure", vec![id, reason]));
+
+pub fn custom_modifiers() -> Vec<(String, CustomModifierFn)> {
+    vec![("execute if function name".into(), if_function), ("execute unless function name".into(), unless_function)]
+}
+
+fn if_function(
+    server: &mut Server,
+    original_source: &CommandSourceStack,
+    current_sources: Vec<CommandSourceStack>,
+    current_step: &ChainStage,
+    modifiers: ChainModifiers,
+    output: &ExecutionControl,
+) {
+    schedule_function_conditions_and_test(server, original_source, current_sources, |value| value != 0, current_step, None, output, modifiers);
+}
+
+fn unless_function(
+    server: &mut Server,
+    original_source: &CommandSourceStack,
+    current_sources: Vec<CommandSourceStack>,
+    current_step: &ChainStage,
+    modifiers: ChainModifiers,
+    output: &ExecutionControl,
+) {
+    schedule_function_conditions_and_test(server, original_source, current_sources, |value| value == 0, current_step, None, output, modifiers);
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn schedule_function_conditions_and_test(
+    server: &mut Server,
+    original_source: &CommandSourceStack,
+    current_sources: Vec<CommandSourceStack>,
+    check: fn(i32) -> bool,
+    current_step: &ChainStage,
+    parameters: Option<&Nbt>,
+    output: &ExecutionControl,
+    modifiers: ChainModifiers,
+) {
+    let functions_to_run = match function_argument::get_functions(server, current_step.top_context(), "name") {
+        Ok(functions) => functions,
+        Err(e) => {
+            original_source.handle_error(server, e, modifiers.is_forked());
+            return;
+        }
+    };
+    if functions_to_run.is_empty() {
+        return;
+    }
+    let mut instantiated_functions = Vec::with_capacity(functions_to_run.len());
+    for function in &functions_to_run {
+        match function.instantiate(parameters) {
+            Ok(instantiated) => instantiated_functions.push(instantiated),
+            Err(reason) => {
+                original_source.handle_error(server, ERROR_FUNCTION_CONDITION_INSTANTATION_FAILURE.create(function.id(), reason), modifiers.is_forked());
+                break;
+            }
+        }
+    }
+    let instantiated_functions = Arc::new(instantiated_functions);
+    let filtered_sources = Arc::new(Mutex::new(Vec::with_capacity(current_sources.len())));
+    for source in current_sources {
+        let new_function_context = modify_sender_for_execution(&source.clear_callbacks());
+        let filtered = filtered_sources.clone();
+        let function_callback = CommandResultCallback::new(move |_, _, result| {
+            if check(result) {
+                filtered.lock().unwrap().push(source.clone());
+            }
+        });
+        output.queue_next(EntryAction::IsolatedCall(IsolatedCall {
+            functions: instantiated_functions.clone(),
+            source: new_function_context,
+            output: function_callback,
+        }));
+    }
+    output.queue_next(EntryAction::Continuation {
+        build: BuildContexts(current_step.next_stage()),
+        modifiers,
+        original: original_source.clone(),
+        sources: ContinuationSources::Shared(filtered_sources),
+    });
 }

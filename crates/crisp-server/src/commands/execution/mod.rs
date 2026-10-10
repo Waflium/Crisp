@@ -259,7 +259,7 @@ impl ExecutionContext {
         loop {
             let next = ExecutionContext::with(|context| {
                 if context.command_quota <= 0 {
-                    println!("Command execution stopped due to limit (executed {} commands)", context.command_limit);
+                    info!("Command execution stopped due to limit (executed {} commands)", context.command_limit);
                     return None;
                 }
                 let entry = context.command_queue.pop_front()?;
@@ -276,7 +276,7 @@ impl ExecutionContext {
                 false
             });
             if overflow {
-                eprintln!("Command execution stopped due to command queue overflow (max {MAX_QUEUE_DEPTH})");
+                error!("Command execution stopped due to command queue overflow (max {MAX_QUEUE_DEPTH})");
                 break;
             }
         }

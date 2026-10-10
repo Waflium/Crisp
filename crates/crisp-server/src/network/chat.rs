@@ -448,7 +448,11 @@ impl Component {
     }
 
     pub fn to_json(&self) -> String {
-        nbt_to_json(&self.to_nbt()).to_string()
+        self.to_json_value().to_string()
+    }
+
+    pub fn to_json_value(&self) -> serde_json::Value {
+        nbt_to_json(&self.to_nbt())
     }
 
     pub fn write(&self, w: &mut crisp_protocol::Writer) {

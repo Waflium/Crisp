@@ -341,18 +341,20 @@ fn send_registries(w: &mut PacketWriter) {
             }
         });
     }
-    w.queue(clientbound::UPDATE_TAGS, |p| {
-        p.varint(TAGS.len() as i32);
-        for registry in TAGS {
-            p.string(registry.registry);
-            p.varint(registry.tags.len() as i32);
-            for (name, ids) in registry.tags {
-                p.string(name);
-                p.varint(ids.len() as i32);
-                ids.iter().for_each(|&id| p.varint(id));
-            }
+    w.queue(clientbound::UPDATE_TAGS, write_tags);
+}
+
+pub fn write_tags(p: &mut crisp_protocol::Writer) {
+    p.varint(TAGS.len() as i32);
+    for registry in TAGS {
+        p.string(registry.registry);
+        p.varint(registry.tags.len() as i32);
+        for (name, ids) in registry.tags {
+            p.string(name);
+            p.varint(ids.len() as i32);
+            ids.iter().for_each(|&id| p.varint(id));
         }
-    });
+    }
 }
 
 pub fn write_resource_pack_push(info: &ServerResourcePackInfo, p: &mut crisp_protocol::Writer) {
