@@ -3,12 +3,12 @@ pub mod metadata;
 pub mod repository;
 pub mod resources;
 
-use std::cell::RefCell;
 use std::collections::HashSet;
 use std::fs::File;
 use std::io::{self, Read};
 use std::path::{Path, PathBuf};
-use std::rc::Rc;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
 
 use serde_json::Value;
 
@@ -73,26 +73,30 @@ pub fn escape_if_required(input: &str) -> String {
 
 pub struct SharedZip {
     file: PathBuf,
-    archive: RefCell<Option<zip::ZipArchive<File>>>,
-    failed_to_load: std::cell::Cell<bool>,
+    archive: Mutex<Option<zip::ZipArchive<File>>>,
+    failed_to_load: AtomicBool,
 }
 
 impl SharedZip {
     pub fn new(file: PathBuf) -> SharedZip {
-        SharedZip { file, archive: RefCell::new(None), failed_to_load: std::cell::Cell::new(false) }
+        SharedZip { file, archive: Mutex::new(None), failed_to_load: AtomicBool::new(false) }
     }
 
     fn with<R>(&self, f: impl FnOnce(&mut zip::ZipArchive<File>) -> R) -> Option<R> {
-        if self.failed_to_load.get() {
+        let mut archive = self.archive.lock().unwrap();
+        if self.failed_to_load.load(Ordering::Relaxed) {
             return None;
         }
-        let mut archive = self.archive.borrow_mut();
         if archive.is_none() {
             match File::open(&self.file).map_err(zip::result::ZipError::from).and_then(zip::ZipArchive::new) {
                 Ok(opened) => *archive = Some(opened),
                 Err(e) => {
-                    eprintln!("Failed to open pack {}: {e}", self.file.display());
-                    self.failed_to_load.set(true);
+                    let exception = match e {
+                        zip::result::ZipError::Io(e) => format!("java.io.IOException: {e}"),
+                        _ => "java.util.zip.ZipException: zip END header not found".to_string(),
+                    };
+                    error!("Failed to open pack {}\n{exception}", self.file.display());
+                    self.failed_to_load.store(true, Ordering::Relaxed);
                     return None;
                 }
             }
@@ -122,7 +126,7 @@ impl SharedZip {
 #[derive(Clone)]
 pub enum IoSupplier {
     File(PathBuf),
-    Zip(Rc<SharedZip>, String),
+    Zip(Arc<SharedZip>, String),
 }
 
 impl IoSupplier {
@@ -142,7 +146,7 @@ pub struct Resource {
 
 pub enum PackResources {
     Path { id: String, root: PathBuf },
-    File { id: String, zip: Rc<SharedZip>, prefix: String },
+    File { id: String, zip: Arc<SharedZip>, prefix: String },
     Overlayed { primary: Box<PackResources>, stack: Vec<PackResources> },
     BuiltIn { id: String },
 }
@@ -188,14 +192,14 @@ impl PackResources {
                 for entry in entries.flatten() {
                     let path = entry.path();
                     if !path.is_dir() {
-                        eprintln!("Non-directory entry {} found in namespace directory, rejecting", path.display());
+                        warn!("Non-directory entry {} found in namespace directory, rejecting", path.display());
                         continue;
                     }
                     let namespace = entry.file_name().to_string_lossy().into_owned();
                     if is_valid_namespace(&namespace) {
                         namespaces.insert(namespace);
                     } else {
-                        eprintln!("Non [a-z0-9_.-] character in namespace {namespace} in pack directory {}, ignoring", dir.display());
+                        warn!("Non [a-z0-9_.-] character in namespace {namespace} in pack directory {}, ignoring", dir.display());
                     }
                 }
             }
@@ -210,7 +214,7 @@ impl PackResources {
                     if is_valid_namespace(namespace) {
                         namespaces.insert(namespace.to_string());
                     } else {
-                        eprintln!("Non [a-z0-9_.-] character in namespace {namespace} in pack {}, ignoring", zip.file.display());
+                        warn!("Non [a-z0-9_.-] character in namespace {namespace} in pack {}, ignoring", zip.file.display());
                     }
                 }
             }
@@ -231,7 +235,7 @@ impl PackResources {
                     let path = relative.join("/");
                     match try_build(namespace, &path) {
                         Some(id) => output(id, IoSupplier::File(file)),
-                        None => eprintln!("Invalid path in pack: {namespace}:{path}, ignoring"),
+                        None => error!("Invalid path in pack: {namespace}:{path}, ignoring"),
                     }
                 }
             }
@@ -245,7 +249,7 @@ impl PackResources {
                     let path = &name[root.len()..];
                     match try_build(namespace, path) {
                         Some(id) => output(id, IoSupplier::Zip(zip.clone(), name.clone())),
-                        None => eprintln!("Invalid path in datapack: {namespace}:{path}, ignoring"),
+                        None => warn!("Invalid path in datapack: {namespace}:{path}, ignoring"),
                     }
                 }
             }

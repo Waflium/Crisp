@@ -3,8 +3,10 @@ pub mod commands;
 pub mod dedicated;
 pub mod level;
 pub mod network;
+pub mod packs;
 pub mod players;
 pub mod rcon;
+pub mod reloadable_server_resources;
 pub mod eula;
 pub mod main;
 pub mod server_tick_rate_manager;
@@ -14,6 +16,7 @@ mod scoreboard_tests;
 pub mod server_function_library;
 pub mod server_links;
 pub mod server_scoreboard;
+pub mod world_stem;
 
 use std::collections::{HashMap, VecDeque};
 use std::path::{Path, PathBuf};
@@ -68,6 +71,14 @@ use level::game_mode::GameType;
 use level::chunk_cache::ChunkCache;
 use level::player::ServerPlayer;
 use players::respawn::write_death_location;
+use self::packs::PackSource;
+use self::packs::repository::PackRepository;
+use self::packs::resources::MultiPackResourceManager;
+use self::reloadable_server_resources::ReloadableServerResources;
+use self::world_stem::WorldStem;
+use crate::world::flag::{FeatureFlagSet, print_missing_flags};
+use crate::world::level::data_pack_config::DataPackConfig;
+use crate::world::level::world_data_configuration::WorldDataConfiguration;
 
 pub const OVERWORLD: &str = "minecraft:overworld";
 const AUTOSAVE_INTERVAL: i32 = 6000;
@@ -157,6 +168,8 @@ pub struct Server {
     pub stopwatches: Stopwatches,
     pub services: Services,
     pub functions: server_function_library::ServerFunctionLibrary,
+    pub pack_repository: PackRepository,
+    pub data_configuration: WorldDataConfiguration,
     pub scoreboard_save_data: ScoreboardSaveData,
     world_dir: Option<WorldDir>,
     stopping: bool,
@@ -168,21 +181,32 @@ impl Server {
             Some(root) => WorldData::load(&WorldDir { root: root.clone() })?,
             None => None,
         };
-        match saved {
-            Some(data) => Server::with_world_data(config, data),
+        let mut pack_repository = match &config.world {
+            Some(root) => PackRepository::create_pack_repository(root.join("datapacks")),
+            None => PackRepository::create_vanilla_trusted_repository(),
+        };
+        let initial_data_config = saved.as_ref().map_or_else(WorldDataConfiguration::default_configuration, |data| data.data_configuration.clone());
+        let data_configuration = configure_pack_repository(&mut pack_repository, &initial_data_config, saved.is_none(), false);
+        let resource_manager = MultiPackResourceManager::new(pack_repository.open_all_selected());
+        let data_packs = ReloadableServerResources::load_resources(&resource_manager, config.function_permission_level);
+        let mut world_data = match saved {
+            Some(data) => data,
             None => {
                 let seed = config.seed.unwrap_or_else(rand::random);
                 let generator = match config.level_type {
                     LevelType::Flat => ChunkGenerator::Flat(FlatLevelSource::default()),
                     LevelType::Normal => ChunkGenerator::Noise(Arc::new(NoiseBasedChunkGenerator::overworld(seed))),
                 };
-                let data = WorldData::new_world(seed, generator, true, config.game_mode, config.difficulty, false);
-                Server::with_world_data(config, data)
+                WorldData::new_world(seed, generator, true, config.game_mode, config.difficulty, false, data_configuration.clone())
             }
-        }
+        };
+        world_data.data_configuration = data_configuration;
+        Server::with_world_stem(config, pack_repository, WorldStem { data_packs, world_data })
     }
 
-    pub(crate) fn with_world_data(config: ServerConfig, data: WorldData) -> std::io::Result<Server> {
+    pub(crate) fn with_world_stem(config: ServerConfig, pack_repository: PackRepository, world_stem: WorldStem) -> std::io::Result<Server> {
+        let WorldStem { data_packs, world_data: data } = world_stem;
+        let data_configuration = data.data_configuration.clone();
         let new_world = !data.initialized;
         let dimension_type_id = SyncedRegistry::get("minecraft:dimension_type").id_of(OVERWORLD).expect("overworld dimension type");
         let dimension = &DIMENSION_TYPES[dimension_type_id as usize];
@@ -292,7 +316,9 @@ impl Server {
             custom_boss_events: CustomBossEvents::load(world_dir.as_ref().map(WorldDir::data_folder)),
             stopwatches: Stopwatches::load(world_dir.as_ref().map(WorldDir::data_folder)),
             services: Services::offline(),
-            functions: Default::default(),
+            functions: data_packs.function_library,
+            pack_repository,
+            data_configuration,
             scoreboard_save_data,
             world_dir,
             stopping: false,
@@ -483,6 +509,7 @@ impl Server {
             server_brands: self.server_brands.clone(),
             was_modded: self.was_modded,
             game_rules: self.game_rules.to_nbt(),
+            data_configuration: self.data_configuration.clone(),
         };
         if data.save(dir).is_err() {
             error!("Failed to save level {}", dir.root.display());
@@ -1222,6 +1249,111 @@ fn log_save_failure(file_name: &str, result: std::io::Result<()>) {
     }
 }
 
+pub fn configure_pack_repository(
+    pack_repository: &mut PackRepository,
+    initial_data_config: &WorldDataConfiguration,
+    init_mode: bool,
+    safe_mode: bool,
+) -> WorldDataConfiguration {
+    let data_pack_config = &initial_data_config.data_packs;
+    let forced_features = if init_mode { FeatureFlagSet::default() } else { initial_data_config.enabled_features };
+    let allowed_features = if init_mode { FeatureFlagSet::ALL_FLAGS } else { initial_data_config.enabled_features };
+    pack_repository.reload();
+    if safe_mode {
+        return configure_repository_with_selection(pack_repository, &[packs::repository::VANILLA_ID.to_string()], forced_features, false);
+    }
+    let mut selected: Vec<String> = Vec::new();
+    for id in &data_pack_config.enabled {
+        if pack_repository.is_available(id) {
+            if !selected.contains(id) {
+                selected.push(id.clone());
+            }
+        } else {
+            warn!("Missing data pack {id}");
+        }
+    }
+    for pack in pack_repository.available_packs() {
+        let pack_id = pack.id();
+        if data_pack_config.disabled.iter().any(|d| d == pack_id) {
+            continue;
+        }
+        let pack_features = pack.requested_features();
+        let is_selected = selected.iter().any(|s| s == pack_id);
+        if !is_selected && pack.pack_source().should_add_automatically() {
+            if pack_features.is_subset_of(allowed_features) {
+                info!("Found new data pack {pack_id}, loading it automatically");
+                selected.push(pack_id.to_string());
+            } else {
+                info!(
+                    "Found new data pack {pack_id}, but can't load it due to missing features {}",
+                    print_missing_flags(allowed_features, pack_features)
+                );
+            }
+        }
+        if is_selected && !pack_features.is_subset_of(allowed_features) {
+            warn!(
+                "Pack {pack_id} requires features {} that are not enabled for this world, disabling pack.",
+                print_missing_flags(allowed_features, pack_features)
+            );
+            selected.retain(|s| s != pack_id);
+        }
+    }
+    if selected.is_empty() {
+        info!("No datapacks selected, forcing vanilla");
+        selected.push(packs::repository::VANILLA_ID.to_string());
+    }
+    configure_repository_with_selection(pack_repository, &selected, forced_features, true)
+}
+
+fn configure_repository_with_selection(
+    pack_repository: &mut PackRepository,
+    selected: &[String],
+    forced_features: FeatureFlagSet,
+    disable_inactive: bool,
+) -> WorldDataConfiguration {
+    pack_repository.set_selected(selected);
+    enable_forced_feature_packs(pack_repository, forced_features);
+    let pack_config = get_selected_packs(pack_repository, disable_inactive);
+    let pack_requested_features = pack_repository.requested_feature_flags().join(forced_features);
+    WorldDataConfiguration::new(pack_config, pack_requested_features)
+}
+
+fn enable_forced_feature_packs(pack_repository: &mut PackRepository, forced_features: FeatureFlagSet) {
+    let provided_features = pack_repository.requested_feature_flags();
+    let mut missing_features = forced_features.subtract(provided_features);
+    if missing_features.is_empty() {
+        return;
+    }
+    let mut selected: Vec<String> = pack_repository.selected_ids().into_iter().map(str::to_string).collect();
+    for pack in pack_repository.available_packs() {
+        if missing_features.is_empty() {
+            break;
+        }
+        if pack.pack_source() == PackSource::Feature {
+            let pack_features = pack.requested_features();
+            if !pack_features.is_empty() && pack_features.intersects(missing_features) && pack_features.is_subset_of(forced_features) {
+                if selected.iter().any(|s| s == pack.id()) {
+                    panic!("Tried to force '{}', but it was already enabled", pack.id());
+                }
+                selected.push(pack.id().to_string());
+                info!("Found feature pack ('{}') for requested feature, forcing to enabled", pack.id());
+                missing_features = missing_features.subtract(pack_features);
+            }
+        }
+    }
+    pack_repository.set_selected(&selected);
+}
+
+pub fn get_selected_packs(pack_repository: &PackRepository, disable_inactive: bool) -> DataPackConfig {
+    let selected = pack_repository.selected_ids();
+    let disabled = if disable_inactive {
+        pack_repository.available_ids().filter(|id| !selected.contains(id)).map(str::to_string).collect()
+    } else {
+        Vec::new()
+    };
+    DataPackConfig { enabled: selected.into_iter().map(str::to_string).collect(), disabled }
+}
+
 fn chunk_tickets_file(dir: &WorldDir) -> std::path::PathBuf {
     dir.dimension_data_folder(OVERWORLD).join("minecraft").join("chunk_tickets.dat")
 }
@@ -1230,7 +1362,7 @@ fn chunk_tickets_file(dir: &WorldDir) -> std::path::PathBuf {
 pub fn run(
     config: ServerConfig,
     settings: Option<dedicated::dedicated_server_settings::DedicatedServerSettings>,
-    world: Option<WorldData>,
+    world: Option<(PackRepository, WorldStem)>,
     services: Services,
     mut events: mpsc::UnboundedReceiver<Event>,
     sender: mpsc::UnboundedSender<Event>,
@@ -1287,7 +1419,7 @@ pub fn run(
     let started = Instant::now();
     info!("Preparing level \"{}\"", config.level_name);
     let mut server = match world {
-        Some(data) => Server::with_world_data(config, data)?,
+        Some((pack_repository, world_stem)) => Server::with_world_stem(config, pack_repository, world_stem)?,
         None => Server::new(config)?,
     };
     server.settings = settings;

@@ -2,6 +2,7 @@ pub mod biome;
 pub mod block;
 pub mod border;
 pub mod chunk;
+pub mod data_pack_config;
 pub mod gamerules;
 pub mod clip;
 pub mod entity;
@@ -16,6 +17,7 @@ pub mod saveddata;
 pub mod redstone;
 pub mod signal;
 pub mod storage;
+pub mod world_data_configuration;
 
 use crisp_core::BlockPos;
 use crisp_data::{BlockState, FluidState};

@@ -1,6 +1,6 @@
 
 use std::collections::{BTreeMap, HashMap};
-use std::rc::Rc;
+use std::sync::Arc;
 
 use regex_lite::Regex;
 use serde_json::Value;
@@ -41,8 +41,8 @@ impl ResourceFilterSection {
 }
 
 struct PackEntry {
-    resources: Option<Rc<PackResources>>,
-    filter: Option<Rc<ResourceFilterSection>>,
+    resources: Option<Arc<PackResources>>,
+    filter: Option<Arc<ResourceFilterSection>>,
 }
 
 impl PackEntry {
@@ -64,7 +64,7 @@ impl FallbackResourceManager {
                 top.retain(|location, _| !entry.is_filtered(location));
             }
             if let Some(pack) = &entry.resources {
-                pack.list_resources(&self.namespace, directory, &mut |id, supplier| {
+                pack.list_resources(&self.namespace, directory, &mut |id: String, supplier: IoSupplier| {
                     if !is_metadata(&id) && selector(&id) {
                         top.insert(id, Resource { source_pack_id: pack.pack_id().to_string(), supplier });
                     }
@@ -106,7 +106,7 @@ pub struct MultiPackResourceManager {
 
 impl MultiPackResourceManager {
     pub fn new(packs: Vec<PackResources>) -> MultiPackResourceManager {
-        let packs: Vec<Rc<PackResources>> = packs.into_iter().map(Rc::new).collect();
+        let packs: Vec<Arc<PackResources>> = packs.into_iter().map(Arc::new).collect();
         let provided: Vec<_> = packs.iter().map(|p| p.get_namespaces()).collect();
         let mut namespaces: Vec<String> = Vec::new();
         for set in &provided {
@@ -118,7 +118,7 @@ impl MultiPackResourceManager {
         }
         let mut namespaced_managers: HashMap<String, FallbackResourceManager> = HashMap::new();
         for (pack, provided_namespaces) in packs.iter().zip(&provided) {
-            let filter = pack_filter_section(pack).map(Rc::new);
+            let filter = pack_filter_section(pack).map(Arc::new);
             for namespace in &namespaces {
                 let contains_namespace = provided_namespaces.contains(namespace);
                 let filter_matches_namespace = filter.as_ref().is_some_and(|f| f.is_namespace_filtered(namespace));
@@ -156,14 +156,14 @@ fn pack_filter_section(pack: &PackResources) -> Option<ResourceFilterSection> {
     let metadata = match pack.load_metadata() {
         Ok(metadata) => metadata,
         Err(_) => {
-            eprintln!("Failed to get filter section from pack {}", pack.pack_id());
+            error!("Failed to get filter section from pack {}", pack.pack_id());
             return None;
         }
     };
     match ResourceFilterSection::parse(metadata.get("filter")?) {
         Ok(filter) => Some(filter),
         Err(_) => {
-            eprintln!("Failed to get filter section from pack {}", pack.pack_id());
+            error!("Failed to get filter section from pack {}", pack.pack_id());
             None
         }
     }

@@ -1,6 +1,5 @@
 
-use std::cell::RefCell;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use crisp_protocol::nbt::Nbt;
 
@@ -32,12 +31,12 @@ pub struct MacroFunction {
     id: String,
     entries: Vec<Entry>,
     parameters: Vec<String>,
-    cache: RefCell<Vec<(Vec<String>, Arc<InstantiatedFunction>)>>,
+    cache: Mutex<Vec<(Vec<String>, Arc<InstantiatedFunction>)>>,
 }
 
 impl MacroFunction {
     pub fn new(id: String, entries: Vec<Entry>, parameters: Vec<String>) -> MacroFunction {
-        MacroFunction { id, entries, parameters, cache: RefCell::new(Vec::new()) }
+        MacroFunction { id, entries, parameters, cache: Mutex::new(Vec::new()) }
     }
 
     pub fn id(&self) -> &str {
@@ -56,7 +55,7 @@ impl MacroFunction {
             };
             parameter_values.push(stringify(value));
         }
-        let mut cache = self.cache.borrow_mut();
+        let mut cache = self.cache.lock().unwrap();
         if let Some(index) = cache.iter().position(|(values, _)| *values == parameter_values) {
             let entry = cache.remove(index);
             let function = entry.1.clone();

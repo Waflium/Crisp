@@ -21,6 +21,7 @@ use crate::world::level::chunk::{Biome, ChunkGenerator, FlatLevelSource};
 use crate::world::level::levelgen::NoiseBasedChunkGenerator;
 use crate::world::level::levelgen::flat::StructureOverrides;
 use crate::world::level::saveddata::weather_data::WeatherData;
+use crate::world::level::world_data_configuration::WorldDataConfiguration;
 
 const LEVEL_NBT_VERSION: i32 = 19133;
 
@@ -173,10 +174,19 @@ pub struct WorldData {
     pub server_brands: Vec<String>,
     pub was_modded: bool,
     pub game_rules: Nbt,
+    pub data_configuration: WorldDataConfiguration,
 }
 
 impl WorldData {
-    pub fn new_world(seed: i64, generator: ChunkGenerator, generate_structures: bool, game_type: GameType, difficulty: Difficulty, hardcore: bool) -> WorldData {
+    pub fn new_world(
+        seed: i64,
+        generator: ChunkGenerator,
+        generate_structures: bool,
+        game_type: GameType,
+        difficulty: Difficulty,
+        hardcore: bool,
+        data_configuration: WorldDataConfiguration,
+    ) -> WorldData {
         WorldData {
             seed,
             game_time: 0,
@@ -193,6 +203,7 @@ impl WorldData {
             server_brands: Vec::new(),
             was_modded: false,
             game_rules: Nbt::Compound(Vec::new()),
+            data_configuration,
         }
     }
 
@@ -266,6 +277,7 @@ impl WorldData {
             }),
             was_modded: level.get("WasModded").and_then(Nbt::as_i64).is_some_and(|v| v != 0),
             game_rules: read_dat(&dir.data("game_rules"))?.and_then(|r| r.get("data").cloned()).unwrap_or(Nbt::Compound(Vec::new())),
+            data_configuration: WorldDataConfiguration::parse(level),
         }))
     }
 
@@ -276,47 +288,43 @@ impl WorldData {
 
     pub fn save_level_data(&self, dir: &WorldDir) -> io::Result<()> {
         let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis() as i64;
-        let level = compound(vec![(
-            "Data",
-            compound(vec![
-                (
-                    "difficulty_settings",
-                    compound(vec![
-                        ("difficulty", string(self.difficulty.key())),
-                        ("hardcore", Nbt::Byte(self.hardcore as i8)),
-                        ("locked", Nbt::Byte(self.difficulty_locked as i8)),
-                    ]),
-                ),
-                ("Time", Nbt::Long(self.game_time)),
-                ("version_history", Nbt::List(vec![Nbt::Int(WORLD_VERSION)])),
-                ("GameType", Nbt::Int(self.game_type.id())),
-                ("ServerBrands", Nbt::List(self.server_brands.iter().map(|b| string(b)).collect())),
-                ("version", Nbt::Int(LEVEL_NBT_VERSION)),
-                ("LastPlayed", Nbt::Long(now)),
-                ("spawn", Nbt::Compound(self.spawn.to_nbt_fields())),
-                (
-                    "Version",
-                    compound(vec![
-                        ("Snapshot", Nbt::Byte(0)),
-                        ("Series", string("main")),
-                        ("Id", Nbt::Int(WORLD_VERSION)),
-                        ("Name", string(VERSION_NAME)),
-                    ]),
-                ),
-                ("LevelName", string(&dir.root.file_name().unwrap_or_default().to_string_lossy())),
-                ("initialized", Nbt::Byte(self.initialized as i8)),
-                ("WasModded", Nbt::Byte(self.was_modded as i8)),
-                ("DataVersion", Nbt::Int(WORLD_VERSION)),
-                ("allowCommands", Nbt::Byte(0)),
-                (
-                    "DataPacks",
-                    compound(vec![
-                        ("Enabled", Nbt::List(vec![string("vanilla")])),
-                        ("Disabled", Nbt::List(["minecart_improvements", "redstone_experiments", "trade_rebalance"].map(string).to_vec())),
-                    ]),
-                ),
-            ]),
-        )]);
+        let mut data = vec![
+            (
+                "difficulty_settings",
+                compound(vec![
+                    ("difficulty", string(self.difficulty.key())),
+                    ("hardcore", Nbt::Byte(self.hardcore as i8)),
+                    ("locked", Nbt::Byte(self.difficulty_locked as i8)),
+                ]),
+            ),
+            ("Time", Nbt::Long(self.game_time)),
+            ("version_history", Nbt::List(vec![Nbt::Int(WORLD_VERSION)])),
+            ("GameType", Nbt::Int(self.game_type.id())),
+            ("ServerBrands", Nbt::List(self.server_brands.iter().map(|b| string(b)).collect())),
+            ("version", Nbt::Int(LEVEL_NBT_VERSION)),
+            ("LastPlayed", Nbt::Long(now)),
+            ("spawn", Nbt::Compound(self.spawn.to_nbt_fields())),
+            (
+                "Version",
+                compound(vec![
+                    ("Snapshot", Nbt::Byte(0)),
+                    ("Series", string("main")),
+                    ("Id", Nbt::Int(WORLD_VERSION)),
+                    ("Name", string(VERSION_NAME)),
+                ]),
+            ),
+            ("LevelName", string(&dir.root.file_name().unwrap_or_default().to_string_lossy())),
+            ("initialized", Nbt::Byte(self.initialized as i8)),
+            ("WasModded", Nbt::Byte(self.was_modded as i8)),
+            ("DataVersion", Nbt::Int(WORLD_VERSION)),
+            ("allowCommands", Nbt::Byte(0)),
+            ("DataPacks", self.data_configuration.data_packs.to_nbt()),
+        ];
+        if let Some(enabled_features) = self.data_configuration.encoded_enabled_features() {
+            let after_version = data.iter().position(|(key, _)| *key == "version").unwrap() + 1;
+            data.insert(after_version, ("enabled_features", enabled_features));
+        }
+        let level = compound(vec![("Data", compound(data))]);
         save_level_dat(dir, &level)
     }
 

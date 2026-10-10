@@ -284,7 +284,7 @@ pub fn overlays_section(value: &Value) -> Result<Vec<String>, String> {
     let mut overlays = Vec::new();
     for (format, directory) in parsed {
         if format.min.is_none() && format.max.is_none() && format.supported.is_none() {
-            eprintln!("Unknown or broken overlay entry {directory}");
+            warn!("Unknown or broken overlay entry {directory}");
             continue;
         }
         let range = format.validate(false, min_version <= LAST_PRE_MINOR_VERSION, &format!("Overlay \"{directory}\""), "formats")?;

@@ -63,7 +63,11 @@ fn spread(hash: i32) -> u32 {
 }
 
 pub fn java_hash_map_order(hashes: &[i32]) -> Vec<usize> {
-    let mut capacity = 16usize;
+    java_hash_map_order_with_capacity(hashes, 16)
+}
+
+pub fn java_hash_map_order_with_capacity(hashes: &[i32], initial_capacity: usize) -> Vec<usize> {
+    let mut capacity = initial_capacity;
     while hashes.len() > capacity * 3 / 4 {
         capacity *= 2;
     }

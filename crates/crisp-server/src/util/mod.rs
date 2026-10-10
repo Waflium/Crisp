@@ -1,4 +1,5 @@
 pub mod argb;
+pub mod dependency_sorter;
 pub mod ease;
 pub mod easing_type;
 pub mod directory_lock;

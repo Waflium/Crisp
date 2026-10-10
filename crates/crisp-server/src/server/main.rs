@@ -4,6 +4,14 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use super::dedicated::dedicated_server_settings::DedicatedServerSettings;
 use super::dedicated::dedicated_server_properties::{DedicatedServerProperties, InvalidProperty};
 use super::eula::Eula;
+use super::packs::repository::PackRepository;
+use super::packs::resources::MultiPackResourceManager;
+use super::reloadable_server_resources::ReloadableServerResources;
+use super::world_stem::WorldStem;
+use super::configure_pack_repository;
+use crate::world::flag::FeatureFlagSet;
+use crate::world::level::data_pack_config::DataPackConfig;
+use crate::world::level::world_data_configuration::WorldDataConfiguration;
 use crate::world::level::chunk::ChunkGenerator;
 use crate::world::level::levelgen::{NoiseBasedChunkGenerator, flat};
 use crate::world::level::storage::{WorldData, WorldDir};
@@ -178,19 +186,29 @@ pub fn main(args: Vec<String>) {
             return;
         }
     };
-    let _ = std::fs::create_dir_all(world_dir.root.join("datapacks"));
+    let safe_mode = options.has("safeMode");
+    if safe_mode {
+        warn!("Safe mode active, only vanilla datapack will be loaded");
+    }
+    let mut pack_repository = PackRepository::create_pack_repository(world_dir.root.join("datapacks"));
+    let (init_mode, initial_data_config) = load_or_create_config(properties, level_data.as_ref());
+    let data_configuration = configure_pack_repository(&mut pack_repository, &initial_data_config, init_mode, safe_mode);
+    let resource_manager = MultiPackResourceManager::new(pack_repository.open_all_selected());
     let worker_properties = properties.clone();
-    let world_data = std::thread::Builder::new()
+    let worker_data_configuration = data_configuration.clone();
+    let mut world_data = std::thread::Builder::new()
         .name("Worker-Main-1".into())
         .spawn(move || {
             level_data.unwrap_or_else(|| {
                 info!("No existing world data, creating new world");
-                create_new_world_data(&worker_properties)
+                create_new_world_data(&worker_properties, worker_data_configuration)
             })
         })
         .expect("worker thread")
         .join()
         .expect("world data");
+    let data_packs = ReloadableServerResources::load_resources(&resource_manager, properties.function_permission_level);
+    world_data.data_configuration = data_configuration;
     if let Err(e) = world_data.save_level_data(&world_dir) {
         error!("Failed to save level {}\n{e}", world_dir.root.display());
     }
@@ -208,16 +226,36 @@ pub fn main(args: Vec<String>) {
             }
         }
     }
-    if let Err(e) = runtime.block_on(serve_world(listen, config, services, Some(settings), true, Some(world_data))) {
+    let world_stem = WorldStem { data_packs, world_data };
+    if let Err(e) = runtime.block_on(serve_world(listen, config, services, Some(settings), true, Some((pack_repository, world_stem)))) {
         error!("Encountered an unexpected exception\n{e:#}");
     }
     runtime.shutdown_background();
 }
 
-fn create_new_world_data(properties: &DedicatedServerProperties) -> WorldData {
+fn load_or_create_config(properties: &DedicatedServerProperties, level_data: Option<&WorldData>) -> (bool, WorldDataConfiguration) {
+    match level_data {
+        Some(level_data) => (false, level_data.data_configuration.clone()),
+        None => {
+            let initial_data_pack_configuration =
+                DataPackConfig { enabled: properties.initial_enabled_packs.clone(), disabled: properties.initial_disabled_packs.clone() };
+            (true, WorldDataConfiguration::new(initial_data_pack_configuration, FeatureFlagSet::DEFAULT_FLAGS))
+        }
+    }
+}
+
+fn create_new_world_data(properties: &DedicatedServerProperties, data_configuration: WorldDataConfiguration) -> WorldData {
     let seed = properties.seed.unwrap_or_else(rand::random);
     let generator = create_dimensions(properties, seed);
-    WorldData::new_world(seed, generator, properties.generate_structures, properties.game_mode, properties.difficulty, properties.hardcore)
+    WorldData::new_world(
+        seed,
+        generator,
+        properties.generate_structures,
+        properties.game_mode,
+        properties.difficulty,
+        properties.hardcore,
+        data_configuration,
+    )
 }
 
 fn create_dimensions(properties: &DedicatedServerProperties, seed: i64) -> ChunkGenerator {

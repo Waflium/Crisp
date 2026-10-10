@@ -5,6 +5,7 @@ pub mod crash_report;
 mod commands;
 mod nbt;
 mod resources;
+mod tags;
 mod network;
 pub mod server;
 mod util;
@@ -32,6 +33,7 @@ pub struct ServerConfig {
     pub world: Option<PathBuf>,
     pub server_dir: Option<PathBuf>,
     pub op_permission_level: i32,
+    pub function_permission_level: i32,
     pub broadcast_console_to_ops: bool,
     pub online_mode: bool,
     pub white_list: bool,
@@ -82,6 +84,7 @@ impl Default for ServerConfig {
             world: None,
             server_dir: None,
             op_permission_level: 4,
+            function_permission_level: 2,
             broadcast_console_to_ops: true,
             online_mode: true,
             white_list: true,
@@ -132,6 +135,7 @@ impl ServerConfig {
             level_name,
             server_dir: Some(".".into()),
             op_permission_level: properties.op_permission_level,
+            function_permission_level: properties.function_permission_level,
             broadcast_console_to_ops: properties.broadcast_console_to_ops,
             online_mode: properties.online_mode,
             white_list: properties.white_list,
@@ -180,7 +184,7 @@ pub(crate) async fn serve_world(
     services: Services,
     settings: Option<DedicatedServerSettings>,
     console: bool,
-    world: Option<world::level::storage::WorldData>,
+    world: Option<(server::packs::repository::PackRepository, server::world_stem::WorldStem)>,
 ) -> anyhow::Result<()> {
     let (events, queue) = mpsc::unbounded_channel();
     let runtime = tokio::runtime::Handle::current();

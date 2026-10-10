@@ -7,6 +7,7 @@ pub mod difficulty;
 pub mod difficulty_instance;
 pub mod effect;
 pub mod entity;
+pub mod flag;
 pub mod food;
 pub mod inventory;
 pub mod item;
