@@ -170,6 +170,8 @@ pub struct WorldData {
     pub generator: ChunkGenerator,
     pub generate_structures: bool,
     pub initialized: bool,
+    pub server_brands: Vec<String>,
+    pub was_modded: bool,
     pub game_rules: Nbt,
 }
 
@@ -188,6 +190,8 @@ impl WorldData {
             generator,
             generate_structures,
             initialized: false,
+            server_brands: Vec::new(),
+            was_modded: false,
             game_rules: Nbt::Compound(Vec::new()),
         }
     }
@@ -254,6 +258,13 @@ impl WorldData {
             generator,
             generate_structures: worldgen.get("generate_structures").and_then(Nbt::as_i64).is_none_or(|v| v != 0),
             initialized: level.get("initialized").and_then(Nbt::as_i64).is_none_or(|v| v != 0),
+            server_brands: level.get("ServerBrands").map(Nbt::as_list).unwrap_or(&[]).iter().filter_map(Nbt::as_str).fold(Vec::new(), |mut brands, brand| {
+                if !brands.iter().any(|b| b == brand) {
+                    brands.push(brand.to_string());
+                }
+                brands
+            }),
+            was_modded: level.get("WasModded").and_then(Nbt::as_i64).is_some_and(|v| v != 0),
             game_rules: read_dat(&dir.data("game_rules"))?.and_then(|r| r.get("data").cloned()).unwrap_or(Nbt::Compound(Vec::new())),
         }))
     }
@@ -279,7 +290,7 @@ impl WorldData {
                 ("Time", Nbt::Long(self.game_time)),
                 ("version_history", Nbt::List(vec![Nbt::Int(WORLD_VERSION)])),
                 ("GameType", Nbt::Int(self.game_type.id())),
-                ("ServerBrands", Nbt::List(vec![string("vanilla")])),
+                ("ServerBrands", Nbt::List(self.server_brands.iter().map(|b| string(b)).collect())),
                 ("version", Nbt::Int(LEVEL_NBT_VERSION)),
                 ("LastPlayed", Nbt::Long(now)),
                 ("spawn", Nbt::Compound(self.spawn.to_nbt_fields())),
@@ -294,7 +305,7 @@ impl WorldData {
                 ),
                 ("LevelName", string(&dir.root.file_name().unwrap_or_default().to_string_lossy())),
                 ("initialized", Nbt::Byte(self.initialized as i8)),
-                ("WasModded", Nbt::Byte(0)),
+                ("WasModded", Nbt::Byte(self.was_modded as i8)),
                 ("DataVersion", Nbt::Int(WORLD_VERSION)),
                 ("allowCommands", Nbt::Byte(0)),
                 (

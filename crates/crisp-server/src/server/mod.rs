@@ -147,6 +147,8 @@ pub struct Server {
     pub difficulty_locked: bool,
     pub hardcore: bool,
     generate_structures: bool,
+    server_brands: Vec<String>,
+    was_modded: bool,
     pub command_storage: CommandStorage,
     pub random_sequences: RandomSequences,
     pub name_to_id_cache: CachedUserNameToIdResolver,
@@ -191,6 +193,10 @@ impl Server {
         }
         let weather = data.weather;
         let generate_structures = data.generate_structures;
+        let (mut server_brands, was_modded) = (data.server_brands, data.was_modded);
+        if !server_brands.iter().any(|b| b == "vanilla") {
+            server_brands.push("vanilla".into());
+        }
         let mut load_listener = level::progress::LoggingLevelLoadListener::for_dedicated_server();
         let spawn = (!new_world).then_some(data.spawn);
         let (seed, game_time, generator, game_type, difficulty, difficulty_locked, hardcore) =
@@ -232,6 +238,7 @@ impl Server {
         level.world_border = WorldBorder::load(world_dir.as_ref().map(|d| d.dimension_data_folder(OVERWORLD)));
         level.world_border.set_absolute_max_size(config.max_world_size);
         level.allow_flight = config.allow_flight;
+        level.set_max_chained_neighbor_updates(config.max_chained_neighbor_updates);
         level.entity_broadcast_range_percentage = config.entity_broadcast_range_percentage;
         let scoreboard_save_data = ScoreboardSaveData::load(world_dir.as_ref().map(WorldDir::data_folder));
         level.scoreboard.load(scoreboard_save_data.data());
@@ -275,6 +282,8 @@ impl Server {
             difficulty_locked,
             hardcore,
             generate_structures,
+            server_brands,
+            was_modded,
             command_storage: CommandStorage::new(world_dir.as_ref().map(WorldDir::data_folder)),
             random_sequences: RandomSequences::load(world_dir.as_ref().map(WorldDir::data_folder)),
             name_to_id_cache,
@@ -468,6 +477,8 @@ impl Server {
             generator: self.level.chunks.generator.clone(),
             generate_structures: self.generate_structures,
             initialized: true,
+            server_brands: self.server_brands.clone(),
+            was_modded: self.was_modded,
             game_rules: self.game_rules.to_nbt(),
         };
         if data.save(dir).is_err() {

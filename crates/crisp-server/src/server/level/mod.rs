@@ -72,7 +72,6 @@ const UPDATE_ORDER: [Direction; 6] = [Direction::West, Direction::East, Directio
 
 pub const UPDATE_SHAPE_ORDER: [Direction; 6] = [Direction::West, Direction::East, Direction::North, Direction::South, Direction::Down, Direction::Up];
 
-const MAX_CHAINED_NEIGHBOR_UPDATES: i32 = 1_000_000;
 
 enum NeighborUpdates {
     Shape { direction: Direction, neighbor_state: BlockState, pos: BlockPos, neighbor_pos: BlockPos, flags: i32, update_limit: i32 },
@@ -86,8 +85,8 @@ enum NeighborStep {
     Changed { state: Option<BlockState>, pos: BlockPos, block: Block, moved_by_piston: bool },
 }
 
-#[derive(Default)]
 struct NeighborUpdater {
+    max_chained_neighbor_updates: i32,
     stack: Vec<NeighborUpdates>,
     added_this_layer: Vec<NeighborUpdates>,
     count: i32,
@@ -190,7 +189,7 @@ impl ServerLevel {
             tick_list: EntityTickList::default(),
             random: LegacyRandomSource::create(),
             thread_safe_random: LegacyRandomSource::create(),
-            neighbor_updater: NeighborUpdater::default(),
+            neighbor_updater: NeighborUpdater { max_chained_neighbor_updates: 1_000_000, stack: Vec::new(), added_this_layer: Vec::new(), count: 0 },
             sub_tick_count: 0,
             rand_value: LegacyRandomSource::create().next_int(),
             biome_zoom_seed: 0,
@@ -524,19 +523,19 @@ impl ServerLevel {
 
     pub fn update_neighbors_at_except_from_facing(&mut self, pos: BlockPos, block: Block, skip: Option<Direction>) {
         let idx = usize::from(skip == Some(UPDATE_ORDER[0]));
-        self.add_and_run(NeighborUpdates::Multi { source_pos: pos, source_block: block, skip, idx });
+        self.add_and_run(pos, NeighborUpdates::Multi { source_pos: pos, source_block: block, skip, idx });
     }
 
     pub fn neighbor_changed(&mut self, pos: BlockPos, block: Block) {
-        self.add_and_run(NeighborUpdates::Simple { pos, block });
+        self.add_and_run(pos, NeighborUpdates::Simple { pos, block });
     }
 
     pub fn neighbor_changed_with_state(&mut self, state: BlockState, pos: BlockPos, block: Block, moved_by_piston: bool) {
-        self.add_and_run(NeighborUpdates::Full { state, pos, block, moved_by_piston });
+        self.add_and_run(pos, NeighborUpdates::Full { state, pos, block, moved_by_piston });
     }
 
     pub fn neighbor_shape_changed(&mut self, direction: Direction, pos: BlockPos, neighbor_pos: BlockPos, neighbor_state: BlockState, flags: i32, update_limit: i32) {
-        self.add_and_run(NeighborUpdates::Shape { direction, neighbor_state, pos, neighbor_pos, flags, update_limit });
+        self.add_and_run(pos, NeighborUpdates::Shape { direction, neighbor_state, pos, neighbor_pos, flags, update_limit });
     }
 
     pub fn update_neighbour_shapes(&mut self, state: BlockState, pos: BlockPos, flags: i32, update_limit: i32) {
@@ -545,10 +544,14 @@ impl ServerLevel {
         }
     }
 
-    fn add_and_run(&mut self, update: NeighborUpdates) {
+    pub fn set_max_chained_neighbor_updates(&mut self, max_chained_neighbor_updates: i32) {
+        self.neighbor_updater.max_chained_neighbor_updates = max_chained_neighbor_updates;
+    }
+
+    fn add_and_run(&mut self, pos: BlockPos, update: NeighborUpdates) {
         let updater = &mut self.neighbor_updater;
         let running_already = updater.count > 0;
-        let too_many = updater.count >= MAX_CHAINED_NEIGHBOR_UPDATES;
+        let too_many = updater.max_chained_neighbor_updates >= 0 && updater.count >= updater.max_chained_neighbor_updates;
         updater.count += 1;
         if !too_many {
             if running_already {
@@ -556,8 +559,8 @@ impl ServerLevel {
             } else {
                 updater.stack.push(update);
             }
-        } else if updater.count - 1 == MAX_CHAINED_NEIGHBOR_UPDATES {
-            error!("Too many chained neighbor updates. Skipping the rest.");
+        } else if updater.count - 1 == updater.max_chained_neighbor_updates {
+            error!("Too many chained neighbor updates. Skipping the rest. First skipped position: {}, {}, {}", pos.x, pos.y, pos.z);
         }
         if !running_already {
             self.run_neighbor_updates();
