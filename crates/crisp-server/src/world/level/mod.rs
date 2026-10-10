@@ -17,6 +17,7 @@ pub mod saveddata;
 pub mod redstone;
 pub mod signal;
 pub mod storage;
+pub mod timers;
 pub mod world_data_configuration;
 
 use crisp_core::BlockPos;

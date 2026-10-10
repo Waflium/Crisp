@@ -58,6 +58,7 @@ use crate::world::level::storage::format_uuid;
 use crate::server::services::Services;
 use crate::world::level::storage::command_storage::CommandStorage;
 use crate::world::random_sequences::RandomSequences;
+use crate::world::level::timers::timer_queue::TimerQueue;
 use self::players::NameAndId;
 use self::players::cached_user_name_to_id_resolver::CachedUserNameToIdResolver;
 use crate::world::stopwatches::Stopwatches;
@@ -165,6 +166,7 @@ pub struct Server {
     was_modded: bool,
     pub command_storage: CommandStorage,
     pub random_sequences: RandomSequences,
+    pub scheduled_events: TimerQueue,
     pub name_to_id_cache: CachedUserNameToIdResolver,
     pub custom_boss_events: CustomBossEvents,
     pub stopwatches: Stopwatches,
@@ -314,6 +316,7 @@ impl Server {
             was_modded,
             command_storage: CommandStorage::new(world_dir.as_ref().map(WorldDir::data_folder)),
             random_sequences: RandomSequences::load(world_dir.as_ref().map(WorldDir::data_folder)),
+            scheduled_events: TimerQueue::load(world_dir.as_ref().map(WorldDir::data_folder)),
             name_to_id_cache,
             custom_boss_events: CustomBossEvents::load(world_dir.as_ref().map(WorldDir::data_folder)),
             stopwatches: Stopwatches::load(world_dir.as_ref().map(WorldDir::data_folder)),
@@ -518,6 +521,7 @@ impl Server {
         }
         log_save_failure("command_storage.dat", self.command_storage.save());
         log_save_failure("random_sequences.dat", self.random_sequences.save());
+        log_save_failure("scheduled_events.dat", self.scheduled_events.save());
         log_save_failure("custom_boss_events.dat", self.custom_boss_events.save());
         log_save_failure("stopwatches.dat", self.stopwatches.save());
         log_save_failure("scoreboard.dat", self.scoreboard_save_data.save());
@@ -1145,7 +1149,12 @@ impl Server {
             }
         }
         self.update_effective_respawn_data();
-        self.level.tick();
+        let runs = self.level.tick_until_time();
+        if runs {
+            let time = self.level.tick_time();
+            TimerQueue::tick(self, time);
+        }
+        self.level.tick_after_time(runs);
         let ids: Vec<EntityId> = self.level.players.keys().copied().collect();
         for id in ids {
             let connected = self.level.tick_connection(id);

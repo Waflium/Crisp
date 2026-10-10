@@ -39,6 +39,7 @@ mod return_command;
 mod rotate_command;
 mod save_commands;
 mod say_command;
+mod schedule_command;
 mod scoreboard_command;
 #[cfg(test)]
 mod scoreboard_command_tests;
@@ -89,6 +90,7 @@ pub fn executors() -> Vec<(String, CommandFn)> {
     all.extend(attribute_command::executors());
     all.extend(world_border_command::executors());
     all.extend(data_pack_command::executors());
+    all.extend(schedule_command::executors());
     all.push(("reload".into(), reload_command::reload));
     all
 }
@@ -566,6 +568,8 @@ pub fn suggestion_providers() -> Vec<(String, crate::commands::SuggestFn)> {
     all.push(("function name".into(), functions));
     all.push(("execute if function name".into(), functions));
     all.push(("execute unless function name".into(), functions));
+    all.push(("schedule function function".into(), functions));
+    all.push(("schedule clear function".into(), schedule_command::suggest_schedule));
     let unselected_packs: SuggestFn = data_pack_command::suggest_unselected_packs;
     let selected_packs: SuggestFn = data_pack_command::suggest_selected_packs;
     all.push(("datapack enable name".into(), unselected_packs));

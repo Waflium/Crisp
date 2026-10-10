@@ -18,7 +18,7 @@ pub fn parse(reader: &mut StringReader) -> Result<ArgumentValue, CommandSyntaxEx
 
 pub enum FunctionOrTag {
     Function(Arc<CommandFunction>),
-    Tag(Vec<Arc<CommandFunction>>),
+    Tag,
 }
 
 fn argument<'a>(context: &'a CommandContext, name: &str) -> (bool, &'a str) {
@@ -42,7 +42,7 @@ pub fn get_functions(server: &Server, context: &CommandContext, name: &str) -> R
 
 pub fn get_function_or_tag(server: &Server, context: &CommandContext, name: &str) -> Result<(String, FunctionOrTag), CommandSyntaxException> {
     let (tag, id) = argument(context, name);
-    let result = if tag { FunctionOrTag::Tag(get_function_tag(server, id)) } else { FunctionOrTag::Function(get_function(server, id)?) };
+    let result = if tag { FunctionOrTag::Tag } else { FunctionOrTag::Function(get_function(server, id)?) };
     Ok((id.to_string(), result))
 }
 

@@ -824,6 +824,14 @@ impl ServerLevel {
     }
 
     pub fn tick(&mut self) {
+        let runs = self.tick_until_time();
+        if runs {
+            self.tick_time();
+        }
+        self.tick_after_time(runs);
+    }
+
+    pub fn tick_until_time(&mut self) -> bool {
         self.environment_attributes.invalidate_tick_cache();
         let runs = self.tick_rate_manager.runs_normally();
         if runs {
@@ -831,9 +839,17 @@ impl ServerLevel {
             self.advance_weather_cycle();
         }
         self.update_sky_brightness();
+        runs
+    }
+
+    pub fn tick_time(&mut self) -> i64 {
+        self.game_time += 1;
+        self.chunks.game_time = self.game_time;
+        self.game_time
+    }
+
+    pub fn tick_after_time(&mut self, runs: bool) {
         if runs {
-            self.game_time += 1;
-            self.chunks.game_time = self.game_time;
             self.tick_block_ticks();
             self.tick_fluid_ticks();
         }
