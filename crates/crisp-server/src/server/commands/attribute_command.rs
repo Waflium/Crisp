@@ -43,12 +43,12 @@ fn description(attribute: Attribute) -> Component {
 }
 
 fn living_entity(server: &Server, target: EntityId) -> Result<EntityId, CommandSyntaxException> {
-    if server.level.is_player(target) { Ok(target) } else { Err(ERROR_NOT_LIVING_ENTITY.create(server.entity_display_name(target))) }
+    if server.level.is_living(target) { Ok(target) } else { Err(ERROR_NOT_LIVING_ENTITY.create(server.entity_display_name(target))) }
 }
 
 fn entity_with_attribute(server: &Server, target: EntityId, attribute: Attribute) -> Result<EntityId, CommandSyntaxException> {
     let entity = living_entity(server, target)?;
-    if !server.level.player(entity).living.attributes.has_attribute(attribute) {
+    if !server.level.living(entity).attributes.has_attribute(attribute) {
         return Err(ERROR_NO_SUCH_ATTRIBUTE.create(server.entity_display_name(target), description(attribute)));
     }
     Ok(entity)
@@ -56,10 +56,10 @@ fn entity_with_attribute(server: &Server, target: EntityId, attribute: Attribute
 
 fn attribute_instance(server: &mut Server, target: EntityId, attribute: Attribute) -> Result<&mut AttributeInstance, CommandSyntaxException> {
     let entity = living_entity(server, target)?;
-    if !server.level.player(entity).living.attributes.has_attribute(attribute) {
+    if !server.level.living(entity).attributes.has_attribute(attribute) {
         return Err(ERROR_NO_SUCH_ATTRIBUTE.create(server.entity_display_name(target), description(attribute)));
     }
-    Ok(server.level.player_mut(entity).living.attributes.instance(attribute).expect("an attribute the entity has"))
+    Ok(server.level.living_mut(entity).attributes.instance(attribute).expect("an attribute the entity has"))
 }
 
 fn scaled(result: f64, scale: f64) -> i32 {
@@ -78,7 +78,7 @@ fn get_attribute_value(server: &mut Server, context: &CommandContext, source: &C
     let target = context.get_entity(server, source, "target")?;
     let attribute = get_attribute(context);
     let entity = entity_with_attribute(server, target, attribute)?;
-    let result = server.level.player(entity).living.attributes.value(attribute);
+    let result = server.level.living(entity).attributes.value(attribute);
     let name = server.entity_display_name(target);
     source.send_success(
         server,
@@ -100,7 +100,7 @@ fn get_attribute_base(server: &mut Server, context: &CommandContext, source: &Co
     let target = context.get_entity(server, source, "target")?;
     let attribute = get_attribute(context);
     let entity = entity_with_attribute(server, target, attribute)?;
-    let result = server.level.player(entity).living.attributes.base_value(attribute);
+    let result = server.level.living(entity).attributes.base_value(attribute);
     let name = server.entity_display_name(target);
     source.send_success(
         server,
@@ -123,7 +123,7 @@ fn get_attribute_modifier(server: &mut Server, context: &CommandContext, source:
     let attribute = get_attribute(context);
     let id = context.get_identifier("id");
     let entity = entity_with_attribute(server, target, attribute)?;
-    let attributes = &server.level.player(entity).living.attributes;
+    let attributes = &server.level.living(entity).attributes;
     let name = server.entity_display_name(target);
     let Some(modifier) = attributes.get(attribute).and_then(|i| i.modifier(id)) else {
         return Err(ERROR_NO_SUCH_MODIFIER.create(name, description(attribute), id));
@@ -161,7 +161,7 @@ fn reset_base(server: &mut Server, context: &CommandContext, source: &CommandSou
     let attribute = get_attribute(context);
     let entity = living_entity(server, target)?;
     let name = server.entity_display_name(target);
-    let attributes = &mut server.level.player_mut(entity).living.attributes;
+    let attributes = &mut server.level.living_mut(entity).attributes;
     if !attributes.reset_base_value(attribute) {
         return Err(ERROR_NO_SUCH_ATTRIBUTE.create(name, description(attribute)));
     }
@@ -229,7 +229,7 @@ pub fn suggest_modifiers(
 ) -> Result<crate::commands::suggestion::Suggestions, CommandSyntaxException> {
     let entity = living_entity(server, context.get_entity(server, source, "target")?)?;
     let attribute = get_attribute(context);
-    let ids: Vec<&str> = server.level.player(entity).living.attributes.get(attribute).into_iter().flat_map(|i| i.modifiers().map(|m| m.id.as_ref())).collect();
+    let ids: Vec<&str> = server.level.living(entity).attributes.get(attribute).into_iter().flat_map(|i| i.modifiers().map(|m| m.id.as_ref())).collect();
     crate::commands::shared_suggestion_provider::suggest_resource(ids, &mut builder);
     Ok(builder.build())
 }

@@ -93,6 +93,7 @@ struct NeighborUpdater {
 }
 
 pub struct ServerLevel {
+    pub level_name: String,
     pub game_rules: GameRules,
     pub spawn_protection: SpawnProtection,
     pub difficulty: crate::world::difficulty::Difficulty,
@@ -168,6 +169,7 @@ impl ServerLevel {
         chunks.set_view_distance(view_distance);
         chunks.set_simulation_distance(simulation_distance);
         let mut level = ServerLevel {
+            level_name: String::new(),
             game_rules: GameRules::default(),
             difficulty: crate::world::difficulty::Difficulty::Easy,
             no_save: false,
@@ -500,7 +502,7 @@ impl ServerLevel {
 
     pub fn drop_resources_with_entity(&mut self, state: BlockState, pos: BlockPos, block_entity: Option<&BlockEntity>, _breaker: Option<EntityId>, tool: Option<ItemStack>) {
         if let Some(table) = state.block().info().loot_table {
-            let ctx = LootContext { block_state: Some(state), tool: tool.as_ref(), explosion_radius: None, block_entity };
+            let ctx = LootContext { block_state: Some(state), tool: tool.as_ref(), block_entity, ..Default::default() };
             for stack in generate(table, &ctx, &mut rand::rng()) {
                 self.pop_resource(pos, stack);
             }
@@ -894,9 +896,17 @@ impl ServerLevel {
                 } else if let Some(entity) = self.entities.get(&id) {
                     if entity.entity().is_removed() {
                         self.remove_entity(id);
-                    } else if !self.tick_rate_manager.is_entity_frozen() && self.in_entity_ticking_range(entity.entity().chunk_position()) {
-                        self.common_tick(id);
-                        self.tick_entity(id);
+                    } else if !self.tick_rate_manager.is_entity_frozen() {
+                        let chunk = entity.entity().chunk_position();
+                        if self.is_mob(id) {
+                            self.check_mob_despawn(id);
+                        }
+                        if self.in_entity_ticking_range(chunk) {
+                            self.common_tick(id);
+                            self.tick_entity(id);
+                        } else if self.entities.get(&id).is_some_and(|e| e.entity().is_removed()) {
+                            self.remove_entity(id);
+                        }
                     }
                 }
             }
@@ -1118,6 +1128,7 @@ impl ServerLevel {
             Some(LevelEntity::LightningBolt(_)) => self.tick_lightning_bolt(id),
             Some(LevelEntity::PrimedTnt(_)) => self.tick_primed_tnt(id),
             Some(LevelEntity::ExperienceOrb(_)) => self.tick_experience_orb(id),
+            Some(LevelEntity::Mob(_)) => self.tick_mob(id),
             None => return,
         }
         if self.entities.get(&id).is_some_and(|e| e.entity().is_removed()) {

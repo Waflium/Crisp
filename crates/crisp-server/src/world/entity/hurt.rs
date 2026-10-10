@@ -58,6 +58,9 @@ impl ServerLevel {
     }
 
     pub fn item_by_slot(&self, id: EntityId, slot: EquipmentSlot) -> Option<ItemStack> {
+        if let Some(mob) = self.mob(id) {
+            return mob.item_by_slot(slot).cloned();
+        }
         let index = self.equipment_inventory_slot(id, slot)?;
         self.player(id).inventory.slots[index].clone().filter(|s| !s.is_empty())
     }
@@ -71,6 +74,9 @@ impl ServerLevel {
     }
 
     pub fn absorption_amount(&self, id: EntityId) -> f32 {
+        if let Some(mob) = self.mob(id) {
+            return mob.absorption;
+        }
         match self.player(id).entity.data.get(ids::PLAYER_ABSORPTION) {
             DataValue::Float(v) => *v,
             _ => 0.0,
@@ -79,26 +85,34 @@ impl ServerLevel {
 
     pub fn set_absorption_amount(&mut self, id: EntityId, amount: f32) {
         let amount = mth::clamp_f(amount, 0.0, self.max_absorption(id));
+        if let Some(mob) = self.mob_mut(id) {
+            mob.absorption = amount;
+            return;
+        }
         self.player_mut(id).entity.data.set(ids::PLAYER_ABSORPTION, DataValue::Float(amount));
     }
 
     pub fn set_health(&mut self, id: EntityId, health: f32) {
         let health = mth::clamp_f(health, 0.0, self.max_health(id));
+        if let Some(mob) = self.mob_mut(id) {
+            mob.health = health;
+            mob.entity.data.set(ids::HEALTH, DataValue::Float(health));
+            return;
+        }
         let p = self.player_mut(id);
         p.health = health;
         p.entity.data.set(ids::HEALTH, DataValue::Float(health));
     }
 
     pub fn heal(&mut self, id: EntityId, amount: f32) {
-        let health = self.player(id).health;
+        let health = self.health(id);
         if health > 0.0 {
             self.set_health(id, health + amount);
         }
     }
 
     pub fn is_dead_or_dying(&self, id: EntityId) -> bool {
-        let p = self.player(id);
-        p.health <= 0.0 || p.living.dead
+        self.health(id) <= 0.0 || self.living(id).dead
     }
 
     pub fn armor_value(&self, id: EntityId) -> i32 {
@@ -106,10 +120,8 @@ impl ServerLevel {
     }
 
     pub fn is_invulnerable_to(&self, id: EntityId, source: &DamageSource) -> bool {
-        let p = self.player(id);
-        let base = p.entity.is_removed()
-            || source.is(&damage_type_tags::IS_FIRE) && self.fire_immune(id)
-            || source.is(&damage_type_tags::IS_FALL) && entity_type_tags::FALL_DAMAGE_IMMUNE.contains(p.entity.entity_type as usize);
+        let base = self.is_invulnerable_to_base(id, source);
+        let Some(p) = self.players.get(&id) else { return base };
         let player = base || {
             let rules = &self.game_rules;
             if source.is(&damage_type_tags::IS_DROWNING) {
@@ -146,7 +158,12 @@ impl ServerLevel {
     }
 
     pub(crate) fn is_invulnerable_to_base(&self, id: EntityId, source: &DamageSource) -> bool {
-        self.entity(id).is_removed() || source.is(&damage_type_tags::IS_FIRE) && self.fire_immune(id)
+        let e = self.entity(id);
+        let creative_player = source.causing_entity.and_then(|c| self.players.get(&c)).is_some_and(|p| p.abilities.instabuild);
+        e.is_removed()
+            || e.invulnerable && !source.is(&damage_type_tags::BYPASSES_INVULNERABILITY) && !creative_player
+            || source.is(&damage_type_tags::IS_FIRE) && self.fire_immune(id)
+            || source.is(&damage_type_tags::IS_FALL) && entity_type_tags::FALL_DAMAGE_IMMUNE.contains(e.entity_type as usize)
     }
 
     fn should_play_lava_hurt_sound(&self, id: EntityId) -> bool {
@@ -159,6 +176,9 @@ impl ServerLevel {
     pub fn hurt_server(&mut self, id: EntityId, source: DamageSource, damage: f32) -> bool {
         if let Some(super::LevelEntity::ExperienceOrb(_)) = self.entities.get(&id) {
             return self.experience_orb_hurt_server(id, &source, damage);
+        }
+        if self.is_mob(id) {
+            return self.living_hurt_server(id, source, damage);
         }
         if !self.is_player(id) {
             return self.item_hurt_server(id, source, damage);
@@ -196,6 +216,7 @@ impl ServerLevel {
         if source.is(&damage_type_tags::IS_FIRE) && self.has_effect(id, mob_effects::FIRE_RESISTANCE) {
             return false;
         }
+        self.living_mut(id).no_action_time = 0;
         if damage < 0.0 {
             damage = 0.0;
         }
@@ -211,24 +232,26 @@ impl ServerLevel {
             damage = f32::MAX;
         }
         let mut took_full_damage = true;
-        let living = &self.player(id).living;
+        let living = &self.living(id);
         if living.damage_cooldown_time as f32 > 10.0 && !source.is(&damage_type_tags::BYPASSES_COOLDOWN) {
             if damage <= living.last_hurt {
                 return false;
             }
             let last_hurt = living.last_hurt;
             self.actually_hurt(id, &source, damage - last_hurt);
-            self.player_mut(id).living.last_hurt = damage;
+            self.living_mut(id).last_hurt = damage;
             took_full_damage = false;
         } else {
-            let living = &mut self.player_mut(id).living;
+            let living = &mut self.living_mut(id);
             living.last_hurt = damage;
             living.damage_cooldown_time = 20;
             self.actually_hurt(id, &source, damage);
-            let living = &mut self.player_mut(id).living;
+            let living = &mut self.living_mut(id);
             living.hurt_duration = 10;
             living.hurt_time = living.hurt_duration;
         }
+        self.resolve_mob_responsible_for_damage(id, &source);
+        self.resolve_player_responsible_for_damage(id, &source);
         if took_full_damage {
             self.broadcast_damage_event(id, &source);
             if !source.is(&damage_type_tags::NO_IMPACT) {
@@ -241,19 +264,20 @@ impl ServerLevel {
         if self.is_dead_or_dying(id) {
             if !self.check_totem_death_protection(id, &source) {
                 if took_full_damage {
-                    self.make_sound(id, sound_event("minecraft:entity.player.death"));
+                    let sound = self.death_sound(id);
+                    self.make_sound(id, sound);
                     self.play_secondary_hurt_sound(id, &source);
                 }
                 self.die(id, source);
             }
         } else if took_full_damage {
-            self.make_sound(id, sound_event(source.ty.info().effects.sound()));
+            self.play_hurt_sound(id, &source);
             self.play_secondary_hurt_sound(id, &source);
         }
         let success = !blocked || damage > 0.0;
         if success {
             let game_time = self.game_time;
-            let living = &mut self.player_mut(id).living;
+            let living = &mut self.living_mut(id);
             living.last_damage_source = Some(source);
             living.last_damage_stamp = game_time;
         }
@@ -261,6 +285,9 @@ impl ServerLevel {
     }
 
     fn actually_hurt(&mut self, id: EntityId, source: &DamageSource, damage: f32) {
+        if let Some(animal) = self.mob_mut(id).and_then(|m| m.animal_mut()) {
+            animal.in_love = 0;
+        }
         if self.is_invulnerable_to(id, source) {
             return;
         }
@@ -271,11 +298,56 @@ impl ServerLevel {
         let damage = (damage - absorption).max(0.0);
         self.set_absorption_amount(id, absorption - (original_damage - damage));
         if damage != 0.0 {
-            self.cause_food_exhaustion(id, source.food_exhaustion());
+            if self.is_player(id) {
+                self.cause_food_exhaustion(id, source.food_exhaustion());
+            }
             self.record_damage(id, *source, damage);
-            let health = self.player(id).health;
+            let health = self.health(id);
             self.set_health(id, health - damage);
+            if self.is_mob(id) {
+                let absorption = self.absorption_amount(id);
+                self.set_absorption_amount(id, absorption - damage);
+            }
         }
+    }
+
+    fn resolve_mob_responsible_for_damage(&mut self, id: EntityId, source: &DamageSource) {
+        let Some(living_source) = source.causing_entity.filter(|&e| self.is_living(e)) else { return };
+        if source.is(&damage_type_tags::NO_ANGER) || source.is_type(damage_types::WIND_CHARGE) && entity_type_tags::NO_ANGER_FROM_WIND_CHARGE.contains(self.entity(id).entity_type as usize) {
+            return;
+        }
+        let uuid = self.entity(living_source).uuid;
+        let tick_count = self.entity(id).tick_count;
+        let living = self.living_mut(id);
+        living.last_hurt_by_mob = Some(uuid);
+        living.last_hurt_by_mob_timestamp = tick_count;
+    }
+
+    fn resolve_player_responsible_for_damage(&mut self, id: EntityId, source: &DamageSource) {
+        if let Some(player) = source.causing_entity.filter(|&e| self.is_player(e)) {
+            let uuid = self.entity(player).uuid;
+            let living = self.living_mut(id);
+            living.last_hurt_by_player = Some(uuid);
+            living.last_hurt_by_player_memory_time = 100;
+        }
+    }
+
+    fn death_sound(&self, id: EntityId) -> i32 {
+        match self.mob(id) {
+            Some(mob) => sound_event(&mob.sound_set().death_sound),
+            None => sound_event("minecraft:entity.player.death"),
+        }
+    }
+
+    fn play_hurt_sound(&mut self, id: EntityId, source: &DamageSource) {
+        let sound = match self.mob_mut(id) {
+            Some(mob) => {
+                mob.ambient_sound_time = -mob.ambient_sound_interval();
+                sound_event(&mob.sound_set().hurt_sound)
+            }
+            None => sound_event(source.ty.info().effects.sound()),
+        };
+        self.make_sound(id, sound);
     }
 
     pub fn damage_after_armor_absorb(&mut self, id: EntityId, source: &DamageSource, damage: f32) -> f32 {
@@ -292,7 +364,7 @@ impl ServerLevel {
         if source.is(&damage_type_tags::BYPASSES_EFFECTS) {
             return damage;
         }
-        if let Some(resistance) = self.player(id).living.effect(mob_effects::RESISTANCE)
+        if let Some(resistance) = self.living(id).effect(mob_effects::RESISTANCE)
             && !source.is(&damage_type_tags::BYPASSES_RESISTANCE)
         {
             let absorb = 25 - (resistance.amplifier + 1) * 5;
@@ -399,8 +471,16 @@ impl ServerLevel {
         });
     }
 
-    fn make_sound(&mut self, id: EntityId, sound: i32) {
-        self.entity_play_sound(id, sound, 1.0, 1.0);
+    pub fn make_sound(&mut self, id: EntityId, sound: i32) {
+        let pitch = self.voice_pitch(id);
+        self.entity_play_sound(id, sound, 1.0, pitch);
+    }
+
+    pub fn voice_pitch(&mut self, id: EntityId) -> f32 {
+        let baby = self.mob(id).is_some_and(|m| m.is_baby());
+        let random = &mut self.entity_mut(id).random;
+        let spread = (random.next_float() - random.next_float()) * 0.2;
+        if baby { spread + 1.5 } else { spread + 1.0 }
     }
 
     fn play_secondary_hurt_sound(&mut self, id: EntityId, source: &DamageSource) {
@@ -438,6 +518,10 @@ impl ServerLevel {
     }
 
     pub fn die(&mut self, id: EntityId, source: DamageSource) {
+        if self.is_mob(id) {
+            self.mob_die(id, source);
+            return;
+        }
         if self.game_rules.get_bool(game_rule::SHOW_DEATH_MESSAGES) {
             let message = self.death_message(id);
             self.player(id).connection.send(clientbound::PLAYER_COMBAT_KILL, |p| {
@@ -623,10 +707,9 @@ impl ServerLevel {
             let e = self.entity(id);
             let eye_pos = BlockPos::containing(e.x(), e.eye_y(), e.z());
             if e.is_eye_in_fluid(&fluid_tags::WATER) && !self.block_state(eye_pos).is_block(blocks::BUBBLE_COLUMN) {
-                let p = self.player(id);
-                let can_drown = !entity_type_tags::CAN_BREATHE_UNDER_WATER.contains(p.entity.entity_type as usize)
+                let can_drown = !entity_type_tags::CAN_BREATHE_UNDER_WATER.contains(self.entity(id).entity_type as usize)
                     && !self.has_water_breathing(id)
-                    && !p.abilities.invulnerable;
+                    && !self.players.get(&id).is_some_and(|p| p.abilities.invulnerable);
                 if can_drown {
                     let supply = self.decrease_air_supply(id, self.entity(id).air_supply());
                     self.entity_mut(id).set_air_supply(supply);
@@ -644,12 +727,31 @@ impl ServerLevel {
                 self.entity_mut(id).set_air_supply(supply);
             }
         }
-        let living = &mut self.player_mut(id).living;
+        let player = self.is_player(id);
+        let living = &mut self.living_mut(id);
         if living.hurt_time > 0 {
             living.hurt_time -= 1;
         }
+        if living.damage_cooldown_time > 0 && !player {
+            living.damage_cooldown_time -= 1;
+        }
         if self.is_dead_or_dying(id) {
             self.tick_death(id);
+        }
+        let living = &mut self.living_mut(id);
+        if living.last_hurt_by_player_memory_time > 0 {
+            living.last_hurt_by_player_memory_time -= 1;
+        } else {
+            living.last_hurt_by_player = None;
+        }
+        if let Some(hurt_by) = self.living(id).last_hurt_by_mob.and_then(|uuid| self.entity_manager.visible_entity_storage.get(uuid)).filter(|&e| self.is_living(e)) {
+            let alive = self.is_alive(hurt_by);
+            let tick_count = self.entity(id).tick_count;
+            let living = self.living_mut(id);
+            if !alive || tick_count - living.last_hurt_by_mob_timestamp > 100 {
+                living.last_hurt_by_mob = None;
+                living.last_hurt_by_mob_timestamp = tick_count;
+            }
         }
         self.tick_effects(id);
     }
@@ -660,12 +762,26 @@ impl ServerLevel {
     }
 
     fn tick_death(&mut self, id: EntityId) {
-        let p = self.player_mut(id);
-        p.living.death_time += 1;
-        if p.living.death_time >= 20 && !p.entity.is_removed() {
+        let living = self.living_mut(id);
+        living.death_time += 1;
+        if living.death_time >= 20 && !self.entity(id).is_removed() {
             self.broadcast_entity_event(id, events::POOF);
-            self.remove_player_from_level(id, super::RemovalReason::Killed);
+            if self.is_player(id) {
+                self.remove_player_from_level(id, super::RemovalReason::Killed);
+            } else {
+                self.remove_living(id, super::RemovalReason::Killed);
+            }
         }
+    }
+
+    pub fn remove_living(&mut self, id: EntityId, reason: super::RemovalReason) {
+        if self.entity(id).is_removed() {
+            return;
+        }
+        if matches!(reason, super::RemovalReason::Killed | super::RemovalReason::Discarded) {
+            self.trigger_on_death_mob_effects(id, reason);
+        }
+        self.entity_mut(id).removal = Some(reason);
     }
 
     pub fn remove_player_from_level(&mut self, id: EntityId, reason: super::RemovalReason) {
@@ -788,7 +904,7 @@ impl ServerLevel {
     pub fn detect_equipment_updates(&mut self, id: EntityId) {
         let mut changed: Vec<(EquipmentSlot, Option<ItemStack>)> = Vec::new();
         for slot in EquipmentSlot::VALUES {
-            let previous = self.player(id).living.last_equipment_items[slot as usize].clone();
+            let previous = self.living(id).last_equipment_items[slot as usize].clone();
             let current = self.item_by_slot(id, slot);
             if previous != current {
                 changed.push((slot, current.clone()));
@@ -805,14 +921,14 @@ impl ServerLevel {
                 && !current.is_broken()
             {
                 for_each_modifier(current, *slot, |attribute, modifier| {
-                    if let Some(instance) = self.player_mut(id).living.attributes.instance(attribute) {
+                    if let Some(instance) = self.living_mut(id).attributes.instance(attribute) {
                         instance.remove_modifier(&modifier.id);
                         instance.add_transient_modifier(modifier);
                     }
                 });
             }
         }
-        let last = self.player(id).living.last_equipment_items.clone();
+        let last = self.living(id).last_equipment_items.clone();
         let main = changed.iter().find(|c| c.0 == EquipmentSlot::Mainhand).map(|c| c.1.clone());
         let off = changed.iter().find(|c| c.0 == EquipmentSlot::Offhand).map(|c| c.1.clone());
         if let (Some(main), Some(off)) = (main, off)
@@ -825,14 +941,14 @@ impl ServerLevel {
             });
             self.send_to_tracking_players(id, &packet);
             changed.retain(|c| c.0 != EquipmentSlot::Mainhand && c.0 != EquipmentSlot::Offhand);
-            let living = &mut self.player_mut(id).living;
+            let living = &mut self.living_mut(id);
             living.last_equipment_items[EquipmentSlot::Mainhand as usize] = main;
             living.last_equipment_items[EquipmentSlot::Offhand as usize] = off;
         }
         if changed.is_empty() {
             return;
         }
-        let living = &mut self.player_mut(id).living;
+        let living = &mut self.living_mut(id);
         for (slot, current) in &changed {
             living.last_equipment_items[*slot as usize] = current.clone();
         }
@@ -842,17 +958,17 @@ impl ServerLevel {
 
     fn stop_location_based_effects(&mut self, id: EntityId, previous: &ItemStack, slot: EquipmentSlot) {
         for_each_modifier(previous, slot, |attribute, modifier| {
-            if let Some(instance) = self.player_mut(id).living.attributes.get_mut(attribute) {
+            if let Some(instance) = self.living_mut(id).attributes.get_mut(attribute) {
                 instance.remove_modifier(&modifier.id);
             }
         });
     }
 
     pub fn refresh_dirty_attributes(&mut self, id: EntityId) {
-        let updated = self.player_mut(id).living.attributes.take_to_update();
+        let updated = self.living_mut(id).attributes.take_to_update();
         if updated & 1 << Attribute::MaxHealth as u64 != 0 {
             let max_health = self.max_health(id);
-            if self.player(id).health > max_health {
+            if self.health(id) > max_health {
                 self.set_health(id, max_health);
             }
         }
@@ -866,9 +982,14 @@ impl ServerLevel {
 
     #[allow(clippy::too_many_arguments)]
     pub fn send_block_particles(&self, state: crisp_data::BlockState, x: f64, y: f64, z: f64, count: i32, dist: (f64, f64, f64), speed: f64) {
+        self.send_particles("minecraft:block", |p| p.varint(state.id() as i32), x, y, z, count, dist, speed);
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn send_particles(&self, particle: &str, options: impl Fn(&mut crisp_protocol::Writer), x: f64, y: f64, z: f64, count: i32, dist: (f64, f64, f64), speed: f64) {
         let packet = encode(clientbound::LEVEL_PARTICLES, |p| {
-            p.varint(crisp_data::registry_id(crisp_data::registry::PARTICLE_TYPE, "minecraft:block"));
-            p.varint(state.id() as i32);
+            p.varint(crisp_data::registry_id(crisp_data::registry::PARTICLE_TYPE, particle));
+            options(p);
             p.bool(false);
             p.bool(false);
             p.f64(x);

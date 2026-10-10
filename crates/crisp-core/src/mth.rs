@@ -247,6 +247,10 @@ pub fn square(x: f64) -> f64 {
     x * x
 }
 
+pub fn abs_max(a: f64, b: f64) -> f64 {
+    jmax(a.abs(), b.abs())
+}
+
 static ASIN_COS_TAB: LazyLock<[(f64, f64); 257]> = LazyLock::new(|| {
     let mut table = [(0.0, 0.0); 257];
     for (i, entry) in table.iter_mut().enumerate() {

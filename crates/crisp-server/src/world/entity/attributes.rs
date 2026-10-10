@@ -362,6 +362,19 @@ pub static PLAYER_ATTRIBUTES: AttributeSupplier = {
     )
 };
 
+pub static CHICKEN_ATTRIBUTES: AttributeSupplier = {
+    use Attribute::*;
+    AttributeSupplier::of(
+        &[
+            MaxHealth, KnockbackResistance, MovementSpeed, Armor, ArmorToughness, MaxAbsorption, StepHeight, Scale, Gravity, SafeFallDistance,
+            FallDamageMultiplier, JumpStrength, EntityInteractionRange, OxygenBonus, BurningTime, ExplosionKnockbackResistance, WaterMovementEfficiency,
+            MovementEfficiency, AttackKnockback, CameraDistance, WaypointTransmitRange, Bounciness, AirDragModifier, FrictionModifier, NameTagDistance,
+            BelowNameDistance, FollowRange, TemptRange,
+        ],
+        &[(FollowRange, 16.0), (TemptRange, 10.0), (MaxHealth, 4.0), (MovementSpeed, 0.25)],
+    )
+};
+
 pub struct AttributeMap {
     supplier: &'static AttributeSupplier,
     instances: Vec<AttributeInstance>,
@@ -437,6 +450,12 @@ impl AttributeMap {
 
     pub fn syncable_attributes(&self) -> impl Iterator<Item = &AttributeInstance> {
         self.instances.iter().filter(|i| i.attribute.syncable())
+    }
+
+    pub fn write_syncable(&self, w: &mut Writer, entity_id: i32) {
+        w.varint(entity_id);
+        w.varint(self.syncable_attributes().count() as i32);
+        self.syncable_attributes().for_each(|instance| instance.write(w));
     }
 
     pub fn has_to_sync(&self) -> bool {

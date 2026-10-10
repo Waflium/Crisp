@@ -286,7 +286,7 @@ impl ServerLevel {
             behaviour.spawn_after_break(state, self, pos, None, drop_experience);
             if let Some(table) = state.block().info().loot_table {
                 let radius = (explosion.block_interaction == BlockInteraction::DestroyWithDecay).then_some(explosion.radius);
-                let ctx = LootContext { block_state: Some(state), tool: None, explosion_radius: radius, block_entity: block_entity.as_ref() };
+                let ctx = LootContext { block_state: Some(state), explosion_radius: radius, block_entity: block_entity.as_ref(), ..Default::default() };
                 for stack in generate(table, &ctx, &mut rand::rng()) {
                     add_or_append_stack(stacks, stack, pos);
                 }

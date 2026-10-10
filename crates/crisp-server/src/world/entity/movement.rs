@@ -47,7 +47,7 @@ impl ServerLevel {
     }
 
     pub fn force_set_rotation(&mut self, id: EntityId, y_rot: f32, relative_y: bool, x_rot: f32, relative_x: bool) {
-        let living = self.is_player(id);
+        let living = self.is_living(id);
         let e = self.entity_mut(id);
         let absolute_y = if relative_y { e.y_rot } else { 0.0 } + y_rot;
         let absolute_x = mth::clamp_f(if relative_x { e.x_rot } else { 0.0 } + x_rot, -90.0, 90.0);
@@ -67,7 +67,7 @@ impl ServerLevel {
     }
 
     pub fn attribute_value(&self, id: EntityId, attribute: Attribute) -> f64 {
-        self.player(id).living.attributes.value(attribute)
+        self.living(id).attributes.value(attribute)
     }
 
     pub fn is_spectator(&self, id: EntityId) -> bool {
@@ -77,7 +77,10 @@ impl ServerLevel {
     pub fn is_alive(&self, id: EntityId) -> bool {
         match self.players.get(&id) {
             Some(p) => !p.entity.is_removed() && p.health > 0.0,
-            None => self.entity_ref(id).is_some_and(|e| !e.is_removed()),
+            None => match self.mob(id) {
+                Some(mob) => !mob.entity.is_removed() && mob.health > 0.0,
+                None => self.entity_ref(id).is_some_and(|e| !e.is_removed()),
+            },
         }
     }
 
@@ -98,7 +101,7 @@ impl ServerLevel {
     }
 
     pub fn ignite_for_ticks(&mut self, id: EntityId, ticks: i32) {
-        let ticks = if self.is_player(id) { mth::ceil(ticks as f64 * self.attribute_value(id, Attribute::BurningTime)) } else { ticks };
+        let ticks = if self.is_living(id) { mth::ceil(ticks as f64 * self.attribute_value(id, Attribute::BurningTime)) } else { ticks };
         if self.entity(id).remaining_fire_ticks < ticks {
             self.set_remaining_fire_ticks(id, ticks);
         }
@@ -106,12 +109,12 @@ impl ServerLevel {
     }
 
     pub fn max_up_step(&self, id: EntityId) -> f32 {
-        if self.is_player(id) { self.attribute_value(id, Attribute::StepHeight) as f32 } else { 0.0 }
+        if self.is_living(id) { self.attribute_value(id, Attribute::StepHeight) as f32 } else { 0.0 }
     }
 
     fn default_gravity(&self, id: EntityId) -> f64 {
         match self.entities.get(&id) {
-            None => self.attribute_value(id, Attribute::Gravity),
+            None | Some(super::LevelEntity::Mob(_)) => self.attribute_value(id, Attribute::Gravity),
             Some(super::LevelEntity::ExperienceOrb(_)) => 0.03,
             Some(_) => 0.04,
         }
@@ -123,7 +126,7 @@ impl ServerLevel {
 
     pub fn effective_gravity(&self, id: EntityId) -> f64 {
         let is_falling = self.entity(id).delta_movement.y <= 0.0;
-        if is_falling && self.is_player(id) && self.has_effect(id, crisp_data::mob_effects::SLOW_FALLING) { self.gravity(id).min(0.01) } else { self.gravity(id) }
+        if is_falling && self.is_living(id) && self.has_effect(id, crisp_data::mob_effects::SLOW_FALLING) { self.gravity(id).min(0.01) } else { self.gravity(id) }
     }
 
     pub fn apply_gravity(&mut self, id: EntityId) {
@@ -135,15 +138,15 @@ impl ServerLevel {
     }
 
     pub fn air_drag(&self, id: EntityId) -> f32 {
-        if self.is_player(id) { compute_modified_friction(0.98, self.attribute_value(id, Attribute::AirDragModifier) as f32) } else { 0.98 }
+        if self.is_living(id) { compute_modified_friction(0.98, self.attribute_value(id, Attribute::AirDragModifier) as f32) } else { 0.98 }
     }
 
     fn entity_bounciness(&self, id: EntityId) -> f64 {
-        if self.is_player(id) { self.attribute_value(id, Attribute::Bounciness) } else { 0.0 }
+        if self.is_living(id) { self.attribute_value(id, Attribute::Bounciness) } else { 0.0 }
     }
 
     fn movement_emission(&self, id: EntityId) -> MovementEmission {
-        if self.is_player(id) { MovementEmission::All } else { MovementEmission::None }
+        if self.is_living(id) { MovementEmission::All } else { MovementEmission::None }
     }
 
     pub fn is_pushed_by_fluid(&self, id: EntityId) -> bool {
@@ -215,7 +218,7 @@ impl ServerLevel {
     }
 
     pub fn block_pos_below_that_affects_my_movement(&mut self, id: EntityId) -> BlockPos {
-        let offset = if self.is_player(id) { BELOW_AFFECTS_MOVEMENT } else { ITEM_BELOW_AFFECTS_MOVEMENT };
+        let offset = if self.is_living(id) { BELOW_AFFECTS_MOVEMENT } else { ITEM_BELOW_AFFECTS_MOVEMENT };
         self.on_pos(id, offset)
     }
 
@@ -266,7 +269,7 @@ impl ServerLevel {
         } else {
             here
         };
-        if self.is_player(id) { mth::lerp_f(self.attribute_value(id, Attribute::MovementEfficiency) as f32, factor, 1.0) } else { factor }
+        if self.is_living(id) { mth::lerp_f(self.attribute_value(id, Attribute::MovementEfficiency) as f32, factor, 1.0) } else { factor }
     }
 
     pub fn block_jump_factor(&mut self, id: EntityId) -> f32 {
@@ -479,7 +482,7 @@ impl ServerLevel {
     }
 
     pub fn check_fall_damage(&mut self, id: EntityId, ya: f64, on_ground: bool, on_state: BlockState, pos: BlockPos) {
-        let living = self.is_player(id);
+        let living = self.is_living(id);
         if living && !self.entity(id).is_in_water() {
             self.update_fluid_interaction(id);
         }
@@ -557,8 +560,13 @@ impl ServerLevel {
         };
         let damage = self.calculate_fall_damage(id, effective, damage_modifier);
         if damage > 0 {
-            self.player_mut(id).living.reset_current_impulse_context();
-            let sound = if damage > 4 { "minecraft:entity.player.big_fall" } else { "minecraft:entity.player.small_fall" };
+            self.living_mut(id).reset_current_impulse_context();
+            let sound = match (self.is_player(id), damage > 4) {
+                (true, true) => "minecraft:entity.player.big_fall",
+                (true, false) => "minecraft:entity.player.small_fall",
+                (false, true) => "minecraft:entity.generic.big_fall",
+                (false, false) => "minecraft:entity.generic.small_fall",
+            };
             self.entity_play_sound(id, sound_event(sound), 1.0, 1.0);
             self.play_block_fall_sound(id);
             self.hurt(id, crate::world::damagesource::DamageSource::new(crisp_data::damage_types::FALL), damage as f32);
@@ -593,7 +601,7 @@ impl ServerLevel {
         let mut restitution = if suppressing { 0.0 } else { self.entity_bounciness(id) };
         let effective_gravity = self.effective_gravity(id);
         let air_drag = self.air_drag(id);
-        let living = self.is_player(id);
+        let living = self.is_living(id);
         let e = self.entity(id);
         let current = e.delta_movement;
         let mut after = current;
@@ -701,6 +709,11 @@ impl ServerLevel {
     }
 
     fn play_step_sound(&mut self, id: EntityId, pos: BlockPos, state: BlockState) {
+        if let Some(mob) = self.mob(id) {
+            let sound = sound_event(&mob.sound_set().step_sound);
+            self.entity_play_sound(id, sound, 0.15, 1.0);
+            return;
+        }
         if self.is_player(id) {
             if self.entity(id).is_in_water() {
                 self.water_swim_sound(id);
@@ -1050,7 +1063,7 @@ impl ServerLevel {
             e.fall_distance *= 0.5;
         }
         if self.entity(id).y() < (self.chunks.min_y() - 64) as f64 {
-            if self.is_player(id) {
+            if self.is_living(id) {
                 self.hurt(id, crate::world::damagesource::DamageSource::new(crisp_data::damage_types::OUT_OF_WORLD), 4.0);
             } else {
                 self.entity_mut(id).discard();

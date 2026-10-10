@@ -70,7 +70,7 @@ impl DamageSource {
 
 impl ServerLevel {
     pub fn is_living(&self, id: EntityId) -> bool {
-        self.is_player(id)
+        self.is_player(id) || self.is_mob(id)
     }
 
     pub fn display_name(&self, id: EntityId) -> Component {
@@ -86,7 +86,12 @@ impl ServerLevel {
         crate::network::chat::decorate_display_name(formatted, name, uuid)
     }
 
-    pub fn kill_credit(&self, _victim: EntityId) -> Option<EntityId> {
-        None
+    pub fn kill_credit(&self, victim: EntityId) -> Option<EntityId> {
+        let living = self.living(victim);
+        let lookup = |uuid: u128| self.entity_manager.visible_entity_storage.get(uuid);
+        match living.last_hurt_by_player {
+            Some(player) => lookup(player).filter(|&p| self.is_player(p)),
+            None => living.last_hurt_by_mob.and_then(lookup).filter(|&e| self.is_living(e)),
+        }
     }
 }

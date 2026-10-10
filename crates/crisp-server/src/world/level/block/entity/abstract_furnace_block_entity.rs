@@ -186,7 +186,7 @@ impl ServerLevel {
     }
 
     fn furnace_loot_context(state: BlockState) -> LootContext<'static> {
-        LootContext { block_state: Some(state), tool: None, explosion_radius: None, block_entity: None }
+        LootContext { block_state: Some(state), ..Default::default() }
     }
 
     pub fn furnace_server_tick(&mut self, pos: BlockPos, mut state: BlockState) {

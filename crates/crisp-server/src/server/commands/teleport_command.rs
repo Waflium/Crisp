@@ -164,7 +164,7 @@ fn perform_teleport(
         if let Some(look_at) = look_at {
             look_at.perform(level, source, victim);
         }
-        let fall_flying = level.is_player(victim) && level.entity(victim).is_fall_flying();
+        let fall_flying = level.is_living(victim) && level.entity(victim).is_fall_flying();
         if !fall_flying {
             let e = level.entity_mut(victim);
             e.set_delta_movement(e.delta_movement.multiply(1.0, 0.0, 1.0));

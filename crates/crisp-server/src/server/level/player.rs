@@ -361,13 +361,6 @@ impl ServerPlayer {
         p.bool(true);
     }
 
-    pub fn write_attributes(&self, p: &mut Writer) {
-        let attributes = &self.living.attributes;
-        p.varint(self.entity.id);
-        p.varint(attributes.syncable_attributes().count() as i32);
-        attributes.syncable_attributes().for_each(|instance| instance.write(p));
-    }
-
     pub fn update_player_attributes(&mut self) {
         let creative = self.game_mode.game_type == GameType::Creative;
         let crouching = self.entity.is_crouching();

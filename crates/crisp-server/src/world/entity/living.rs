@@ -1,3 +1,4 @@
+use crisp_core::random::RandomSource;
 use crisp_core::{BlockPos, Vec3, mth};
 use crisp_data::properties::{HORIZONTAL_FACING, OPEN};
 use crisp_data::packets::play::clientbound;
@@ -20,6 +21,12 @@ const TICKS_REQUIRED_TO_FREEZE: i32 = 140;
 
 pub struct LivingEntity {
     pub attributes: AttributeMap,
+    pub y_body_rot: f32,
+    pub no_action_time: i32,
+    pub last_hurt_by_player: Option<u128>,
+    pub last_hurt_by_player_memory_time: i32,
+    pub last_hurt_by_mob: Option<u128>,
+    pub last_hurt_by_mob_timestamp: i32,
     pub jumping: bool,
     pub xxa: f32,
     pub yya: f32,
@@ -50,8 +57,18 @@ pub struct LivingEntity {
 
 impl LivingEntity {
     pub fn player() -> LivingEntity {
+        LivingEntity::new(&PLAYER_ATTRIBUTES)
+    }
+
+    pub fn new(attributes: &'static crate::world::entity::attributes::AttributeSupplier) -> LivingEntity {
         LivingEntity {
-            attributes: AttributeMap::new(&PLAYER_ATTRIBUTES),
+            attributes: AttributeMap::new(attributes),
+            y_body_rot: 0.0,
+            no_action_time: 0,
+            last_hurt_by_player: None,
+            last_hurt_by_player_memory_time: 0,
+            last_hurt_by_mob: None,
+            last_hurt_by_mob_timestamp: 0,
             jumping: false,
             xxa: 0.0,
             yya: 0.0,
@@ -160,7 +177,7 @@ pub fn player_dimensions(pose: Pose) -> EntityDimensions {
 impl ServerLevel {
     pub fn swing(&mut self, id: EntityId, hand: InteractionHand, animation: SwingAnimation, send_to_swinging_entity: bool) -> bool {
         let duration = animation.duration;
-        if !self.player_mut(id).living.swing_state.start_if_able(hand, animation, duration) {
+        if !self.living_mut(id).swing_state.start_if_able(hand, animation, duration) {
             return false;
         }
         let packet = encode(clientbound::SWING_ANIMATION, |w| {
@@ -186,6 +203,9 @@ impl ServerLevel {
     }
 
     pub fn living_speed(&self, id: EntityId) -> f32 {
+        if self.is_mob(id) {
+            return self.living(id).speed;
+        }
         self.attribute_value(id, Attribute::MovementSpeed) as f32
     }
 
@@ -217,7 +237,7 @@ impl ServerLevel {
         if experience.take_xp_delay > 0 {
             experience.take_xp_delay -= 1;
         }
-        self.player_mut(id).living.swing_state.tick();
+        self.living_mut(id).swing_state.tick();
         self.entity_base_tick(id);
         self.living_base_tick(id);
         self.updating_using_item(id);
@@ -229,7 +249,7 @@ impl ServerLevel {
             self.player_ai_step(id);
         }
         self.refresh_dirty_attributes(id);
-        let living = &mut self.player_mut(id).living;
+        let living = &mut self.living_mut(id);
         if living.current_impulse_context_reset_grace_time > 0 {
             living.current_impulse_context_reset_grace_time -= 1;
         }
@@ -259,39 +279,52 @@ impl ServerLevel {
         }
     }
 
-    fn living_ai_step(&mut self, id: EntityId) {
-        let p = self.player_mut(id);
-        if p.living.no_jump_delay > 0 {
-            p.living.no_jump_delay -= 1;
+    pub(crate) fn living_ai_step(&mut self, id: EntityId) {
+        let player = self.is_player(id);
+        let dead = self.is_dead_or_dying(id);
+        let (e, living) = self.entity_and_living_mut(id);
+        if living.no_jump_delay > 0 {
+            living.no_jump_delay -= 1;
         }
-        let movement = p.entity.delta_movement;
+        let movement = e.delta_movement;
         let (mut dx, mut dy, mut dz) = (movement.x, movement.y, movement.z);
-        if movement.horizontal_distance_sqr() < 9.0e-6 {
-            dx = 0.0;
-            dz = 0.0;
+        if player {
+            if movement.horizontal_distance_sqr() < 9.0e-6 {
+                dx = 0.0;
+                dz = 0.0;
+            }
+        } else {
+            if movement.x.abs() < 0.003 {
+                dx = 0.0;
+            }
+            if movement.z.abs() < 0.003 {
+                dz = 0.0;
+            }
         }
         if movement.y.abs() < 0.003 {
             dy = 0.0;
         }
-        p.entity.set_delta_movement(Vec3::new(dx, dy, dz));
-        p.living.xxa *= 0.98;
-        p.living.zza *= 0.98;
-        if p.health <= 0.0 {
-            p.living.jumping = false;
-            p.living.xxa = 0.0;
-            p.living.zza = 0.0;
+        e.set_delta_movement(Vec3::new(dx, dy, dz));
+        living.xxa *= 0.98;
+        living.zza *= 0.98;
+        if dead {
+            living.jumping = false;
+            living.xxa = 0.0;
+            living.zza = 0.0;
+        } else if self.mob(id).is_some_and(|m| !m.is_no_ai()) {
+            self.mob_server_ai_step(id);
         }
-        let affected_by_fluids = !p.abilities_flying();
-        if p.living.jumping && affected_by_fluids {
-            let e = &p.entity;
+        let affected_by_fluids = !self.is_flying_player(id);
+        let (e, living) = self.entity_and_living(id);
+        if living.jumping && affected_by_fluids {
             let fluid_height = if e.is_in_lava() { e.fluid_height(&fluid_tags::LAVA) } else { e.fluid_height(&fluid_tags::WATER) };
             let in_water_and_has_fluid_height = e.is_in_water() && fluid_height > 0.0;
             let threshold = e.fluid_jump_threshold();
             if !in_water_and_has_fluid_height || e.on_ground && !(fluid_height > threshold) {
                 if !e.is_in_lava() || e.on_ground && e.fluid_height(&fluid_tags::LAVA) <= threshold {
-                    if (e.on_ground || in_water_and_has_fluid_height && fluid_height <= threshold) && p.living.no_jump_delay == 0 {
+                    if (e.on_ground || in_water_and_has_fluid_height && fluid_height <= threshold) && living.no_jump_delay == 0 {
                         self.jump_from_ground(id);
-                        self.player_mut(id).living.no_jump_delay = 10;
+                        self.living_mut(id).no_jump_delay = 10;
                     }
                 } else {
                     self.jump_in_liquid(id);
@@ -300,14 +333,18 @@ impl ServerLevel {
                 self.jump_in_liquid(id);
             }
         } else {
-            p.living.no_jump_delay = 0;
+            self.living_mut(id).no_jump_delay = 0;
         }
-        let l = &self.player(id).living;
+        let l = &self.living(id);
         let input = Vec3::new(l.xxa as f64, l.yya as f64, l.zza as f64);
         if l.has_effect(mob_effects::SLOW_FALLING) || l.has_effect(mob_effects::LEVITATION) {
             self.reset_fall_distance(id);
         }
-        self.player_travel(id, input);
+        if player {
+            self.player_travel(id, input);
+        } else if self.mob(id).is_some_and(|m| !m.is_no_ai()) {
+            self.travel(id, input);
+        }
         self.apply_effects_from_blocks(id);
         let e = self.entity_mut(id);
         if !e.is_in_powder_snow || !self.can_freeze(id) {
@@ -318,10 +355,81 @@ impl ServerLevel {
         self.remove_frost(id);
         self.try_add_frost(id);
         self.tick_freezing_damage(id);
+        self.push_entities(id);
+    }
+
+    fn is_pushable(&mut self, id: EntityId) -> bool {
+        self.is_living(id) && self.is_alive(id) && !self.is_spectator(id) && !self.on_climbable(id)
+    }
+
+    fn pushable_by(&mut self, pusher: EntityId, other: EntityId) -> bool {
+        use crate::world::scores::team::CollisionRule;
+        let own_team = self.team_of(pusher).map(|t| (t.name().to_string(), t.collision_rule()));
+        let own_rule = own_team.as_ref().map_or(CollisionRule::Always, |t| t.1);
+        if own_rule == CollisionRule::Never || !self.is_pushable(other) {
+            return false;
+        }
+        let their_team = self.team_of(other).map(|t| (t.name().to_string(), t.collision_rule()));
+        let their_rule = their_team.as_ref().map_or(CollisionRule::Always, |t| t.1);
+        if their_rule == CollisionRule::Never {
+            return false;
+        }
+        let same_team = own_team.is_some() && own_team.as_ref().map(|t| &t.0) == their_team.as_ref().map(|t| &t.0);
+        if (own_rule == CollisionRule::PushOwnTeam || their_rule == CollisionRule::PushOwnTeam) && same_team {
+            return false;
+        }
+        own_rule != CollisionRule::PushOtherTeams && their_rule != CollisionRule::PushOtherTeams || same_team
+    }
+
+    fn push_entities(&mut self, id: EntityId) {
+        let area = self.entity(id).bounding_box();
+        let candidates = self.get_entities(Some(id), &area);
+        let pushable: Vec<EntityId> = candidates.into_iter().filter(|&other| self.pushable_by(id, other)).collect();
+        if pushable.is_empty() {
+            return;
+        }
+        let max_cramming = self.game_rules.get_int(crisp_data::game_rule::MAX_ENTITY_CRAMMING);
+        if max_cramming > 0 && pushable.len() as i32 > max_cramming - 1 && self.entity_mut(id).random.next_int_bounded(4) == 0 && pushable.len() as i32 > max_cramming - 1 {
+            self.hurt_server(id, crate::world::damagesource::DamageSource::new(crisp_data::damage_types::CRAMMING), 6.0);
+        }
+        for other in pushable {
+            self.push_entity(other, id);
+        }
+    }
+
+    fn push_entity(&mut self, id: EntityId, other: EntityId) {
+        let (e, o) = (self.entity(id), self.entity(other));
+        if o.no_physics || e.no_physics {
+            return;
+        }
+        let mut xa = o.x() - e.x();
+        let mut za = o.z() - e.z();
+        let mut dd = mth::abs_max(xa, za);
+        if dd < 0.01f32 as f64 {
+            return;
+        }
+        dd = dd.sqrt();
+        xa /= dd;
+        za /= dd;
+        let pow = (1.0 / dd).min(1.0);
+        xa *= pow;
+        za *= pow;
+        xa *= 0.05f32 as f64;
+        za *= 0.05f32 as f64;
+        if self.is_pushable(id) {
+            let e = self.entity_mut(id);
+            e.set_delta_movement(e.delta_movement.add(-xa, 0.0, -za));
+            e.needs_sync = true;
+        }
+        if self.is_pushable(other) {
+            let o = self.entity_mut(other);
+            o.set_delta_movement(o.delta_movement.add(xa, 0.0, za));
+            o.needs_sync = true;
+        }
     }
 
     fn remove_frost(&mut self, id: EntityId) {
-        if let Some(speed) = self.player_mut(id).living.attributes.instance(Attribute::MovementSpeed)
+        if let Some(speed) = self.living_mut(id).attributes.instance(Attribute::MovementSpeed)
             && speed.has_modifier(SPEED_MODIFIER_POWDER_SNOW_ID)
         {
             speed.remove_modifier(SPEED_MODIFIER_POWDER_SNOW_ID);
@@ -335,7 +443,7 @@ impl ServerLevel {
         }
         let ticks_frozen = self.entity(id).ticks_frozen();
         if ticks_frozen > 0 {
-            let Some(speed) = self.player_mut(id).living.attributes.instance(Attribute::MovementSpeed) else { return };
+            let Some(speed) = self.living_mut(id).attributes.instance(Attribute::MovementSpeed) else { return };
             let percent_frozen = ticks_frozen.min(TICKS_REQUIRED_TO_FREEZE) as f32 / TICKS_REQUIRED_TO_FREEZE as f32;
             let slow_amount = -0.05f32 * percent_frozen;
             speed.add_transient_modifier(AttributeModifier {
@@ -353,12 +461,15 @@ impl ServerLevel {
 
     pub fn jump_from_ground(&mut self, id: EntityId) {
         self.living_jump_from_ground(id);
+        if !self.is_player(id) {
+            return;
+        }
         let exhaustion = if self.entity(id).is_sprinting() { crate::world::food::constants::EXHAUSTION_SPRINT_JUMP } else { crate::world::food::constants::EXHAUSTION_JUMP };
         self.cause_food_exhaustion(id, exhaustion);
     }
 
     fn jump_boost_power(&self, id: EntityId) -> f32 {
-        match self.player(id).living.effect(mob_effects::JUMP_BOOST) {
+        match self.living(id).effect(mob_effects::JUMP_BOOST) {
             Some(jump_boost) => 0.1 * (jump_boost.amplifier as f32 + 1.0),
             None => 0.0,
         }
@@ -385,7 +496,7 @@ impl ServerLevel {
             let look_y = e.look_angle().y;
             let multiplier = if look_y < -0.2 { 0.085 } else { 0.06 };
             let above = BlockPos::containing(e.x(), e.y() + 1.0 - 0.1, e.z());
-            if look_y <= 0.0 || self.player(id).living.jumping || !self.fluid_state(above).is_empty() {
+            if look_y <= 0.0 || self.living(id).jumping || !self.fluid_state(above).is_empty() {
                 let e = self.entity_mut(id);
                 let m = e.delta_movement;
                 e.set_delta_movement(m.add(0.0, (look_y - m.y) * multiplier, 0.0));
@@ -401,8 +512,12 @@ impl ServerLevel {
         }
     }
 
+    pub fn is_flying_player(&self, id: EntityId) -> bool {
+        self.players.get(&id).is_some_and(|p| p.abilities_flying())
+    }
+
     fn travel(&mut self, id: EntityId, input: Vec3) {
-        let affected_by_fluids = !self.player(id).abilities_flying();
+        let affected_by_fluids = !self.is_flying_player(id);
         if self.entity(id).is_in_liquid() && affected_by_fluids {
             self.travel_in_fluid(id, input);
         } else {
@@ -419,7 +534,7 @@ impl ServerLevel {
             1.0
         };
         let movement = self.handle_relative_friction_and_calculate_movement(id, input, block_friction);
-        let movement_y = match self.player(id).living.effect(mob_effects::LEVITATION) {
+        let movement_y = match self.living(id).effect(mob_effects::LEVITATION) {
             Some(levitation) => movement.y + (0.05 * (levitation.amplifier + 1) as f64 - movement.y) * 0.2,
             None => movement.y - self.effective_gravity(id),
         };
@@ -455,7 +570,7 @@ impl ServerLevel {
             slow_down += (0.54600006 - slow_down) * water_walker;
             speed += (self.living_speed(id) - speed) * water_walker;
         }
-        if self.player(id).living.has_effect(mob_effects::DOLPHINS_GRACE) {
+        if self.living(id).has_effect(mob_effects::DOLPHINS_GRACE) {
             slow_down = 0.96;
         }
         self.entity_mut(id).move_relative(speed, input);
@@ -523,7 +638,7 @@ impl ServerLevel {
         self.move_entity(id, MoverType::SelfMove, delta);
         let e = self.entity(id);
         let mut movement = e.delta_movement;
-        let jumping = self.player(id).living.jumping;
+        let jumping = self.living(id).jumping;
         if (e.horizontal_collision || jumping) && (self.on_climbable(id) || self.entity(id).was_in_powder_snow && self.can_walk_on_powder_snow(id)) {
             movement = Vec3::new(movement.x, 0.2, movement.z);
         }
@@ -531,7 +646,8 @@ impl ServerLevel {
     }
 
     fn can_walk_on_powder_snow(&self, id: EntityId) -> bool {
-        self.player(id).inventory.slots[8].as_ref().is_some_and(|s| s.item == items::LEATHER_BOOTS)
+        crisp_data::entity_type_tags::POWDER_SNOW_WALKABLE_MOBS.contains(self.entity(id).entity_type as usize)
+            || self.item_by_slot(id, crisp_data::EquipmentSlot::Feet).is_some_and(|s| s.item == items::LEATHER_BOOTS)
     }
 
     fn friction_influenced_speed(&self, id: EntityId, block_friction: f32) -> f32 {
@@ -544,7 +660,7 @@ impl ServerLevel {
     }
 
     fn flying_speed(&self, id: EntityId) -> f32 {
-        let p = self.player(id);
+        let Some(p) = self.players.get(&id) else { return 0.02 };
         let sprinting = p.entity.is_sprinting();
         if p.abilities_flying() {
             let flying_speed = 0.05f32;
@@ -583,7 +699,7 @@ impl ServerLevel {
                 below.is_block(blocks::LADDER) && below.get(HORIZONTAL_FACING) == state.get(HORIZONTAL_FACING)
             };
         if climbable {
-            self.player_mut(id).living.last_climbable_pos = Some(pos);
+            self.living_mut(id).last_climbable_pos = Some(pos);
         }
         climbable
     }

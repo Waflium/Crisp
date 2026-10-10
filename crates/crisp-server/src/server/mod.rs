@@ -284,6 +284,7 @@ impl Server {
         level.world_border = WorldBorder::load(world_dir.as_ref().map(|d| d.dimension_data_folder(OVERWORLD)));
         level.world_border.set_absolute_max_size(config.max_world_size);
         level.raids = crate::world::entity::raid::raids::Raids::load(world_dir.as_ref().map(|d| d.dimension_data_folder(OVERWORLD)));
+        level.level_name = config.level_name.clone();
         level.allow_flight = config.allow_flight;
         level.set_max_chained_neighbor_updates(config.max_chained_neighbor_updates);
         level.entity_broadcast_range_percentage = config.entity_broadcast_range_percentage;

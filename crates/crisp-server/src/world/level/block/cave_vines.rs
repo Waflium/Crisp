@@ -11,7 +11,7 @@ pub fn use_vine(state: BlockState, level: &mut ServerLevel, pos: BlockPos) -> In
     if !state.get(BERRIES) {
         return InteractionResult::Pass;
     }
-    let ctx = LootContext { block_state: Some(state), tool: None, explosion_radius: None, block_entity: None };
+    let ctx = LootContext { block_state: Some(state), ..Default::default() };
     for stack in generate("minecraft:harvest/cave_vine", &ctx, &mut rand::rng()) {
         level.pop_resource(pos, stack);
     }

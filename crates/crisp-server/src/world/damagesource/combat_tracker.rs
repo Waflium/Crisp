@@ -82,7 +82,7 @@ impl CombatTracker {
 
 impl ServerLevel {
     fn current_fall_location(&mut self, id: EntityId) -> Option<FallLocation> {
-        match self.player(id).living.last_climbable_pos {
+        match self.living(id).last_climbable_pos {
             Some(pos) => {
                 let state = self.block_state(pos);
                 Some(FallLocation::block_to_fall_location(state))
@@ -95,15 +95,15 @@ impl ServerLevel {
         self.recheck_combat_status(id);
         let fall_location = self.current_fall_location(id);
         let alive = self.is_alive(id);
-        let p = self.player_mut(id);
-        let entry = CombatEntry { source, damage, fall_location, fall_distance: p.entity.fall_distance as f32 };
-        let tick_count = p.entity.tick_count;
-        let tracker = &mut p.living.combat_tracker;
+        let e = self.entity(id);
+        let entry = CombatEntry { source, damage, fall_location, fall_distance: e.fall_distance as f32 };
+        let tick_count = e.tick_count;
+        let tracker = &mut self.living_mut(id).combat_tracker;
         tracker.entries.push(entry);
         tracker.last_damage_time = tick_count;
         tracker.taking_damage = true;
         let enters = source.causing_entity.is_some_and(|e| self.is_living(e));
-        let tracker = &mut self.player_mut(id).living.combat_tracker;
+        let tracker = &mut self.living_mut(id).combat_tracker;
         if !tracker.in_combat && alive && enters {
             tracker.in_combat = true;
             tracker.combat_start_time = tick_count;
@@ -114,9 +114,8 @@ impl ServerLevel {
 
     pub fn recheck_combat_status(&mut self, id: EntityId) {
         let alive = self.is_alive(id);
-        let p = self.player_mut(id);
-        let tick_count = p.entity.tick_count;
-        let tracker = &mut p.living.combat_tracker;
+        let tick_count = self.entity(id).tick_count;
+        let tracker = &mut self.living_mut(id).combat_tracker;
         let reset = if tracker.in_combat { RESET_COMBAT_STATUS_TIME } else { RESET_DAMAGE_STATUS_TIME };
         if tracker.taking_damage && (!alive || tick_count - tracker.last_damage_time > reset) {
             let was_in_combat = tracker.in_combat;
@@ -126,18 +125,19 @@ impl ServerLevel {
             if was_in_combat {
                 self.on_leave_combat(id);
             }
-            self.player_mut(id).living.combat_tracker.entries.clear();
+            self.living_mut(id).combat_tracker.entries.clear();
         }
     }
 
     fn on_enter_combat(&self, id: EntityId) {
         use crisp_data::packets::play::clientbound;
-        self.player(id).connection.send(clientbound::PLAYER_COMBAT_ENTER, |_| {});
+        let Some(p) = self.players.get(&id) else { return };
+        p.connection.send(clientbound::PLAYER_COMBAT_ENTER, |_| {});
     }
 
     fn on_leave_combat(&self, id: EntityId) {
         use crisp_data::packets::play::clientbound;
-        let p = self.player(id);
+        let Some(p) = self.players.get(&id) else { return };
         let duration = p.living.combat_tracker.combat_duration(p.entity.tick_count);
         p.connection.send(clientbound::PLAYER_COMBAT_END, |w| w.varint(duration));
     }
@@ -165,7 +165,7 @@ impl ServerLevel {
     }
 
     pub fn death_message(&self, id: EntityId) -> Component {
-        let entries = &self.player(id).living.combat_tracker.entries;
+        let entries = &self.living(id).combat_tracker.entries;
         let Some(killing_blow) = entries.last() else {
             return Component::translatable_with("death.attack.generic", vec![self.display_name(id).into()]);
         };

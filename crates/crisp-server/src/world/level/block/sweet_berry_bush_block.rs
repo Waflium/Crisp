@@ -68,7 +68,7 @@ impl BlockBehaviour for SweetBerryBushBlock {
         if state.get(AGE_3) <= 1 {
             return InteractionResult::Pass;
         }
-        let ctx = LootContext { block_state: Some(state), tool: None, explosion_radius: None, block_entity: None };
+        let ctx = LootContext { block_state: Some(state), ..Default::default() };
         for stack in generate("minecraft:harvest/sweet_berry_bush", &ctx, &mut rand::rng()) {
             level.pop_resource(pos, stack);
         }

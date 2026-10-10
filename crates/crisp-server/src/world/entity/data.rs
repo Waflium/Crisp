@@ -60,6 +60,8 @@ pub enum DataValue {
     Pose(Pose),
     HumanoidArm(i32),
     BlockState(crisp_data::BlockState),
+    ChickenVariant(i32),
+    ChickenSoundVariant(i32),
 }
 
 impl DataValue {
@@ -77,6 +79,8 @@ impl DataValue {
             DataValue::Pose(_) => 20,
             DataValue::HumanoidArm(_) => 42,
             DataValue::BlockState(_) => 14,
+            DataValue::ChickenVariant(_) => 30,
+            DataValue::ChickenSoundVariant(_) => 31,
         }
     }
 
@@ -107,6 +111,7 @@ impl DataValue {
             DataValue::Pose(p) => w.varint(*p as i32),
             DataValue::HumanoidArm(a) => w.varint(*a),
             DataValue::BlockState(s) => w.varint(s.id() as i32),
+            DataValue::ChickenVariant(id) | DataValue::ChickenSoundVariant(id) => w.varint(*id),
         }
     }
 }
@@ -202,6 +207,18 @@ pub fn living_entity_defaults() -> Vec<DataValue> {
     values
 }
 
+pub fn mob_defaults() -> Vec<DataValue> {
+    let mut values = living_entity_defaults();
+    values.push(DataValue::Byte(0));
+    values
+}
+
+pub fn ageable_mob_defaults() -> Vec<DataValue> {
+    let mut values = mob_defaults();
+    values.extend([DataValue::Boolean(false), DataValue::Boolean(false)]);
+    values
+}
+
 pub fn player_defaults() -> Vec<DataValue> {
     let mut values = living_entity_defaults();
     values.extend([
@@ -229,6 +246,10 @@ pub mod ids {
     pub const HEALTH: usize = 9;
     pub const EFFECT_PARTICLES: usize = 10;
     pub const EFFECT_AMBIENCE: usize = 11;
+    pub const SLEEPING_POS: usize = 14;
+    pub const MOB_FLAGS: usize = 15;
+    pub const AGEABLE_BABY: usize = 16;
+    pub const AGE_LOCKED: usize = 17;
     pub const PLAYER_MAIN_HAND: usize = 15;
     pub const PLAYER_MODE_CUSTOMISATION: usize = 16;
     pub const PLAYER_ABSORPTION: usize = 17;

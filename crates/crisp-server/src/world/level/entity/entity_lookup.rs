@@ -28,6 +28,10 @@ impl EntityLookup {
         self.by_id.remove(id);
     }
 
+    pub fn get(&self, uuid: u128) -> Option<EntityId> {
+        self.by_uuid.get(&uuid).copied()
+    }
+
     pub fn all_entities(&self) -> impl Iterator<Item = EntityId> + '_ {
         self.by_id.iter()
     }

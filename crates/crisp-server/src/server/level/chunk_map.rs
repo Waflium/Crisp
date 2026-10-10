@@ -11,7 +11,7 @@ use crisp_data::packets::play::clientbound;
 use super::ServerLevel;
 use super::server_entity::{Audience, ServerEntity, UpdateInterval};
 use crate::network::connection::encode;
-use crate::world::entity::{Entity, EntityId};
+use crate::world::entity::{Entity, EntityId, LevelEntity};
 use crate::world::level::BlockGetter;
 use crate::world::level::light_layer::LightLayer;
 use crate::world::level::lighting::{section, write_light_data};
@@ -374,6 +374,9 @@ impl ServerLevel {
         let visible = dx * dx + dz * dz <= visible_range * visible_range && self.is_chunk_tracked(player, entity_chunk.x, entity_chunk.z);
         if visible {
             if self.chunk_map.tracked.get_mut(tracked).unwrap().seen_by.insert(player) {
+                if self.is_living(tracked) {
+                    self.update_dirty_effects(tracked);
+                }
                 let entity = self.entity_ref(tracked).unwrap();
                 let mut packets = vec![encode(clientbound::BUNDLE_DELIMITER, |_| {})];
                 packets.extend(self.chunk_map.tracked.get(tracked).unwrap().server_entity.pairing_packets(entity));
@@ -388,18 +391,20 @@ impl ServerLevel {
     }
 
     fn extra_pairing_packets(&self, tracked: EntityId) -> Vec<Vec<u8>> {
-        match self.players.get(&tracked) {
-            Some(p) => {
-                let mut packets = vec![encode(clientbound::UPDATE_ATTRIBUTES, |w| p.write_attributes(w))];
-                let equipment: Vec<_> =
-                    crisp_data::EquipmentSlot::VALUES.into_iter().filter_map(|slot| self.item_by_slot(tracked, slot).map(|s| (slot, Some(s)))).collect();
-                if !equipment.is_empty() {
-                    packets.push(crate::world::entity::hurt::set_equipment(tracked, &equipment));
-                }
-                packets
-            }
-            None => Vec::new(),
+        if !self.is_living(tracked) {
+            return Vec::new();
         }
+        let mut packets = Vec::new();
+        let attributes = &self.living(tracked).attributes;
+        if attributes.syncable_attributes().next().is_some() {
+            packets.push(encode(clientbound::UPDATE_ATTRIBUTES, |w| attributes.write_syncable(w, tracked)));
+        }
+        let equipment: Vec<_> =
+            crisp_data::EquipmentSlot::VALUES.into_iter().filter_map(|slot| self.item_by_slot(tracked, slot).map(|s| (slot, Some(s)))).collect();
+        if !equipment.is_empty() {
+            packets.push(crate::world::entity::hurt::set_equipment(tracked, &equipment));
+        }
+        packets
     }
 
     pub fn move_player(&mut self, player: EntityId) {
@@ -465,13 +470,14 @@ impl ServerLevel {
     }
 
     fn send_entity_changes(&mut self, id: EntityId) {
-        if self.is_player(id) {
+        if self.is_living(id) {
             self.update_dirty_effects(id);
         }
         let Some(tracked) = self.chunk_map.tracked.get_mut(id) else { return };
         let (entity, attributes) = match self.players.get_mut(&id) {
             Some(p) => (&mut p.entity, Some(&mut p.living.attributes)),
             None => match self.entities.get_mut(&id) {
+                Some(LevelEntity::Mob(mob)) => (&mut mob.entity, Some(&mut mob.living.attributes)),
                 Some(e) => (e.entity_mut(), None),
                 None => return,
             },

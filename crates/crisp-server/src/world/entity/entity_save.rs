@@ -141,6 +141,7 @@ impl LevelEntity {
             LevelEntity::PrimedTnt(_) => Some("minecraft:tnt"),
             LevelEntity::ExperienceOrb(_) => Some("minecraft:experience_orb"),
             LevelEntity::LightningBolt(_) => None,
+            LevelEntity::Mob(mob) => Some(crisp_data::registry::ENTITY_TYPE[mob.entity.entity_type as usize]),
         }
     }
 
@@ -188,6 +189,7 @@ impl LevelEntity {
                 out.push(("Count".into(), Nbt::Int(orb.count)));
             }
             LevelEntity::LightningBolt(_) => {}
+            LevelEntity::Mob(mob) => mob.save(out),
         }
     }
 
@@ -220,6 +222,7 @@ impl LevelEntity {
                 orb.count = nbt.get("Count").and_then(int_value).filter(|&c| c > 0).unwrap_or(1);
             }
             LevelEntity::LightningBolt(_) => {}
+            LevelEntity::Mob(mob) => mob.load(nbt),
         }
         Ok(())
     }
@@ -232,6 +235,7 @@ impl ServerLevel {
             "minecraft:tnt" => LevelEntity::PrimedTnt(PrimedTnt::of_type()),
             "minecraft:experience_orb" => LevelEntity::ExperienceOrb(super::experience_orb::ExperienceOrb::of_type()),
             "minecraft:lightning_bolt" => LevelEntity::LightningBolt(super::lightning_bolt::LightningBolt::new(Vec3::ZERO)),
+            "minecraft:chicken" => LevelEntity::Mob(Box::new(super::animal::chicken::Chicken::create())),
             other => {
                 warn!("Skipping Entity with id {other}");
                 return None;

@@ -1,3 +1,6 @@
+pub mod ageable_mob;
+pub mod ai;
+pub mod animal;
 pub mod attributes;
 pub mod data;
 #[cfg(test)]
@@ -10,6 +13,7 @@ pub mod hurt;
 pub mod inside_block;
 pub mod item;
 pub mod lightning_bolt;
+pub mod mob;
 pub mod primed_tnt;
 pub mod raid;
 pub mod living;
@@ -313,6 +317,29 @@ impl Entity {
         self.removal.is_some()
     }
 
+    pub fn random_x(&mut self, spread: f64) -> f64 {
+        self.pos.x + self.dimensions.width as f64 * ((2.0 * self.random.next_double() - 1.0) * spread)
+    }
+
+    pub fn random_y(&mut self) -> f64 {
+        self.pos.y + self.dimensions.height as f64 * self.random.next_double()
+    }
+
+    pub fn random_y_scaled(&mut self, spread: f64) -> f64 {
+        self.pos.y + self.dimensions.height as f64 * ((2.0 * self.random.next_double() - 1.0) * spread)
+    }
+
+    pub fn random_z(&mut self, spread: f64) -> f64 {
+        self.pos.z + self.dimensions.width as f64 * ((2.0 * self.random.next_double() - 1.0) * spread)
+    }
+
+    pub fn custom_name(&self) -> Option<crate::network::chat::Component> {
+        match self.data.get(data::ids::CUSTOM_NAME) {
+            DataValue::OptionalComponent(Some(name)) => Some(crate::network::chat::Component::from_nbt(name)),
+            _ => None,
+        }
+    }
+
     pub fn discard(&mut self) {
         self.removal = Some(RemovalReason::Discarded);
     }
@@ -587,11 +614,16 @@ pub enum LevelEntity {
     ExperienceOrb(experience_orb::ExperienceOrb),
     LightningBolt(lightning_bolt::LightningBolt),
     PrimedTnt(primed_tnt::PrimedTnt),
+    Mob(Box<mob::Mob>),
 }
 
 impl LevelEntity {
     pub fn name(&self) -> crate::network::chat::Component {
         match self {
+            LevelEntity::Mob(mob) => match mob.entity.custom_name() {
+                Some(name) => name,
+                None => description(crisp_data::registry::ENTITY_TYPE[mob.entity.entity_type as usize]),
+            },
             LevelEntity::Item(item) => crate::network::chat::Component::translatable(item.item.item.info().description_id),
             LevelEntity::LightningBolt(_) => crate::network::chat::Component::translatable("entity.minecraft.lightning_bolt"),
             LevelEntity::PrimedTnt(_) => crate::network::chat::Component::translatable("entity.minecraft.tnt"),
@@ -616,6 +648,7 @@ impl LevelEntity {
             LevelEntity::PrimedTnt(_) => TrackingConfig { range: 10 * 16, update_interval: UpdateInterval::Periodic(10), track_deltas: true, stepped: false, is_item: false },
             LevelEntity::LightningBolt(_) => TrackingConfig { range: 16 * 16, update_interval: UpdateInterval::Never, track_deltas: true, stepped: false, is_item: false },
             LevelEntity::ExperienceOrb(_) => TrackingConfig { range: 6 * 16, update_interval: UpdateInterval::Periodic(20), track_deltas: true, stepped: false, is_item: false },
+            LevelEntity::Mob(_) => TrackingConfig { range: 10 * 16, update_interval: UpdateInterval::Periodic(3), track_deltas: true, stepped: false, is_item: false },
         }
     }
 
@@ -625,6 +658,7 @@ impl LevelEntity {
             LevelEntity::LightningBolt(bolt) => &bolt.entity,
             LevelEntity::PrimedTnt(tnt) => &tnt.entity,
             LevelEntity::ExperienceOrb(orb) => &orb.entity,
+            LevelEntity::Mob(mob) => &mob.entity,
         }
     }
 
@@ -634,6 +668,7 @@ impl LevelEntity {
             LevelEntity::LightningBolt(bolt) => &mut bolt.entity,
             LevelEntity::PrimedTnt(tnt) => &mut tnt.entity,
             LevelEntity::ExperienceOrb(orb) => &mut orb.entity,
+            LevelEntity::Mob(mob) => &mut mob.entity,
         }
     }
 

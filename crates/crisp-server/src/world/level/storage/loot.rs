@@ -13,11 +13,25 @@ use crate::world::level::block::entity::BlockEntity;
 use crate::world::item::component::values::{HolderSet, ItemEnchantments};
 use crate::world::item::component::{self as dc, DataComponentPatch, DataComponentType, codec, json_to_nbt};
 
+#[derive(Default)]
 pub struct LootContext<'a> {
     pub block_state: Option<BlockState>,
     pub tool: Option<&'a ItemStack>,
     pub explosion_radius: Option<f32>,
     pub block_entity: Option<&'a BlockEntity>,
+    pub this_entity: Option<LootEntity>,
+    pub attacking_entity: Option<LootEntity>,
+    pub direct_attacking_entity: Option<LootEntity>,
+    pub last_damage_player: Option<LootEntity>,
+}
+
+#[derive(Default)]
+pub struct LootEntity {
+    pub living: bool,
+    pub on_fire: bool,
+    pub baby: bool,
+    pub mainhand: Option<ItemStack>,
+    pub chicken_variant: Option<&'static str>,
 }
 
 fn parsed(source: &'static [(&'static str, &'static str)], cell: &'static OnceLock<HashMap<&'static str, Value>>) -> &'static HashMap<&'static str, Value> {
@@ -233,6 +247,29 @@ fn modify(m: &Value, stack: &mut ItemStack, ctx: &LootContext, rng: &mut impl Rn
                 stack.set(dc::CUSTOM_NAME, Some(name));
             }
         }
+        "minecraft:enchanted_count_increase" => {
+            if let Some(killer) = ctx.attacking_entity.as_ref().filter(|e| e.living) {
+                let level = enchantment_level(m["enchantment"].as_str().unwrap_or(""), killer.mainhand.as_ref());
+                if level != 0 {
+                    let addition = level as f32 * float(&m["count"], rng);
+                    stack.grow(addition.round() as i32);
+                    let limit = m["limit"].as_i64().unwrap_or(0) as i32;
+                    if limit > 0 {
+                        stack.limit_size(limit);
+                    }
+                }
+            }
+        }
+        "minecraft:furnace_smelt" if !stack.is_empty() => {
+            use crate::world::item::crafting::{CookingRecipeType, cooking_recipes, get_recipe_for};
+            match get_recipe_for(CookingRecipeType::Smelting, stack, None).map(|i| cooking_recipes()[i].assemble()).filter(|r| !r.is_empty()) {
+                Some(result) => {
+                    let new_count = if m["use_input_count"] == false { 1 } else { stack.count } * result.count;
+                    *stack = result.copy_with_count(new_count.min(result.max_stack_size()));
+                }
+                None => warn!("Couldn't smelt {} {} because there is no smelting recipe", stack.count, stack.item.name()),
+            }
+        }
         "minecraft:copy_state" => {
             if let Some(state) = ctx.block_state {
                 let mut properties = match stack.get(dc::BLOCK_STATE) {
@@ -388,10 +425,43 @@ fn condition(c: &Value, ctx: &LootContext, rng: &mut impl Rng) -> bool {
             }
             "minecraft:match_block" => ctx.block_state.is_some_and(|s| match_block(c, s)),
             "minecraft:match_tool" => match_tool(&c["predicate"], ctx.tool),
+            "minecraft:killed_by_player" => ctx.last_damage_player.is_some(),
+            "minecraft:entity_properties" => {
+                let entity = match c["entity"].as_str().unwrap_or("") {
+                    "this" => ctx.this_entity.as_ref(),
+                    "attacker" => ctx.attacking_entity.as_ref(),
+                    "direct_attacker" => ctx.direct_attacking_entity.as_ref(),
+                    "attacking_player" => ctx.last_damage_player.as_ref(),
+                    _ => None,
+                };
+                match &c["predicate"] {
+                    Value::Null => true,
+                    predicate => entity.is_some_and(|e| entity_predicate_matches(predicate, e)),
+                }
+            }
             _ => false,
         },
         _ => false,
     }
+}
+
+fn entity_predicate_matches(predicate: &Value, entity: &LootEntity) -> bool {
+    predicate.as_object().into_iter().flatten().all(|(key, value)| match key.as_str() {
+        "minecraft:flags" => value.as_object().into_iter().flatten().all(|(flag, expected)| match flag.as_str() {
+            "is_on_fire" => expected.as_bool() == Some(entity.on_fire),
+            "is_baby" => !entity.living || expected.as_bool() == Some(entity.baby),
+            _ => false,
+        }),
+        "minecraft:equipment" => entity.living && value.as_object().into_iter().flatten().all(|(slot, item)| match slot.as_str() {
+            "mainhand" => item_predicate_matches(item, entity.mainhand.as_ref().unwrap_or(&ItemStack::empty())),
+            _ => false,
+        }),
+        "minecraft:components" => value.as_object().into_iter().flatten().all(|(component, expected)| match component.as_str() {
+            "minecraft:chicken/variant" => entity.chicken_variant.is_some_and(|v| expected.as_str() == Some(v)),
+            _ => false,
+        }),
+        _ => false,
+    })
 }
 
 fn match_block(c: &Value, state: BlockState) -> bool {
@@ -562,7 +632,7 @@ mod tests {
     use crisp_data::{blocks, items};
 
     fn drops(table: &str, state: BlockState) -> Vec<ItemStack> {
-        let ctx = LootContext { block_state: Some(state), tool: None, explosion_radius: None, block_entity: None };
+        let ctx = LootContext { block_state: Some(state), ..Default::default() };
         generate(table, &ctx, &mut rand::rng())
     }
 
@@ -586,7 +656,7 @@ mod tests {
     }
 
     fn drops_with(table: &str, state: BlockState, tool: &ItemStack) -> Vec<ItemStack> {
-        let ctx = LootContext { block_state: Some(state), tool: Some(tool), explosion_radius: None, block_entity: None };
+        let ctx = LootContext { block_state: Some(state), tool: Some(tool), ..Default::default() };
         generate(table, &ctx, &mut rand::rng())
     }
 
@@ -611,6 +681,35 @@ mod tests {
         let drops = drops_with("minecraft:blocks/beehive", state, &enchanted_pickaxe("{silk_touch:1}"));
         assert_eq!(drops.len(), 1);
         assert_eq!(drops[0].get(dc::BLOCK_STATE), Some(&crate::nbt::parse_fully("{honey_level:\"0\"}").unwrap()));
+    }
+
+    #[test]
+    fn chickens_lay_the_egg_of_their_variant() {
+        for (variant, egg) in [("minecraft:temperate", items::EGG), ("minecraft:warm", items::BROWN_EGG), ("minecraft:cold", items::BLUE_EGG)] {
+            let ctx = LootContext { this_entity: Some(LootEntity { living: true, chicken_variant: Some(variant), ..Default::default() }), ..Default::default() };
+            assert_eq!(generate("minecraft:gameplay/chicken_lay", &ctx, &mut rand::rng()), [ItemStack::new(egg, 1)]);
+        }
+    }
+
+    #[test]
+    fn burning_chickens_drop_cooked_chicken() {
+        let ctx = LootContext { this_entity: Some(LootEntity { living: true, on_fire: true, ..Default::default() }), ..Default::default() };
+        let drops = generate("minecraft:entities/chicken", &ctx, &mut rand::rng());
+        assert_eq!(drops.last(), Some(&ItemStack::new(items::COOKED_CHICKEN, 1)));
+        let ctx = LootContext { this_entity: Some(LootEntity { living: true, ..Default::default() }), ..Default::default() };
+        let drops = generate("minecraft:entities/chicken", &ctx, &mut rand::rng());
+        assert_eq!(drops.last(), Some(&ItemStack::new(items::CHICKEN, 1)));
+    }
+
+    #[test]
+    fn looting_adds_to_chicken_drops() {
+        let mut sword = ItemStack::new(items::DIAMOND_SWORD, 1);
+        sword.set(dc::ENCHANTMENTS, Some(dc::ENCHANTMENTS.decode(&crate::nbt::parse_fully("{looting:3}").unwrap()).unwrap()));
+        let killer = LootEntity { living: true, mainhand: Some(sword), ..Default::default() };
+        let ctx = LootContext { this_entity: Some(LootEntity { living: true, ..Default::default() }), attacking_entity: Some(killer), ..Default::default() };
+        let counts: Vec<i32> = (0..200).map(|_| generate("minecraft:entities/chicken", &ctx, &mut rand::rng()).last().unwrap().count).collect();
+        assert!(counts.iter().all(|c| (1..=4).contains(c)));
+        assert!(counts.iter().any(|&c| c > 1));
     }
 
     #[test]

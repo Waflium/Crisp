@@ -71,7 +71,7 @@ impl ServerLevel {
         let Some(base) = entity.container_base_mut() else { return };
         let Some(table) = base.loot_table.take() else { return };
         let seed = base.loot_table_seed;
-        let ctx = crate::world::level::storage::loot::LootContext { block_state: None, tool: None, explosion_radius: None, block_entity: None };
+        let ctx = crate::world::level::storage::loot::LootContext::default();
         let items = crate::world::level::storage::loot::generate(&table, &ctx, &mut rand::rng());
         let mut random =
             if seed != 0 { crisp_core::random::LegacyRandomSource::new(seed) } else { crisp_core::random::LegacyRandomSource::new(crisp_core::random::RandomSource::next_long(&mut self.random)) };
