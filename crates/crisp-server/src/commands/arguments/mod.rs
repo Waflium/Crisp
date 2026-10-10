@@ -4,6 +4,7 @@ pub mod coordinates;
 pub mod item;
 pub mod nbt_path_argument;
 pub mod entity_argument;
+pub mod function_argument;
 pub mod game_profile_argument;
 pub mod message_argument;
 pub mod objective_argument;
@@ -76,6 +77,7 @@ pub enum ArgumentType {
     Resource { registry: String },
     CompoundTag,
     NbtTag,
+    Function,
     NbtPath,
     BlockState,
     BlockPredicate,
@@ -116,6 +118,7 @@ pub enum ArgumentValue {
     Resource { registry: String, id: String },
     Nbt(Nbt),
     NbtPath(NbtPath),
+    Function { tag: bool, id: String },
     BlockInput(BlockInput),
     BlockPredicate(BlockPredicate),
     ItemInput(ItemInput),
@@ -166,6 +169,7 @@ impl ArgumentType {
             "minecraft:resource" => ArgumentType::Resource { registry: registry() },
             "minecraft:nbt_compound_tag" => ArgumentType::CompoundTag,
             "minecraft:nbt_tag" => ArgumentType::NbtTag,
+            "minecraft:function" => ArgumentType::Function,
             "minecraft:nbt_path" => ArgumentType::NbtPath,
             "minecraft:block_state" => ArgumentType::BlockState,
             "minecraft:block_predicate" => ArgumentType::BlockPredicate,
@@ -267,6 +271,7 @@ impl ArgumentType {
             }
             ArgumentType::CompoundTag => ArgumentValue::Nbt(crate::nbt::parse_compound_as_argument(reader)?),
             ArgumentType::NbtTag => ArgumentValue::Nbt(crate::nbt::parse_as_argument(reader)?),
+            ArgumentType::Function => function_argument::parse(reader)?,
             ArgumentType::NbtPath => ArgumentValue::NbtPath(nbt_path_argument::parse(reader)?),
             ArgumentType::BlockState => ArgumentValue::BlockInput(BlockInput::parse(reader)?),
             ArgumentType::BlockPredicate => ArgumentValue::BlockPredicate(BlockPredicate::parse(reader)?),

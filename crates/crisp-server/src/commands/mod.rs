@@ -1,6 +1,8 @@
 pub mod arguments;
 pub mod brigadier;
 pub mod shared_suggestion_provider;
+pub mod execution;
+pub mod functions;
 pub mod source;
 pub mod suggestion;
 
@@ -13,10 +15,10 @@ use crisp_protocol::Writer;
 use serde_json::Value;
 
 use self::brigadier::{
-    CommandContext, CommandSyntaxException, ContextChain, DISPATCHER_UNKNOWN_ARGUMENT, DISPATCHER_UNKNOWN_COMMAND, DynamicCommandExceptionType,
-    ParseResults, StringReader, error_context, tr,
+    CommandContext, CommandSyntaxException, ContextChain, DISPATCHER_UNKNOWN_ARGUMENT, DISPATCHER_UNKNOWN_COMMAND, ParseResults, StringReader, error_context,
 };
-use self::source::CommandSourceStack;
+use self::execution::{ChainModifiers, ChainStage, ExecutionContext, ExecutionControl};
+use self::source::{CommandResultCallback, CommandSourceStack};
 use self::suggestion::{Suggestions, SuggestionsBuilder};
 use crate::network::chat::{Component, HoverEvent};
 use crate::server::Server;
@@ -25,7 +27,9 @@ pub type CommandFn = fn(&mut Server, &CommandContext, &CommandSourceStack) -> Re
 
 pub type ModifierFn = fn(&mut Server, &CommandContext, &CommandSourceStack) -> Result<Vec<CommandSourceStack>, CommandSyntaxException>;
 
-pub static ERROR_FORK_LIMIT_REACHED: DynamicCommandExceptionType = DynamicCommandExceptionType(|limit| tr("command.forkLimit", vec![limit]));
+pub type CustomCommandFn = fn(&mut Server, &CommandSourceStack, &ChainStage, ChainModifiers, &ExecutionControl);
+
+pub type CustomModifierFn = fn(&mut Server, &CommandSourceStack, Vec<CommandSourceStack>, &ChainStage, ChainModifiers, &ExecutionControl);
 
 pub fn node_at(path: &str) -> &'static CommandNode {
     let mut node = CommandNode::root();
@@ -35,7 +39,7 @@ pub fn node_at(path: &str) -> &'static CommandNode {
     node
 }
 
-static EXECUTORS: LazyLock<Vec<Option<CommandFn>>> = LazyLock::new(|| {
+pub(crate) static EXECUTORS: LazyLock<Vec<Option<CommandFn>>> = LazyLock::new(|| {
     let mut table = vec![None; CommandNode::all().len()];
     for (path, f) in crate::server::commands::executors() {
         let node = node_at(&path);
@@ -45,7 +49,7 @@ static EXECUTORS: LazyLock<Vec<Option<CommandFn>>> = LazyLock::new(|| {
     table
 });
 
-static MODIFIERS: LazyLock<Vec<Option<ModifierFn>>> = LazyLock::new(|| {
+pub(crate) static MODIFIERS: LazyLock<Vec<Option<ModifierFn>>> = LazyLock::new(|| {
     let mut table = vec![None; CommandNode::all().len()];
     for (path, f) in crate::server::commands::modifiers() {
         let node = node_at(&path);
@@ -62,6 +66,16 @@ static SUGGESTERS: LazyLock<Vec<Option<SuggestFn>>> = LazyLock::new(|| {
     for (path, f) in crate::server::commands::suggestion_providers() {
         let node = node_at(&path);
         assert_eq!(node.suggestions, Some("minecraft:ask_server"), "'{path}' does not ask the server");
+        table[node.id as usize] = Some(f);
+    }
+    table
+});
+
+pub(crate) static CUSTOM_EXECUTORS: LazyLock<Vec<Option<CustomCommandFn>>> = LazyLock::new(|| {
+    let mut table = vec![None; CommandNode::all().len()];
+    for (path, f) in crate::server::commands::custom_executors() {
+        let node = node_at(&path);
+        assert!(node.executable, "'{path}' is not executable");
         table[node.id as usize] = Some(f);
     }
     table
@@ -122,6 +136,16 @@ fn list_suggestions(
     Ok(builder.build())
 }
 
+pub(crate) static CUSTOM_MODIFIERS: LazyLock<Vec<Option<CustomModifierFn>>> = LazyLock::new(|| {
+    let mut table = vec![None; CommandNode::all().len()];
+    for (path, f) in crate::server::commands::custom_modifiers() {
+        let node = node_at(&path);
+        assert!(node.modifier, "'{path}' has no redirect modifier");
+        table[node.id as usize] = Some(f);
+    }
+    table
+});
+
 pub fn perform_prefixed_command(server: &mut Server, source: &CommandSourceStack, command: &str) {
     let command = command.strip_prefix('/').unwrap_or(command);
     let units: Vec<u16> = command.encode_utf16().collect();
@@ -131,7 +155,32 @@ pub fn perform_prefixed_command(server: &mut Server, source: &CommandSourceStack
 
 pub fn perform_command(server: &mut Server, parse: ParseResults, command: &str, source: &CommandSourceStack) {
     let Some(chain) = finish_parsing(server, parse, command, source) else { return };
-    execute_chain(server, chain, source);
+    execute_command_in_context(server, |context| context.queue_initial_command_execution(chain, source, CommandResultCallback::EMPTY));
+}
+
+pub fn execute_command_in_context(server: &mut Server, config: impl FnOnce(&mut ExecutionContext)) {
+    if ExecutionContext::is_running() {
+        ExecutionContext::with(config);
+        return;
+    }
+    let chain_limit = server.game_rules.get_int(crisp_data::game_rule::MAX_COMMAND_SEQUENCE_LENGTH).max(1);
+    let fork_limit = server.game_rules.get_int(crisp_data::game_rule::MAX_COMMAND_FORKS);
+    ExecutionContext::run(server, ExecutionContext::new(chain_limit, fork_limit), config);
+}
+
+pub fn create_compilation_context(permission: i32) -> CommandSourceStack {
+    CommandSourceStack {
+        source: source::CommandSource::Null,
+        position: crisp_core::Vec3::ZERO,
+        rotation: (0.0, 0.0),
+        permission,
+        names: source::Names::Constant(Component::empty()),
+        entity: None,
+        silent: false,
+        anchor: source::Anchor::Feet,
+        callback: CommandResultCallback::EMPTY,
+        signing_context: None,
+    }
 }
 
 fn finish_parsing(server: &Server, parse: ParseResults, command: &str, source: &CommandSourceStack) -> Option<ContextChain> {
@@ -151,7 +200,7 @@ fn finish_parsing(server: &Server, parse: ParseResults, command: &str, source: &
     }
 }
 
-fn parse_exception(parse: &ParseResults) -> Option<CommandSyntaxException> {
+pub(crate) fn parse_exception(parse: &ParseResults) -> Option<CommandSyntaxException> {
     if !parse.reader.can_read() {
         None
     } else if parse.exceptions.len() == 1 {
@@ -163,54 +212,7 @@ fn parse_exception(parse: &ParseResults) -> Option<CommandSyntaxException> {
     }
 }
 
-fn execute_chain(server: &mut Server, chain: ContextChain, original: &CommandSourceStack) {
-    let fork_limit = server.game_rules.get_int(crisp_data::game_rule::MAX_COMMAND_FORKS) as usize;
-    let mut forked = false;
-    let mut sources = vec![original.clone()];
-    for context in &chain.modifiers {
-        forked |= context.forks;
-        let Some(modifier) = context.modifier else { continue };
-        let modifier = MODIFIERS[modifier as usize].unwrap_or_else(|| unimplemented_modifier(context));
-        let mut next = Vec::new();
-        for source in &sources {
-            match modifier(server, context, source) {
-                Ok(new_sources) => {
-                    if next.len() + new_sources.len() >= fork_limit {
-                        original.handle_error(server, ERROR_FORK_LIMIT_REACHED.create(fork_limit as i32), forked);
-                        return;
-                    }
-                    next.extend(new_sources);
-                }
-                Err(e) => {
-                    source.handle_error(server, e, forked);
-                    if !forked {
-                        return;
-                    }
-                }
-            }
-        }
-        sources = next;
-    }
-    let executable = &chain.executable;
-    let command = executable.command.and_then(|id| EXECUTORS[id as usize]);
-    for source in sources {
-        let result = match command {
-            Some(command) => command(server, executable, &source),
-            None => Err(not_implemented(executable)),
-        };
-        match result {
-            Ok(result) => source.callback.on_result(server, true, result),
-            Err(e) => {
-                source.callback.on_result(server, false, 0);
-                if !forked {
-                    source.handle_error(server, e, forked);
-                }
-            }
-        }
-    }
-}
-
-fn unimplemented_modifier(_context: &CommandContext) -> ModifierFn {
+pub(crate) fn unimplemented_modifier(_context: &CommandContext) -> ModifierFn {
     |_, context, _| Err(not_implemented(context))
 }
 
@@ -218,7 +220,7 @@ pub fn unexpected_error(message: &str) -> CommandSyntaxException {
     CommandSyntaxException::new(Component::translatable("command.failed").with_hover(HoverEvent::ShowText(Box::new(Component::literal(message)))))
 }
 
-fn not_implemented(context: &CommandContext) -> CommandSyntaxException {
+pub(crate) fn not_implemented(context: &CommandContext) -> CommandSyntaxException {
     let name = context.nodes.first().map_or("", |n| CommandNode::get(n.node).name);
     CommandSyntaxException::new(
         Component::translatable("command.failed").with_hover(HoverEvent::ShowText(Box::new(Component::literal(format!("/{name} is not implemented in Crisp yet"))))),
@@ -441,6 +443,8 @@ mod tests {
     fn every_registered_path_exists() {
         LazyLock::force(&EXECUTORS);
         LazyLock::force(&MODIFIERS);
+        LazyLock::force(&CUSTOM_EXECUTORS);
+        LazyLock::force(&CUSTOM_MODIFIERS);
     }
 }
 

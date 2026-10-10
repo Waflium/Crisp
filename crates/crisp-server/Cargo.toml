@@ -31,6 +31,8 @@ chrono-tz = "0.10"
 iana-time-zone = "0.1"
 lz4_flex = { version = "0.11", default-features = false, features = ["safe-encode", "safe-decode"] }
 gethostname = "1"
+zip = { version = "8.6.0", default-features = false, features = ["deflate"] }
+regex-lite = "0.1.9"
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"

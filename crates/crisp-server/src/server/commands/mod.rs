@@ -575,3 +575,11 @@ pub fn suggestion_providers() -> Vec<(String, crate::commands::SuggestFn)> {
     all.push(("whitelist remove targets".into(), whitelist_command::suggest_listed_players));
     all
 }
+
+pub fn custom_executors() -> Vec<(String, crate::commands::CustomCommandFn)> {
+    Vec::new()
+}
+
+pub fn custom_modifiers() -> Vec<(String, crate::commands::CustomModifierFn)> {
+    Vec::new()
+}

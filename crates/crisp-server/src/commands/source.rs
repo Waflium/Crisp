@@ -67,17 +67,55 @@ pub enum Names {
 }
 
 #[derive(Clone, Default)]
-pub struct CommandResultCallback(Vec<Arc<dyn Fn(&mut Server, bool, i32) + Send + Sync>>);
+pub struct CommandResultCallback(Option<Arc<CallbackNode>>);
+
+enum CallbackNode {
+    Leaf(Box<dyn Fn(&mut Server, bool, i32) + Send + Sync>),
+    Chain(CommandResultCallback, CommandResultCallback),
+}
 
 impl CommandResultCallback {
+    pub const EMPTY: CommandResultCallback = CommandResultCallback(None);
+
+    pub fn new(callback: impl Fn(&mut Server, bool, i32) + Send + Sync + 'static) -> CommandResultCallback {
+        CommandResultCallback(Some(Arc::new(CallbackNode::Leaf(Box::new(callback)))))
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.0.is_none()
+    }
+
     pub fn on_result(&self, server: &mut Server, success: bool, result: i32) {
-        self.0.iter().for_each(|callback| callback(server, success, result));
+        match self.0.as_deref() {
+            None => {}
+            Some(CallbackNode::Leaf(callback)) => callback(server, success, result),
+            Some(CallbackNode::Chain(first, second)) => {
+                first.on_result(server, success, result);
+                second.on_result(server, success, result);
+            }
+        }
+    }
+
+    pub fn on_success(&self, server: &mut Server, result: i32) {
+        self.on_result(server, true, result);
+    }
+
+    pub fn on_failure(&self, server: &mut Server) {
+        self.on_result(server, false, 0);
+    }
+
+    pub fn chain(first: &CommandResultCallback, second: &CommandResultCallback) -> CommandResultCallback {
+        match (&first.0, &second.0) {
+            (None, _) => second.clone(),
+            (_, None) => first.clone(),
+            _ => CommandResultCallback(Some(Arc::new(CallbackNode::Chain(first.clone(), second.clone())))),
+        }
     }
 }
 
 impl fmt::Debug for CommandResultCallback {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "CommandResultCallback({})", self.0.len())
+        f.write_str(if self.is_empty() { "<empty>" } else { "CommandResultCallback" })
     }
 }
 
@@ -222,9 +260,23 @@ impl CommandSourceStack {
     }
 
     pub fn with_chained_callback(&self, callback: impl Fn(&mut Server, bool, i32) + Send + Sync + 'static) -> CommandSourceStack {
-        let mut source = self.clone();
-        source.callback.0.push(Arc::new(callback));
-        source
+        self.with_callback(CommandResultCallback::chain(&self.callback, &CommandResultCallback::new(callback)))
+    }
+
+    pub fn with_callback(&self, callback: CommandResultCallback) -> CommandSourceStack {
+        CommandSourceStack { callback, ..self.clone() }
+    }
+
+    pub fn clear_callbacks(&self) -> CommandSourceStack {
+        self.with_callback(CommandResultCallback::EMPTY)
+    }
+
+    pub fn with_maximum_permission(&self, level: i32) -> CommandSourceStack {
+        CommandSourceStack { permission: self.permission.max(level), ..self.clone() }
+    }
+
+    pub fn with_permission(&self, permission: i32) -> CommandSourceStack {
+        CommandSourceStack { permission, ..self.clone() }
     }
 
     pub fn send_system_message(&self, server: &Server, message: &Component) {

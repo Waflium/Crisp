@@ -11,6 +11,7 @@ pub mod server_tick_rate_manager;
 pub mod services;
 #[cfg(test)]
 mod scoreboard_tests;
+pub mod server_function_library;
 pub mod server_links;
 pub mod server_scoreboard;
 
@@ -155,6 +156,7 @@ pub struct Server {
     pub custom_boss_events: CustomBossEvents,
     pub stopwatches: Stopwatches,
     pub services: Services,
+    pub functions: server_function_library::ServerFunctionLibrary,
     pub scoreboard_save_data: ScoreboardSaveData,
     world_dir: Option<WorldDir>,
     stopping: bool,
@@ -290,6 +292,7 @@ impl Server {
             custom_boss_events: CustomBossEvents::load(world_dir.as_ref().map(WorldDir::data_folder)),
             stopwatches: Stopwatches::load(world_dir.as_ref().map(WorldDir::data_folder)),
             services: Services::offline(),
+            functions: Default::default(),
             scoreboard_save_data,
             world_dir,
             stopping: false,
