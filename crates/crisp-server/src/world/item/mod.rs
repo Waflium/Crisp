@@ -4,6 +4,7 @@ pub mod bone_meal_item;
 pub mod component;
 pub mod context;
 pub mod crafting;
+pub mod enchantment;
 pub mod flint_and_steel_item;
 mod item_stack;
 pub mod scaffolding_block_item;

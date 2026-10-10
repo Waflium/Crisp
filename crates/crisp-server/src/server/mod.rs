@@ -850,12 +850,8 @@ impl Server {
         player.last_sent_health = player.health;
         player.last_sent_food = food.food_level;
         player.last_food_saturation_zero = food.saturation_level == 0.0;
-        player.connection.send(clientbound::SET_EXPERIENCE, |p| {
-            p.f32(0.0);
-            p.varint(0);
-            p.varint(0);
-        });
-        player.last_sent_exp = 0;
+        player.send_experience();
+        player.last_sent_exp = player.experience.total;
         let joined = NameAndId { id: player.profile.uuid, name: player.profile.name.clone() };
         self.notification_manager.player_joined(&joined);
     }

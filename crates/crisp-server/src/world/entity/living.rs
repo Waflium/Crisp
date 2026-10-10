@@ -213,6 +213,10 @@ impl ServerLevel {
         if spectator {
             self.set_on_ground(id, false);
         }
+        let experience = &mut self.player_mut(id).experience;
+        if experience.take_xp_delay > 0 {
+            experience.take_xp_delay -= 1;
+        }
         self.player_mut(id).living.swing_state.tick();
         self.entity_base_tick(id);
         self.living_base_tick(id);
@@ -251,6 +255,7 @@ impl ServerLevel {
         p.living.speed = speed;
         if p.health > 0.0 && !self.is_spectator(id) {
             self.pick_up_items(id);
+            self.touch_experience_orbs(id);
         }
     }
 

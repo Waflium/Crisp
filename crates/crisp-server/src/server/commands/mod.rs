@@ -16,6 +16,7 @@ mod effect_commands;
 #[cfg(test)]
 mod effect_command_tests;
 mod emote_commands;
+mod experience_command;
 mod execute_command;
 mod fill_command;
 mod force_load_command;
@@ -87,6 +88,7 @@ pub fn executors() -> Vec<(String, CommandFn)> {
     all.extend(boss_bar_commands::executors());
     all.extend(stop_sound_command::executors());
     all.extend(effect_commands::executors());
+    all.extend(experience_command::executors());
     all.extend(attribute_command::executors());
     all.extend(world_border_command::executors());
     all.extend(data_pack_command::executors());

@@ -110,7 +110,11 @@ impl ServerLevel {
     }
 
     fn default_gravity(&self, id: EntityId) -> f64 {
-        if self.is_player(id) { self.attribute_value(id, Attribute::Gravity) } else { 0.04 }
+        match self.entities.get(&id) {
+            None => self.attribute_value(id, Attribute::Gravity),
+            Some(super::LevelEntity::ExperienceOrb(_)) => 0.03,
+            Some(_) => 0.04,
+        }
     }
 
     pub fn gravity(&self, id: EntityId) -> f64 {
@@ -154,7 +158,11 @@ impl ServerLevel {
     }
 
     fn sound_source(&self, id: EntityId) -> SoundSource {
-        if self.is_player(id) { SoundSource::Players } else { SoundSource::Neutral }
+        match self.entities.get(&id) {
+            None => SoundSource::Players,
+            Some(super::LevelEntity::ExperienceOrb(_)) => SoundSource::Ambient,
+            Some(_) => SoundSource::Neutral,
+        }
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -968,7 +976,7 @@ impl ServerLevel {
     }
 
     fn do_water_splash_effect(&mut self, id: EntityId) {
-        if self.is_spectator(id) {
+        if self.is_spectator(id) || matches!(self.entities.get(&id), Some(super::LevelEntity::ExperienceOrb(_))) {
             return;
         }
         let player = self.is_player(id);

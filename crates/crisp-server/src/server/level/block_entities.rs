@@ -59,7 +59,7 @@ impl ServerLevel {
             crate::world::containers::drop_contents(self, pos, container);
         }
         if is_furnace {
-            self.get_recipes_to_award_and_pop_experience(pos);
+            self.get_recipes_to_award_and_pop_experience(pos, crisp_core::Vec3::at_center_of(pos));
         }
     }
 

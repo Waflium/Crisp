@@ -53,6 +53,10 @@ impl CommandContext {
         Ok(result)
     }
 
+    pub fn get_player(&self, server: &Server, source: &CommandSourceStack, name: &str) -> Result<EntityId, CommandSyntaxException> {
+        self.selector(name).find_single_player(server, source)
+    }
+
     pub fn get_optional_players(&self, server: &Server, source: &CommandSourceStack, name: &str) -> Result<Vec<EntityId>, CommandSyntaxException> {
         self.selector(name).find_players(server, source)
     }

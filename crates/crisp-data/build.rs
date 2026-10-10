@@ -79,6 +79,7 @@ fn main() -> anyhow::Result<()> {
     embed_json(&mut out, &data, "loot_table", "LOOT_TABLES")?;
     embed_json(&mut out, &data, "predicate", "PREDICATES")?;
     embed_json(&mut out, &data, "recipe", "RECIPES")?;
+    embed_json(&mut out, &data, "enchantment", "ENCHANTMENTS")?;
     embed_json(&mut out, &data, "context_int_provider", "CONTEXT_INT_PROVIDERS")?;
     embed_json(&mut out, &data, "context_float_provider", "CONTEXT_FLOAT_PROVIDERS")?;
     embed_json(&mut out, &data, "timeline", "TIMELINES")?;

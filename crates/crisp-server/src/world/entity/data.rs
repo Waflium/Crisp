@@ -232,4 +232,5 @@ pub mod ids {
     pub const PLAYER_MAIN_HAND: usize = 15;
     pub const PLAYER_MODE_CUSTOMISATION: usize = 16;
     pub const PLAYER_ABSORPTION: usize = 17;
+    pub const PLAYER_SCORE: usize = 18;
 }

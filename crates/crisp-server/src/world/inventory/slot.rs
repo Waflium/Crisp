@@ -145,11 +145,11 @@ impl ServerLevel {
         }
     }
 
-    fn check_take_achievements(&mut self, _player: EntityId, slot: &mut Slot, _carried: &ItemStack) {
+    fn check_take_achievements(&mut self, player: EntityId, slot: &mut Slot, _carried: &ItemStack) {
         if let SlotContainer::Container(c) = slot.container
             && let Some(pos) = c.single_block()
         {
-            self.award_used_recipes_and_pop_experience(pos);
+            self.award_used_recipes_and_pop_experience(pos, player);
         }
         if let SlotKind::FurnaceResult { remove_count } = &mut slot.kind {
             *remove_count = 0;

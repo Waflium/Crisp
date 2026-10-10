@@ -82,6 +82,7 @@ impl Server {
         let transition = self.find_respawn_position(id);
         self.level.remove_player_from_level(id, RemovalReason::Killed);
         let old = self.level.players.shift_remove(&id).expect("respawning player");
+        let old_score = old.score();
         let mut player = ServerPlayer::new(old.profile.clone(), old.client, old.connection.clone(), BlockPos::ZERO);
         player.entity.id = id;
         player.chunk_sender = old.chunk_sender;
@@ -104,7 +105,12 @@ impl Server {
                 player.inventory.slots[slot] = old.inventory.slots[slot].clone();
             }
             player.inventory.selected = old.inventory.selected;
+            player.experience.level = old.experience.level;
+            player.experience.total = old.experience.total;
+            player.experience.progress = old.experience.progress;
+            player.set_score(old_score);
         }
+        player.experience.enchantment_seed = old.experience.enchantment_seed;
         player.last_sent_exp = -1;
         player.last_sent_health = -1.0;
         player.last_sent_food = -1;
@@ -145,11 +151,7 @@ impl Server {
         player.teleport(pos, y_rot, x_rot);
         out.send(clientbound::SET_DEFAULT_SPAWN_POSITION, |p| self.write_spawn(p));
         self.send_difficulty_update(&out);
-        out.send(clientbound::SET_EXPERIENCE, |p| {
-            p.f32(0.0);
-            p.varint(0);
-            p.varint(0);
-        });
+        player.send_experience();
         out.send(clientbound::POST_EFFECTS, |p| p.varint(0));
         out.send(clientbound::INITIALIZE_BORDER, |p| write_initialize_border(p, &self.level.world_border));
         out.send(clientbound::SET_TIME, |p| self.full_time_sync(p));

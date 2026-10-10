@@ -88,7 +88,7 @@ impl EntityPredicate {
                 let rotation = mth::wrap_degrees(if x { e.x_rot } else { e.y_rot });
                 if min > max { rotation >= min || rotation <= max } else { rotation >= min && rotation <= max }
             }
-            EntityPredicate::Level(level) => server.level.players.contains_key(&id) && level.matches(0),
+            EntityPredicate::Level(level) => server.level.players.get(&id).is_some_and(|p| level.matches(p.experience.level)),
         }
     }
 }

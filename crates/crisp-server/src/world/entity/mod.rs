@@ -4,6 +4,7 @@ pub mod data;
 mod effect_tests;
 pub mod effects;
 pub mod entity_save;
+pub mod experience_orb;
 pub mod fluid_interaction;
 pub mod hurt;
 pub mod inside_block;
@@ -583,6 +584,7 @@ pub fn create_insecure_uuid(random: &mut impl RandomSource) -> u128 {
 
 pub enum LevelEntity {
     Item(ItemEntity),
+    ExperienceOrb(experience_orb::ExperienceOrb),
     LightningBolt(lightning_bolt::LightningBolt),
     PrimedTnt(primed_tnt::PrimedTnt),
 }
@@ -593,6 +595,7 @@ impl LevelEntity {
             LevelEntity::Item(item) => crate::network::chat::Component::translatable(item.item.item.info().description_id),
             LevelEntity::LightningBolt(_) => crate::network::chat::Component::translatable("entity.minecraft.lightning_bolt"),
             LevelEntity::PrimedTnt(_) => crate::network::chat::Component::translatable("entity.minecraft.tnt"),
+            LevelEntity::ExperienceOrb(_) => crate::network::chat::Component::translatable("entity.minecraft.experience_orb"),
         }
     }
 
@@ -612,6 +615,7 @@ impl LevelEntity {
             LevelEntity::Item(_) => TrackingConfig { range: 6 * 16, update_interval: UpdateInterval::Periodic(20), track_deltas: true, stepped: false, is_item: true },
             LevelEntity::PrimedTnt(_) => TrackingConfig { range: 10 * 16, update_interval: UpdateInterval::Periodic(10), track_deltas: true, stepped: false, is_item: false },
             LevelEntity::LightningBolt(_) => TrackingConfig { range: 16 * 16, update_interval: UpdateInterval::Never, track_deltas: true, stepped: false, is_item: false },
+            LevelEntity::ExperienceOrb(_) => TrackingConfig { range: 6 * 16, update_interval: UpdateInterval::Periodic(20), track_deltas: true, stepped: false, is_item: false },
         }
     }
 
@@ -620,6 +624,7 @@ impl LevelEntity {
             LevelEntity::Item(item) => &item.entity,
             LevelEntity::LightningBolt(bolt) => &bolt.entity,
             LevelEntity::PrimedTnt(tnt) => &tnt.entity,
+            LevelEntity::ExperienceOrb(orb) => &orb.entity,
         }
     }
 
@@ -628,6 +633,7 @@ impl LevelEntity {
             LevelEntity::Item(item) => &mut item.entity,
             LevelEntity::LightningBolt(bolt) => &mut bolt.entity,
             LevelEntity::PrimedTnt(tnt) => &mut tnt.entity,
+            LevelEntity::ExperienceOrb(orb) => &mut orb.entity,
         }
     }
 
@@ -641,6 +647,13 @@ impl LevelEntity {
     pub fn as_item_mut(&mut self) -> Option<&mut ItemEntity> {
         match self {
             LevelEntity::Item(item) => Some(item),
+            _ => None,
+        }
+    }
+
+    pub fn as_experience_orb(&self) -> Option<&experience_orb::ExperienceOrb> {
+        match self {
+            LevelEntity::ExperienceOrb(orb) => Some(orb),
             _ => None,
         }
     }

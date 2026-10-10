@@ -9,6 +9,7 @@ use super::primed_tnt::PrimedTnt;
 use super::{Entity, EntityId, LevelEntity, MAX_ENTITY_TAG_COUNT, RemovalReason};
 use crate::server::level::ServerLevel;
 use crate::world::item::ItemStack;
+use crate::world::level::block::entity::int_value;
 use crate::world::level::chunk::serialization::{state_from_nbt, state_to_nbt};
 use crate::world::level::storage::uuid_ints;
 
@@ -138,6 +139,7 @@ impl LevelEntity {
         match self {
             LevelEntity::Item(_) => Some("minecraft:item"),
             LevelEntity::PrimedTnt(_) => Some("minecraft:tnt"),
+            LevelEntity::ExperienceOrb(_) => Some("minecraft:experience_orb"),
             LevelEntity::LightningBolt(_) => None,
         }
     }
@@ -179,6 +181,12 @@ impl LevelEntity {
                     out.push(("owner".into(), uuid_ints(owner)));
                 }
             }
+            LevelEntity::ExperienceOrb(orb) => {
+                out.push(("Health".into(), Nbt::Short(orb.health as i16)));
+                out.push(("Age".into(), Nbt::Short(orb.age as i16)));
+                out.push(("Value".into(), Nbt::Short(orb.value() as i16)));
+                out.push(("Count".into(), Nbt::Int(orb.count)));
+            }
             LevelEntity::LightningBolt(_) => {}
         }
     }
@@ -204,6 +212,13 @@ impl LevelEntity {
                 tnt.explosion_power = number(nbt, "explosion_power").map_or(4.0, |v| v as f32).clamp(0.0, 128.0);
                 tnt.owner = nbt.get("owner").and_then(uuid_from_nbt);
             }
+            LevelEntity::ExperienceOrb(orb) => {
+                let short = |key: &str, default: i16| nbt.get(key).and_then(int_value).map_or(default, |v| v as i16) as i32;
+                orb.health = short("Health", 5);
+                orb.age = short("Age", 0);
+                orb.set_value(short("Value", 0));
+                orb.count = nbt.get("Count").and_then(int_value).filter(|&c| c > 0).unwrap_or(1);
+            }
             LevelEntity::LightningBolt(_) => {}
         }
         Ok(())
@@ -215,6 +230,7 @@ impl ServerLevel {
         let mut entity = match nbt.get("id").and_then(Nbt::as_str)? {
             "minecraft:item" => LevelEntity::Item(ItemEntity::with_movement(Vec3::ZERO, ItemStack::new(crisp_data::items::AIR, 0), Vec3::ZERO)),
             "minecraft:tnt" => LevelEntity::PrimedTnt(PrimedTnt::of_type()),
+            "minecraft:experience_orb" => LevelEntity::ExperienceOrb(super::experience_orb::ExperienceOrb::of_type()),
             "minecraft:lightning_bolt" => LevelEntity::LightningBolt(super::lightning_bolt::LightningBolt::new(Vec3::ZERO)),
             other => {
                 warn!("Skipping Entity with id {other}");

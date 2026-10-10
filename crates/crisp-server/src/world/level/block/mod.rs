@@ -26,6 +26,7 @@ mod cross_collision_block;
 mod detector_rail_block;
 mod diode_block;
 mod door_block;
+mod drop_experience_block;
 mod end_rod_block;
 mod face_attached_horizontal_directional_block;
 mod fence_block;
@@ -50,6 +51,7 @@ mod powered_rail_block;
 mod pressure_plate_block;
 mod rail_block;
 mod rail_state;
+mod red_stone_ore_block;
 mod redstone_lamp_block;
 #[cfg(test)]
 mod redstone_tests;
@@ -59,11 +61,15 @@ pub mod redstone_wire_block;
 mod repeater_block;
 mod rotated_pillar_block;
 pub mod scaffolding_block;
+mod sculk_catalyst_block;
+mod sculk_sensor_block;
+mod sculk_shrieker_block;
 pub mod simple_waterlogged_block;
 mod slab_block;
 mod smithing_table_block;
 mod snow_layer_block;
 mod soul_fire_block;
+mod spawner_block;
 mod sponge_block;
 mod stair_block;
 mod stonecutter_block;
@@ -423,6 +429,12 @@ fn for_class(class: &str, block: Block) -> Option<Box<dyn BlockBehaviour>> {
         "TntBlock" => Box::new(tnt_block::TntBlock),
         "SoulFireBlock" => Box::new(soul_fire_block::SoulFireBlock),
         "LayeredCauldronBlock" => Box::new(cauldron_block::LayeredCauldronBlock::new(block)),
+        "DropExperienceBlock" => Box::new(drop_experience_block::DropExperienceBlock::new(block)),
+        "RedStoneOreBlock" => Box::new(red_stone_ore_block::RedStoneOreBlock),
+        "SpawnerBlock" => Box::new(spawner_block::SpawnerBlock),
+        "SculkSensorBlock" => Box::new(sculk_sensor_block::SculkSensorBlock),
+        "SculkShriekerBlock" => Box::new(sculk_shrieker_block::SculkShriekerBlock),
+        "SculkCatalystBlock" => Box::new(sculk_catalyst_block::SculkCatalystBlock),
 
         "LiquidBlock" => Box::new(liquid_block::LiquidBlock::new(block)),
         "BubbleColumnBlock" => Box::new(bubble_column_block::BubbleColumnBlock),

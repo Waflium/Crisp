@@ -499,10 +499,18 @@ impl ServerLevel {
     }
 
     pub fn drop_resources_with_entity(&mut self, state: BlockState, pos: BlockPos, block_entity: Option<&BlockEntity>, _breaker: Option<EntityId>, tool: Option<ItemStack>) {
-        let Some(table) = state.block().info().loot_table else { return };
-        let ctx = LootContext { block_state: Some(state), tool: tool.as_ref(), explosion_radius: None, block_entity };
-        for stack in generate(table, &ctx, &mut rand::rng()) {
-            self.pop_resource(pos, stack);
+        if let Some(table) = state.block().info().loot_table {
+            let ctx = LootContext { block_state: Some(state), tool: tool.as_ref(), explosion_radius: None, block_entity };
+            for stack in generate(table, &ctx, &mut rand::rng()) {
+                self.pop_resource(pos, stack);
+            }
+        }
+        block::of(state).spawn_after_break(state, self, pos, tool, true);
+    }
+
+    pub fn pop_experience(&mut self, pos: BlockPos, amount: i32) {
+        if self.game_rules.get_bool(crisp_data::game_rule::BLOCK_DROPS) {
+            self.award_experience(Vec3::at_center_of(pos), amount);
         }
     }
 
@@ -1109,6 +1117,7 @@ impl ServerLevel {
             Some(LevelEntity::Item(_)) => self.tick_item(id),
             Some(LevelEntity::LightningBolt(_)) => self.tick_lightning_bolt(id),
             Some(LevelEntity::PrimedTnt(_)) => self.tick_primed_tnt(id),
+            Some(LevelEntity::ExperienceOrb(_)) => self.tick_experience_orb(id),
             None => return,
         }
         if self.entities.get(&id).is_some_and(|e| e.entity().is_removed()) {

@@ -1,4 +1,4 @@
-use crisp_core::{BlockPos, Direction};
+use crisp_core::{BlockPos, Direction, Vec3};
 use crisp_data::properties::LIT;
 use crisp_data::{BlockState, items};
 use crisp_protocol::nbt::Nbt;
@@ -6,6 +6,7 @@ use crisp_protocol::nbt::Nbt;
 use super::base_container_block_entity::{BaseContainerBlockEntity, save_all_items};
 use super::{BlockEntityKind, float_value, int_or, int_value};
 use crate::server::level::ServerLevel;
+use crate::world::entity::EntityId;
 use crate::world::item::ItemStack;
 use crate::world::item::component as dc;
 use crate::world::item::crafting::{self, CookingRecipeType};
@@ -269,23 +270,25 @@ impl ServerLevel {
         }
     }
 
-    pub fn get_recipes_to_award_and_pop_experience(&mut self, pos: BlockPos) {
+    pub fn get_recipes_to_award_and_pop_experience(&mut self, pos: BlockPos, position: Vec3) {
         let Some(furnace) = self.furnace(pos) else { return };
         let used = furnace.recipes_used.clone();
         for (id, amount) in used {
             if let Some(recipe) = crafting::by_key(&id) {
                 let total = amount as f32 * recipe.experience;
-                let mut _xp_reward = crisp_core::mth::floor(total as f64);
+                let mut xp_reward = crisp_core::mth::floor(total as f64);
                 let fraction = crisp_core::mth::frac_f(total);
                 if fraction != 0.0 && crisp_core::random::RandomSource::next_float(&mut self.random) < fraction {
-                    _xp_reward += 1;
+                    xp_reward += 1;
                 }
+                self.award_experience(position, xp_reward);
             }
         }
     }
 
-    pub fn award_used_recipes_and_pop_experience(&mut self, pos: BlockPos) {
-        self.get_recipes_to_award_and_pop_experience(pos);
+    pub fn award_used_recipes_and_pop_experience(&mut self, pos: BlockPos, player: EntityId) {
+        let position = self.player(player).entity.position();
+        self.get_recipes_to_award_and_pop_experience(pos, position);
         if let Some(furnace) = self.furnace(pos) {
             furnace.recipes_used.clear();
         }

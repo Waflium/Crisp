@@ -74,6 +74,7 @@ pub struct ServerPlayer {
     pub respawn_config: Option<RespawnConfig>,
     pub health: f32,
     pub food_data: crate::world::food::FoodData,
+    pub experience: crate::world::entity::player::experience::Experience,
     pub last_sent_health: f32,
     pub last_sent_food: i32,
     pub last_food_saturation_zero: bool,
@@ -140,6 +141,7 @@ impl ServerPlayer {
             respawn_config: None,
             health: 20.0,
             food_data: Default::default(),
+            experience: Default::default(),
             last_sent_health: -1.0e8,
             last_sent_food: -99999999,
             last_food_saturation_zero: true,
@@ -265,6 +267,8 @@ impl ServerPlayer {
             .collect();
         nbt.push(("Inventory".into(), Nbt::List(inventory)));
         nbt.push(("SelectedItemSlot".into(), Nbt::Int(self.inventory.selected as i32)));
+        self.experience.save(&mut nbt);
+        nbt.push(("Score".into(), Nbt::Int(self.score())));
         self.food_data.save(&mut nbt);
         nbt.push(("abilities".into(), self.abilities.to_nbt()));
         if let Some((dimension, pos)) = &self.last_death_location {
@@ -330,6 +334,8 @@ impl ServerPlayer {
                 self.inventory.slots[slot] = Some(stack);
             }
         }
+        self.experience.load(nbt, &mut self.entity.random);
+        self.set_score(nbt.get("Score").and_then(crate::world::level::block::entity::int_value).unwrap_or(0));
         let p = self.entity.position();
         self.last_section_pos = (mth::floor(p.x) >> 4, mth::floor(p.y) >> 4, mth::floor(p.z) >> 4);
     }

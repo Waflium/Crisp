@@ -170,6 +170,51 @@ impl ServerLevel {
         main_support
     }
 
+    pub fn find_free_position(&self, allowed: &AABB, preferred: Vec3, size_x: f64, size_y: f64, size_z: f64) -> Option<Vec3> {
+        let search = allowed.inflate(size_x, size_y, size_z);
+        let mut expanded = Vec::new();
+        for (_, collider) in self.block_collisions(&search, false) {
+            let [dx, dy, dz] = collider.offset;
+            let boxes: Vec<AABB> = collider.shape.to_aabbs().iter().map(|b| b.move_by(dx, dy, dz)).collect();
+            let Some(bounds) = boxes.iter().copied().reduce(|a, b| a.minmax(&b)) else { continue };
+            if self.world_border.is_within_bounds_aabb(&bounds) {
+                expanded.extend(boxes.iter().map(|b| b.inflate(size_x / 2.0, size_y / 2.0, size_z / 2.0)));
+            }
+        }
+        let coords = |min: f64, max: f64, edges: &dyn Fn(&AABB) -> [f64; 2]| {
+            let mut c = vec![min, max];
+            c.extend(expanded.iter().flat_map(edges).filter(|&v| v > min && v < max));
+            c.sort_by(f64::total_cmp);
+            let mut merged: Vec<f64> = Vec::with_capacity(c.len());
+            for v in c {
+                if merged.last().is_none_or(|&last| last < v - 1.0e-7) {
+                    merged.push(v);
+                }
+            }
+            merged
+        };
+        let xs = coords(allowed.min_x, allowed.max_x, &|b| [b.min_x, b.max_x]);
+        let ys = coords(allowed.min_y, allowed.max_y, &|b| [b.min_y, b.max_y]);
+        let zs = coords(allowed.min_z, allowed.max_z, &|b| [b.min_z, b.max_z]);
+        let mut closest: Option<(Vec3, f64)> = None;
+        for x in xs.windows(2) {
+            for y in ys.windows(2) {
+                for z in zs.windows(2) {
+                    let (mx, my, mz) = ((x[0] + x[1]) / 2.0, (y[0] + y[1]) / 2.0, (z[0] + z[1]) / 2.0);
+                    if expanded.iter().any(|b| b.contains(mx, my, mz)) {
+                        continue;
+                    }
+                    let point = Vec3::new(mth::clamp(preferred.x, x[0], x[1]), mth::clamp(preferred.y, y[0], y[1]), mth::clamp(preferred.z, z[0], z[1]));
+                    let distance = preferred.distance_to_sqr(point);
+                    if closest.is_none_or(|(_, d)| distance < d) {
+                        closest = Some((point, distance));
+                    }
+                }
+            }
+        }
+        closest.map(|(point, _)| point)
+    }
+
     pub fn has_chunks_at(&self, x0: i32, z0: i32, x1: i32, z1: i32) -> bool {
         for chunk_x in x0 >> 4..=x1 >> 4 {
             for chunk_z in z0 >> 4..=z1 >> 4 {

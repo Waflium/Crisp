@@ -145,7 +145,7 @@ impl ServerLevel {
         true
     }
 
-    fn is_invulnerable_to_base(&self, id: EntityId, source: &DamageSource) -> bool {
+    pub(crate) fn is_invulnerable_to_base(&self, id: EntityId, source: &DamageSource) -> bool {
         self.entity(id).is_removed() || source.is(&damage_type_tags::IS_FIRE) && self.fire_immune(id)
     }
 
@@ -157,6 +157,9 @@ impl ServerLevel {
     }
 
     pub fn hurt_server(&mut self, id: EntityId, source: DamageSource, damage: f32) -> bool {
+        if let Some(super::LevelEntity::ExperienceOrb(_)) = self.entities.get(&id) {
+            return self.experience_orb_hurt_server(id, &source, damage);
+        }
         if !self.is_player(id) {
             return self.item_hurt_server(id, source, damage);
         }
@@ -472,7 +475,16 @@ impl ServerLevel {
         p.movement.waiting_for_respawn = true;
     }
 
-    fn drop_all_death_loot(&mut self, id: EntityId, _source: &DamageSource) {
+    fn drop_all_death_loot(&mut self, id: EntityId, source: &DamageSource) {
+        self.drop_equipment(id);
+        let keep = self.game_rules.get_bool(game_rule::KEEP_INVENTORY) || self.is_spectator(id);
+        let base = if keep { 0 } else { self.player(id).experience.level.wrapping_mul(7).min(100) };
+        let reward = self.process_mob_experience(source.causing_entity, base);
+        let pos = self.entity(id).position();
+        self.award_experience(pos, reward);
+    }
+
+    fn drop_equipment(&mut self, id: EntityId) {
         if self.game_rules.get_bool(game_rule::KEEP_INVENTORY) {
             return;
         }
@@ -735,13 +747,9 @@ impl ServerLevel {
         }
         self.update_criteria_scores(id);
         let p = self.player_mut(id);
-        if p.last_sent_exp != 0 {
-            p.last_sent_exp = 0;
-            p.connection.send(clientbound::SET_EXPERIENCE, |w| {
-                w.f32(0.0);
-                w.varint(0);
-                w.varint(0);
-            });
+        if p.experience.total != p.last_sent_exp {
+            p.last_sent_exp = p.experience.total;
+            p.send_experience();
         }
     }
 
@@ -766,13 +774,14 @@ impl ServerLevel {
             self.player_mut(id).last_recorded.armor = armor;
             self.update_score_for_criteria(id, &ObjectiveCriteria::ARMOR, armor);
         }
-        if self.player(id).last_recorded.experience != 0 {
-            self.player_mut(id).last_recorded.experience = 0;
-            self.update_score_for_criteria(id, &ObjectiveCriteria::EXPERIENCE, 0);
+        let experience = self.player(id).experience;
+        if experience.total != self.player(id).last_recorded.experience {
+            self.player_mut(id).last_recorded.experience = experience.total;
+            self.update_score_for_criteria(id, &ObjectiveCriteria::EXPERIENCE, experience.total);
         }
-        if self.player(id).last_recorded.level != 0 {
-            self.player_mut(id).last_recorded.level = 0;
-            self.update_score_for_criteria(id, &ObjectiveCriteria::LEVEL, 0);
+        if experience.level != self.player(id).last_recorded.level {
+            self.player_mut(id).last_recorded.level = experience.level;
+            self.update_score_for_criteria(id, &ObjectiveCriteria::LEVEL, experience.level);
         }
     }
 
