@@ -243,7 +243,7 @@ pub fn main(args: Vec<String>) {
     if let Err(e) = world_data.save_level_data(&world_dir) {
         error!("Failed to save level {}\n{e}", world_dir.root.display());
     }
-    let _ = std::fs::create_dir_all(world_dir.root.join("players"));
+    let _ = std::fs::create_dir_all(world_dir.root.join("players/data"));
     let port = options.value_of("port").and_then(|p| p.parse::<i32>().ok()).filter(|&p| p >= 0).unwrap_or(properties.server_port);
     let listen = Listen::Bind { ip: properties.server_ip.clone(), port: port as u16 };
     let mut config = ServerConfig::from_properties(properties, &universe, level_name);

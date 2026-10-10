@@ -64,7 +64,11 @@ impl CachedUserNameToIdResolver {
     pub fn add(&self, name_and_id: NameAndId) {
         let mut profiles = self.profiles.lock().unwrap();
         add_internal(&mut profiles, name_and_id);
-        self.save(&profiles);
+        self.write(&profiles);
+    }
+
+    pub fn save(&self) {
+        self.write(&self.profiles.lock().unwrap());
     }
 
     pub fn get(&self, services: &Services, name: &str) -> Option<NameAndId> {
@@ -96,7 +100,7 @@ impl CachedUserNameToIdResolver {
             }
         };
         if needs_save {
-            self.save(&profiles);
+            self.write(&profiles);
         }
         result
     }
@@ -121,7 +125,7 @@ impl CachedUserNameToIdResolver {
         self.resolve_offline_users.then(|| NameAndId { id: offline_uuid(name), name: name.to_string() })
     }
 
-    fn save(&self, profiles: &Profiles) {
+    fn write(&self, profiles: &Profiles) {
         let Some(file) = &self.file else { return };
         let mut infos: Vec<&GameProfileInfo> = profiles.by_uuid.values().collect();
         infos.sort_by_key(|info| std::cmp::Reverse(info.last_access));

@@ -10,6 +10,7 @@ pub mod inside_block;
 pub mod item;
 pub mod lightning_bolt;
 pub mod primed_tnt;
+pub mod raid;
 pub mod living;
 pub mod movement;
 pub mod player;

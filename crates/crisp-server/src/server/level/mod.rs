@@ -102,6 +102,7 @@ pub struct ServerLevel {
     pub weather: WeatherData,
     pub scoreboard: Scoreboard,
     pub world_border: WorldBorder,
+    pub raids: crate::world::entity::raid::raids::Raids,
     pub rain_level: f32,
     pub o_rain_level: f32,
     pub thunder_level: f32,
@@ -202,6 +203,7 @@ impl ServerLevel {
             redstone_torch_toggles: Vec::new(),
             scoreboard: Scoreboard::default(),
             world_border: WorldBorder::new(Settings::DEFAULT, None),
+            raids: crate::world::entity::raid::raids::Raids::load(None),
             environment_attributes: EnvironmentAttributeSystem::default(),
             clock_ticks: ServerClockManager::new().clocks.iter().map(|c| c.total_ticks).collect(),
             sky_darken: 0,
@@ -852,6 +854,7 @@ impl ServerLevel {
         if runs {
             self.tick_block_ticks();
             self.tick_fluid_ticks();
+            self.raids.tick();
         }
         if runs {
             self.chunks.purge_stale_tickets();

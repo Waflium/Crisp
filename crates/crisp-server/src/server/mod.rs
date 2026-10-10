@@ -277,11 +277,13 @@ impl Server {
         level.overworld_clock_time = clocks.clocks[ServerClockManager::id_of(OVERWORLD).unwrap()].total_ticks;
         level.update_sky_brightness();
         level.game_time = game_time;
-        let lists = players::PlayerLists::load(config.server_dir.clone());
         let name_to_id_cache = CachedUserNameToIdResolver::load(config.server_dir.clone());
+        name_to_id_cache.save();
+        let lists = players::PlayerLists::load(config.server_dir.clone());
         level.chunks.game_time = game_time;
         level.world_border = WorldBorder::load(world_dir.as_ref().map(|d| d.dimension_data_folder(OVERWORLD)));
         level.world_border.set_absolute_max_size(config.max_world_size);
+        level.raids = crate::world::entity::raid::raids::Raids::load(world_dir.as_ref().map(|d| d.dimension_data_folder(OVERWORLD)));
         level.allow_flight = config.allow_flight;
         level.set_max_chained_neighbor_updates(config.max_chained_neighbor_updates);
         level.entity_broadcast_range_percentage = config.entity_broadcast_range_percentage;
@@ -508,6 +510,7 @@ impl Server {
         }
         if !(self.level.no_save && !force) {
             log_save_failure("world_border.dat", self.level.world_border.save());
+            log_save_failure("raids.dat", self.level.raids.save());
             let tickets = &mut self.level.chunks.distance_manager.ticket_storage;
             if tickets.dirty {
                 let file = Nbt::Compound(vec![("data".into(), tickets.to_nbt()), ("DataVersion".into(), Nbt::Int(WORLD_VERSION))]);

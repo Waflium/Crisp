@@ -180,6 +180,12 @@ impl<E: StoredUserEntry> StoredUserList<E> {
         }
         self
     }
+
+    fn save_list_logged(&self, what: &str) {
+        if let (Err(e), Some(file)) = (self.save(), &self.file) {
+            warn!("Failed to save {what}: \n{}", crate::server::dedicated::settings::java_io_exception(&e, file));
+        }
+    }
 }
 
 #[derive(Clone, PartialEq, Eq, Debug)]
@@ -451,12 +457,17 @@ pub struct PlayerLists {
 impl PlayerLists {
     pub fn load(dir: Option<PathBuf>) -> PlayerLists {
         let file = |name: &str| dir.as_ref().map(|d| d.join(name));
-        PlayerLists {
-            ops: ServerOpList::new(file("ops.json")).load_logged("operators list"),
-            bans: StoredUserList::new(file("banned-players.json")).load_logged("user banlist"),
-            ip_bans: StoredUserList::new(file("banned-ips.json")).load_logged("ip banlist"),
-            whitelist: StoredUserList::new(file("whitelist.json")).load_logged("white-list"),
+        let bans = StoredUserList::new(file("banned-players.json")).load_logged("user banlist");
+        bans.save_list_logged("user banlist");
+        let ip_bans = StoredUserList::new(file("banned-ips.json")).load_logged("ip banlist");
+        ip_bans.save_list_logged("ip banlist");
+        let ops = ServerOpList::new(file("ops.json")).load_logged("operators list");
+        let whitelist = StoredUserList::new(file("whitelist.json")).load_logged("white-list");
+        ops.save_list_logged("operators list");
+        if whitelist.file.as_ref().is_some_and(|f| !f.exists()) {
+            whitelist.save_list_logged("white-list");
         }
+        PlayerLists { ops, bans, ip_bans, whitelist }
     }
 }
 

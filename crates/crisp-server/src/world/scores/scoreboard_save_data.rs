@@ -25,7 +25,8 @@ impl ScoreboardSaveData {
                 None
             }
         });
-        ScoreboardSaveData { dir, data: data.unwrap_or(Nbt::Compound(Vec::new())), dirty: false }
+        let dirty = data.is_none();
+        ScoreboardSaveData { dir, data: data.unwrap_or(Nbt::Compound(Vec::new())), dirty }
     }
 
     pub fn data(&self) -> &Nbt {
