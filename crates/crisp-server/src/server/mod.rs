@@ -8,7 +8,9 @@ pub mod players;
 pub mod rcon;
 pub mod reloadable_server_resources;
 pub mod eula;
+pub mod jsonrpc;
 pub mod main;
+pub mod notifications;
 pub mod server_tick_rate_manager;
 pub mod services;
 #[cfg(test)]
@@ -79,6 +81,10 @@ use self::packs::resources::MultiPackResourceManager;
 use self::reloadable_server_resources::ReloadableServerResources;
 use self::world_stem::WorldStem;
 use self::server_function_manager::ServerFunctionManager;
+use self::jsonrpc::management_server::ManagementServer;
+use self::notifications::NotificationManager;
+use self::notifications::server_activity_monitor::ServerActivityMonitor;
+use crate::network::server_connection_listener::ListenerSettings;
 use crate::world::flag::{FeatureFlagSet, print_missing_flags};
 use crate::world::level::data_pack_config::DataPackConfig;
 use crate::world::level::world_data_configuration::WorldDataConfiguration;
@@ -105,6 +111,8 @@ pub enum Event {
     Halt,
     Rcon { command: String, reply: tokio::sync::oneshot::Sender<String> },
 }
+
+pub type ServerTask = Box<dyn FnOnce(&mut Server) + Send + Sync>;
 
 pub(crate) enum Task {
     Chat { player: EntityId, body: SignedMessageBody, signature: Option<MessageSignature> },
@@ -175,8 +183,12 @@ pub struct Server {
     pub pack_repository: PackRepository,
     pub data_configuration: WorldDataConfiguration,
     pub scoreboard_save_data: ScoreboardSaveData,
+    pub notification_manager: NotificationManager,
+    pub server_activity_monitor: Arc<ServerActivityMonitor>,
+    pub listener_settings: Arc<ListenerSettings>,
     world_dir: Option<WorldDir>,
     stopping: bool,
+    ready: bool,
 }
 
 impl Server {
@@ -272,6 +284,7 @@ impl Server {
         level.entity_broadcast_range_percentage = config.entity_broadcast_range_percentage;
         let scoreboard_save_data = ScoreboardSaveData::load(world_dir.as_ref().map(WorldDir::data_folder));
         level.scoreboard.load(scoreboard_save_data.data());
+        let (config_replies_to_status, config_accepts_transfers) = (config.replies_to_status, config.accepts_transfers);
         let mut server = Server {
             config,
             settings: None,
@@ -325,8 +338,12 @@ impl Server {
             pack_repository,
             data_configuration,
             scoreboard_save_data,
+            notification_manager: NotificationManager::default(),
+            server_activity_monitor: Arc::new(ServerActivityMonitor::new(NotificationManager::default(), 30)),
+            listener_settings: Arc::new(ListenerSettings::new(config_replies_to_status, config_accepts_transfers)),
             world_dir,
             stopping: false,
+            ready: false,
         };
         server.name_to_id_cache.set_resolve_offline_users(!server.config.online_mode);
         server.set_difficulty(server.config.difficulty, true);
@@ -474,6 +491,13 @@ impl Server {
     }
 
     pub fn save_all_chunks(&mut self, silent: bool, flush: bool, force: bool) -> bool {
+        self.notification_manager.server_save_started();
+        let saved_chunks = self.save_all_level_chunks(silent, flush, force);
+        self.notification_manager.server_save_completed();
+        saved_chunks
+    }
+
+    fn save_all_level_chunks(&mut self, silent: bool, flush: bool, force: bool) -> bool {
         let Some(dir) = &self.world_dir else { return false };
         self.level.scoreboard.store_to_save_data_if_dirty(&mut self.scoreboard_save_data);
         if !silent {
@@ -570,6 +594,7 @@ impl Server {
     }
 
     fn stop_server(&mut self) {
+        self.notification_manager.server_shutting_down();
         info!("Stopping server");
         info!("Saving players");
         let ids: Vec<EntityId> = self.level.players.keys().copied().collect();
@@ -596,6 +621,7 @@ impl Server {
 
     pub fn set_game_rule(&mut self, rule: crisp_data::GameRule, value: i32) {
         self.game_rules.set(rule, value);
+        self.notification_manager.on_game_rule_changed(rule, value);
         if rule == game_rule::REDUCED_DEBUG_INFO {
             let event = if value != 0 { 22 } else { 23 };
             for p in self.level.players.values() {
@@ -824,6 +850,8 @@ impl Server {
             p.varint(0);
         });
         player.last_sent_exp = 0;
+        let joined = NameAndId { id: player.profile.uuid, name: player.profile.name.clone() };
+        self.notification_manager.player_joined(&joined);
     }
 
     fn tick_player_list(&mut self) {
@@ -1095,6 +1123,7 @@ impl Server {
         info!("{} lost connection: {reason}", player.profile.name);
         self.invalidate_status();
         self.save_player(&player);
+        self.notification_manager.player_left(&NameAndId { id: player.profile.uuid, name: player.profile.name.clone() });
         let message = player_joined_or_left(self.level.player_display_name(&player.profile.name, player.profile.uuid), false);
         self.send_system_message(&message);
         for other in self.level.players.values_mut() {
@@ -1177,6 +1206,7 @@ impl Server {
         for id in ids {
             self.level.send_next_chunks(id);
         }
+        self.server_activity_monitor.tick();
         if self.last_status.is_none_or(|t| t.elapsed() >= STATUS_EXPIRE_TIME) {
             self.last_status = Some(Instant::now());
             self.build_server_status();
@@ -1396,7 +1426,15 @@ pub fn run(
     runtime: tokio::runtime::Handle,
     listen: crate::Listen,
     console: bool,
+    management_server: Option<Arc<ManagementServer>>,
 ) -> anyhow::Result<()> {
+    let (task_sender, tasks) = std::sync::mpsc::channel::<ServerTask>();
+    if let Some(management_server) = &management_server {
+        management_server.set_server(task_sender);
+    }
+    let notification_manager = NotificationManager::new(management_server.clone());
+    let server_activity_monitor = Arc::new(ServerActivityMonitor::new(notification_manager.clone(), 30));
+    let listener_settings = Arc::new(ListenerSettings::new(config.replies_to_status, config.accepts_transfers));
     if console {
         dedicated::start_console_thread(sender.clone());
     }
@@ -1441,6 +1479,8 @@ pub fn run(
         status: status.clone(),
         player_names_array: player_names_array.clone(),
         events: sender.clone(),
+        settings: listener_settings.clone(),
+        server_activity_monitor: server_activity_monitor.clone(),
     });
     runtime.spawn(crate::network::server_connection_listener::accept_connections(listener, context));
     let started = Instant::now();
@@ -1449,6 +1489,10 @@ pub fn run(
         Some((pack_repository, world_stem)) => Server::with_world_stem(config, pack_repository, world_stem)?,
         None => Server::new(config)?,
     };
+    server.attach_notification_manager(notification_manager, server_activity_monitor, listener_settings);
+    if let Some(management_server) = &management_server {
+        management_server.set_waker(server.level.chunks.waker());
+    }
     server.settings = settings;
     info!("Done ({:.3}s)! For help, type \"help\"", started.elapsed().as_secs_f64());
     server.services = services;
@@ -1484,9 +1528,10 @@ pub fn run(
         dedicated::server_watchdog::start(timing.clone(), max_tick_time, PathBuf::from("."));
     }
     server.save_everything(false, true, true);
+    server.notification_manager.server_started();
     server.status_icon = server.load_status_icon();
     server.build_server_status();
-    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| run_server_loop(&mut server, &mut events, &timing)));
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| run_server_loop(&mut server, &mut events, &tasks, &timing)));
     if let Err(panic) = result {
         let message = panic.downcast_ref::<String>().cloned().or_else(|| panic.downcast_ref::<&str>().map(|s| s.to_string())).unwrap_or_default();
         error!("Encountered an unexpected exception\n{message}");
@@ -1509,6 +1554,9 @@ pub fn run(
     if let Some(query_thread_gs4) = query_thread_gs4 {
         query_thread_gs4.stop();
     }
+    if let Some(management_server) = management_server {
+        management_server.stop();
+    }
     std::thread::sleep(Duration::from_millis(100));
     Ok(())
 }
@@ -1521,7 +1569,7 @@ fn crash_frames() -> Vec<String> {
         .collect()
 }
 
-fn run_server_loop(server: &mut Server, events: &mut mpsc::UnboundedReceiver<Event>, timing: &dedicated::server_watchdog::ServerTiming) {
+fn run_server_loop(server: &mut Server, events: &mut mpsc::UnboundedReceiver<Event>, tasks: &std::sync::mpsc::Receiver<ServerTask>, timing: &dedicated::server_watchdog::ServerTiming) {
     const OVERLOADED_THRESHOLD: Duration = Duration::from_secs(1);
     const OVERLOADED_WARNING_INTERVAL: Duration = Duration::from_secs(10);
     const SNAPSHOT_INTERVAL: u64 = 20;
@@ -1564,7 +1612,12 @@ fn run_server_loop(server: &mut Server, events: &mut mpsc::UnboundedReceiver<Eve
         server.level.process_chunk_events();
         server.tick();
         server.run_all_tasks();
-        while let Some(wait) = next_tick.checked_duration_since(Instant::now()).filter(|w| !w.is_zero()) {
+        server.mark_ready();
+        loop {
+            while let Ok(task) = tasks.try_recv() {
+                task(server);
+            }
+            let Some(wait) = next_tick.checked_duration_since(Instant::now()).filter(|w| !w.is_zero()) else { break };
             if !server.level.poll_chunk_task() {
                 server.level.wait_for_chunk_work(wait);
             }

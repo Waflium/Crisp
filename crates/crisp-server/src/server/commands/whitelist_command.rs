@@ -40,7 +40,7 @@ pub fn remove_players(server: &mut Server, context: &CommandContext, source: &Co
     let mut success = 0;
     for target in targets {
         if server.whitelist.contains_key(&format_uuid(target.id)) {
-            server.whitelist.remove_key(&format_uuid(target.id));
+            server.whitelist.remove(&target);
             source.send_success(
                 server,
                 || Component::translatable_with("commands.whitelist.remove.success", vec![Arg::Component(Component::literal(target.name.as_str()))]),

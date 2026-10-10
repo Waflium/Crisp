@@ -1,3 +1,4 @@
+pub mod dedicated_server;
 pub mod dedicated_server_properties;
 pub mod dedicated_server_settings;
 pub mod server_watchdog;

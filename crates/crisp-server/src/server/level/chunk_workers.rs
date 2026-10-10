@@ -55,6 +55,7 @@ pub fn execute(job: impl FnOnce() + Send + 'static) {
 pub enum WorkResult {
     Loaded { pos: ChunkPos, token: u64, result: io::Result<Option<ReadChunk>> },
     Generated { pos: ChunkPos, token: u64, chunk: LevelChunk },
+    Wake,
 }
 
 pub struct ChunkToSave {

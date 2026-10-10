@@ -10,11 +10,7 @@ pub fn deop_players(server: &mut Server, context: &CommandContext, source: &Comm
     let mut count = 0;
     for player in players {
         if server.is_op(player.id) {
-            if server.ops.remove_key(&crate::world::level::storage::format_uuid(player.id))
-                && let Some(online) = server.level.players.values().find(|p| p.profile.uuid == player.id)
-            {
-                server.send_player_permission_level(online.entity.id);
-            }
+            server.deop(&player);
             count += 1;
             source.send_success(server, || Component::translatable_with("commands.deop.success", vec![player.name.as_str().into()]), true);
         }

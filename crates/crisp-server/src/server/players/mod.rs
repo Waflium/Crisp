@@ -1,8 +1,12 @@
+use std::fmt;
 use std::path::PathBuf;
 
 use chrono::{DateTime, FixedOffset, Local};
+use crisp_core::hash_map::java_hash_map_order;
+use crisp_core::random::java_string_hash;
 use serde_json::{Map, Value};
 
+use super::notifications::NotificationManager;
 use crate::commands::arguments::java_uuid_from_string;
 use crate::network::chat::{Arg, Component};
 use crate::world::level::storage::format_uuid;
@@ -10,7 +14,7 @@ use crate::world::level::storage::format_uuid;
 pub mod cached_user_name_to_id_resolver;
 pub mod respawn;
 
-#[derive(Clone, PartialEq, Eq, Debug)]
+#[derive(Clone, PartialEq, Eq, Hash, Debug)]
 pub struct NameAndId {
     pub id: u128,
     pub name: String,
@@ -25,25 +29,58 @@ impl NameAndId {
         object.insert("uuid".into(), format_uuid(self.id).into());
         object.insert("name".into(), self.name.clone().into());
     }
+
+    pub fn java_hash(&self) -> i32 {
+        let hilo = (self.id >> 64) as u64 ^ self.id as u64;
+        let uuid_hash = ((hilo >> 32) as i32) ^ (hilo as i32);
+        uuid_hash.wrapping_mul(31).wrapping_add(java_string_hash(&self.name))
+    }
 }
 
-pub trait StoredUserEntry: Clone + PartialEq {
+impl fmt::Display for NameAndId {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "NameAndId[id={}, name={}]", format_uuid(self.id), self.name)
+    }
+}
+
+pub fn java_hash_set_order(users: Vec<NameAndId>) -> Vec<NameAndId> {
+    let mut unique: Vec<NameAndId> = Vec::new();
+    for user in users {
+        if !unique.contains(&user) {
+            unique.push(user);
+        }
+    }
+    let hashes: Vec<i32> = unique.iter().map(NameAndId::java_hash).collect();
+    java_hash_map_order(&hashes).into_iter().map(|i| unique[i].clone()).collect()
+}
+
+pub trait StoredUserEntry: Clone {
     fn key(&self) -> String;
     fn from_json(object: &Value) -> Option<Self>;
     fn serialize(&self, object: &mut Map<String, Value>);
     fn has_expired(&self) -> bool {
         false
     }
+    fn same_as(&self, _other: &Self) -> bool {
+        false
+    }
+    fn notify_added(&self, _notifications: &NotificationManager) {}
+    fn notify_removed(&self, _notifications: &NotificationManager) {}
 }
 
 pub struct StoredUserList<E> {
     file: Option<PathBuf>,
     entries: Vec<E>,
+    notifications: NotificationManager,
 }
 
 impl<E: StoredUserEntry> StoredUserList<E> {
     pub fn new(file: Option<PathBuf>) -> StoredUserList<E> {
-        StoredUserList { file, entries: Vec::new() }
+        StoredUserList { file, entries: Vec::new(), notifications: NotificationManager::default() }
+    }
+
+    pub fn set_notification_manager(&mut self, notifications: NotificationManager) {
+        self.notifications = notifications;
     }
 
     pub fn contains_key(&self, key: &str) -> bool {
@@ -58,25 +95,26 @@ impl<E: StoredUserEntry> StoredUserList<E> {
     pub fn add(&mut self, entry: E) -> bool {
         let key = entry.key();
         match self.entries.iter_mut().find(|e| e.key() == key) {
-            Some(existing) if *existing == entry => return false,
-            Some(existing) => *existing = entry,
-            None => self.entries.push(entry),
+            Some(existing) if existing.same_as(&entry) => return false,
+            Some(existing) => *existing = entry.clone(),
+            None => self.entries.push(entry.clone()),
         }
         self.save_logged("adding");
+        entry.notify_added(&self.notifications);
         true
     }
 
-    pub fn remove_key(&mut self, key: &str) -> bool {
-        let before = self.entries.len();
-        self.entries.retain(|e| e.key() != key);
-        let removed = self.entries.len() != before;
-        if removed {
-            self.save_logged("removing");
-        }
-        removed
+    fn remove_key(&mut self, key: &str) -> Option<E> {
+        let index = self.entries.iter().position(|e| e.key() == key)?;
+        let removed = self.entries.remove(index);
+        self.save_logged("removing");
+        Some(removed)
     }
 
     pub fn clear(&mut self) {
+        for entry in self.entries() {
+            entry.notify_removed(&self.notifications);
+        }
         self.entries.clear();
         self.save_logged("removing");
     }
@@ -169,6 +207,14 @@ impl StoredUserEntry for OpEntry {
         object.insert("level".into(), self.level.into());
         object.insert("bypassesPlayerLimit".into(), self.bypasses_player_limit.into());
     }
+
+    fn notify_added(&self, notifications: &NotificationManager) {
+        notifications.player_oped(self);
+    }
+
+    fn notify_removed(&self, notifications: &NotificationManager) {
+        notifications.player_deoped(self);
+    }
 }
 
 pub type ServerOpList = StoredUserList<OpEntry>;
@@ -180,6 +226,46 @@ impl ServerOpList {
 
     pub fn contains(&self, uuid: u128) -> bool {
         self.contains_key(&format_uuid(uuid))
+    }
+
+    pub fn can_bypass_player_limit(&self, uuid: u128) -> bool {
+        self.get(uuid).is_some_and(|e| e.bypasses_player_limit)
+    }
+
+    pub fn remove(&mut self, user: &NameAndId) -> bool {
+        let Some(entry) = self.remove_key(&format_uuid(user.id)) else { return false };
+        self.notifications.player_deoped(&entry);
+        true
+    }
+}
+
+impl StoredUserList<WhiteListEntry> {
+    pub fn remove(&mut self, user: &NameAndId) -> bool {
+        if self.remove_key(&format_uuid(user.id)).is_none() {
+            return false;
+        }
+        self.notifications.player_removed_from_allowlist(user);
+        true
+    }
+}
+
+impl StoredUserList<UserBanEntry> {
+    pub fn remove(&mut self, user: &NameAndId) -> bool {
+        if self.remove_key(&format_uuid(user.id)).is_none() {
+            return false;
+        }
+        self.notifications.player_unbanned(user);
+        true
+    }
+}
+
+impl StoredUserList<IpBanEntry> {
+    pub fn remove(&mut self, ip: &str) -> bool {
+        if self.remove_key(ip).is_none() {
+            return false;
+        }
+        self.notifications.ip_unbanned(ip);
+        true
     }
 }
 
@@ -262,6 +348,18 @@ impl StoredUserEntry for UserBanEntry {
     fn has_expired(&self) -> bool {
         self.ban.has_expired()
     }
+
+    fn same_as(&self, other: &Self) -> bool {
+        self == other
+    }
+
+    fn notify_added(&self, notifications: &NotificationManager) {
+        notifications.player_banned(self);
+    }
+
+    fn notify_removed(&self, notifications: &NotificationManager) {
+        notifications.player_unbanned(&self.user);
+    }
 }
 
 #[derive(Clone, PartialEq, Debug)]
@@ -287,6 +385,18 @@ impl StoredUserEntry for IpBanEntry {
     fn has_expired(&self) -> bool {
         self.ban.has_expired()
     }
+
+    fn same_as(&self, other: &Self) -> bool {
+        self == other
+    }
+
+    fn notify_added(&self, notifications: &NotificationManager) {
+        notifications.ip_banned(self);
+    }
+
+    fn notify_removed(&self, notifications: &NotificationManager) {
+        notifications.ip_unbanned(&self.ip);
+    }
 }
 
 #[derive(Clone, PartialEq, Debug)]
@@ -305,6 +415,14 @@ impl StoredUserEntry for WhiteListEntry {
 
     fn serialize(&self, object: &mut Map<String, Value>) {
         self.user.append_to(object);
+    }
+
+    fn notify_added(&self, notifications: &NotificationManager) {
+        notifications.player_added_to_allowlist(&self.user);
+    }
+
+    fn notify_removed(&self, notifications: &NotificationManager) {
+        notifications.player_removed_from_allowlist(&self.user);
     }
 }
 

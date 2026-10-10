@@ -1,5 +1,5 @@
 use std::net::SocketAddr;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, RwLock};
 
 use anyhow::bail;
@@ -14,9 +14,37 @@ use crate::network::configuration::CommonListenerCookie;
 use crate::network::connection::{self, PacketReader, PacketWriter};
 use crate::network::encryption::ServerKeyPair;
 use crate::server::Event;
+use crate::server::notifications::server_activity_monitor::ServerActivityMonitor;
 use crate::server::services::Services;
 
 static NEXT_CONN_ID: AtomicU64 = AtomicU64::new(1);
+
+pub struct ListenerSettings {
+    replies_to_status: AtomicBool,
+    accepts_transfers: AtomicBool,
+}
+
+impl ListenerSettings {
+    pub fn new(replies_to_status: bool, accepts_transfers: bool) -> ListenerSettings {
+        ListenerSettings { replies_to_status: AtomicBool::new(replies_to_status), accepts_transfers: AtomicBool::new(accepts_transfers) }
+    }
+
+    pub fn replies_to_status(&self) -> bool {
+        self.replies_to_status.load(Ordering::Relaxed)
+    }
+
+    pub fn set_replies_to_status(&self, value: bool) {
+        self.replies_to_status.store(value, Ordering::Relaxed);
+    }
+
+    pub fn accepts_transfers(&self) -> bool {
+        self.accepts_transfers.load(Ordering::Relaxed)
+    }
+
+    pub fn set_accepts_transfers(&self, value: bool) {
+        self.accepts_transfers.store(value, Ordering::Relaxed);
+    }
+}
 
 pub struct ListenerContext {
     pub config: ServerConfig,
@@ -25,6 +53,8 @@ pub struct ListenerContext {
     pub status: Arc<RwLock<Option<Arc<str>>>>,
     pub player_names_array: Arc<RwLock<Arc<[String]>>>,
     pub events: mpsc::UnboundedSender<Event>,
+    pub settings: Arc<ListenerSettings>,
+    pub server_activity_monitor: Arc<ServerActivityMonitor>,
 }
 
 pub async fn accept_connections(listener: TcpListener, context: Arc<ListenerContext>) {
@@ -39,7 +69,7 @@ pub async fn accept_connections(listener: TcpListener, context: Arc<ListenerCont
 async fn handle_connection(stream: TcpStream, context: &ListenerContext) -> anyhow::Result<()> {
     let address = stream.peer_addr()?;
     let (mut r, mut w) = connection::split(stream)?;
-    if context.config.replies_to_status && super::legacy_query_handler::handle(&mut r, &mut w, context).await? {
+    if context.settings.replies_to_status() && super::legacy_query_handler::handle(&mut r, &mut w, context).await? {
         return Ok(());
     }
     let packet = r.expect(handshake::serverbound::INTENTION).await?;
@@ -51,12 +81,12 @@ async fn handle_connection(stream: TcpStream, context: &ListenerContext) -> anyh
         1 => {
             let status = context.status.read().unwrap().clone();
             match status {
-                Some(status) if context.config.replies_to_status => status_phase(r, w, &status).await,
+                Some(status) if context.settings.replies_to_status() => status_phase(r, w, &status).await,
                 _ => Ok(()),
             }
         }
         2 => begin_login(r, w, context, address, protocol, false).await,
-        3 if !context.config.accepts_transfers => {
+        3 if !context.settings.accepts_transfers() => {
             let reason = Component::translatable("multiplayer.disconnect.transfers_disabled");
             w.send(login::clientbound::LOGIN_DISCONNECT, |p| p.string(&reason.to_json())).await?;
             Ok(())
@@ -78,7 +108,7 @@ async fn begin_login(r: PacketReader, mut w: PacketWriter, context: &ListenerCon
 
 async fn login_phase(mut r: PacketReader, mut w: PacketWriter, context: &ListenerContext, address: SocketAddr, transferred: bool) -> anyhow::Result<()> {
     let events = &context.events;
-    let Some(profile) = super::login::login(&mut r, &mut w, &context.config, &context.keys, &context.services, events, address).await? else {
+    let Some(profile) = super::login::login(&mut r, &mut w, context, address).await? else {
         return Ok(());
     };
     let cookie = CommonListenerCookie::create_initial(transferred);

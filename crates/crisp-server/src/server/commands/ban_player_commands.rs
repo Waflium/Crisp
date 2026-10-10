@@ -59,7 +59,7 @@ pub fn pardon_players(server: &mut Server, context: &CommandContext, source: &Co
     let mut count = 0;
     for player in players {
         if server.bans.contains_key(&format_uuid(player.id)) {
-            server.bans.remove_key(&format_uuid(player.id));
+            server.bans.remove(&player);
             count += 1;
             source.send_success(server, || Component::translatable_with("commands.pardon.success", vec![Arg::Component(Component::literal(player.name.as_str()))]), true);
         }
@@ -107,7 +107,7 @@ pub fn pardon_ip(server: &mut Server, context: &CommandContext, source: &Command
     if !server.ip_bans.contains_key(&ip) {
         return Err(ERROR_IP_NOT_BANNED.create());
     }
-    server.ip_bans.remove_key(&ip);
+    server.ip_bans.remove(&ip);
     source.send_success(server, || Component::translatable_with("commands.pardonip.success", vec![ip.as_str().into()]), true);
     Ok(1)
 }

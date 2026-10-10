@@ -175,7 +175,7 @@ pub enum Listen {
 }
 
 pub async fn serve(listen: Listen, config: ServerConfig, services: Services, settings: Option<DedicatedServerSettings>, console: bool) -> anyhow::Result<()> {
-    serve_world(listen, config, services, settings, console, None).await
+    serve_world(listen, config, services, settings, console, None, None).await
 }
 
 pub(crate) async fn serve_world(
@@ -185,13 +185,14 @@ pub(crate) async fn serve_world(
     settings: Option<DedicatedServerSettings>,
     console: bool,
     world: Option<(server::packs::repository::PackRepository, server::world_stem::WorldStem)>,
+    management_server: Option<Arc<server::jsonrpc::management_server::ManagementServer>>,
 ) -> anyhow::Result<()> {
     let (events, queue) = mpsc::unbounded_channel();
     let runtime = tokio::runtime::Handle::current();
     let (done, finished) = oneshot::channel();
     let server_events = events.clone();
     std::thread::Builder::new().name("Server thread".into()).spawn(move || {
-        let _ = done.send(server::run(config, settings, world, services, queue, server_events, runtime, listen, console));
+        let _ = done.send(server::run(config, settings, world, services, queue, server_events, runtime, listen, console, management_server));
     })?;
     if console {
         tokio::spawn(async move {

@@ -6,14 +6,13 @@ use std::time::Duration;
 use anyhow::bail;
 use crisp_data::packets::login::{clientbound, serverbound};
 use md5::{Digest, Md5};
-use tokio::sync::{mpsc, oneshot};
+use tokio::sync::oneshot;
 
 use crate::server::services::Services;
-use crate::ServerConfig;
 use crate::network::chat::{Arg, Component};
 use crate::network::connection::{PacketReader, PacketWriter, disconnection_reason};
-use crate::network::encryption::{ServerKeyPair, server_hash};
-use crate::network::server_connection_listener::loggable_address;
+use crate::network::encryption::server_hash;
+use crate::network::server_connection_listener::{ListenerContext, loggable_address};
 use crate::server::Event;
 
 #[derive(Clone, Debug, PartialEq)]
@@ -68,17 +67,9 @@ pub enum Verdict {
     Disconnect(Component),
 }
 
-pub async fn login(
-    r: &mut PacketReader,
-    w: &mut PacketWriter,
-    config: &ServerConfig,
-    keys: &ServerKeyPair,
-    services: &Services,
-    events: &mpsc::UnboundedSender<Event>,
-    address: SocketAddr,
-) -> anyhow::Result<Option<Profile>> {
-    let mut user = LoginUser { requested_username: None, address: loggable_address(address, config.log_ips) };
-    match tokio::time::timeout(LOGIN_TIMEOUT, run(r, w, config, keys, services, events, address, &mut user)).await {
+pub async fn login(r: &mut PacketReader, w: &mut PacketWriter, context: &ListenerContext, address: SocketAddr) -> anyhow::Result<Option<Profile>> {
+    let mut user = LoginUser { requested_username: None, address: loggable_address(address, context.config.log_ips) };
+    match tokio::time::timeout(LOGIN_TIMEOUT, run(r, w, context, address, &mut user)).await {
         Ok(Err(e)) if e.downcast_ref::<std::io::Error>().is_some() => {
             user.lost_connection(&disconnection_reason(&e).get_string());
             Ok(None)
@@ -112,17 +103,8 @@ impl LoginUser {
     }
 }
 
-#[allow(clippy::too_many_arguments)]
-async fn run(
-    r: &mut PacketReader,
-    w: &mut PacketWriter,
-    config: &ServerConfig,
-    keys: &ServerKeyPair,
-    services: &Services,
-    events: &mpsc::UnboundedSender<Event>,
-    address: SocketAddr,
-    user: &mut LoginUser,
-) -> anyhow::Result<Option<Profile>> {
+async fn run(r: &mut PacketReader, w: &mut PacketWriter, context: &ListenerContext, address: SocketAddr, user: &mut LoginUser) -> anyhow::Result<Option<Profile>> {
+    let (config, keys, services, events) = (&context.config, &*context.keys, &context.services, &context.events);
     let hello = r.expect(serverbound::HELLO).await?;
     let name = hello.reader().string(16)?.to_owned();
     if !is_valid_player_name(&name) {
@@ -159,6 +141,7 @@ async fn run(
         match has_joined_server(services, &name, &hash, ip.as_deref()).await {
             Ok(Some(profile)) => {
                 info!(thread: &thread, "UUID of player {} is {}", profile.name, crate::world::level::storage::format_uuid(profile.uuid));
+                context.server_activity_monitor.report_login_activity();
                 profile
             }
             Ok(None) => {

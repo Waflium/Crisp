@@ -340,6 +340,10 @@ impl ChunkCache {
         self.run_worldgen()
     }
 
+    pub fn waker(&self) -> Sender<WorkResult> {
+        self.results.0.clone()
+    }
+
     pub fn wait_for_work(&mut self, timeout: Duration) {
         match self.results.1.recv_timeout(timeout) {
             Ok(result) => self.apply_work_result(result),
@@ -905,10 +909,11 @@ impl ChunkCache {
     }
 
     fn apply_work_result(&mut self, result: WorkResult) {
-        self.in_flight -= 1;
         let (token, pos) = match &result {
             WorkResult::Loaded { token, pos, .. } | WorkResult::Generated { token, pos, .. } => (*token, *pos),
+            WorkResult::Wake => return,
         };
+        self.in_flight -= 1;
         let job = self.jobs.remove(&token).expect("job of a result");
         if self.holders.get(pos.pack()).is_none_or(|h| h.id != job.holder) {
             self.holders.futures.complete(job.work, false);
@@ -921,6 +926,7 @@ impl ChunkCache {
                 self.chunks.insert(pos, chunk);
                 self.complete_step(job);
             }
+            WorkResult::Wake => {}
         }
         self.process_woken();
     }

@@ -2,7 +2,6 @@ use crate::commands::brigadier::{CommandContext, CommandSyntaxException, SimpleC
 use crate::commands::source::CommandSourceStack;
 use crate::network::chat::Component;
 use crate::server::Server;
-use crate::server::players::OpEntry;
 
 static ERROR_ALREADY_OP: SimpleCommandExceptionType = SimpleCommandExceptionType("commands.op.failed");
 
@@ -11,10 +10,7 @@ pub fn op_players(server: &mut Server, context: &CommandContext, source: &Comman
     let mut count = 0;
     for player in players {
         if !server.is_op(player.id) {
-            server.ops.add(OpEntry { user: player.clone(), level: server.config.op_permission_level, bypasses_player_limit: false });
-            if let Some(online) = server.level.players.values().find(|p| p.profile.uuid == player.id) {
-                server.send_player_permission_level(online.entity.id);
-            }
+            server.op(player.clone(), None, None);
             count += 1;
             source.send_success(server, || Component::translatable_with("commands.op.success", vec![player.name.as_str().into()]), true);
         }

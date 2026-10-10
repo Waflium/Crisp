@@ -155,6 +155,28 @@ impl Services {
         })
     }
 
+    pub fn fetch_profile(&self, id: u128) -> Option<NameAndId> {
+        let (http, runtime) = self.http.as_ref()?;
+        runtime.block_on(async {
+            let endpoint = self.url_async("session", "getProfileById").await?.replace("{profileId}", &format!("{id:032x}"));
+            let separator = if endpoint.contains('?') { '&' } else { '?' };
+            let url = format!("{endpoint}{separator}unsigned=false");
+            let response = match http.get(&url).send().await.and_then(reqwest::Response::error_for_status) {
+                Ok(response) => response,
+                Err(e) => {
+                    warn!("Couldn't look up profile properties for {}\ncom.mojang.authlib.exceptions.MinecraftClientHttpException: {e}", crate::world::level::storage::format_uuid(id));
+                    return None;
+                }
+            };
+            if response.status() != reqwest::StatusCode::OK {
+                return None;
+            }
+            let found = response.json::<serde_json::Value>().await.ok()?;
+            let id = u128::from_str_radix(found["id"].as_str()?, 16).ok()?;
+            Some(NameAndId { id, name: found["name"].as_str()?.to_string() })
+        })
+    }
+
     pub fn can_validate_profile_keys(&self) -> bool {
         self.key_set.get().is_some_and(|keys| !keys.profile_keys.is_empty())
     }

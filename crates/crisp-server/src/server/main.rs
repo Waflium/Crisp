@@ -168,6 +168,15 @@ pub fn main(args: Vec<String>) {
         super::services::Services::create()
     };
     let properties = settings.properties();
+    let (management_server, management_runtime) = match super::jsonrpc::create(properties) {
+        Ok(Some((server, runtime))) => (Some(server), Some(runtime)),
+        Ok(None) => (None, None),
+        Err(e) => {
+            error!("Failed to start the minecraft server\n{e}");
+            runtime.shutdown_background();
+            return;
+        }
+    };
     let level_name = options.value_of("world").map_or_else(|| properties.level_name.clone(), str::to_string);
     let _lock = match crate::util::directory_lock::DirectoryLock::create(&universe.join(&level_name)) {
         Ok(lock) => lock,
@@ -227,10 +236,13 @@ pub fn main(args: Vec<String>) {
         }
     }
     let world_stem = WorldStem { data_packs, world_data };
-    if let Err(e) = runtime.block_on(serve_world(listen, config, services, Some(settings), true, Some((pack_repository, world_stem)))) {
+    if let Err(e) = runtime.block_on(serve_world(listen, config, services, Some(settings), true, Some((pack_repository, world_stem)), management_server)) {
         error!("Encountered an unexpected exception\n{e:#}");
     }
     runtime.shutdown_background();
+    if let Some(management_runtime) = management_runtime {
+        management_runtime.shutdown_background();
+    }
 }
 
 fn load_or_create_config(properties: &DedicatedServerProperties, level_data: Option<&WorldData>) -> (bool, WorldDataConfiguration) {
