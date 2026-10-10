@@ -271,6 +271,7 @@ dependencies = [
  "gethostname",
  "iana-time-zone",
  "indexmap",
+ "libc",
  "lz4_flex",
  "md-5",
  "rand 0.10.3",

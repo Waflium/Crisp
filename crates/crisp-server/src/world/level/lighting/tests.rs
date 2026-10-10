@@ -370,7 +370,7 @@ fn temp_dir(name: &str) -> PathBuf {
 fn chunks_without_light_are_lit_from_scratch() {
     let mut built = build_incrementally(None);
     let dir = temp_dir("unlit");
-    let mut storage = RegionStorage::new(dir.clone());
+    let mut storage = RegionStorage::new(dir.clone(), false);
     for x in -2..=3 {
         for z in -2..=2 {
             let Some(chunk) = built.chunk_if_present(ChunkPos::new(x, z)) else { continue };
@@ -382,7 +382,7 @@ fn chunks_without_light_are_lit_from_scratch() {
         }
     }
     storage.flush().unwrap();
-    let mut cache = ChunkCache::new(overworld(), FlatLevelSource::default(), Some(RegionStorage::new(dir.clone())));
+    let mut cache = ChunkCache::new(overworld(), FlatLevelSource::default(), Some(RegionStorage::new(dir.clone(), false)));
     cache.prepare_ticking_chunk(ChunkPos::new(0, 0));
     cache.prepare_ticking_chunk(ChunkPos::new(1, 0));
     check(&cache, "from scratch", area(STEP_4).leak(), probes(3));
@@ -392,7 +392,7 @@ fn chunks_without_light_are_lit_from_scratch() {
 #[test]
 fn saved_light_is_loaded_back() {
     let dir = temp_dir("saved");
-    let mut built = build_incrementally(Some(RegionStorage::new(dir.clone())));
+    let mut built = build_incrementally(Some(RegionStorage::new(dir.clone(), false)));
     for x in -2..=3 {
         for z in -2..=2 {
             if let Some(chunk) = built.chunk_if_present(ChunkPos::new(x, z)) {
@@ -401,7 +401,7 @@ fn saved_light_is_loaded_back() {
         }
     }
     built.save(0).unwrap();
-    let mut loaded = ChunkCache::new(overworld(), FlatLevelSource::default(), Some(RegionStorage::new(dir.clone())));
+    let mut loaded = ChunkCache::new(overworld(), FlatLevelSource::default(), Some(RegionStorage::new(dir.clone(), false)));
     loaded.prepare_ticking_chunk(ChunkPos::new(0, 0));
     loaded.prepare_ticking_chunk(ChunkPos::new(1, 0));
     loaded.run_until_idle();

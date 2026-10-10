@@ -237,6 +237,7 @@ impl ServerLevel {
             let floating = oy_dist >= -0.03125
                 && !player_stands_on_something
                 && !self.is_spectator(id)
+                && !self.allow_flight
                 && !self.player(id).abilities_may_fly()
                 && !self.has_effect(id, crisp_data::mob_effects::LEVITATION)
                 && !is_fall_flying

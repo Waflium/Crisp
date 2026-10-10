@@ -13,6 +13,19 @@ use crisp_protocol::{Reader, Writer};
 
 use region_file_version::RegionFileVersion;
 
+#[cfg(windows)]
+fn dsync(options: &mut OpenOptions) {
+    use std::os::windows::fs::OpenOptionsExt;
+    const FILE_FLAG_WRITE_THROUGH: u32 = 0x8000_0000;
+    options.custom_flags(FILE_FLAG_WRITE_THROUGH);
+}
+
+#[cfg(unix)]
+fn dsync(options: &mut OpenOptions) {
+    use std::os::unix::fs::OpenOptionsExt;
+    options.custom_flags(libc::O_DSYNC);
+}
+
 const SECTOR_BYTES: u64 = 4096;
 const EXTERNAL_STREAM_FLAG: u8 = 128;
 
@@ -77,9 +90,14 @@ pub struct RegionFile {
 }
 
 impl RegionFile {
-    pub fn open(path: &Path) -> io::Result<RegionFile> {
+    pub fn open(path: &Path, sync: bool) -> io::Result<RegionFile> {
         fs::create_dir_all(path.parent().unwrap())?;
-        let mut file = OpenOptions::new().read(true).write(true).create(true).truncate(false).open(path)?;
+        let mut options = OpenOptions::new();
+        options.read(true).write(true).create(true).truncate(false);
+        if sync {
+            dsync(&mut options);
+        }
+        let mut file = options.open(path)?;
         let size = file.metadata()?.len();
         let mut header = vec![0u8; 2 * SECTOR_BYTES as usize];
         let read = file.read(&mut header)?;
@@ -222,12 +240,13 @@ impl RegionFile {
 
 pub struct RegionStorage {
     dir: PathBuf,
+    sync: bool,
     open: HashMap<(i32, i32), RegionFile>,
 }
 
 impl RegionStorage {
-    pub fn new(dir: PathBuf) -> RegionStorage {
-        RegionStorage { dir, open: HashMap::new() }
+    pub fn new(dir: PathBuf, sync: bool) -> RegionStorage {
+        RegionStorage { dir, sync, open: HashMap::new() }
     }
 
     fn region_path(&self, pos: ChunkPos) -> PathBuf {
@@ -237,7 +256,7 @@ impl RegionStorage {
     fn region(&mut self, pos: ChunkPos) -> io::Result<&mut RegionFile> {
         let key = (pos.x >> 5, pos.z >> 5);
         if !self.open.contains_key(&key) {
-            let region = RegionFile::open(&self.region_path(pos))?;
+            let region = RegionFile::open(&self.region_path(pos), self.sync)?;
             self.open.insert(key, region);
         }
         Ok(self.open.get_mut(&key).unwrap())
@@ -274,14 +293,14 @@ mod tests {
     #[test]
     fn region_round_trip() {
         let dir = std::env::temp_dir().join(format!("crisp-region-{}", std::process::id()));
-        let mut store = RegionStorage::new(dir.clone());
+        let mut store = RegionStorage::new(dir.clone(), false);
         let small = Nbt::Compound(vec![("a".into(), Nbt::Int(1))]);
         let large = Nbt::Compound(vec![("big".into(), Nbt::LongArray((0..3000).map(|i| i * 7919).collect()))]);
         store.write(ChunkPos::new(0, 0), &small).unwrap();
         store.write(ChunkPos::new(-1, 33), &large).unwrap();
         store.write(ChunkPos::new(0, 0), &large).unwrap();
         store.flush().unwrap();
-        let mut reopened = RegionStorage::new(dir.clone());
+        let mut reopened = RegionStorage::new(dir.clone(), false);
         assert_eq!(reopened.read(ChunkPos::new(0, 0)).unwrap(), Some(large.clone()));
         assert_eq!(reopened.read(ChunkPos::new(-1, 33)).unwrap(), Some(large));
         assert_eq!(reopened.read(ChunkPos::new(5, 5)).unwrap(), None);

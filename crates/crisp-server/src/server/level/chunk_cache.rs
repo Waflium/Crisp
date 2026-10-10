@@ -1225,7 +1225,7 @@ mod tests {
     fn expired_chunks_are_saved_unloaded_and_read_back() {
         let dir = std::env::temp_dir().join(format!("crisp-unload-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
-        let chunks = ChunkCache::new(overworld(), FlatLevelSource::default(), Some(RegionStorage::new(dir.clone())));
+        let chunks = ChunkCache::new(overworld(), FlatLevelSource::default(), Some(RegionStorage::new(dir.clone(), false)));
         let mut level = ServerLevel::new(OVERWORLD, 0, chunks, None, 10, 10);
         let pos = BlockPos::new(100, -60, 100);
         level.set_block(pos, blocks::STONE.default_state(), UPDATE_ALL);

@@ -195,9 +195,9 @@ impl Server {
         let spawn = (!new_world).then_some(data.spawn);
         let (seed, game_time, generator, game_type, difficulty, difficulty_locked, hardcore) =
             (data.seed, data.game_time, data.generator, data.game_type, data.difficulty, data.difficulty_locked, data.hardcore);
-        let storage = world_dir.as_ref().map(|d| RegionStorage::new(d.regions(OVERWORLD)));
+        let storage = world_dir.as_ref().map(|d| RegionStorage::new(d.regions(OVERWORLD), config.sync_chunk_writes));
         let chunks = ChunkCache::new(dimension, generator, storage);
-        let entity_storage = world_dir.as_ref().map(|d| RegionStorage::new(d.entities(OVERWORLD)));
+        let entity_storage = world_dir.as_ref().map(|d| RegionStorage::new(d.entities(OVERWORLD), config.sync_chunk_writes));
         let mut level = ServerLevel::new(OVERWORLD, dimension_type_id, chunks, entity_storage, config.view_distance, config.simulation_distance);
         if let Some(dir) = &world_dir {
             match read_dat(&chunk_tickets_file(dir)) {
@@ -231,6 +231,8 @@ impl Server {
         level.chunks.game_time = game_time;
         level.world_border = WorldBorder::load(world_dir.as_ref().map(|d| d.dimension_data_folder(OVERWORLD)));
         level.world_border.set_absolute_max_size(config.max_world_size);
+        level.allow_flight = config.allow_flight;
+        level.entity_broadcast_range_percentage = config.entity_broadcast_range_percentage;
         let scoreboard_save_data = ScoreboardSaveData::load(world_dir.as_ref().map(WorldDir::data_folder));
         level.scoreboard.load(scoreboard_save_data.data());
         let mut server = Server {

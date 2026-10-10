@@ -368,7 +368,8 @@ impl ServerLevel {
         let (entity_pos, entity_chunk) = (entity.position(), entity.chunk_position());
         let player_pos = self.player(player).entity.position();
         let range = self.chunk_map.tracked.get(tracked).unwrap().range;
-        let visible_range = (range.min(self.player_view_distance(player) * 16)) as f64;
+        let effective_range = self.entity_broadcast_range_percentage * range / 100;
+        let visible_range = (effective_range.min(self.player_view_distance(player) * 16)) as f64;
         let (dx, dz) = (player_pos.x - entity_pos.x, player_pos.z - entity_pos.z);
         let visible = dx * dx + dz * dz <= visible_range * visible_range && self.is_chunk_tracked(player, entity_chunk.x, entity_chunk.z);
         if visible {

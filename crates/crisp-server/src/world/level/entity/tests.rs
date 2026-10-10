@@ -48,8 +48,8 @@ fn temp_dir(name: &str) -> PathBuf {
 
 fn level_in(dir: &Path) -> ServerLevel {
     let dimension = &crisp_data::DIMENSION_TYPES[0];
-    let chunks = ChunkCache::new(dimension, FlatLevelSource::default(), Some(RegionStorage::new(dir.join("region"))));
-    ServerLevel::new(OVERWORLD, 0, chunks, Some(RegionStorage::new(dir.join("entities"))), 10, 10)
+    let chunks = ChunkCache::new(dimension, FlatLevelSource::default(), Some(RegionStorage::new(dir.join("region"), false)));
+    ServerLevel::new(OVERWORLD, 0, chunks, Some(RegionStorage::new(dir.join("entities"), false)), 10, 10)
 }
 
 fn add_item(level: &mut ServerLevel, pos: Vec3) -> EntityId {
@@ -60,7 +60,7 @@ fn add_item(level: &mut ServerLevel, pos: Vec3) -> EntityId {
 }
 
 fn stored(dir: &Path, pos: ChunkPos) -> Option<Nbt> {
-    RegionStorage::new(dir.join("entities")).read(pos).unwrap()
+    RegionStorage::new(dir.join("entities"), false).read(pos).unwrap()
 }
 
 fn uuids(entities: &Nbt) -> Vec<u128> {
