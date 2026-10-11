@@ -4,6 +4,11 @@ use crisp_core::BlockPos;
 use crisp_core::random::RandomSource;
 use serde_json::Value;
 
+use super::abstract_huge_mushroom_feature::{AbstractHugeMushroomFeature, HugeMushroomType};
+use super::bamboo_feature::BambooFeature;
+use super::block_column_feature::BlockColumnFeature;
+use super::block_pile_feature::BlockPileFeature;
+use super::fallen_tree_feature::FallenTreeFeature;
 use super::ore_feature::OreFeature;
 use super::random_boolean_selector_feature::RandomBooleanSelectorFeature;
 use super::random_selector_feature::RandomSelectorFeature;
@@ -11,13 +16,22 @@ use super::scattered_ore_feature::ScatteredOreFeature;
 use super::simple_block_feature::SimpleBlockFeature;
 use super::simple_random_selector_feature::SimpleRandomSelectorFeature;
 use super::tree_feature::TreeFeature;
+use super::vegetation_patch_feature::VegetationPatchFeature;
+use super::vines_feature;
 use super::weighted_random_selector_feature::WeightedRandomSelectorFeature;
 use crate::server::level::world_gen_region::WorldGenRegion;
 use crate::world::level::levelgen::blockpredicates::block_predicate::resource;
 
 pub enum Feature {
     Tree(Box<TreeFeature>),
+    FallenTree(FallenTreeFeature),
     SimpleBlock(SimpleBlockFeature),
+    BlockColumn(BlockColumnFeature),
+    BlockPile(BlockPileFeature),
+    VegetationPatch(Box<VegetationPatchFeature>),
+    Vines,
+    Bamboo(BambooFeature),
+    HugeMushroom(Box<AbstractHugeMushroomFeature>),
     Ore(OreFeature),
     ScatteredOre(ScatteredOreFeature),
     RandomSelector(RandomSelectorFeature),
@@ -47,7 +61,16 @@ impl Feature {
         let ty = json.get("type").and_then(Value::as_str).ok_or("feature without type")?;
         Ok(match ty.strip_prefix("minecraft:").unwrap_or(ty) {
             "tree" => Feature::Tree(Box::new(TreeFeature::parse(json)?)),
+            "fallen_tree" => Feature::FallenTree(FallenTreeFeature::parse(json)?),
             "simple_block" => Feature::SimpleBlock(SimpleBlockFeature::parse(json)?),
+            "block_column" => Feature::BlockColumn(BlockColumnFeature::parse(json)?),
+            "block_pile" => Feature::BlockPile(BlockPileFeature::parse(json)?),
+            "vegetation_patch" => Feature::VegetationPatch(Box::new(VegetationPatchFeature::parse(json, false)?)),
+            "waterlogged_vegetation_patch" => Feature::VegetationPatch(Box::new(VegetationPatchFeature::parse(json, true)?)),
+            "vines" => Feature::Vines,
+            "bamboo" => Feature::Bamboo(BambooFeature::parse(json)?),
+            "huge_brown_mushroom" => Feature::HugeMushroom(Box::new(AbstractHugeMushroomFeature::parse(json, HugeMushroomType::Brown)?)),
+            "huge_red_mushroom" => Feature::HugeMushroom(Box::new(AbstractHugeMushroomFeature::parse(json, HugeMushroomType::Red)?)),
             "ore" => Feature::Ore(OreFeature::parse(json)?),
             "scattered_ore" => Feature::ScatteredOre(ScatteredOreFeature::parse(json)?),
             "random_selector" => Feature::RandomSelector(RandomSelectorFeature::parse(json)?),
@@ -61,7 +84,14 @@ impl Feature {
     pub fn place<R: RandomSource>(&self, level: &mut WorldGenRegion, random: &mut R, origin: BlockPos) -> bool {
         match self {
             Feature::Tree(feature) => feature.place(level, random, origin),
+            Feature::FallenTree(feature) => feature.place(level, random, origin),
             Feature::SimpleBlock(feature) => feature.place(level, random, origin),
+            Feature::BlockColumn(feature) => feature.place(level, random, origin),
+            Feature::BlockPile(feature) => feature.place(level, random, origin),
+            Feature::VegetationPatch(feature) => feature.place(level, random, origin),
+            Feature::Vines => vines_feature::place(level, origin),
+            Feature::Bamboo(feature) => feature.place(level, random, origin),
+            Feature::HugeMushroom(feature) => feature.place(level, random, origin),
             Feature::Ore(feature) => feature.place(level, random, origin),
             Feature::ScatteredOre(feature) => feature.place(level, random, origin),
             Feature::RandomSelector(feature) => feature.place(level, random, origin),
@@ -70,6 +100,17 @@ impl Feature {
             Feature::WeightedRandomSelector(feature) => feature.place(level, random, origin),
             Feature::NotImplemented => false,
         }
+    }
+}
+
+pub fn mark_above_for_post_processing(level: &mut WorldGenRegion, place_pos: BlockPos) {
+    let mut pos = place_pos;
+    for _ in 0..2 {
+        pos = pos.above();
+        if level.get_block_state(pos).is_air() {
+            return;
+        }
+        level.mark_pos_for_post_processing(pos);
     }
 }
 

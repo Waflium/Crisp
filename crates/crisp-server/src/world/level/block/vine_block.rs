@@ -13,7 +13,7 @@ use crate::world::level::update_flags::UPDATE_CLIENTS;
 
 pub struct VineBlock;
 
-fn property_for_face(direction: Direction) -> BooleanProperty {
+pub fn property_for_face(direction: Direction) -> BooleanProperty {
     match direction {
         Direction::Up => UP,
         Direction::North => NORTH,
@@ -29,7 +29,7 @@ pub fn can_attach_to(direction_towards_neighbour: Direction, neighbour_state: Bl
     neighbour_state.is_face_sturdy(face, SupportType::Full) || shapes::is_face_full(&VoxelShape::from_boxes(neighbour_state.collision_shape()), face)
 }
 
-fn is_acceptable_neighbour(level: &mut dyn LevelReader, neighbour_pos: BlockPos, direction_to_neighbour: Direction) -> bool {
+pub fn is_acceptable_neighbour(level: &mut dyn LevelReader, neighbour_pos: BlockPos, direction_to_neighbour: Direction) -> bool {
     let state = level.block_state(neighbour_pos);
     can_attach_to(direction_to_neighbour, state)
 }

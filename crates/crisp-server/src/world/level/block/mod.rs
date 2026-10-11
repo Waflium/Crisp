@@ -156,7 +156,7 @@ mod torchflower_crop_block;
 mod twisting_vines_block;
 mod twisting_vines_plant_block;
 mod vegetation_block;
-mod vine_block;
+pub mod vine_block;
 mod weeping_vines_block;
 mod weeping_vines_plant_block;
 mod wither_rose_block;
