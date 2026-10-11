@@ -192,6 +192,25 @@ impl StructureTemplate {
         true
     }
 
+    pub fn filter_blocks<R: RandomSource>(&self, position: BlockPos, settings: &StructurePlaceSettings, block: crisp_data::Block, random: &mut R) -> Vec<StructureBlockInfo> {
+        if self.palettes.is_empty() {
+            return Vec::new();
+        }
+        let bounding_box = settings.bounding_box;
+        settings
+            .get_random_palette(&self.palettes, position, random)
+            .blocks
+            .iter()
+            .filter(|block_info| block_info.state.is_block(block))
+            .filter_map(|block_info| {
+                let block_pos = StructureTemplate::calculate_relative_position(settings, block_info.pos).offset(position.x, position.y, position.z);
+                bounding_box
+                    .is_none_or(|bounding_box| bounding_box.is_inside(block_pos))
+                    .then(|| StructureBlockInfo { pos: block_pos, state: block::rotate(block_info.state, settings.rotation), nbt: block_info.nbt.clone() })
+            })
+            .collect()
+    }
+
     pub fn get_zero_position_with_transform(&self, zero_pos: BlockPos, mirror: Mirror, rotation: Rotation) -> BlockPos {
         get_zero_position_with_transform(zero_pos, mirror, rotation, self.size.x, self.size.z)
     }

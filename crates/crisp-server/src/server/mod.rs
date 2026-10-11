@@ -245,7 +245,8 @@ impl Server {
         let (seed, game_time, generator, game_type, difficulty, difficulty_locked, hardcore) =
             (data.seed, data.game_time, data.generator, data.game_type, data.difficulty, data.difficulty_locked, data.hardcore);
         let storage = world_dir.as_ref().map(|d| RegionStorage::new(d.regions(OVERWORLD), config.sync_chunk_writes));
-        let chunks = ChunkCache::new(dimension, generator, storage);
+        let mut chunks = ChunkCache::new(dimension, generator, storage);
+        chunks.generate_structures = generate_structures;
         let entity_storage = world_dir.as_ref().map(|d| RegionStorage::new(d.entities(OVERWORLD), config.sync_chunk_writes));
         let mut level = ServerLevel::new(OVERWORLD, dimension_type_id, chunks, entity_storage, config.view_distance, config.simulation_distance);
         if let Some(dir) = &world_dir {

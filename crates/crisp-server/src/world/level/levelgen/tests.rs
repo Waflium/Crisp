@@ -6,7 +6,11 @@ use crisp_data::DimensionType;
 use super::NoiseBasedChunkGenerator;
 use super::material::WorldGenerationContext;
 use crate::server::level::world_gen_region::WorldGenRegion;
-use crate::world::level::chunk::{HeightmapType, LevelChunk};
+use std::sync::Arc;
+
+use super::structure::structure_start::StructureStart;
+use crate::world::level::chunk::chunk_generator_structure_state::ChunkGeneratorStructureState;
+use crate::world::level::chunk::{ChunkStructures, HeightmapType, LevelChunk};
 use crate::world::level::chunk::proto_chunk::ProtoChunk;
 use crate::world::level::lighting::level_light_engine::LevelLightEngine;
 
@@ -87,16 +91,86 @@ fn check(fixture: &str) {
     assert!(failures.is_empty(), "chunks differ from vanilla:\n{}", failures.join("\n"));
 }
 
-pub fn decorate(generator: &NoiseBasedChunkGenerator, chunks: &mut HashMap<ChunkPos, LevelChunk>, center: ChunkPos) {
+pub struct StructureHarness {
+    state: ChunkGeneratorStructureState,
+    starts: HashMap<ChunkPos, ChunkStructures>,
+}
+
+impl StructureHarness {
+    pub fn new(generator: &NoiseBasedChunkGenerator) -> StructureHarness {
+        StructureHarness { state: ChunkGeneratorStructureState::create_for_normal(generator, generator.seed()), starts: HashMap::new() }
+    }
+
+    fn starts_chunk(&mut self, generator: &NoiseBasedChunkGenerator, pos: ChunkPos) -> &ChunkStructures {
+        let state = &self.state;
+        self.starts.entry(pos).or_insert_with(|| {
+            let mut structures = ChunkStructures::default();
+            generator.create_structures(state, pos, overworld(), &mut structures);
+            structures
+        })
+    }
+
+    fn terrain_structures(&mut self, generator: &NoiseBasedChunkGenerator, pos: ChunkPos) -> ChunkStructures {
+        let mut structures = ChunkStructures::default();
+        for (&structure, start) in &self.starts_chunk(generator, pos).starts {
+            structures.starts.insert(structure, start.clone());
+        }
+        for source_x in pos.x - 8..=pos.x + 8 {
+            for source_z in pos.z - 8..=pos.z + 8 {
+                let source = ChunkPos::new(source_x, source_z);
+                let references: Vec<_> = self
+                    .starts_chunk(generator, source)
+                    .starts
+                    .iter()
+                    .filter(|(_, start)| {
+                        start.is_valid() && start.get_bounding_box().intersects_xz(pos.min_block_x(), pos.min_block_z(), pos.min_block_x() + 15, pos.min_block_z() + 15)
+                    })
+                    .map(|(&structure, _)| structure)
+                    .collect();
+                for structure in references {
+                    structures.add_reference_for_structure(structure, source.pack());
+                }
+            }
+        }
+        structures
+    }
+
+    fn starts_for_center(&mut self, generator: &NoiseBasedChunkGenerator, center: &ChunkStructures) -> Vec<Vec<Arc<StructureStart>>> {
+        let mut result = vec![Vec::new(); crisp_data::STRUCTURES.len()];
+        for (&structure, references) in &center.references {
+            for key in references.iter() {
+                if let Some(start) = self.starts_chunk(generator, ChunkPos::unpack(key)).get_start_for_structure(structure).filter(|start| start.is_valid()) {
+                    result[structure.0 as usize].push(start.clone());
+                }
+            }
+        }
+        result
+    }
+}
+
+fn generate_chunk(generator: &NoiseBasedChunkGenerator, pos: ChunkPos, structures: &mut Option<&mut StructureHarness>) -> LevelChunk {
+    let dimension = overworld();
+    let mut chunk = generator.generate(pos, dimension).into_level_chunk(dimension);
+    if let Some(harness) = structures {
+        chunk.structures = harness.terrain_structures(generator, pos);
+    }
+    chunk
+}
+
+pub fn decorate_with(generator: &NoiseBasedChunkGenerator, chunks: &mut HashMap<ChunkPos, LevelChunk>, center: ChunkPos, structures: &mut Option<&mut StructureHarness>) {
     let dimension = overworld();
     let mut taken: Vec<(ChunkPos, LevelChunk)> = Vec::new();
     for dz in -1..=1 {
         for dx in -1..=1 {
             let pos = ChunkPos::new(center.x + dx, center.z + dz);
-            let chunk = chunks.remove(&pos).unwrap_or_else(|| generator.generate(pos, dimension).into_level_chunk(dimension));
+            let chunk = chunks.remove(&pos).unwrap_or_else(|| generate_chunk(generator, pos, structures));
             taken.push((pos, chunk));
         }
     }
+    let structure_starts = match structures {
+        Some(harness) => harness.starts_for_center(generator, &taken[4].1.structures),
+        None => Vec::new(),
+    };
     {
         let mut iter = taken.iter_mut();
         let cache: [Option<&mut LevelChunk>; 9] = std::array::from_fn(|_| iter.next().map(|(_, c)| c));
@@ -107,13 +181,14 @@ pub fn decorate(generator: &NoiseBasedChunkGenerator, chunks: &mut HashMap<Chunk
         };
         let light_engine = LevelLightEngine::new(dimension.min_y, dimension.height as i32, true, dimension.has_skylight);
         let mut region = WorldGenRegion::new(center, cache, [true; 9], [false; 9], &generator.state, dimension.min_y, dimension.height as i32, generation, &light_engine);
-        generator.apply_biome_decoration(&mut region);
+        generator.apply_biome_decoration(&mut region, &structure_starts);
     }
     chunks.extend(taken);
 }
 
 pub fn decorate_like_oracle(generator: &NoiseBasedChunkGenerator, pos: ChunkPos) -> LevelChunk {
-    let dimension = overworld();
+    let mut harness = std::env::var("CRISP_STRUCTURES").is_ok().then(|| StructureHarness::new(generator));
+    let mut structures = harness.as_mut();
     let mut chunks: HashMap<ChunkPos, LevelChunk> = HashMap::new();
     for dz in -1..=1 {
         for dx in -1..=1 {
@@ -121,10 +196,13 @@ pub fn decorate_like_oracle(generator: &NoiseBasedChunkGenerator, pos: ChunkPos)
             for nz in -1..=1 {
                 for nx in -1..=1 {
                     let p = ChunkPos::new(center.x + nx, center.z + nz);
-                    chunks.entry(p).or_insert_with(|| generator.generate(p, dimension).into_level_chunk(dimension));
+                    if !chunks.contains_key(&p) {
+                        let chunk = generate_chunk(generator, p, &mut structures);
+                        chunks.insert(p, chunk);
+                    }
                 }
             }
-            decorate(generator, &mut chunks, center);
+            decorate_with(generator, &mut chunks, center, &mut structures);
         }
     }
     chunks.remove(&pos).expect("the decorated chunk")

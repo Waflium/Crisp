@@ -1,15 +1,30 @@
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 pub enum ChunkStatus {
     Empty,
+    StructureStarts,
+    StructureReferences,
+    Biomes,
     Terrain,
     Features,
     InitializeLight,
     Light,
+    Spawn,
     Full,
 }
 
 impl ChunkStatus {
-    pub const ALL: [ChunkStatus; 6] = [ChunkStatus::Empty, ChunkStatus::Terrain, ChunkStatus::Features, ChunkStatus::InitializeLight, ChunkStatus::Light, ChunkStatus::Full];
+    pub const ALL: [ChunkStatus; 10] = [
+        ChunkStatus::Empty,
+        ChunkStatus::StructureStarts,
+        ChunkStatus::StructureReferences,
+        ChunkStatus::Biomes,
+        ChunkStatus::Terrain,
+        ChunkStatus::Features,
+        ChunkStatus::InitializeLight,
+        ChunkStatus::Light,
+        ChunkStatus::Spawn,
+        ChunkStatus::Full,
+    ];
 
     pub fn index(self) -> usize {
         self as usize
@@ -25,13 +40,18 @@ impl ChunkStatus {
 
     fn accumulated_dependencies(self) -> &'static [ChunkStatus] {
         use ChunkStatus::*;
+        const S: ChunkStatus = StructureStarts;
         match self {
             Empty => &[],
-            Terrain => &[Empty],
-            Features => &[Terrain, Terrain],
-            InitializeLight => &[Features, Terrain],
-            Light => &[InitializeLight, InitializeLight, Terrain],
-            Full => &[Light, InitializeLight, Terrain],
+            StructureStarts => &[Empty],
+            StructureReferences => &[S, S, S, S, S, S, S, S, S],
+            Biomes => &[StructureReferences, S, S, S, S, S, S, S, S],
+            Terrain => &[Biomes, Biomes, S, S, S, S, S, S, S, S],
+            Features => &[Terrain, Terrain, Biomes, S, S, S, S, S, S, S, S],
+            InitializeLight => &[Features, Terrain, Biomes, S, S, S, S, S, S, S, S],
+            Light => &[InitializeLight, InitializeLight, Terrain, Biomes, S, S, S, S, S, S, S, S],
+            Spawn => &[Light, InitializeLight, Terrain, Biomes, S, S, S, S, S, S, S, S],
+            Full => &[Spawn, InitializeLight, Terrain, Biomes, S, S, S, S, S, S, S, S],
         }
     }
 
@@ -61,9 +81,7 @@ pub const MAX_LEVEL: i32 = FULL_CHUNK_LEVEL + RADIUS_AROUND_FULL_CHUNK;
 pub fn status_around_full_chunk(distance: i32) -> Option<ChunkStatus> {
     match distance {
         ..=0 => Some(ChunkStatus::Full),
-        1 => Some(ChunkStatus::InitializeLight),
-        2 => Some(ChunkStatus::Terrain),
-        3..=RADIUS_AROUND_FULL_CHUNK => Some(ChunkStatus::Empty),
+        1..=RADIUS_AROUND_FULL_CHUNK => Some(ChunkStatus::Full.dependency_at(distance)),
         _ => None,
     }
 }
@@ -73,12 +91,7 @@ pub fn generation_status(level: i32) -> Option<ChunkStatus> {
 }
 
 pub fn by_status(status: ChunkStatus) -> i32 {
-    match status {
-        ChunkStatus::Full | ChunkStatus::Light => FULL_CHUNK_LEVEL,
-        ChunkStatus::InitializeLight | ChunkStatus::Features => FULL_CHUNK_LEVEL + 1,
-        ChunkStatus::Terrain => FULL_CHUNK_LEVEL + 2,
-        ChunkStatus::Empty => MAX_LEVEL,
-    }
+    FULL_CHUNK_LEVEL + ChunkStatus::Full.accumulated_radius_of(status)
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
@@ -139,9 +152,15 @@ mod tests {
         assert_eq!(generation_status(33), Some(ChunkStatus::Full));
         assert_eq!(generation_status(34), Some(ChunkStatus::InitializeLight));
         assert_eq!(generation_status(35), Some(ChunkStatus::Terrain));
-        assert_eq!(generation_status(36), Some(ChunkStatus::Empty));
-        assert_eq!(generation_status(44), Some(ChunkStatus::Empty));
+        assert_eq!(generation_status(36), Some(ChunkStatus::Biomes));
+        assert_eq!(generation_status(37), Some(ChunkStatus::StructureStarts));
+        assert_eq!(generation_status(44), Some(ChunkStatus::StructureStarts));
         assert_eq!(generation_status(45), None);
+        assert_eq!(by_status(ChunkStatus::Spawn), 33);
+        assert_eq!(by_status(ChunkStatus::Features), 34);
+        assert_eq!(by_status(ChunkStatus::StructureReferences), 36);
+        assert_eq!(by_status(ChunkStatus::StructureStarts), 44);
+        assert_eq!(by_status(ChunkStatus::Empty), 44);
     }
 
     #[test]
@@ -151,10 +170,12 @@ mod tests {
         assert_eq!(Full.accumulated_radius_of(Light), 0);
         assert_eq!(Full.accumulated_radius_of(InitializeLight), 1);
         assert_eq!(Full.accumulated_radius_of(Terrain), 2);
-        assert_eq!(Full.accumulated_radius_of(Empty), 2);
+        assert_eq!(Full.accumulated_radius_of(Empty), 11);
         assert_eq!(Light.accumulated_radius_of(Features), 1);
         assert_eq!(Features.accumulated_radius_of(Terrain), 1);
-        assert_eq!(InitializeLight.accumulated_radius_of(Empty), 1);
+        assert_eq!(Features.accumulated_radius_of(StructureStarts), 10);
+        assert_eq!(StructureReferences.accumulated_radius_of(StructureStarts), 8);
+        assert_eq!(InitializeLight.accumulated_radius_of(Empty), 10);
         assert_eq!(Full.dependency_at(1), InitializeLight);
         assert_eq!(Full.dependency_at(2), Terrain);
     }

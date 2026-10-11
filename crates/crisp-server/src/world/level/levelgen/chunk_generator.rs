@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, OnceLock};
 
+use crisp_core::random::RandomSource;
 use crisp_core::{BlockPos, ChunkPos};
 use crisp_data::{BlockState, DimensionType, block_tags, blocks};
 
@@ -17,7 +18,14 @@ use crate::world::level::biome::feature_sorter::{self, StepFeatureData};
 use super::{NoiseGeneratorSettings, RandomState, WORLDGEN, quart_pos};
 use crate::world::level::biome::climate::{self, Parameter};
 use crate::world::level::biome::{self, MultiNoiseBiomeSource};
+use super::beardifier::Beardifier;
+use super::structure::BoundingBox;
+use super::structure::structure::StructureHolder;
+use super::structure::structure_set::StructureSelectionEntry;
+use super::structure::structure_start::StructureStart;
+use crate::world::level::chunk::ChunkStructures;
 use crate::world::level::chunk::carving_mask::CarvingMask;
+use crate::world::level::chunk::chunk_generator_structure_state::ChunkGeneratorStructureState;
 use crate::world::level::chunk::proto_chunk::{ChunkStatus, ProtoChunk};
 use crate::world::level::chunk::{Biome, HeightmapType};
 
@@ -100,7 +108,7 @@ impl NoiseBasedChunkGenerator {
         })
     }
 
-    pub fn apply_biome_decoration(&self, level: &mut WorldGenRegion) {
+    pub fn apply_biome_decoration(&self, level: &mut WorldGenRegion, structure_starts: &[Vec<Arc<StructureStart>>]) {
         let center_pos = level.get_center();
         let origin = BlockPos::new(center_pos.min_block_x(), level.get_min_y(), center_pos.min_block_z());
         let (feature_list, possible) = self.features_per_step();
@@ -128,7 +136,16 @@ impl NoiseBasedChunkGenerator {
         let mut placer = FeaturePlacer::default();
         let generation_steps = DECORATION_STEPS.max(feature_step_count);
         let mut possible_features_this_step: Vec<usize> = Vec::new();
+        let writable_area = get_writable_area(center_pos, level.get_min_y(), level.get_max_y());
         for step_index in 0..generation_steps {
+            if !structure_starts.is_empty() {
+                for (index, structure) in StructureHolder::all().filter(|structure| structure.value().step() == step_index).enumerate() {
+                    random.set_feature_seed(decoration_seed, index as i32, step_index as i32);
+                    for start in &structure_starts[structure.0 as usize] {
+                        start.place_in_chunk(level, &mut random, &writable_area, center_pos);
+                    }
+                }
+            }
             if step_index >= feature_step_count {
                 continue;
             }
@@ -234,12 +251,16 @@ impl NoiseBasedChunkGenerator {
     }
 
     pub fn generate(&self, pos: ChunkPos, dimension: &DimensionType) -> ProtoChunk {
-        let region: Vec<Arc<ChunkBiomes>> =
-            (0..9).map(|i| self.chunk_biomes(ChunkPos::new(pos.x + i % 3 - 1, pos.z + i / 3 - 1), dimension)).collect();
-        self.build_terrain(pos, dimension, std::array::from_fn(|i| &*region[i]))
+        self.generate_with_beardifier(pos, dimension, None)
     }
 
-    pub fn build_terrain(&self, pos: ChunkPos, dimension: &DimensionType, biomes: [&ChunkBiomes; 9]) -> ProtoChunk {
+    pub fn generate_with_beardifier(&self, pos: ChunkPos, dimension: &DimensionType, beardifier: Option<Arc<Beardifier>>) -> ProtoChunk {
+        let region: Vec<Arc<ChunkBiomes>> =
+            (0..9).map(|i| self.chunk_biomes(ChunkPos::new(pos.x + i % 3 - 1, pos.z + i / 3 - 1), dimension)).collect();
+        self.build_terrain(pos, dimension, std::array::from_fn(|i| &*region[i]), beardifier)
+    }
+
+    pub fn build_terrain(&self, pos: ChunkPos, dimension: &DimensionType, biomes: [&ChunkBiomes; 9], beardifier: Option<Arc<Beardifier>>) -> ProtoChunk {
         let mut chunk = ProtoChunk::new(pos, dimension);
         let center = biomes[4];
         for (i, section) in chunk.sections.iter_mut().enumerate() {
@@ -258,6 +279,7 @@ impl NoiseBasedChunkGenerator {
         }
         let volume = DensityVolume::new(16, noise.height, 16, pos.min_block_x(), noise.min_y, pos.min_block_z());
         let mut ctx = SamplerContext::cached();
+        ctx.beardifier = beardifier;
         let mut aquifer = self.create_aquifer(&mut ctx, &volume);
         self.do_fill(&mut chunk, &mut ctx, &mut aquifer, &volume);
 
@@ -433,6 +455,97 @@ impl NoiseBasedChunkGenerator {
         chunk.update_heightmap(HeightmapType::WorldSurfaceWg, x, y, z, state);
     }
 
+    pub fn create_structures(&self, state: &ChunkGeneratorStructureState, source_chunk_pos: ChunkPos, dimension: &DimensionType, structures: &mut ChunkStructures) {
+        state.ensure_structures_generated(self);
+        for &set in state.possible_structure_sets() {
+            let structure_set = set.value();
+            let entries = &structure_set.structures;
+            if entries.iter().any(|entry| structures.get_start_for_structure(entry.structure).is_some_and(|start| start.is_valid())) {
+                continue;
+            }
+            if !structure_set.placement.is_structure_chunk(set, state, source_chunk_pos.x, source_chunk_pos.z) {
+                continue;
+            }
+            if entries.len() == 1 {
+                self.try_generate_structure(&entries[0], structures, state.get_level_seed(), source_chunk_pos, dimension);
+                continue;
+            }
+            let mut options: Vec<&StructureSelectionEntry> = entries.iter().collect();
+            let mut random = WorldgenRandom::legacy(0);
+            random.set_large_feature_seed(state.get_level_seed(), source_chunk_pos.x, source_chunk_pos.z);
+            let mut total: i32 = options.iter().map(|option| option.weight).sum();
+            while !options.is_empty() {
+                let mut choice = random.next_int_bounded(total);
+                let mut index = 0;
+                for option in &options {
+                    choice -= option.weight;
+                    if choice < 0 {
+                        break;
+                    }
+                    index += 1;
+                }
+                let selected = options[index];
+                if self.try_generate_structure(selected, structures, state.get_level_seed(), source_chunk_pos, dimension) {
+                    break;
+                }
+                options.remove(index);
+                total -= selected.weight;
+            }
+        }
+    }
+
+    fn try_generate_structure(&self, selected: &StructureSelectionEntry, structures: &mut ChunkStructures, seed: i64, source_chunk_pos: ChunkPos, dimension: &DimensionType) -> bool {
+        let structure = selected.structure.value();
+        let references = structures.get_start_for_structure(selected.structure).map_or(0, |start| start.get_references());
+        match structure.generate(selected.structure, self, seed, source_chunk_pos, references, dimension.min_y, dimension.height as i32, structure.biomes()) {
+            Some(start) => {
+                structures.set_start_for_structure(selected.structure, Arc::new(start));
+                true
+            }
+            None => false,
+        }
+    }
+
+    pub fn get_noise_biome(&self, ctx: &mut SamplerContext, quart_x: i32, quart_y: i32, quart_z: i32) -> Biome {
+        let (block_x, block_y, block_z) = (quart_pos::to_block(quart_x), quart_pos::to_block(quart_y), quart_pos::to_block(quart_z));
+        let [temperature, humidity, continentalness, erosion, depth, weirdness] =
+            self.samplers.climate.each_ref().map(|sampler| sampler.sample_value(ctx, block_x, block_y, block_z));
+        self.biome_source.get_noise_biome(&climate::target(temperature, humidity, continentalness, erosion, depth, weirdness))
+    }
+
+    pub fn get_base_height(&self, x: i32, z: i32, kind: HeightmapType, min_y: i32, height: i32) -> i32 {
+        self.iterate_noise_column(min_y, height, x, z, |state| kind.is_opaque(state)).unwrap_or(min_y)
+    }
+
+    pub fn get_first_occupied_height(&self, x: i32, z: i32, kind: HeightmapType, min_y: i32, height: i32) -> i32 {
+        self.get_base_height(x, z, kind, min_y, height) - 1
+    }
+
+    fn iterate_noise_column(&self, min_y: i32, height: i32, block_x: i32, block_z: i32, tester: impl Fn(BlockState) -> bool) -> Option<i32> {
+        let noise = self.settings.noise.clamp_to(min_y, height);
+        if noise.height <= 0 {
+            return None;
+        }
+        let volume = DensityVolume::new(1, noise.height, 1, block_x, noise.min_y, block_z);
+        let mut ctx = SamplerContext::cached();
+        let mut aquifer = self.create_aquifer(&mut ctx, &volume);
+        let default_block = self.settings.default_block;
+        let mut densities = ctx.acquire(volume.size());
+        self.samplers.final_density.sample_volume(&mut ctx, &mut densities, &volume);
+        let mut result = None;
+        for y in (0..volume.size_y).rev() {
+            let density = densities[volume.index(0, y, 0)];
+            let block_y = volume.block_y(y);
+            let state = aquifer.compute_substance(&mut ctx, block_x, block_y, block_z, density as f64).unwrap_or(default_block);
+            if tester(state) {
+                result = Some(block_y + 1);
+                break;
+            }
+        }
+        ctx.release(densities);
+        result
+    }
+
     pub fn origin(&self) -> ChunkPos {
         if self.settings.spawn_target.is_empty() {
             return ChunkPos::new(0, 0);
@@ -457,6 +570,11 @@ impl NoiseBasedChunkGenerator {
             None => Aquifer::Disabled(self.picker),
         }
     }
+}
+
+fn get_writable_area(chunk_pos: ChunkPos, min_y: i32, max_y: i32) -> BoundingBox {
+    let (target_block_x, target_block_z) = (chunk_pos.min_block_x(), chunk_pos.min_block_z());
+    BoundingBox::new(target_block_x, min_y + 1, target_block_z, target_block_x + 15, max_y, target_block_z + 15)
 }
 
 fn inline(function: &Df) -> Df {

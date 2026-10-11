@@ -16,6 +16,7 @@ use crate::world::level::levelgen::blockpredicates::block_predicate::{BlockSet, 
 use crate::world::level::levelgen::parse_block_state;
 
 pub enum StructureProcessor {
+    BlockIgnore(Vec<crisp_data::Block>),
     BlockRot { rottable_blocks: Option<BlockSet>, integrity: f32 },
     ProtectedBlocks(BlockSet),
     Rule(Vec<ProcessorRule>),
@@ -115,6 +116,14 @@ impl StructureProcessor {
     pub fn parse(json: &Value) -> Result<StructureProcessor, String> {
         let ty = json.get("processor_type").and_then(Value::as_str).ok_or("processor without processor_type")?;
         Ok(match ty.strip_prefix("minecraft:").unwrap_or(ty) {
+            "block_ignore" => StructureProcessor::BlockIgnore(
+                json.get("blocks")
+                    .and_then(Value::as_array)
+                    .ok_or("missing blocks")?
+                    .iter()
+                    .map(|state| parse_block_state(state).map(|state| state.block()))
+                    .collect::<Result<_, _>>()?,
+            ),
             "block_rot" => StructureProcessor::BlockRot {
                 rottable_blocks: json.get("rottable_blocks").map(BlockSet::parse).transpose()?,
                 integrity: float(json.get("integrity").ok_or("missing integrity")?)?,
@@ -137,6 +146,9 @@ impl StructureProcessor {
         random: &mut R,
     ) -> Option<StructureBlockInfo> {
         match self {
+            StructureProcessor::BlockIgnore(to_ignore) => {
+                if to_ignore.contains(&processed_block_info.state.block()) { None } else { Some(processed_block_info) }
+            }
             StructureProcessor::BlockRot { rottable_blocks, integrity } => {
                 let mut random = settings.get_random(processed_block_info.pos, random);
                 let rottable = rottable_blocks.as_ref().is_none_or(|blocks| blocks.contains(processed_block_info.state.block()));

@@ -1,10 +1,10 @@
 use crisp_core::random::RandomSource;
 use crisp_core::{BlockPos, Direction};
-use crisp_data::properties::HORIZONTAL_FACING;
 use crisp_data::{BlockState, block_tags, blocks};
 
 use crate::server::level::world_gen_region::WorldGenRegion;
 use crate::world::level::block::entity::BlockEntityKind;
+use crate::world::level::levelgen::structure::structure_piece::reorient;
 
 const MOBS: [&str; 4] = ["minecraft:skeleton", "minecraft:zombie", "minecraft:zombie", "minecraft:spider"];
 const SIMPLE_DUNGEON: &str = "minecraft:chests/simple_dungeon";
@@ -107,38 +107,4 @@ fn set_block_entity_loot_table(level: &mut WorldGenRegion, random: &mut impl Ran
         base.loot_table = Some(loot_table.to_owned());
         base.loot_table_seed = random.next_long();
     }
-}
-
-pub fn reorient(level: &mut WorldGenRegion, block_pos: BlockPos, block_state: BlockState) -> BlockState {
-    let mut solid_neighbor = None;
-    for direction in Direction::PLANE_HORIZONTAL {
-        let state = level.get_block_state(block_pos.relative(direction));
-        if state.is_block(blocks::CHEST) {
-            return block_state;
-        }
-        if state.is_solid_render() {
-            if solid_neighbor.is_some() {
-                solid_neighbor = None;
-                break;
-            }
-            solid_neighbor = Some(direction);
-        }
-    }
-    if let Some(solid_neighbor) = solid_neighbor {
-        return block_state.set(HORIZONTAL_FACING, solid_neighbor.opposite());
-    }
-    let mut lock_dir = block_state.get(HORIZONTAL_FACING);
-    let mut relative_pos = block_pos.relative(lock_dir);
-    if level.get_block_state(relative_pos).is_solid_render() {
-        lock_dir = lock_dir.opposite();
-        relative_pos = block_pos.relative(lock_dir);
-    }
-    if level.get_block_state(relative_pos).is_solid_render() {
-        lock_dir = lock_dir.clockwise();
-        relative_pos = block_pos.relative(lock_dir);
-    }
-    if level.get_block_state(relative_pos).is_solid_render() {
-        lock_dir = lock_dir.opposite();
-    }
-    block_state.set(HORIZONTAL_FACING, lock_dir)
 }

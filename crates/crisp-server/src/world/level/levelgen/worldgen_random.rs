@@ -51,6 +51,11 @@ impl WorldgenRandom {
         let z_scale = self.next_long();
         self.set_seed((chunk_x as i64).wrapping_mul(x_scale) ^ (chunk_z as i64).wrapping_mul(z_scale) ^ seed);
     }
+
+    pub fn set_large_feature_with_salt(&mut self, seed: i64, x: i32, z: i32, blend: i32) {
+        let seedx = (x as i64).wrapping_mul(341873128712).wrapping_add((z as i64).wrapping_mul(132897987541)).wrapping_add(seed).wrapping_add(blend as i64);
+        self.set_seed(seedx);
+    }
 }
 
 impl RandomSource for WorldgenRandom {

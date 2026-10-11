@@ -94,12 +94,13 @@ fn main() -> anyhow::Result<()> {
     embed_json(&mut out, &data, "worldgen/world_preset", "WORLD_PRESETS")?;
     embed_json(&mut out, &data, "worldgen/multi_noise_biome_source_parameter_list", "BIOME_SOURCE_PARAMETER_LISTS")?;
     embed_json(&mut out, &data, "worldgen/carver", "CARVERS")?;
+    embed_json(&mut out, &data, "worldgen/structure", "STRUCTURES")?;
     embed_json(&mut out, &data, "worldgen/structure_set", "STRUCTURE_SETS")?;
     embed_json(&mut out, &data, "worldgen/feature", "FEATURES")?;
     embed_json(&mut out, &data, "worldgen/placed_feature", "PLACED_FEATURES")?;
     embed_json(&mut out, &data, "worldgen/block_state_provider", "BLOCK_STATE_PROVIDERS")?;
     embed_json(&mut out, &data, "worldgen/processor_list", "PROCESSOR_LISTS")?;
-    embed_structures(&mut out, &data)?;
+    embed_structure_templates(&mut out, &data)?;
     writeln!(out, "pub static BIOME_PARAMETERS: &[(&str, &str)] = &[")?;
     let parameters = reports.join("biome_parameters");
     for ns in namespaces(&parameters)? {
@@ -910,7 +911,7 @@ fn embed_json(out: &mut String, data: &Path, kind: &str, name: &str) -> anyhow::
     Ok(())
 }
 
-fn embed_structures(out: &mut String, data: &Path) -> anyhow::Result<()> {
+fn embed_structure_templates(out: &mut String, data: &Path) -> anyhow::Result<()> {
     fn walk(base: &Path, dir: &Path, out: &mut Vec<(String, std::path::PathBuf)>) -> anyhow::Result<()> {
         for entry in fs::read_dir(dir)? {
             let path = entry?.path();
@@ -923,7 +924,7 @@ fn embed_structures(out: &mut String, data: &Path) -> anyhow::Result<()> {
         }
         Ok(())
     }
-    writeln!(out, "pub static STRUCTURES: &[(&str, &[u8])] = &[")?;
+    writeln!(out, "pub static STRUCTURE_TEMPLATES: &[(&str, &[u8])] = &[")?;
     for ns in namespaces(data)? {
         let dir = data.join(&ns).join("structure");
         let mut files = Vec::new();

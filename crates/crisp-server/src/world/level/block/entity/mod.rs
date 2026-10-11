@@ -2,6 +2,7 @@ pub mod abstract_furnace_block_entity;
 mod barrel_block_entity;
 pub mod base_container_block_entity;
 pub mod beehive_block_entity;
+pub mod brushable_block_entity;
 pub mod chest_block_entity;
 pub mod container_openers_counter;
 mod dispenser_block_entity;
@@ -25,6 +26,7 @@ pub use abstract_furnace_block_entity::AbstractFurnaceBlockEntity;
 pub use barrel_block_entity::BarrelBlockEntity;
 pub use base_container_block_entity::BaseContainerBlockEntity;
 pub use beehive_block_entity::BeehiveBlockEntity;
+pub use brushable_block_entity::BrushableBlockEntity;
 pub use chest_block_entity::ChestBlockEntity;
 pub use dispenser_block_entity::DispenserBlockEntity;
 pub use hopper_block_entity::HopperBlockEntity;
@@ -57,6 +59,7 @@ pub enum BlockEntityKind {
     Dispenser(DispenserBlockEntity),
     Beehive(BeehiveBlockEntity),
     Spawner(spawner_block_entity::SpawnerBlockEntity),
+    Brushable(BrushableBlockEntity),
     Other(Vec<(String, Nbt)>),
 }
 
@@ -89,6 +92,7 @@ impl BlockEntity {
             types::DISPENSER | types::DROPPER => BlockEntityKind::Dispenser(DispenserBlockEntity::default()),
             types::BEEHIVE => BlockEntityKind::Beehive(BeehiveBlockEntity::default()),
             types::MOB_SPAWNER => BlockEntityKind::Spawner(spawner_block_entity::SpawnerBlockEntity::default()),
+            types::BRUSHABLE_BLOCK => BlockEntityKind::Brushable(BrushableBlockEntity::default()),
             _ => BlockEntityKind::Other(Vec::new()),
         };
         Some(BlockEntity { ty, pos, block_state: state, remove: false, components: DataComponentMap::EMPTY, id: NEXT_ID.fetch_add(1, Ordering::Relaxed), kind })
@@ -173,6 +177,7 @@ impl BlockEntity {
             BlockEntityKind::Dispenser(dispenser) => dispenser.load_additional(input),
             BlockEntityKind::Beehive(beehive) => beehive.load_additional(input),
             BlockEntityKind::Spawner(spawner) => spawner.load_additional(input),
+            BlockEntityKind::Brushable(brushable) => brushable.load_additional(input),
             BlockEntityKind::Other(data) => {
                 let _ = state;
                 *data = match input {
@@ -195,6 +200,7 @@ impl BlockEntity {
             BlockEntityKind::Dispenser(dispenser) => dispenser.save_additional(output),
             BlockEntityKind::Beehive(beehive) => beehive.save_additional(output),
             BlockEntityKind::Spawner(spawner) => spawner.save_additional(output),
+            BlockEntityKind::Brushable(brushable) => brushable.save_additional(output),
             BlockEntityKind::Other(data) => output.extend(data.iter().cloned()),
         }
     }
@@ -252,6 +258,9 @@ impl BlockEntity {
             }
             return tag;
         }
+        if let BlockEntityKind::Brushable(brushable) = &self.kind {
+            return brushable.get_update_tag();
+        }
         match self.update_tag_kind() {
             UpdateTag::CustomOnly => self.save_custom_only(),
             UpdateTag::WithoutMetadata => self.save_without_metadata(),
@@ -260,7 +269,7 @@ impl BlockEntity {
     }
 
     pub fn has_update_packet(&self) -> bool {
-        matches!(self.kind, BlockEntityKind::Spawner(_)) || !matches!(self.update_tag_kind(), UpdateTag::None)
+        matches!(self.kind, BlockEntityKind::Spawner(_) | BlockEntityKind::Brushable(_)) || !matches!(self.update_tag_kind(), UpdateTag::None)
     }
 
     fn update_tag_kind(&self) -> UpdateTag {
@@ -333,7 +342,7 @@ impl BlockEntity {
             BlockEntityKind::Furnace(f) => &f.base,
             BlockEntityKind::Hopper(h) => &h.base,
             BlockEntityKind::Dispenser(d) => &d.base,
-            BlockEntityKind::Beehive(_) | BlockEntityKind::Spawner(_) | BlockEntityKind::Other(_) => return None,
+            BlockEntityKind::Beehive(_) | BlockEntityKind::Spawner(_) | BlockEntityKind::Brushable(_) | BlockEntityKind::Other(_) => return None,
         })
     }
 
@@ -345,12 +354,15 @@ impl BlockEntity {
             BlockEntityKind::Furnace(f) => &mut f.base,
             BlockEntityKind::Hopper(h) => &mut h.base,
             BlockEntityKind::Dispenser(d) => &mut d.base,
-            BlockEntityKind::Beehive(_) | BlockEntityKind::Spawner(_) | BlockEntityKind::Other(_) => return None,
+            BlockEntityKind::Beehive(_) | BlockEntityKind::Spawner(_) | BlockEntityKind::Brushable(_) | BlockEntityKind::Other(_) => return None,
         })
     }
 
     pub fn is_randomizable(&self) -> bool {
-        !matches!(self.kind, BlockEntityKind::Furnace(_) | BlockEntityKind::Beehive(_) | BlockEntityKind::Spawner(_) | BlockEntityKind::Other(_))
+        !matches!(
+            self.kind,
+            BlockEntityKind::Furnace(_) | BlockEntityKind::Beehive(_) | BlockEntityKind::Spawner(_) | BlockEntityKind::Brushable(_) | BlockEntityKind::Other(_)
+        )
     }
 
     pub fn default_name(&self) -> &'static str {

@@ -99,6 +99,7 @@ impl Default for CacheCell {
 pub struct SamplerContext {
     cells: Option<Vec<CacheCell>>,
     pool: Vec<Vec<f32>>,
+    pub beardifier: Option<std::sync::Arc<crate::world::level::levelgen::beardifier::Beardifier>>,
 }
 
 fn block_key(x: i32, y: i32, z: i32) -> i64 {
@@ -107,11 +108,11 @@ fn block_key(x: i32, y: i32, z: i32) -> i64 {
 
 impl SamplerContext {
     pub fn cached() -> SamplerContext {
-        SamplerContext { cells: Some(Vec::new()), pool: Vec::new() }
+        SamplerContext { cells: Some(Vec::new()), pool: Vec::new(), beardifier: None }
     }
 
     pub fn uncached() -> SamplerContext {
-        SamplerContext { cells: None, pool: Vec::new() }
+        SamplerContext { cells: None, pool: Vec::new(), beardifier: None }
     }
 
     pub fn acquire(&mut self, size: usize) -> Vec<f32> {

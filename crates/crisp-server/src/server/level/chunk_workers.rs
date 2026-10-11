@@ -9,7 +9,7 @@ use crisp_protocol::nbt::Nbt;
 
 use crisp_data::{Block, Fluid};
 
-use crate::world::level::chunk::LevelChunk;
+use crate::world::level::chunk::{ChunkStructures, LevelChunk};
 use crate::world::level::chunk::serialization::{self, ReadChunk, SectionLight};
 use crate::world::level::chunk::storage::RegionStorage;
 use crate::world::ticks::SavedTick;
@@ -55,6 +55,7 @@ pub fn execute(job: impl FnOnce() + Send + 'static) {
 pub enum WorkResult {
     Loaded { pos: ChunkPos, token: u64, result: io::Result<Option<ReadChunk>> },
     Generated { pos: ChunkPos, token: u64, chunk: LevelChunk },
+    StructureStarts { pos: ChunkPos, token: u64, structures: ChunkStructures },
     Wake,
 }
 

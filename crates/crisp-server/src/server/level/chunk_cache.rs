@@ -23,7 +23,13 @@ use crate::world::level::chunk::storage::RegionStorage;
 use crate::world::level::block::entity::BlockEntity;
 use crate::world::level::chunk::block_entities::{BlockEntityTickers, EntityCreationType};
 use super::world_gen_region::{RegionLightTask, WorldGenRegion};
-use crate::world::level::chunk::{ChunkGenerator, LevelChunk};
+use crate::world::level::chunk::chunk_generator_structure_state::ChunkGeneratorStructureState;
+use crate::world::level::chunk::{ChunkGenerator, ChunkStructures, LevelChunk};
+use crate::world::level::levelgen::beardifier::Beardifier;
+use crate::world::level::levelgen::structure::structure::StructureHolder;
+use crate::world::level::levelgen::structure::terrain_adjustment::TerrainAdjustment;
+use crate::world::level::levelgen::structure::structure_start::StructureStart;
+use std::sync::Arc;
 use crate::world::level::levelgen::material::WorldGenerationContext;
 use crate::world::level::light_layer::LightLayer;
 use crate::world::level::lighting::{self, section};
@@ -41,6 +47,9 @@ pub struct ChunkCache {
     pub generator: ChunkGenerator,
     chunks: FastMap<ChunkPos, LevelChunk>,
     terrain_chunks: FastMap<ChunkPos, LevelChunk>,
+    structure_chunks: FastMap<ChunkPos, ChunkStructures>,
+    structure_state: Option<Arc<ChunkGeneratorStructureState>>,
+    pub generate_structures: bool,
     io: Option<IoWorker>,
     pub light_engine: ThreadedLevelLightEngine,
     light_changes: Vec<(LightLayer, i64)>,
@@ -69,11 +78,19 @@ pub struct ChunkCache {
 
 impl ChunkCache {
     pub fn new(dimension: &'static DimensionType, generator: impl Into<ChunkGenerator>, storage: Option<RegionStorage>) -> ChunkCache {
+        let generator = generator.into();
+        let structure_state = match &generator {
+            ChunkGenerator::Noise(generator) => Some(Arc::new(ChunkGeneratorStructureState::create_for_normal(generator, generator.seed()))),
+            _ => None,
+        };
         let mut cache = ChunkCache {
             dimension,
-            generator: generator.into(),
+            generator,
             chunks: FastMap::default(),
             terrain_chunks: FastMap::default(),
+            structure_chunks: FastMap::default(),
+            structure_state,
+            generate_structures: true,
             io: storage.map(IoWorker::new),
             light_engine: ThreadedLevelLightEngine::new(dimension.min_y, dimension.height as i32, dimension.has_skylight),
             light_changes: Vec::new(),
@@ -805,12 +822,34 @@ impl ChunkCache {
         let pos = job.pos;
         match job.status {
             ChunkStatus::Empty => self.schedule_chunk_load(job),
+            ChunkStatus::StructureStarts if generate => match (&self.generator, &self.structure_state) {
+                (ChunkGenerator::Noise(generator), Some(state)) if self.generate_structures => {
+                    let (generator, state, dimension, results) = (generator.clone(), state.clone(), self.dimension, self.results.0.clone());
+                    let token = self.new_token(job);
+                    self.in_flight += 1;
+                    chunk_workers::execute(move || {
+                        let mut structures = ChunkStructures::default();
+                        generator.create_structures(&state, pos, dimension, &mut structures);
+                        let _ = results.send(WorkResult::StructureStarts { pos, token, structures });
+                    });
+                }
+                _ => {
+                    self.structure_chunks.insert(pos, ChunkStructures::default());
+                    self.complete_step(job);
+                }
+            },
+            ChunkStatus::StructureReferences if generate => {
+                self.create_references(pos);
+                self.complete_step(job);
+            }
+            ChunkStatus::StructureStarts | ChunkStatus::StructureReferences | ChunkStatus::Biomes | ChunkStatus::Spawn => self.complete_step(job),
             ChunkStatus::Terrain if generate => {
+                let beardifier = self.beardifier_for_structures_in_chunk(pos).map(Arc::new);
                 let token = self.new_token(job);
                 let (generator, dimension, results) = (self.generator.clone(), self.dimension, self.results.0.clone());
                 self.in_flight += 1;
                 chunk_workers::execute(move || {
-                    let chunk = generator.generate(pos, dimension);
+                    let chunk = generator.generate_with_beardifier(pos, dimension, beardifier);
                     let _ = results.send(WorkResult::Generated { pos, token, chunk });
                 });
             }
@@ -867,6 +906,69 @@ impl ChunkCache {
         }
     }
 
+    fn chunk_structures(&self, pos: ChunkPos) -> Option<&ChunkStructures> {
+        if let Some(structures) = self.structure_chunks.get(&pos) {
+            return Some(structures);
+        }
+        if let Some(chunk) = self.terrain_chunks.get(&pos).or_else(|| self.chunks.get(&pos)) {
+            return Some(&chunk.structures);
+        }
+        self.holders.get(pos.pack()).and_then(|holder| holder.loaded.as_ref()).map(|chunk| &chunk.structures)
+    }
+
+    fn chunk_structures_mut(&mut self, pos: ChunkPos) -> Option<&mut ChunkStructures> {
+        if self.structure_chunks.contains_key(&pos) {
+            return self.structure_chunks.get_mut(&pos);
+        }
+        if self.terrain_chunks.contains_key(&pos) {
+            return self.terrain_chunks.get_mut(&pos).map(|chunk| &mut chunk.structures);
+        }
+        if self.chunks.contains_key(&pos) {
+            return self.chunks.get_mut(&pos).map(|chunk| &mut chunk.structures);
+        }
+        self.holders.get_mut(pos.pack()).and_then(|holder| holder.loaded.as_mut()).map(|chunk| &mut chunk.structures)
+    }
+
+    fn create_references(&mut self, center: ChunkPos) {
+        let (target_block_x, target_block_z) = (center.min_block_x(), center.min_block_z());
+        let mut references = Vec::new();
+        for source_x in center.x - 8..=center.x + 8 {
+            for source_z in center.z - 8..=center.z + 8 {
+                let source_chunk_key = ChunkPos::new(source_x, source_z).pack();
+                let Some(structures) = self.chunk_structures(ChunkPos::new(source_x, source_z)) else { continue };
+                for (&structure, start) in &structures.starts {
+                    if start.is_valid() && start.get_bounding_box().intersects_xz(target_block_x, target_block_z, target_block_x + 15, target_block_z + 15) {
+                        references.push((structure, source_chunk_key));
+                    }
+                }
+            }
+        }
+        if let Some(structures) = self.chunk_structures_mut(center) {
+            for (structure, source_chunk_key) in references {
+                structures.add_reference_for_structure(structure, source_chunk_key);
+            }
+        }
+    }
+
+    pub fn starts_for_structure(&self, pos: ChunkPos, structure: StructureHolder) -> Vec<Arc<StructureStart>> {
+        let Some(references) = self.chunk_structures(pos).and_then(|structures| structures.get_references_for_structure(structure)) else { return Vec::new() };
+        references
+            .iter()
+            .filter_map(|key| self.chunk_structures(ChunkPos::unpack(key))?.get_start_for_structure(structure).filter(|start| start.is_valid()).cloned())
+            .collect()
+    }
+
+    fn beardifier_for_structures_in_chunk(&self, pos: ChunkPos) -> Option<Beardifier> {
+        let references = self.chunk_structures(pos)?;
+        let structure_starts: Vec<Arc<StructureStart>> = references
+            .references
+            .keys()
+            .filter(|structure| structure.value().terrain_adaptation() != TerrainAdjustment::None)
+            .flat_map(|&structure| self.starts_for_structure(pos, structure))
+            .collect();
+        Beardifier::for_structures_in_chunk(&structure_starts, pos)
+    }
+
     fn generate_features(&mut self, center: ChunkPos) {
         if let ChunkGenerator::Noise(generator) = &self.generator {
             let generator = generator.clone();
@@ -879,6 +981,14 @@ impl ChunkCache {
 
     fn apply_biome_decoration(&mut self, generator: &crate::world::level::levelgen::NoiseBasedChunkGenerator, center: ChunkPos) {
         let dimension = self.dimension;
+        let mut structure_starts = Vec::new();
+        if self.generate_structures {
+            structure_starts.resize_with(crisp_data::STRUCTURES.len(), Vec::new);
+            let referenced: Vec<StructureHolder> = self.chunk_structures(center).map(|structures| structures.references.keys().copied().collect()).unwrap_or_default();
+            for structure in referenced {
+                structure_starts[structure.0 as usize] = self.starts_for_structure(center, structure);
+            }
+        }
         let mut taken: Vec<(ChunkPos, Option<LevelChunk>, bool)> = Vec::with_capacity(9);
         let mut writable = [false; 9];
         let mut lit = [false; 9];
@@ -901,7 +1011,7 @@ impl ChunkCache {
                 sea_level: generator.sea_level(),
             };
             let mut region = WorldGenRegion::new(center, cache, writable, lit, &generator.state, dimension.min_y, dimension.height as i32, generation, &self.light_engine.engine);
-            generator.apply_biome_decoration(&mut region);
+            generator.apply_biome_decoration(&mut region, &structure_starts);
             std::mem::take(&mut region.light_tasks)
         };
         for (i, (pos, chunk, terrain)) in taken.into_iter().enumerate() {
@@ -988,7 +1098,7 @@ impl ChunkCache {
 
     fn apply_work_result(&mut self, result: WorkResult) {
         let (token, pos) = match &result {
-            WorkResult::Loaded { token, pos, .. } | WorkResult::Generated { token, pos, .. } => (*token, *pos),
+            WorkResult::Loaded { token, pos, .. } | WorkResult::Generated { token, pos, .. } | WorkResult::StructureStarts { token, pos, .. } => (*token, *pos),
             WorkResult::Wake => return,
         };
         self.in_flight -= 1;
@@ -1001,7 +1111,12 @@ impl ChunkCache {
             WorkResult::Loaded { result, .. } => self.apply_loaded(job, result),
             WorkResult::Generated { mut chunk, .. } => {
                 chunk.unsaved = true;
+                chunk.structures = self.structure_chunks.remove(&pos).unwrap_or_default();
                 self.terrain_chunks.insert(pos, chunk);
+                self.complete_step(job);
+            }
+            WorkResult::StructureStarts { structures, .. } => {
+                self.structure_chunks.insert(pos, structures);
                 self.complete_step(job);
             }
             WorkResult::Wake => {}
@@ -1188,6 +1303,7 @@ impl ChunkCache {
         let chunk_pos = holder.pos;
         let is_full = holder.status_done(&self.holders.futures, ChunkStatus::Full);
         let terrain_chunk = self.terrain_chunks.remove(&chunk_pos);
+        self.structure_chunks.remove(&chunk_pos);
         let mut chunk = self.chunks.remove(&chunk_pos);
         if let Some(chunk) = &mut chunk {
             chunk.loaded = false;

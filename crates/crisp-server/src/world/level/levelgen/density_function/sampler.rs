@@ -50,6 +50,7 @@ type B = Box<Sampler>;
 
 pub enum Sampler {
     Constant(f32),
+    Beardifier,
     Noise { noise: Arc<NoiseStack>, xz_scale: f64, y_scale: f64 },
     ShiftedXz { shift_x: B, shift_z: B, noise: Arc<NoiseStack>, xz_scale: f64, y_scale: f64 },
     ShiftedXyz { shift_x: B, shift_y: B, shift_z: B, noise: Arc<NoiseStack>, xz_scale: f64, y_scale: f64 },
@@ -110,6 +111,10 @@ impl Sampler {
         use Sampler::*;
         match self {
             Constant(v) => out.fill(*v),
+            Beardifier => match &ctx.beardifier {
+                Some(beardifier) => beardifier.sample_volume(out, volume),
+                None => out.fill(0.0),
+            },
             Noise { noise, xz_scale, y_scale } => {
                 out.fill(0.0);
                 noise.add_to_volume(out, volume, *xz_scale, *y_scale, 1.0);
@@ -508,6 +513,7 @@ impl Sampler {
         use Sampler::*;
         match self {
             Constant(v) => *v,
+            Beardifier => ctx.beardifier.as_ref().map_or(0.0, |beardifier| beardifier.sample_value(x, y, z)),
             Noise { noise, xz_scale, y_scale } => noise.get(x as f64 * xz_scale, y as f64 * y_scale, z as f64 * xz_scale),
             ShiftedXyz { shift_x, shift_y, shift_z, noise, xz_scale, y_scale } => {
                 let nx = x as f64 * xz_scale + shift_x.sample_value(ctx, x, y, z) as f64;

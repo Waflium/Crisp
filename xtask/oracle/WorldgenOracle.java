@@ -89,6 +89,7 @@ public final class WorldgenOracle {
     private static RegistryAccess.Frozen registries;
     private static PalettedContainerFactory containers;
     private static CloseableResourceManager resources;
+    private static RegistryAccess.Frozen fullRegistries;
 
     public static void main(String[] args) throws Exception {
         SharedConstants.tryDetectVersion();
@@ -97,6 +98,7 @@ public final class WorldgenOracle {
         switch (args[0]) {
             case "terrain", "carved" -> terrain(args);
             case "features" -> features(args);
+            case "structures" -> structures(args);
             case "find" -> find(args);
             case "spawn" -> spawn(args);
             case "bench" -> bench(args);
@@ -115,6 +117,7 @@ public final class WorldgenOracle {
         List<HolderLookup.RegistryLookup<?>> lookups = TagLoader.buildUpdatedLookups(context, staticTags);
         registries = RegistryDataLoader.load(resources, lookups, RegistryDataLoader.WORLD_REGISTRIES, Runnable::run).join();
         staticTags.forEach(Registry.PendingTags::apply);
+        fullRegistries = layers.replaceFrom(RegistryLayer.WORLD, registries).compositeAccess();
         containers = PalettedContainerFactory.create(registries);
     }
 
@@ -323,6 +326,36 @@ public final class WorldgenOracle {
         }
 
         @Override
+        public net.minecraft.world.level.storage.LevelData getLevelData() {
+            return new net.minecraft.world.level.storage.LevelData() {
+                @Override
+                public RespawnData getRespawnData() {
+                    return RespawnData.DEFAULT;
+                }
+
+                @Override
+                public long getGameTime() {
+                    return 0L;
+                }
+
+                @Override
+                public boolean isHardcore() {
+                    return false;
+                }
+
+                @Override
+                public net.minecraft.world.Difficulty getDifficulty() {
+                    return net.minecraft.world.Difficulty.PEACEFUL;
+                }
+
+                @Override
+                public boolean isDifficultyLocked() {
+                    return false;
+                }
+            };
+        }
+
+        @Override
         public void updatePOIOnBlockStateChange(final BlockPos pos, final BlockState oldState, final BlockState newState) {
         }
 
@@ -333,7 +366,7 @@ public final class WorldgenOracle {
 
         @Override
         public FeatureFlagSet enabledFeatures() {
-            return FeatureFlags.DEFAULT_FLAGS;
+            return System.getenv("ORACLE_STRUCTURES") != null ? FeatureFlagSet.of() : FeatureFlags.DEFAULT_FLAGS;
         }
 
         static net.minecraft.server.level.ServerChunkCache chunkSource;
@@ -436,15 +469,57 @@ public final class WorldgenOracle {
         throw new NoSuchFieldException(name);
     }
 
+    private static net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplateManager templateManager() throws Exception {
+        net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplateManager templates =
+            (net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplateManager) unsafe().allocateInstance(
+                net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplateManager.class
+            );
+        setField(templates, "structureRepository", new java.util.concurrent.ConcurrentHashMap<>());
+        setField(templates, "sources", List.of(new net.minecraft.world.level.levelgen.structure.templatesystem.loader.ResourceManagerTemplateSource(
+            net.minecraft.util.datafix.DataFixers.getDataFixer(),
+            net.minecraft.core.registries.BuiltInRegistries.BLOCK,
+            resources,
+            new net.minecraft.resources.FileToIdConverter("structure", ".nbt")
+        )));
+        return templates;
+    }
+
+    private static void structures(String[] args) throws Exception {
+        long seed = Long.parseLong(args[1]);
+        int fromX = Integer.parseInt(args[2]);
+        int fromZ = Integer.parseInt(args[3]);
+        int toX = Integer.parseInt(args[4]);
+        int toZ = Integer.parseInt(args[5]);
+        World world = world(seed);
+        var templates = templateManager();
+        var state = world.generator.createState(registries.lookupOrThrow(Registries.STRUCTURE_SET), world.randomState, seed);
+        StructureManager structures = new StructureManager(null, new WorldOptions(seed, true, false), null);
+        var context = new net.minecraft.world.level.levelgen.structure.pieces.StructurePieceSerializationContext(resources, fullRegistries, templates);
+        for (int x = fromX; x <= toX; x++) {
+            for (int z = fromZ; z <= toZ; z++) {
+                ChunkPos pos = new ChunkPos(x, z);
+                ProtoChunk chunk = new ProtoChunk(pos, UpgradeData.EMPTY, HEIGHT, containers, null);
+                world.generator.createStructures(fullRegistries, state, structures, chunk, templates, net.minecraft.world.level.Level.OVERWORLD);
+                for (var entry : chunk.getAllStarts().entrySet()) {
+                    String id = registries.lookupOrThrow(Registries.STRUCTURE).getKey(entry.getKey()).toString();
+                    System.out.println("START " + x + " " + z + " " + id + " " + entry.getValue().createTag(context, pos));
+                }
+            }
+        }
+    }
+
     private static Unsafe unsafe() throws Exception {
         Field theUnsafe = Unsafe.class.getDeclaredField("theUnsafe");
         theUnsafe.setAccessible(true);
         return (Unsafe) theUnsafe.get(null);
     }
 
-    private static WorldGenRegion region(World world, ServerLevel level, ChunkPos center, Map<Long, ProtoChunk> chunks) throws Exception {
+    private static WorldGenRegion region(World world, ServerLevel level, ChunkPos center, Map<Long, ProtoChunk> chunks, java.util.function.LongFunction<ProtoChunk> outer) throws Exception {
         WorldGenRegion region = (WorldGenRegion) unsafe().allocateInstance(WorldGenRegion.class);
-        StaticCache2D<ChunkAccess> cache = StaticCache2D.create(center.x(), center.z(), 1, (x, z) -> chunks.get(ChunkPos.pack(x, z)));
+        StaticCache2D<ChunkAccess> cache = StaticCache2D.create(center.x(), center.z(), 8, (x, z) -> {
+            ProtoChunk chunk = chunks.get(ChunkPos.pack(x, z));
+            return chunk != null ? chunk : outer.apply(ChunkPos.pack(x, z));
+        });
         setField(region, "cache", cache);
         setField(region, "center", chunks.get(center.pack()));
         setField(region, "level", level);
@@ -495,7 +570,7 @@ public final class WorldgenOracle {
         String dump = args[1];
         long seed = Long.parseLong(args[2]);
         World world = world(seed);
-        OracleLevel.registryAccess = registries;
+        OracleLevel.registryAccess = fullRegistries;
         OracleLevel.dimensionType = registries.lookupOrThrow(Registries.DIMENSION_TYPE).getOrThrow(BuiltinDimensionTypes.OVERWORLD).value();
         OracleLevel.lightEngine = new UnlitLightEngine();
         OracleChunkCache.generator = world.generator;
@@ -513,21 +588,29 @@ public final class WorldgenOracle {
         }
         OracleLevel.chunkSource = (OracleChunkCache) unsafe().allocateInstance(OracleChunkCache.class);
         ServerLevel level = (ServerLevel) unsafe().allocateInstance(OracleLevel.class);
-        net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplateManager templates =
-            (net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplateManager) unsafe().allocateInstance(
-                net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplateManager.class
-            );
-        setField(templates, "structureRepository", new java.util.concurrent.ConcurrentHashMap<>());
-        setField(templates, "sources", List.of(new net.minecraft.world.level.levelgen.structure.templatesystem.loader.ResourceManagerTemplateSource(
-            net.minecraft.util.datafix.DataFixers.getDataFixer(),
-            net.minecraft.core.registries.BuiltInRegistries.BLOCK,
-            resources,
-            new net.minecraft.resources.FileToIdConverter("structure", ".nbt")
-        )));
         Object server = unsafe().allocateInstance(net.minecraft.server.dedicated.DedicatedServer.class);
+        var templates = templateManager();
         setField(server, "structureTemplateManager", templates);
         setField(level, "server", server);
-        StructureManager structures = new StructureManager(null, new WorldOptions(seed, false, false), null);
+        boolean withStructures = System.getenv("ORACLE_STRUCTURES") != null;
+        WorldOptions worldOptions = new WorldOptions(seed, withStructures, false);
+        StructureManager structures = new StructureManager(null, worldOptions, null);
+        var structureState = world.generator.createState(registries.lookupOrThrow(Registries.STRUCTURE_SET), world.randomState, seed);
+        Map<Long, ProtoChunk> structureChunks = new java.util.HashMap<>();
+        java.util.function.LongFunction<ProtoChunk> startsChunk = key -> structureChunks.computeIfAbsent(key, k -> {
+            ProtoChunk c = new ProtoChunk(ChunkPos.unpack(k), UpgradeData.EMPTY, HEIGHT, containers, null);
+            if (withStructures) {
+                world.generator.createStructures(fullRegistries, structureState, structures, c, templates, net.minecraft.world.level.Level.OVERWORLD);
+                String only = System.getenv("ORACLE_STRUCTURE_TYPES");
+                if (only != null) {
+                    Set<String> allowed = Set.of(only.split(","));
+                    var kept = new java.util.HashMap<>(c.getAllStarts());
+                    kept.keySet().removeIf(s -> !allowed.contains(net.minecraft.core.registries.BuiltInRegistries.STRUCTURE_TYPE.getKey(s.type()).toString()));
+                    c.setAllStarts(kept);
+                }
+            }
+            return c;
+        });
         Map<Long, ProtoChunk> biomeChunks = new LinkedHashMap<>();
         Map<Long, ProtoChunk> terrainChunks = new LinkedHashMap<>();
         Set<Long> decorated = new HashSet<>();
@@ -545,12 +628,24 @@ public final class WorldgenOracle {
                             if (!terrainChunks.containsKey(p.pack())) {
                                 ProtoChunk chunk = terrain(world, p, biomeChunks, true);
                                 chunk.setPersistedStatus(net.minecraft.world.level.chunk.status.ChunkStatus.TERRAIN);
+                                chunk.setAllStarts(startsChunk.apply(p.pack()).getAllStarts());
+                                for (int sx = p.x() - 8; sx <= p.x() + 8; sx++) {
+                                    for (int sz = p.z() - 8; sz <= p.z() + 8; sz++) {
+                                        long sourceKey = ChunkPos.pack(sx, sz);
+                                        for (var start : startsChunk.apply(sourceKey).getAllStarts().values()) {
+                                            if (start.isValid() && start.getBoundingBox().intersects(p.getMinBlockX(), p.getMinBlockZ(), p.getMaxBlockX(), p.getMaxBlockZ())) {
+                                                chunk.addReferenceForStructure(start.getStructure(), sourceKey);
+                                            }
+                                        }
+                                    }
+                                }
                                 terrainChunks.put(p.pack(), chunk);
                             }
                         }
                     }
                     ProtoChunk chunk = terrainChunks.get(center.pack());
-                    world.generator.applyBiomeDecoration(region(world, level, center, terrainChunks), chunk, structures);
+                    WorldGenRegion region = region(world, level, center, terrainChunks, startsChunk);
+                    world.generator.applyBiomeDecoration(region, chunk, new StructureManager(region, worldOptions, null));
                     chunk.setPersistedStatus(net.minecraft.world.level.chunk.status.ChunkStatus.FEATURES);
                 }
             }

@@ -1,4 +1,5 @@
 pub mod aquifer;
+pub mod beardifier;
 pub mod blockpredicates;
 pub mod carver;
 pub mod chunk_generator;

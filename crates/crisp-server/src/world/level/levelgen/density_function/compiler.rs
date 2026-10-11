@@ -137,7 +137,8 @@ pub fn compile(function: &Df, ctx: &dyn CompileContext) -> Sampler {
             Sampler::EndIslands(Arc::new(SimplexNoise::new(&mut random, true)))
         }
         F::Simple(SimpleType::BlendAlpha) => Sampler::Constant(1.0),
-        F::Simple(SimpleType::BlendOffset | SimpleType::Beardifier) => Sampler::Constant(0.0),
+        F::Simple(SimpleType::BlendOffset) => Sampler::Constant(0.0),
+        F::Simple(SimpleType::Beardifier) => Sampler::Beardifier,
         F::Unary(kind, input) => {
             let op = match kind {
                 UnaryType::Abs => UnaryOp::Abs,

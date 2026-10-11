@@ -7,7 +7,9 @@ use crisp_protocol::nbt::Nbt;
 
 use super::data_layer::{self, DataLayer};
 use super::palette::{PackedData, PalettedContainer};
-use super::{Biome, HeightmapType, LevelChunk, LevelChunkSection, biome_strategy, block_strategy};
+use super::{Biome, ChunkStructures, HeightmapType, LevelChunk, LevelChunkSection, biome_strategy, block_strategy};
+use crate::world::level::levelgen::structure::structure::StructureHolder;
+use crate::world::level::levelgen::structure::structure_start::StructureStart;
 use crate::world::ticks::{LevelChunkTicks, SavedTick, TickPriority};
 
 pub struct ReadChunk {
@@ -186,9 +188,57 @@ pub fn write(chunk: &LevelChunk, last_update: i64, block_ticks: &[SavedTick<Bloc
         ("fluid_ticks".into(), ticks_to_nbt(fluid_ticks, |f| registry::FLUID[f as usize])),
         ("PostProcessing".into(), Nbt::List(chunk.sections.iter().map(|_| Nbt::List(Vec::new())).collect())),
         ("Heightmaps".into(), Nbt::Compound(heightmaps)),
-        ("structures".into(), Nbt::Compound(vec![("References".into(), Nbt::Compound(Vec::new())), ("starts".into(), Nbt::Compound(Vec::new()))])),
+        ("structures".into(), pack_structure_data(chunk.pos, &chunk.structures)),
     ]);
     Nbt::Compound(tag)
+}
+
+fn pack_structure_data(pos: ChunkPos, structures: &ChunkStructures) -> Nbt {
+    let starts = structures.starts.iter().map(|(structure, start)| (structure.key().to_owned(), start.create_tag(pos))).collect();
+    let references = structures
+        .references
+        .iter()
+        .filter(|(_, set)| !set.is_empty())
+        .map(|(structure, set)| (structure.key().to_owned(), Nbt::LongArray(set.iter().collect())))
+        .collect();
+    Nbt::Compound(vec![("References".into(), Nbt::Compound(references)), ("starts".into(), Nbt::Compound(starts))])
+}
+
+fn unpack_structure_data(pos: ChunkPos, tag: Option<&Nbt>) -> ChunkStructures {
+    let mut structures = ChunkStructures::default();
+    let Some(tag) = tag else { return structures };
+    if let Some(Nbt::Compound(starts)) = tag.get("starts") {
+        for (key, start_tag) in starts {
+            match StructureHolder::by_name(key) {
+                None => error!("Unknown structure start: {key}"),
+                Some(structure) => {
+                    if let Some(Some(start)) = StructureStart::load_static_start(start_tag) {
+                        structures.starts.insert(structure, std::sync::Arc::new(start));
+                    }
+                }
+            }
+        }
+    }
+    if let Some(Nbt::Compound(references)) = tag.get("References") {
+        for (key, entry) in references {
+            let Some(structure) = StructureHolder::by_name(key) else {
+                warn!("Found reference to unknown structure '{key}' in chunk {pos:?}, discarding");
+                continue;
+            };
+            let Nbt::LongArray(values) = entry else { continue };
+            let mut set = crisp_core::fastutil::LongOpenHashSet::with_expected(values.len(), 0.75);
+            for &value in values {
+                let ref_pos = ChunkPos::unpack(value);
+                if ref_pos.chessboard_distance(pos) > 8 {
+                    warn!("Found invalid structure reference [ {key} @ {ref_pos:?} ] for chunk {pos:?}.");
+                } else {
+                    set.add(value);
+                }
+            }
+            structures.references.insert(structure, set);
+        }
+    }
+    structures
 }
 
 pub fn read(nbt: &Nbt, dimension: &DimensionType) -> io::Result<ReadChunk> {
@@ -223,6 +273,7 @@ pub fn read(nbt: &Nbt, dimension: &DimensionType) -> io::Result<ReadChunk> {
     chunk.inhabited_time = nbt.get("InhabitedTime").and_then(Nbt::as_i64).unwrap_or(0);
     chunk.light_correct = nbt.get("isLightOn").and_then(Nbt::as_i64).is_some_and(|b| b != 0);
     chunk.load_block_entities(nbt.get("block_entities").map(Nbt::as_list).unwrap_or(&[]));
+    chunk.structures = unpack_structure_data(chunk.pos, nbt.get("structures"));
     let mut missing = false;
     for kind in HeightmapType::LIVE {
         let i = HeightmapType::LIVE.iter().position(|&t| t == kind).unwrap();

@@ -23,6 +23,19 @@ impl Rotation {
         })
     }
 
+    pub fn legacy_name(self) -> &'static str {
+        match self {
+            Rotation::None => "NONE",
+            Rotation::Clockwise90 => "CLOCKWISE_90",
+            Rotation::Clockwise180 => "CLOCKWISE_180",
+            Rotation::Counterclockwise90 => "COUNTERCLOCKWISE_90",
+        }
+    }
+
+    pub fn by_legacy_name(name: &str) -> Option<Rotation> {
+        Rotation::VALUES.into_iter().find(|rotation| rotation.legacy_name() == name)
+    }
+
     pub fn rotation(self) -> OctahedralGroup {
         match self {
             Rotation::None => OctahedralGroup::Identity,

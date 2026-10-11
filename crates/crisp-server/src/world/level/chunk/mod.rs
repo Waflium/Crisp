@@ -1,5 +1,6 @@
 pub mod block_entities;
 pub mod carving_mask;
+pub mod chunk_generator_structure_state;
 pub mod data_layer;
 mod heightmap;
 pub mod palette;
@@ -15,6 +16,8 @@ use crisp_protocol::nbt::Nbt;
 pub use heightmap::{Heightmap, HeightmapType};
 use palette::{PaletteValue, PalettedContainer, Strategy};
 
+use crate::world::level::levelgen::structure::structure::StructureHolder;
+use crate::world::level::levelgen::structure::structure_start::StructureStart;
 use crate::world::level::lighting::sky_light_sources::{ChunkBlocks, ChunkSkyLightSources};
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
@@ -168,6 +171,30 @@ impl LevelChunkSection {
     }
 }
 
+#[derive(Default)]
+pub struct ChunkStructures {
+    pub starts: std::collections::BTreeMap<StructureHolder, std::sync::Arc<StructureStart>>,
+    pub references: std::collections::BTreeMap<StructureHolder, crisp_core::fastutil::LongOpenHashSet>,
+}
+
+impl ChunkStructures {
+    pub fn get_start_for_structure(&self, structure: StructureHolder) -> Option<&std::sync::Arc<StructureStart>> {
+        self.starts.get(&structure)
+    }
+
+    pub fn set_start_for_structure(&mut self, structure: StructureHolder, start: std::sync::Arc<StructureStart>) {
+        self.starts.insert(structure, start);
+    }
+
+    pub fn get_references_for_structure(&self, structure: StructureHolder) -> Option<&crisp_core::fastutil::LongOpenHashSet> {
+        self.references.get(&structure)
+    }
+
+    pub fn add_reference_for_structure(&mut self, structure: StructureHolder, reference: i64) {
+        self.references.entry(structure).or_insert_with(crisp_core::fastutil::LongOpenHashSet::new).add(reference);
+    }
+}
+
 pub struct LevelChunk {
     pub pos: ChunkPos,
     min_y: i32,
@@ -180,6 +207,7 @@ pub struct LevelChunk {
     pub block_entities: block_entities::ChunkBlockEntities,
     pub loaded: bool,
     pub proto: Option<Box<proto_chunk::ProtoChunkData>>,
+    pub structures: ChunkStructures,
 }
 
 impl LevelChunk {
@@ -202,6 +230,7 @@ impl LevelChunk {
             block_entities: Default::default(),
             loaded: false,
             proto: None,
+            structures: ChunkStructures::default(),
         }
     }
 
@@ -365,6 +394,15 @@ impl ChunkGenerator {
     }
 
     pub fn generate(&self, pos: ChunkPos, dimension: &DimensionType) -> LevelChunk {
+        self.generate_with_beardifier(pos, dimension, None)
+    }
+
+    pub fn generate_with_beardifier(
+        &self,
+        pos: ChunkPos,
+        dimension: &DimensionType,
+        beardifier: Option<std::sync::Arc<crate::world::level::levelgen::beardifier::Beardifier>>,
+    ) -> LevelChunk {
         match self {
             ChunkGenerator::Flat(flat) => {
                 let mut chunk = flat.generate(pos, dimension);
@@ -372,7 +410,7 @@ impl ChunkGenerator {
                 chunk.proto = Some(Box::new(proto_chunk::ProtoChunkData::new(sections)));
                 chunk
             }
-            ChunkGenerator::Noise(noise) => noise.generate(pos, dimension).into_level_chunk(dimension),
+            ChunkGenerator::Noise(noise) => noise.generate_with_beardifier(pos, dimension, beardifier).into_level_chunk(dimension),
         }
     }
 
