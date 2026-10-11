@@ -6,14 +6,14 @@ use crisp_data::{Block, BlockState, block_tags, blocks};
 use super::BlockBehaviour;
 use crate::server::level::ServerLevel;
 use crate::world::item::context::BlockPlaceContext;
-use crate::world::level::BlockGetter;
+use crate::world::level::{BlockGetter, LevelReader};
 use crate::world::level::block;
 use crate::world::level::light_layer::LightLayer;
 
 pub struct SnowLayerBlock;
 
 impl BlockBehaviour for SnowLayerBlock {
-    fn can_survive(&self, _state: BlockState, level: &mut ServerLevel, pos: BlockPos) -> bool {
+    fn can_survive(&self, _state: BlockState, level: &mut dyn LevelReader, pos: BlockPos) -> bool {
         let below = level.block_state(pos.below());
         if below.is(&block_tags::CANNOT_SUPPORT_SNOW_LAYER) {
             false

@@ -6,7 +6,7 @@ use crisp_data::{Block, BlockState, SupportType};
 use super::vegetation_block::fields;
 use crate::server::level::ServerLevel;
 use crate::world::item::context::BlockPlaceContext;
-use crate::world::level::BlockGetter;
+use crate::world::level::{BlockGetter, LevelReader};
 use crate::world::level::update_flags::UPDATE_LIMIT;
 
 pub struct GrowingPlant {
@@ -40,7 +40,7 @@ pub fn get_state_for_placement(
     if !growth_direction_state.is_block(head) && !growth_direction_state.is_block(body) { own(level) } else { body.default_state() }
 }
 
-pub fn can_survive(plant: &GrowingPlant, head: Block, body: Block, can_attach_to: impl Fn(BlockState) -> bool, level: &mut ServerLevel, pos: BlockPos) -> bool {
+pub fn can_survive(plant: &GrowingPlant, head: Block, body: Block, can_attach_to: impl Fn(BlockState) -> bool, level: &mut dyn LevelReader, pos: BlockPos) -> bool {
     let attached_to_pos = pos.relative(plant.growth_direction.opposite());
     let attached_to_state = level.block_state(attached_to_pos);
     if !can_attach_to(attached_to_state) {

@@ -9,6 +9,7 @@ use crate::server::level::ServerLevel;
 use crate::world::InteractionResult;
 use crate::world::entity::EntityId;
 use crate::world::item::context::BlockPlaceContext;
+use crate::world::level::LevelReader;
 use crate::world::level::update_flags::UPDATE_CLIENTS;
 
 pub struct CaveVinesParts;
@@ -42,7 +43,7 @@ impl BlockBehaviour for CaveVinesBlock {
         self.0.get_state_for_placement(block, ctx, level)
     }
 
-    fn can_survive(&self, state: BlockState, level: &mut ServerLevel, pos: BlockPos) -> bool {
+    fn can_survive(&self, state: BlockState, level: &mut dyn LevelReader, pos: BlockPos) -> bool {
         self.0.can_survive(state, level, pos)
     }
 

@@ -170,6 +170,7 @@ use crisp_core::{AABB, BlockPos, Direction, Vec3};
 use crisp_data::properties::WATERLOGGED;
 use crisp_data::{Block, BlockState, Fluid, FluidState};
 
+use crate::world::level::LevelReader;
 use crate::world::level::biome::Precipitation;
 use crate::server::level::ServerLevel;
 use crate::world::entity::EntityId;
@@ -241,7 +242,7 @@ pub trait BlockBehaviour: Send + Sync {
         InteractionResult::TryWithEmptyHand
     }
 
-    fn can_survive(&self, state: BlockState, level: &mut ServerLevel, pos: BlockPos) -> bool {
+    fn can_survive(&self, state: BlockState, level: &mut dyn LevelReader, pos: BlockPos) -> bool {
         true
     }
 
@@ -440,13 +441,11 @@ pub fn is_diode(state: BlockState) -> bool {
     state.block().is_instance_of("DiodeBlock")
 }
 
-pub fn can_support_rigid_block(level: &mut ServerLevel, pos: BlockPos) -> bool {
-    use crate::world::level::BlockGetter;
+pub fn can_support_rigid_block(level: &mut dyn LevelReader, pos: BlockPos) -> bool {
     level.block_state(pos).is_face_sturdy(Direction::Up, crisp_data::SupportType::Rigid)
 }
 
-pub fn can_support_center(level: &mut ServerLevel, pos: BlockPos, direction: Direction) -> bool {
-    use crate::world::level::BlockGetter;
+pub fn can_support_center(level: &mut dyn LevelReader, pos: BlockPos, direction: Direction) -> bool {
     let state = level.block_state(pos);
     (direction != Direction::Down || !state.is(&crisp_data::block_tags::UNSTABLE_BOTTOM_CENTER))
         && state.is_face_sturdy(direction, crisp_data::SupportType::Center)

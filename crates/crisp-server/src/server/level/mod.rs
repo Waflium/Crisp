@@ -18,6 +18,7 @@ pub mod server_entity;
 pub mod server_entity_getter;
 pub mod threaded_level_light_engine;
 pub mod ticket;
+pub mod world_gen_region;
 
 use crate::util::FastIndexMap;
 
@@ -1292,6 +1293,12 @@ impl ServerLevel {
 impl BlockGetter for ServerLevel {
     fn block_state(&mut self, pos: BlockPos) -> BlockState {
         self.chunks.block_state(pos)
+    }
+}
+
+impl crate::world::level::LevelReader for ServerLevel {
+    fn raw_brightness(&mut self, pos: BlockPos, darkening: i32) -> i32 {
+        ServerLevel::raw_brightness(self, pos, darkening)
     }
 }
 

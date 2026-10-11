@@ -22,7 +22,9 @@ use crate::world::level::chunk::serialization::{self, SectionLight};
 use crate::world::level::chunk::storage::RegionStorage;
 use crate::world::level::block::entity::BlockEntity;
 use crate::world::level::chunk::block_entities::{BlockEntityTickers, EntityCreationType};
+use super::world_gen_region::{RegionLightTask, WorldGenRegion};
 use crate::world::level::chunk::{ChunkGenerator, LevelChunk};
+use crate::world::level::levelgen::material::WorldGenerationContext;
 use crate::world::level::light_layer::LightLayer;
 use crate::world::level::lighting::{self, section};
 use crate::world::ticks::{LevelChunkTicks, LevelTicks};
@@ -38,6 +40,7 @@ pub struct ChunkCache {
     pub dimension: &'static DimensionType,
     pub generator: ChunkGenerator,
     chunks: FastMap<ChunkPos, LevelChunk>,
+    terrain_chunks: FastMap<ChunkPos, LevelChunk>,
     io: Option<IoWorker>,
     pub light_engine: ThreadedLevelLightEngine,
     light_changes: Vec<(LightLayer, i64)>,
@@ -70,6 +73,7 @@ impl ChunkCache {
             dimension,
             generator: generator.into(),
             chunks: FastMap::default(),
+            terrain_chunks: FastMap::default(),
             io: storage.map(IoWorker::new),
             light_engine: ThreadedLevelLightEngine::new(dimension.min_y, dimension.height as i32, dimension.has_skylight),
             light_changes: Vec::new(),
@@ -345,6 +349,9 @@ impl ChunkCache {
     }
 
     pub fn wait_for_work(&mut self, timeout: Duration) {
+        if self.poll_task() {
+            return;
+        }
         match self.results.1.recv_timeout(timeout) {
             Ok(result) => self.apply_work_result(result),
             Err(RecvTimeoutError::Timeout | RecvTimeoutError::Disconnected) => {}
@@ -798,7 +805,7 @@ impl ChunkCache {
         let pos = job.pos;
         match job.status {
             ChunkStatus::Empty => self.schedule_chunk_load(job),
-            ChunkStatus::Features if generate => {
+            ChunkStatus::Terrain if generate => {
                 let token = self.new_token(job);
                 let (generator, dimension, results) = (self.generator.clone(), self.dimension, self.results.0.clone());
                 self.in_flight += 1;
@@ -807,10 +814,16 @@ impl ChunkCache {
                     let _ = results.send(WorkResult::Generated { pos, token, chunk });
                 });
             }
-            ChunkStatus::Features => {
+            ChunkStatus::Terrain => {
                 let holder = self.holders.get_mut(pos.pack()).unwrap();
                 if let Some(chunk) = holder.loaded.take() {
                     self.chunks.insert(pos, *chunk);
+                }
+                self.complete_step(job);
+            }
+            ChunkStatus::Features => {
+                if generate {
+                    self.generate_features(pos);
                 }
                 self.complete_step(job);
             }
@@ -834,6 +847,7 @@ impl ChunkCache {
             }
             ChunkStatus::Full => {
                 if let Some(chunk) = self.chunks.get_mut(&pos) {
+                    chunk.proto = None;
                     chunk.loaded = true;
                     chunk.register_all_block_entities_after_level_load(&mut self.block_entity_tickers);
                 }
@@ -842,6 +856,63 @@ impl ChunkCache {
                 self.block_ticks.register_container(pos, block_ticks);
                 self.fluid_ticks.register_container(pos, fluid_ticks);
                 self.complete_step(job);
+            }
+        }
+    }
+
+    fn generate_features(&mut self, center: ChunkPos) {
+        if let ChunkGenerator::Noise(generator) = &self.generator {
+            let generator = generator.clone();
+            self.apply_biome_decoration(&generator, center);
+        }
+        if let Some(chunk) = self.terrain_chunks.remove(&center) {
+            self.chunks.insert(center, chunk);
+        }
+    }
+
+    fn apply_biome_decoration(&mut self, generator: &crate::world::level::levelgen::NoiseBasedChunkGenerator, center: ChunkPos) {
+        let dimension = self.dimension;
+        let mut taken: Vec<(ChunkPos, Option<LevelChunk>, bool)> = Vec::with_capacity(9);
+        let mut writable = [false; 9];
+        let mut lit = [false; 9];
+        for (i, (dx, dz)) in (-1..=1).flat_map(|dz| (-1..=1).map(move |dx| (dx, dz))).enumerate() {
+            let pos = ChunkPos::new(center.x + dx, center.z + dz);
+            let (chunk, terrain) = match self.terrain_chunks.remove(&pos) {
+                Some(chunk) => (Some(chunk), true),
+                None => (self.chunks.remove(&pos), false),
+            };
+            writable[i] = chunk.as_ref().is_some_and(|c| c.proto.is_some());
+            lit[i] = self.holders.get(pos.pack()).is_some_and(|h| h.status_done(&self.holders.futures, ChunkStatus::InitializeLight));
+            taken.push((pos, chunk, terrain));
+        }
+        let light_tasks = {
+            let mut iter = taken.iter_mut();
+            let cache: [Option<&mut LevelChunk>; 9] = std::array::from_fn(|_| iter.next().and_then(|(_, c, _)| c.as_mut()));
+            let generation = WorldGenerationContext {
+                min_gen_y: dimension.min_y.max(generator.min_y()),
+                gen_depth: (dimension.height as i32).min(generator.gen_depth()),
+                sea_level: generator.sea_level(),
+            };
+            let mut region = WorldGenRegion::new(center, cache, writable, lit, generator.seed(), dimension.min_y, dimension.height as i32, generation);
+            generator.apply_biome_decoration(&mut region);
+            std::mem::take(&mut region.light_tasks)
+        };
+        for (i, (pos, chunk, terrain)) in taken.into_iter().enumerate() {
+            if let Some(mut chunk) = chunk {
+                chunk.unsaved |= writable[i];
+                if terrain {
+                    self.terrain_chunks.insert(pos, chunk);
+                } else {
+                    self.chunks.insert(pos, chunk);
+                }
+            }
+        }
+        for task in light_tasks {
+            match task {
+                RegionLightTask::UpdateSectionStatus(pos, empty) => {
+                    self.add_light_task(TaskType::PreUpdate, LightTask::UpdateSectionStatus(section::of(pos.x >> 4, pos.y >> 4, pos.z >> 4), empty));
+                }
+                RegionLightTask::CheckBlock(pos) => self.add_light_task(TaskType::PreUpdate, LightTask::CheckBlock(pos)),
             }
         }
     }
@@ -923,7 +994,7 @@ impl ChunkCache {
             WorkResult::Loaded { result, .. } => self.apply_loaded(job, result),
             WorkResult::Generated { mut chunk, .. } => {
                 chunk.unsaved = true;
-                self.chunks.insert(pos, chunk);
+                self.terrain_chunks.insert(pos, chunk);
                 self.complete_step(job);
             }
             WorkResult::Wake => {}
@@ -1109,11 +1180,12 @@ impl ChunkCache {
         let holder = self.holders.pending_unloads.shift_remove(&pos).unwrap();
         let chunk_pos = holder.pos;
         let is_full = holder.status_done(&self.holders.futures, ChunkStatus::Full);
+        let terrain_chunk = self.terrain_chunks.remove(&chunk_pos);
         let mut chunk = self.chunks.remove(&chunk_pos);
         if let Some(chunk) = &mut chunk {
             chunk.loaded = false;
         }
-        let had_chunk = chunk.is_some() || holder.loaded.is_some() || holder.persisted_status.is_some();
+        let had_chunk = chunk.is_some() || terrain_chunk.is_some() || holder.loaded.is_some() || holder.persisted_status.is_some();
         if is_full && let Some(chunk) = chunk {
             if let Some(io) = &self.io
                 && chunk.unsaved
@@ -1208,6 +1280,50 @@ mod tests {
 
     fn overworld() -> &'static DimensionType {
         &crisp_data::DIMENSION_TYPES[0]
+    }
+
+    #[test]
+    fn noise_chunks_are_decorated_with_ores() {
+        let generator = crate::world::level::levelgen::NoiseBasedChunkGenerator::overworld(12345);
+        let mut cache = ChunkCache::new(overworld(), crate::world::level::chunk::ChunkGenerator::Noise(std::sync::Arc::new(generator)), None);
+        let mut ores = 0;
+        for y in -64..40 {
+            for z in 0..16 {
+                for x in 0..16 {
+                    if cache.block_state(BlockPos::new(x, y, z)).block().name().ends_with("_ore") {
+                        ores += 1;
+                    }
+                }
+            }
+        }
+        assert!(ores > 0);
+        for cx in -4..4 {
+            for cz in -4..4 {
+                cache.block_state(BlockPos::new(cx * 16, 0, cz * 16));
+            }
+        }
+        cache.run_light_updates();
+    }
+
+    #[test]
+    fn decorating_next_to_a_saved_chunk_finishes() {
+        let dir = std::env::temp_dir().join(format!("crisp-decorate-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let generator = crate::world::level::levelgen::NoiseBasedChunkGenerator::overworld(12345);
+        let chunks = ChunkCache::new(overworld(), crate::world::level::chunk::ChunkGenerator::Noise(std::sync::Arc::new(generator)), Some(RegionStorage::new(dir.clone(), false)));
+        let mut level = ServerLevel::new(OVERWORLD, 0, chunks, None, 10, 10);
+        let pos = BlockPos::new(100, 0, -40);
+        level.block_state(pos);
+        level.tick();
+        level.tick();
+        assert!(!level.chunks.has_chunk(pos.chunk()));
+        level.block_state(BlockPos::new(84, 0, -56));
+        assert!(level.chunks.has_chunk(ChunkPos::new(5, -4)));
+        crate::server::level::testing::player(&mut level, crisp_core::Vec3::new(100.5, 80.0, -39.5), 0.0, 0.0);
+        for _ in 0..40 {
+            level.tick();
+        }
+        let _ = std::fs::remove_dir_all(dir);
     }
 
     #[test]

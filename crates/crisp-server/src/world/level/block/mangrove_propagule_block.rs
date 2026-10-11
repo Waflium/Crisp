@@ -8,7 +8,7 @@ use super::sapling_block::advance_tree;
 use super::vegetation_block::{self, Vegetation, schedule_water_tick};
 use crate::server::level::ServerLevel;
 use crate::world::item::context::BlockPlaceContext;
-use crate::world::level::BlockGetter;
+use crate::world::level::{BlockGetter, LevelReader};
 use crate::world::level::update_flags::UPDATE_CLIENTS;
 
 pub fn new_hanging_propagule(age: i32) -> BlockState {
@@ -26,7 +26,7 @@ fn is_fully_grown(state: BlockState) -> bool {
 pub struct MangrovePropaguleBlock;
 
 impl Vegetation for MangrovePropaguleBlock {
-    fn may_place_on(&self, state: BlockState, _level: &mut ServerLevel, _pos: BlockPos) -> bool {
+    fn may_place_on(&self, state: BlockState, _level: &mut dyn LevelReader, _pos: BlockPos) -> bool {
         state.is(&block_tags::SUPPORTS_MANGROVE_PROPAGULE)
     }
 }
@@ -47,7 +47,7 @@ impl BlockBehaviour for MangrovePropaguleBlock {
         vegetation_block::update_shape(state, level, pos)
     }
 
-    fn can_survive(&self, state: BlockState, level: &mut ServerLevel, pos: BlockPos) -> bool {
+    fn can_survive(&self, state: BlockState, level: &mut dyn LevelReader, pos: BlockPos) -> bool {
         if is_hanging(state) {
             level.block_state(pos.above()).is(&block_tags::SUPPORTS_HANGING_MANGROVE_PROPAGULE)
         } else {

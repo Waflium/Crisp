@@ -5,12 +5,12 @@ use crisp_data::{BlockState, blocks};
 use super::BlockBehaviour;
 use super::vine_block::can_attach_to;
 use crate::server::level::ServerLevel;
-use crate::world::level::BlockGetter;
+use crate::world::level::{BlockGetter, LevelReader};
 use crate::world::level::update_flags::{UPDATE_ALL, UPDATE_LIMIT};
 
 pub struct HangingMossBlock;
 
-fn can_stay_at_position(level: &mut ServerLevel, pos: BlockPos) -> bool {
+fn can_stay_at_position(level: &mut dyn LevelReader, pos: BlockPos) -> bool {
     let block_state = level.block_state(pos.above());
     can_attach_to(Direction::Up, block_state) || block_state.is_block(blocks::PALE_HANGING_MOSS)
 }
@@ -26,7 +26,7 @@ fn tip(level: &mut ServerLevel, pos: BlockPos) -> BlockPos {
 }
 
 impl BlockBehaviour for HangingMossBlock {
-    fn can_survive(&self, _state: BlockState, level: &mut ServerLevel, pos: BlockPos) -> bool {
+    fn can_survive(&self, _state: BlockState, level: &mut dyn LevelReader, pos: BlockPos) -> bool {
         can_stay_at_position(level, pos)
     }
 

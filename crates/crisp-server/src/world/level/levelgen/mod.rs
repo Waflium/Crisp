@@ -1,10 +1,13 @@
 pub mod aquifer;
+pub mod blockpredicates;
 pub mod carver;
 pub mod chunk_generator;
 pub mod density_function;
+pub mod feature;
 pub mod flat;
 pub mod heightproviders;
 pub mod material;
+pub mod placement;
 pub mod random_state;
 pub mod structure;
 pub mod synth;

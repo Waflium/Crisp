@@ -8,7 +8,7 @@ use super::BlockBehaviour;
 use super::vegetation_block::{self, Vegetation, schedule_water_tick};
 use crate::server::level::ServerLevel;
 use crate::world::item::context::BlockPlaceContext;
-use crate::world::level::BlockGetter;
+use crate::world::level::{BlockGetter, LevelReader};
 use crate::world::level::update_flags::{UPDATE_ALL, UPDATE_CLIENTS};
 
 pub struct SeaPickleBlock;
@@ -18,7 +18,7 @@ fn is_dead(state: BlockState) -> bool {
 }
 
 impl Vegetation for SeaPickleBlock {
-    fn may_place_on(&self, state: BlockState, _level: &mut ServerLevel, _pos: BlockPos) -> bool {
+    fn may_place_on(&self, state: BlockState, _level: &mut dyn LevelReader, _pos: BlockPos) -> bool {
         !VoxelShape::from_boxes(state.collision_shape()).face_shape(Direction::Up).is_empty() || state.is_face_sturdy(Direction::Up, SupportType::Full)
     }
 }
@@ -48,7 +48,7 @@ impl BlockBehaviour for SeaPickleBlock {
         vegetation_block::update_shape(state, level, pos)
     }
 
-    fn can_survive(&self, _state: BlockState, level: &mut ServerLevel, pos: BlockPos) -> bool {
+    fn can_survive(&self, _state: BlockState, level: &mut dyn LevelReader, pos: BlockPos) -> bool {
         vegetation_block::can_survive(self, level, pos)
     }
 

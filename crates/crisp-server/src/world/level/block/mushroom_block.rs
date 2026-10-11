@@ -5,7 +5,7 @@ use crisp_data::{BlockState, block_tags};
 use super::BlockBehaviour;
 use super::vegetation_block::{self, Vegetation, at_most_matched};
 use crate::server::level::ServerLevel;
-use crate::world::level::BlockGetter;
+use crate::world::level::{BlockGetter, LevelReader};
 use crate::world::level::update_flags::UPDATE_CLIENTS;
 
 pub struct MushroomBlock;
@@ -18,7 +18,7 @@ fn random_offset(level: &mut ServerLevel, pos: BlockPos) -> BlockPos {
 }
 
 impl Vegetation for MushroomBlock {
-    fn may_place_on(&self, state: BlockState, _level: &mut ServerLevel, _pos: BlockPos) -> bool {
+    fn may_place_on(&self, state: BlockState, _level: &mut dyn LevelReader, _pos: BlockPos) -> bool {
         state.is_solid_render()
     }
 }
@@ -28,7 +28,7 @@ impl BlockBehaviour for MushroomBlock {
         vegetation_block::update_shape(state, level, pos)
     }
 
-    fn can_survive(&self, _state: BlockState, level: &mut ServerLevel, pos: BlockPos) -> bool {
+    fn can_survive(&self, _state: BlockState, level: &mut dyn LevelReader, pos: BlockPos) -> bool {
         let below_pos = pos.below();
         let below = level.block_state(below_pos);
         if below.is(&block_tags::OVERRIDES_MUSHROOM_LIGHT_REQUIREMENT) {

@@ -10,7 +10,7 @@ use crate::server::level::game_mode::GameType;
 use crate::world::entity::EntityId;
 use crate::world::item::ItemStack;
 use crate::world::item::context::BlockPlaceContext;
-use crate::world::level::BlockGetter;
+use crate::world::level::{BlockGetter, LevelReader};
 use crate::world::level::update_flags::{UPDATE_ALL, UPDATE_CLIENTS, UPDATE_NEIGHBORS, UPDATE_SUPPRESS_DROPS};
 
 pub fn update_shape(state: BlockState, level: &mut ServerLevel, pos: BlockPos, direction: Direction, neighbour_state: BlockState) -> BlockState {
@@ -44,7 +44,7 @@ pub fn set_placed_by(level: &mut ServerLevel, pos: BlockPos, state: BlockState) 
     level.set_block(above, upper, UPDATE_ALL);
 }
 
-pub fn can_survive<V: Vegetation + ?Sized>(vegetation: &V, state: BlockState, level: &mut ServerLevel, pos: BlockPos) -> bool {
+pub fn can_survive<V: Vegetation + ?Sized>(vegetation: &V, state: BlockState, level: &mut dyn LevelReader, pos: BlockPos) -> bool {
     if state.get(DOUBLE_BLOCK_HALF) != DoubleBlockHalf::Upper {
         return vegetation_block::can_survive(vegetation, level, pos);
     }
@@ -110,7 +110,7 @@ impl BlockBehaviour for DoublePlantBlock {
         update_shape(state, level, pos, direction, neighbour_state)
     }
 
-    fn can_survive(&self, state: BlockState, level: &mut ServerLevel, pos: BlockPos) -> bool {
+    fn can_survive(&self, state: BlockState, level: &mut dyn LevelReader, pos: BlockPos) -> bool {
         can_survive(self, state, level, pos)
     }
 

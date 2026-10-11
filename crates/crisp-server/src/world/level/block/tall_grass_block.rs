@@ -5,7 +5,7 @@ use super::BlockBehaviour;
 use super::double_plant_block;
 use super::vegetation_block::{self, Vegetation};
 use crate::server::level::ServerLevel;
-use crate::world::level::BlockGetter;
+use crate::world::level::{BlockGetter, LevelReader};
 use crate::world::level::update_flags::UPDATE_CLIENTS;
 
 pub struct TallGrassBlock;
@@ -21,7 +21,7 @@ impl BlockBehaviour for TallGrassBlock {
         vegetation_block::update_shape(state, level, pos)
     }
 
-    fn can_survive(&self, _state: BlockState, level: &mut ServerLevel, pos: BlockPos) -> bool {
+    fn can_survive(&self, _state: BlockState, level: &mut dyn LevelReader, pos: BlockPos) -> bool {
         vegetation_block::can_survive(self, level, pos)
     }
 

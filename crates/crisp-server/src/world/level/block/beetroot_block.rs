@@ -7,6 +7,7 @@ use super::BlockBehaviour;
 use super::crop_block::{self, Crop};
 use super::vegetation_block::{self, Vegetation};
 use crate::server::level::ServerLevel;
+use crate::world::level::LevelReader;
 
 pub struct BeetrootBlock;
 
@@ -25,7 +26,7 @@ impl Crop for BeetrootBlock {
 }
 
 impl Vegetation for BeetrootBlock {
-    fn may_place_on(&self, state: BlockState, _level: &mut ServerLevel, _pos: BlockPos) -> bool {
+    fn may_place_on(&self, state: BlockState, _level: &mut dyn LevelReader, _pos: BlockPos) -> bool {
         crop_block::may_place_on_crop_support(state)
     }
 }
@@ -35,7 +36,7 @@ impl BlockBehaviour for BeetrootBlock {
         vegetation_block::update_shape(state, level, pos)
     }
 
-    fn can_survive(&self, _state: BlockState, level: &mut ServerLevel, pos: BlockPos) -> bool {
+    fn can_survive(&self, _state: BlockState, level: &mut dyn LevelReader, pos: BlockPos) -> bool {
         crop_block::can_survive(self, level, pos)
     }
 

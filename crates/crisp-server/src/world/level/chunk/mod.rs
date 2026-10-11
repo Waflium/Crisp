@@ -179,6 +179,7 @@ pub struct LevelChunk {
     pub light_correct: bool,
     pub block_entities: block_entities::ChunkBlockEntities,
     pub loaded: bool,
+    pub proto: Option<Box<proto_chunk::ProtoChunkData>>,
 }
 
 impl LevelChunk {
@@ -200,6 +201,40 @@ impl LevelChunk {
             light_correct: false,
             block_entities: Default::default(),
             loaded: false,
+            proto: None,
+        }
+    }
+
+    pub fn get_height(&mut self, kind: HeightmapType, x: i32, z: i32) -> i32 {
+        let top = self.highest_section_position() + 16;
+        if let Some(proto) = &mut self.proto
+            && let Some(index) = HeightmapType::WORLDGEN.iter().position(|&t| t == kind)
+        {
+            if proto.heightmaps[index].is_none() {
+                let (min_y, height) = (self.min_y, self.sections.len() as i32 * 16);
+                let mut heightmap = Heightmap::new(kind, min_y, height);
+                let sections = &self.sections;
+                Heightmap::prime(&mut [&mut heightmap], min_y, top, |x, y, z| sections[((y - min_y) >> 4) as usize].block_state(x, (y & 15) as usize, z));
+                proto.heightmaps[index] = Some(heightmap);
+            }
+            return proto.heightmaps[index].as_ref().expect("a primed heightmap").highest_taken((x & 15) as usize, (z & 15) as usize);
+        }
+        let kind = match kind {
+            HeightmapType::WorldSurfaceWg => HeightmapType::WorldSurface,
+            HeightmapType::OceanFloorWg => HeightmapType::OceanFloor,
+            other => other,
+        };
+        self.height_at(kind, x, z)
+    }
+
+    pub fn mark_pos_for_post_processing(&mut self, pos: BlockPos) {
+        if pos.y < self.min_y || pos.y >= self.min_y + self.height() {
+            return;
+        }
+        let index = self.section_index(pos.y);
+        if let Some(proto) = &mut self.proto {
+            let packed = ((pos.x & 15) | ((pos.y & 15) << 4) | ((pos.z & 15) << 8)) as u16;
+            proto.post_processing[index].push(packed);
         }
     }
 
@@ -331,7 +366,12 @@ impl ChunkGenerator {
 
     pub fn generate(&self, pos: ChunkPos, dimension: &DimensionType) -> LevelChunk {
         match self {
-            ChunkGenerator::Flat(flat) => flat.generate(pos, dimension),
+            ChunkGenerator::Flat(flat) => {
+                let mut chunk = flat.generate(pos, dimension);
+                let sections = chunk.sections.len();
+                chunk.proto = Some(Box::new(proto_chunk::ProtoChunkData { heightmaps: [None, None], post_processing: vec![Vec::new(); sections] }));
+                chunk
+            }
             ChunkGenerator::Noise(noise) => noise.generate(pos, dimension).into_level_chunk(dimension),
         }
     }

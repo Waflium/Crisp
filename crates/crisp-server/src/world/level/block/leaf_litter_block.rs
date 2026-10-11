@@ -7,7 +7,7 @@ use super::segmentable_block;
 use super::vegetation_block;
 use crate::server::level::ServerLevel;
 use crate::world::item::context::BlockPlaceContext;
-use crate::world::level::BlockGetter;
+use crate::world::level::LevelReader;
 
 pub struct LeafLitterBlock;
 
@@ -24,7 +24,7 @@ impl BlockBehaviour for LeafLitterBlock {
         vegetation_block::update_shape(state, level, pos)
     }
 
-    fn can_survive(&self, _state: BlockState, level: &mut ServerLevel, pos: BlockPos) -> bool {
+    fn can_survive(&self, _state: BlockState, level: &mut dyn LevelReader, pos: BlockPos) -> bool {
         level.block_state(pos.below()).is_face_sturdy(Direction::Up, SupportType::Full)
     }
 }

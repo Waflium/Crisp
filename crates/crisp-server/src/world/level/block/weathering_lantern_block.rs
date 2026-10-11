@@ -6,6 +6,7 @@ use super::lantern_block::LanternBlock;
 use super::weathering_copper::change_over_time;
 use crate::server::level::ServerLevel;
 use crate::world::item::context::BlockPlaceContext;
+use crate::world::level::LevelReader;
 
 pub struct WeatheringLanternBlock;
 
@@ -14,7 +15,7 @@ impl BlockBehaviour for WeatheringLanternBlock {
         LanternBlock.get_state_for_placement(block, ctx, level)
     }
 
-    fn can_survive(&self, state: BlockState, level: &mut ServerLevel, pos: BlockPos) -> bool {
+    fn can_survive(&self, state: BlockState, level: &mut dyn LevelReader, pos: BlockPos) -> bool {
         LanternBlock.can_survive(state, level, pos)
     }
 

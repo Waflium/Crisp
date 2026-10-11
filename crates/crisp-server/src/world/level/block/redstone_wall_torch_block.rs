@@ -6,6 +6,7 @@ use super::redstone_torch_block::{self, RedstoneTorchBlock};
 use super::{BlockBehaviour, wall_torch_block};
 use crate::server::level::ServerLevel;
 use crate::world::item::context::BlockPlaceContext;
+use crate::world::level::LevelReader;
 
 pub struct RedstoneWallTorchBlock {
     pub torch: RedstoneTorchBlock,
@@ -22,7 +23,7 @@ impl BlockBehaviour for RedstoneWallTorchBlock {
         Some(block.default_state().set(HORIZONTAL_FACING, state.get(HORIZONTAL_FACING)))
     }
 
-    fn can_survive(&self, state: BlockState, level: &mut ServerLevel, pos: BlockPos) -> bool {
+    fn can_survive(&self, state: BlockState, level: &mut dyn LevelReader, pos: BlockPos) -> bool {
         wall_torch_block::can_survive_facing(level, pos, state.get(HORIZONTAL_FACING))
     }
 

@@ -4,6 +4,7 @@ use crisp_data::{Block, BlockState};
 use super::BlockBehaviour;
 use super::vegetation_block::{self, Vegetation, fields, is_in, tag_field};
 use crate::server::level::ServerLevel;
+use crate::world::level::LevelReader;
 
 pub struct NetherRootsBlock {
     support_blocks: &'static [i32],
@@ -16,7 +17,7 @@ impl NetherRootsBlock {
 }
 
 impl Vegetation for NetherRootsBlock {
-    fn may_place_on(&self, state: BlockState, _level: &mut ServerLevel, _pos: BlockPos) -> bool {
+    fn may_place_on(&self, state: BlockState, _level: &mut dyn LevelReader, _pos: BlockPos) -> bool {
         is_in(state, self.support_blocks)
     }
 }
@@ -26,7 +27,7 @@ impl BlockBehaviour for NetherRootsBlock {
         vegetation_block::update_shape(state, level, pos)
     }
 
-    fn can_survive(&self, _state: BlockState, level: &mut ServerLevel, pos: BlockPos) -> bool {
+    fn can_survive(&self, _state: BlockState, level: &mut dyn LevelReader, pos: BlockPos) -> bool {
         vegetation_block::can_survive(self, level, pos)
     }
 }

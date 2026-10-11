@@ -4,6 +4,7 @@ use crisp_data::BlockState;
 use super::BlockBehaviour;
 use super::vegetation_block::{self, Vegetation};
 use crate::server::level::ServerLevel;
+use crate::world::level::LevelReader;
 
 pub struct FlowerBlock;
 
@@ -14,7 +15,7 @@ impl BlockBehaviour for FlowerBlock {
         vegetation_block::update_shape(state, level, pos)
     }
 
-    fn can_survive(&self, _state: BlockState, level: &mut ServerLevel, pos: BlockPos) -> bool {
+    fn can_survive(&self, _state: BlockState, level: &mut dyn LevelReader, pos: BlockPos) -> bool {
         vegetation_block::can_survive(self, level, pos)
     }
 }

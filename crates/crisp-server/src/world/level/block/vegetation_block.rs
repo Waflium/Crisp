@@ -4,16 +4,16 @@ use crisp_data::{BlockState, Fluid, block_tags, blocks};
 use super::BlockBehaviour;
 use crate::server::level::ServerLevel;
 use crate::world::item::context::BlockPlaceContext;
-use crate::world::level::BlockGetter;
+use crate::world::level::{BlockGetter, LevelReader};
 
 #[allow(unused_variables)]
 pub trait Vegetation {
-    fn may_place_on(&self, state: BlockState, level: &mut ServerLevel, pos: BlockPos) -> bool {
+    fn may_place_on(&self, state: BlockState, level: &mut dyn LevelReader, pos: BlockPos) -> bool {
         state.is(&block_tags::SUPPORTS_VEGETATION)
     }
 }
 
-pub fn can_survive<V: Vegetation + ?Sized>(vegetation: &V, level: &mut ServerLevel, pos: BlockPos) -> bool {
+pub fn can_survive<V: Vegetation + ?Sized>(vegetation: &V, level: &mut dyn LevelReader, pos: BlockPos) -> bool {
     let below = pos.below();
     let below_state = level.block_state(below);
     vegetation.may_place_on(below_state, level, below)
@@ -73,7 +73,7 @@ impl BlockBehaviour for VegetationBlock {
         update_shape(state, level, pos)
     }
 
-    fn can_survive(&self, _state: BlockState, level: &mut ServerLevel, pos: BlockPos) -> bool {
+    fn can_survive(&self, _state: BlockState, level: &mut dyn LevelReader, pos: BlockPos) -> bool {
         can_survive(self, level, pos)
     }
 }

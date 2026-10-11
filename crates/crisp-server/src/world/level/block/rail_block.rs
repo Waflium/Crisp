@@ -6,6 +6,7 @@ use super::base_rail_block::{self as base, BaseRailBlock};
 use super::rail_state::RailState;
 use crate::server::level::ServerLevel;
 use crate::world::item::context::BlockPlaceContext;
+use crate::world::level::LevelReader;
 
 pub struct RailBlock {
     pub block: Block,
@@ -28,7 +29,7 @@ impl BlockBehaviour for RailBlock {
         Some(base::get_state_for_placement(block, ctx, level))
     }
 
-    fn can_survive(&self, _state: BlockState, level: &mut ServerLevel, pos: BlockPos) -> bool {
+    fn can_survive(&self, _state: BlockState, level: &mut dyn LevelReader, pos: BlockPos) -> bool {
         base::can_survive(level, pos)
     }
 

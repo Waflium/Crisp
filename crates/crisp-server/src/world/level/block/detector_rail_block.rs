@@ -9,7 +9,7 @@ use crate::server::level::ServerLevel;
 use crate::world::entity::EntityId;
 use crate::world::entity::inside_block::InsideBlockEffects;
 use crate::world::item::context::BlockPlaceContext;
-use crate::world::level::BlockGetter;
+use crate::world::level::{BlockGetter, LevelReader};
 
 const PRESSED_CHECK_PERIOD: i32 = 20;
 
@@ -63,7 +63,7 @@ impl BlockBehaviour for DetectorRailBlock {
         Some(base::get_state_for_placement(block, ctx, level))
     }
 
-    fn can_survive(&self, _state: BlockState, level: &mut ServerLevel, pos: BlockPos) -> bool {
+    fn can_survive(&self, _state: BlockState, level: &mut dyn LevelReader, pos: BlockPos) -> bool {
         base::can_survive(level, pos)
     }
 

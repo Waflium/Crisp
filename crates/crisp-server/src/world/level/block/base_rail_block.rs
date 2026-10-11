@@ -6,7 +6,7 @@ use super::can_support_rigid_block;
 use super::rail_state::RailState;
 use crate::server::level::ServerLevel;
 use crate::world::item::context::BlockPlaceContext;
-use crate::world::level::BlockGetter;
+use crate::world::level::{BlockGetter, LevelReader};
 
 const WATER_TICK_DELAY: i32 = 5;
 
@@ -37,7 +37,7 @@ pub fn is_rail_at(level: &mut ServerLevel, pos: BlockPos) -> bool {
     is_rail(level.block_state(pos))
 }
 
-pub fn can_survive(level: &mut ServerLevel, pos: BlockPos) -> bool {
+pub fn can_survive(level: &mut dyn LevelReader, pos: BlockPos) -> bool {
     can_support_rigid_block(level, pos.below())
 }
 

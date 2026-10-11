@@ -9,6 +9,7 @@ use crate::world::InteractionResult;
 use crate::world::entity::EntityId;
 use crate::world::item::ItemStack;
 use crate::world::item::context::BlockPlaceContext;
+use crate::world::level::LevelReader;
 
 pub struct RepeaterBlock {
     pub block: Block,
@@ -69,7 +70,7 @@ impl BlockBehaviour for RepeaterBlock {
         Some(repeater_direction) == direction || Some(repeater_direction.opposite()) == direction
     }
 
-    fn can_survive(&self, _state: BlockState, level: &mut ServerLevel, pos: BlockPos) -> bool {
+    fn can_survive(&self, _state: BlockState, level: &mut dyn LevelReader, pos: BlockPos) -> bool {
         diode_block::can_survive(level, pos)
     }
 

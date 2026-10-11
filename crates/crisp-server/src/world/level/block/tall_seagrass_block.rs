@@ -10,12 +10,12 @@ use crate::server::level::ServerLevel;
 use crate::world::entity::EntityId;
 use crate::world::item::ItemStack;
 use crate::world::item::context::BlockPlaceContext;
-use crate::world::level::BlockGetter;
+use crate::world::level::{BlockGetter, LevelReader};
 
 pub struct TallSeagrassBlock;
 
 impl Vegetation for TallSeagrassBlock {
-    fn may_place_on(&self, state: BlockState, _level: &mut ServerLevel, _pos: BlockPos) -> bool {
+    fn may_place_on(&self, state: BlockState, _level: &mut dyn LevelReader, _pos: BlockPos) -> bool {
         may_place_on_seagrass_support(state)
     }
 }
@@ -39,7 +39,7 @@ impl BlockBehaviour for TallSeagrassBlock {
         double_plant_block::update_shape(state, level, pos, direction, neighbour_state)
     }
 
-    fn can_survive(&self, state: BlockState, level: &mut ServerLevel, pos: BlockPos) -> bool {
+    fn can_survive(&self, state: BlockState, level: &mut dyn LevelReader, pos: BlockPos) -> bool {
         if state.get(DOUBLE_BLOCK_HALF) == DoubleBlockHalf::Upper {
             let below = level.block_state(pos.below());
             return below.is_block(state.block()) && below.get(DOUBLE_BLOCK_HALF) == DoubleBlockHalf::Lower;

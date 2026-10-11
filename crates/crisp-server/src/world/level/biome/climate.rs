@@ -121,6 +121,10 @@ impl<T> ParameterList<T> {
         ParameterList { values, root, id: NEXT_TREE_ID.fetch_add(1, Ordering::Relaxed) }
     }
 
+    pub fn values(&self) -> &[(ParameterPoint, T)] {
+        &self.values
+    }
+
     fn space<'a>(values: &'a [(ParameterPoint, T)], node: &'a Node) -> &'a [Parameter; 7] {
         match node {
             Node::Leaf(i) => &values[*i].0.space,

@@ -4,7 +4,7 @@ use crisp_data::{Block, BlockState, blocks};
 
 use crate::server::level::ServerLevel;
 use crate::world::item::context::BlockPlaceContext;
-use crate::world::level::BlockGetter;
+use crate::world::level::LevelReader;
 
 pub fn get_connected_direction(state: BlockState) -> Direction {
     match state.get(ATTACH_FACE) {
@@ -14,12 +14,12 @@ pub fn get_connected_direction(state: BlockState) -> Direction {
     }
 }
 
-pub fn can_attach(level: &mut ServerLevel, pos: BlockPos, direction: Direction) -> bool {
+pub fn can_attach(level: &mut dyn LevelReader, pos: BlockPos, direction: Direction) -> bool {
     let relative = pos.relative(direction);
     level.block_state(relative).is_face_sturdy_full(direction.opposite())
 }
 
-pub fn can_survive(state: BlockState, level: &mut ServerLevel, pos: BlockPos) -> bool {
+pub fn can_survive(state: BlockState, level: &mut dyn LevelReader, pos: BlockPos) -> bool {
     can_attach(level, pos, get_connected_direction(state).opposite())
 }
 
@@ -45,7 +45,7 @@ pub fn update_shape(state: BlockState, level: &mut ServerLevel, pos: BlockPos, d
 pub struct FaceAttachedHorizontalDirectionalBlock;
 
 impl super::BlockBehaviour for FaceAttachedHorizontalDirectionalBlock {
-    fn can_survive(&self, state: BlockState, level: &mut ServerLevel, pos: BlockPos) -> bool {
+    fn can_survive(&self, state: BlockState, level: &mut dyn LevelReader, pos: BlockPos) -> bool {
         can_survive(state, level, pos)
     }
 

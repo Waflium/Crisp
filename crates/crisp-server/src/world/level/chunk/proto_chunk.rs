@@ -23,6 +23,11 @@ impl ChunkStatus {
     }
 }
 
+pub struct ProtoChunkData {
+    pub heightmaps: [Option<Heightmap>; 2],
+    pub post_processing: Vec<Vec<u16>>,
+}
+
 pub struct ProtoChunk {
     pub pos: ChunkPos,
     pub min_y: i32,
@@ -160,7 +165,12 @@ impl ProtoChunk {
         for kind in HeightmapType::LIVE {
             heightmaps.push(self.heightmaps[kind.id() as usize].take());
         }
+        let proto = ProtoChunkData {
+            heightmaps: HeightmapType::WORLDGEN.map(|kind| self.heightmaps[kind.id() as usize].take()),
+            post_processing: std::mem::take(&mut self.post_processing),
+        };
         let mut chunk = LevelChunk::with_sections(self.pos, dimension, self.sections);
+        chunk.proto = Some(Box::new(proto));
         let mut missing = false;
         for (i, heightmap) in heightmaps.into_iter().enumerate() {
             match heightmap {

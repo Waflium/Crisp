@@ -6,7 +6,7 @@ use super::BlockBehaviour;
 use super::vegetation_block::{self, Vegetation, schedule_water_tick};
 use crate::server::level::ServerLevel;
 use crate::world::item::context::BlockPlaceContext;
-use crate::world::level::BlockGetter;
+use crate::world::level::{BlockGetter, LevelReader};
 use crate::world::level::update_flags::UPDATE_CLIENTS;
 
 pub fn may_place_on_seagrass_support(state: BlockState) -> bool {
@@ -16,7 +16,7 @@ pub fn may_place_on_seagrass_support(state: BlockState) -> bool {
 pub struct SeagrassBlock;
 
 impl Vegetation for SeagrassBlock {
-    fn may_place_on(&self, state: BlockState, _level: &mut ServerLevel, _pos: BlockPos) -> bool {
+    fn may_place_on(&self, state: BlockState, _level: &mut dyn LevelReader, _pos: BlockPos) -> bool {
         may_place_on_seagrass_support(state)
     }
 }
@@ -35,7 +35,7 @@ impl BlockBehaviour for SeagrassBlock {
         result
     }
 
-    fn can_survive(&self, _state: BlockState, level: &mut ServerLevel, pos: BlockPos) -> bool {
+    fn can_survive(&self, _state: BlockState, level: &mut dyn LevelReader, pos: BlockPos) -> bool {
         vegetation_block::can_survive(self, level, pos)
     }
 

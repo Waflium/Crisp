@@ -5,7 +5,7 @@ use super::{BlockBehaviour, base_fire_block};
 use crate::server::level::ServerLevel;
 use crate::world::entity::EntityId;
 use crate::world::entity::inside_block::InsideBlockEffects;
-use crate::world::level::BlockGetter;
+use crate::world::level::LevelReader;
 
 const FIRE_DAMAGE: f32 = 2.0;
 
@@ -24,7 +24,7 @@ impl BlockBehaviour for SoulFireBlock {
         if self.can_survive(state, level, pos) { state } else { blocks::AIR.default_state() }
     }
 
-    fn can_survive(&self, _state: BlockState, level: &mut ServerLevel, pos: BlockPos) -> bool {
+    fn can_survive(&self, _state: BlockState, level: &mut dyn LevelReader, pos: BlockPos) -> bool {
         base_fire_block::can_survive_on_soul_block(level.block_state(pos.below()))
     }
 

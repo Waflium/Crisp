@@ -8,7 +8,7 @@ use super::growing_plant_block::{self, GrowingPlant};
 use super::vegetation_block::{fields, schedule_water_tick};
 use crate::server::level::ServerLevel;
 use crate::world::item::context::BlockPlaceContext;
-use crate::world::level::BlockGetter;
+use crate::world::level::{BlockGetter, LevelReader};
 use crate::world::level::update_flags::UPDATE_ALL;
 
 #[allow(unused_variables)]
@@ -64,7 +64,7 @@ impl<P: HeadParts> BlockBehaviour for GrowingPlantHeadBlock<P> {
         }))
     }
 
-    fn can_survive(&self, state: BlockState, level: &mut ServerLevel, pos: BlockPos) -> bool {
+    fn can_survive(&self, state: BlockState, level: &mut dyn LevelReader, pos: BlockPos) -> bool {
         growing_plant_block::can_survive(&self.plant, state.block(), self.parts.body_block(), |s| self.parts.can_attach_to(s), level, pos)
     }
 

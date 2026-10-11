@@ -6,6 +6,7 @@ use super::simple_waterlogged_block::{is_water_source, schedule_water_tick};
 use super::{BlockBehaviour, can_support_center};
 use crate::server::level::ServerLevel;
 use crate::world::item::context::BlockPlaceContext;
+use crate::world::level::LevelReader;
 use crate::world::level::block;
 
 pub struct LanternBlock;
@@ -28,7 +29,7 @@ impl BlockBehaviour for LanternBlock {
         None
     }
 
-    fn can_survive(&self, state: BlockState, level: &mut ServerLevel, pos: BlockPos) -> bool {
+    fn can_survive(&self, state: BlockState, level: &mut dyn LevelReader, pos: BlockPos) -> bool {
         let direction = connected_direction(state).opposite();
         can_support_center(level, pos.relative(direction), direction.opposite())
     }

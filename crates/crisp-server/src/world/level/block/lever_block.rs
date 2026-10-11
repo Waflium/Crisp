@@ -8,6 +8,7 @@ use crate::server::level::{ServerLevel, SoundSource};
 use crate::world::InteractionResult;
 use crate::world::entity::EntityId;
 use crate::world::item::context::BlockPlaceContext;
+use crate::world::level::LevelReader;
 
 pub struct LeverBlock {
     pub block: Block,
@@ -39,7 +40,7 @@ impl BlockBehaviour for LeverBlock {
         face_attached::get_state_for_placement(block, ctx, level)
     }
 
-    fn can_survive(&self, state: BlockState, level: &mut ServerLevel, pos: BlockPos) -> bool {
+    fn can_survive(&self, state: BlockState, level: &mut dyn LevelReader, pos: BlockPos) -> bool {
         face_attached::can_survive(state, level, pos)
     }
 

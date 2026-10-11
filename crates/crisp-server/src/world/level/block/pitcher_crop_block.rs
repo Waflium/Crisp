@@ -11,7 +11,7 @@ use crate::server::level::ServerLevel;
 use crate::world::entity::EntityId;
 use crate::world::item::ItemStack;
 use crate::world::item::context::BlockPlaceContext;
-use crate::world::level::BlockGetter;
+use crate::world::level::{BlockGetter, LevelReader};
 use crate::world::level::update_flags::{UPDATE_ALL, UPDATE_CLIENTS};
 
 pub struct PitcherCropBlock;
@@ -61,7 +61,7 @@ fn lower_half(level: &mut ServerLevel, pos: BlockPos, state: BlockState) -> Opti
 }
 
 impl Vegetation for PitcherCropBlock {
-    fn may_place_on(&self, state: BlockState, _level: &mut ServerLevel, _pos: BlockPos) -> bool {
+    fn may_place_on(&self, state: BlockState, _level: &mut dyn LevelReader, _pos: BlockPos) -> bool {
         crop_block::may_place_on_crop_support(state)
     }
 }
@@ -85,7 +85,7 @@ impl BlockBehaviour for PitcherCropBlock {
         }
     }
 
-    fn can_survive(&self, state: BlockState, level: &mut ServerLevel, pos: BlockPos) -> bool {
+    fn can_survive(&self, state: BlockState, level: &mut dyn LevelReader, pos: BlockPos) -> bool {
         if is_lower(state) && !crop_block::has_sufficient_light(level, pos) {
             return false;
         }

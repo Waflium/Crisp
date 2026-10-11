@@ -7,7 +7,7 @@ use super::big_dripleaf_stem_block;
 use super::vegetation_block::schedule_water_tick;
 use crate::server::level::{ServerLevel, SoundSource};
 use crate::world::item::context::BlockPlaceContext;
-use crate::world::level::BlockGetter;
+use crate::world::level::{BlockGetter, LevelReader};
 use crate::world::level::update_flags::{UPDATE_ALL, UPDATE_CLIENTS};
 
 pub struct BigDripleafBlock;
@@ -88,7 +88,7 @@ impl BlockBehaviour for BigDripleafBlock {
         Some(block.default_state().set(WATERLOGGED, fluid.is_source_of_type(Fluid::Water)).set(HORIZONTAL_FACING, facing))
     }
 
-    fn can_survive(&self, state: BlockState, level: &mut ServerLevel, pos: BlockPos) -> bool {
+    fn can_survive(&self, state: BlockState, level: &mut dyn LevelReader, pos: BlockPos) -> bool {
         let below_state = level.block_state(pos.below());
         below_state.is_block(state.block()) || below_state.is_block(blocks::BIG_DRIPLEAF_STEM) || below_state.is(&block_tags::SUPPORTS_BIG_DRIPLEAF)
     }

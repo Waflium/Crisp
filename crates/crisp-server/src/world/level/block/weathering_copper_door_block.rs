@@ -10,6 +10,7 @@ use crate::world::InteractionResult;
 use crate::world::entity::EntityId;
 use crate::world::item::ItemStack;
 use crate::world::item::context::BlockPlaceContext;
+use crate::world::level::LevelReader;
 
 pub struct WeatheringCopperDoorBlock {
     door: DoorBlock,
@@ -54,7 +55,7 @@ impl BlockBehaviour for WeatheringCopperDoorBlock {
         self.door.neighbor_changed(state, level, pos, block, moved_by_piston);
     }
 
-    fn can_survive(&self, state: BlockState, level: &mut ServerLevel, pos: BlockPos) -> bool {
+    fn can_survive(&self, state: BlockState, level: &mut dyn LevelReader, pos: BlockPos) -> bool {
         self.door.can_survive(state, level, pos)
     }
 

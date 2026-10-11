@@ -8,7 +8,7 @@ use super::BlockBehaviour;
 use super::vegetation_block::at_most_matched;
 use crate::server::level::ServerLevel;
 use crate::world::item::context::BlockPlaceContext;
-use crate::world::level::BlockGetter;
+use crate::world::level::{BlockGetter, LevelReader};
 use crate::world::level::update_flags::UPDATE_CLIENTS;
 
 pub struct VineBlock;
@@ -29,7 +29,7 @@ pub fn can_attach_to(direction_towards_neighbour: Direction, neighbour_state: Bl
     neighbour_state.is_face_sturdy(face, SupportType::Full) || shapes::is_face_full(&VoxelShape::from_boxes(neighbour_state.collision_shape()), face)
 }
 
-fn is_acceptable_neighbour(level: &mut ServerLevel, neighbour_pos: BlockPos, direction_to_neighbour: Direction) -> bool {
+fn is_acceptable_neighbour(level: &mut dyn LevelReader, neighbour_pos: BlockPos, direction_to_neighbour: Direction) -> bool {
     let state = level.block_state(neighbour_pos);
     can_attach_to(direction_to_neighbour, state)
 }
@@ -42,7 +42,7 @@ fn has_horizontal_connection(state: BlockState) -> bool {
     state.get(NORTH) || state.get(EAST) || state.get(SOUTH) || state.get(WEST)
 }
 
-fn can_support_at_face(level: &mut ServerLevel, pos: BlockPos, direction: Direction) -> bool {
+fn can_support_at_face(level: &mut dyn LevelReader, pos: BlockPos, direction: Direction) -> bool {
     if direction == Direction::Down {
         return false;
     }
@@ -56,7 +56,7 @@ fn can_support_at_face(level: &mut ServerLevel, pos: BlockPos, direction: Direct
     above_state.is_block(blocks::VINE) && above_state.get(property_for_face(direction))
 }
 
-fn updated_state(mut state: BlockState, level: &mut ServerLevel, pos: BlockPos) -> BlockState {
+fn updated_state(mut state: BlockState, level: &mut dyn LevelReader, pos: BlockPos) -> BlockState {
     let above_pos = pos.above();
     if state.get(UP) {
         state = state.set(UP, is_acceptable_neighbour(level, above_pos, Direction::Down));
@@ -124,7 +124,7 @@ impl BlockBehaviour for VineBlock {
         if count_faces(updated) == 0 { blocks::AIR.default_state() } else { updated }
     }
 
-    fn can_survive(&self, state: BlockState, level: &mut ServerLevel, pos: BlockPos) -> bool {
+    fn can_survive(&self, state: BlockState, level: &mut dyn LevelReader, pos: BlockPos) -> bool {
         count_faces(updated_state(state, level, pos)) > 0
     }
 

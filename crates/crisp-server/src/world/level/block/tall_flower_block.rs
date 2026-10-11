@@ -7,6 +7,7 @@ use crate::server::level::ServerLevel;
 use crate::world::entity::EntityId;
 use crate::world::item::ItemStack;
 use crate::world::item::context::BlockPlaceContext;
+use crate::world::level::LevelReader;
 
 pub struct TallFlowerBlock;
 
@@ -23,7 +24,7 @@ impl BlockBehaviour for TallFlowerBlock {
         double_plant_block::update_shape(state, level, pos, direction, neighbour_state)
     }
 
-    fn can_survive(&self, state: BlockState, level: &mut ServerLevel, pos: BlockPos) -> bool {
+    fn can_survive(&self, state: BlockState, level: &mut dyn LevelReader, pos: BlockPos) -> bool {
         double_plant_block::can_survive(&DoublePlantBlock, state, level, pos)
     }
 

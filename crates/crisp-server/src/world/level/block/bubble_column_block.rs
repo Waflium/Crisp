@@ -6,7 +6,7 @@ use super::BlockBehaviour;
 use crate::server::level::ServerLevel;
 use crate::world::entity::EntityId;
 use crate::world::item::ItemStack;
-use crate::world::level::BlockGetter;
+use crate::world::level::{BlockGetter, LevelReader};
 use crate::world::level::material::{self, tick_delay};
 
 const CHECK_PERIOD: i32 = 5;
@@ -80,7 +80,7 @@ impl BlockBehaviour for BubbleColumnBlock {
         state
     }
 
-    fn can_survive(&self, _state: BlockState, level: &mut ServerLevel, pos: BlockPos) -> bool {
+    fn can_survive(&self, _state: BlockState, level: &mut dyn LevelReader, pos: BlockPos) -> bool {
         let below = level.block_state(pos.below());
         below.is_block(blocks::BUBBLE_COLUMN) || below.is(&block_tags::ENABLES_BUBBLE_COLUMN_PUSH_UP) || below.is(&block_tags::ENABLES_BUBBLE_COLUMN_DRAG_DOWN)
     }

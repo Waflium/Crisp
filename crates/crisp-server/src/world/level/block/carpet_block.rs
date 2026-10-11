@@ -3,7 +3,7 @@ use crisp_data::{BlockState, blocks};
 
 use super::BlockBehaviour;
 use crate::server::level::ServerLevel;
-use crate::world::level::BlockGetter;
+use crate::world::level::LevelReader;
 use crate::world::level::block;
 
 pub struct CarpetBlock;
@@ -21,7 +21,7 @@ impl BlockBehaviour for CarpetBlock {
         if block::of(state).can_survive(state, level, pos) { state } else { blocks::AIR.default_state() }
     }
 
-    fn can_survive(&self, _state: BlockState, level: &mut ServerLevel, pos: BlockPos) -> bool {
+    fn can_survive(&self, _state: BlockState, level: &mut dyn LevelReader, pos: BlockPos) -> bool {
         !level.block_state(pos.below()).is_air()
     }
 }

@@ -9,7 +9,7 @@ use crate::server::level::ServerLevel;
 use crate::world::InteractionResult;
 use crate::world::entity::EntityId;
 use crate::world::item::context::BlockPlaceContext;
-use crate::world::level::BlockGetter;
+use crate::world::level::{BlockGetter, LevelReader};
 use crate::world::level::redstone::default_redstone_wire_evaluator::DefaultRedstoneWireEvaluator;
 
 const PLANE_VERTICAL: [Direction; 2] = [Direction::Up, Direction::Down];
@@ -231,7 +231,7 @@ impl BlockBehaviour for RedstoneWireBlock {
         }
     }
 
-    fn can_survive(&self, _state: BlockState, level: &mut ServerLevel, pos: BlockPos) -> bool {
+    fn can_survive(&self, _state: BlockState, level: &mut dyn LevelReader, pos: BlockPos) -> bool {
         can_survive_on(level.block_state(pos.below()))
     }
 

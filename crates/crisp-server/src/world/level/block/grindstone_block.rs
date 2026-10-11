@@ -7,6 +7,7 @@ use crate::server::level::ServerLevel;
 use crate::world::InteractionResult;
 use crate::world::entity::EntityId;
 use crate::world::item::context::BlockPlaceContext;
+use crate::world::level::LevelReader;
 
 pub struct GrindstoneBlock;
 
@@ -27,7 +28,7 @@ impl BlockBehaviour for GrindstoneBlock {
         FaceAttachedHorizontalDirectionalBlock.update_shape(state, level, pos, direction, neighbour_pos, neighbour_state)
     }
 
-    fn can_survive(&self, _state: BlockState, _level: &mut ServerLevel, _pos: BlockPos) -> bool {
+    fn can_survive(&self, _state: BlockState, _level: &mut dyn LevelReader, _pos: BlockPos) -> bool {
         true
     }
 

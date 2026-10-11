@@ -9,7 +9,7 @@ use crate::server::level::ServerLevel;
 use crate::world::entity::EntityId;
 use crate::world::item::ItemStack;
 use crate::world::item::context::BlockPlaceContext;
-use crate::world::level::BlockGetter;
+use crate::world::level::{BlockGetter, LevelReader};
 use crate::world::level::update_flags::UPDATE_ALL;
 
 pub struct MossyCarpetBlock;
@@ -98,7 +98,7 @@ impl BlockBehaviour for MossyCarpetBlock {
         }
     }
 
-    fn can_survive(&self, state: BlockState, level: &mut ServerLevel, pos: BlockPos) -> bool {
+    fn can_survive(&self, state: BlockState, level: &mut dyn LevelReader, pos: BlockPos) -> bool {
         let below_state = level.block_state(pos.below());
         if state.get(BOTTOM) { !below_state.is_air() } else { below_state.is_block(state.block()) && below_state.get(BOTTOM) }
     }

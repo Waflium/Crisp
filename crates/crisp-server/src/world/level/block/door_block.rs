@@ -12,7 +12,7 @@ use crate::world::InteractionResult;
 use crate::world::entity::EntityId;
 use crate::world::item::ItemStack;
 use crate::world::item::context::BlockPlaceContext;
-use crate::world::level::BlockGetter;
+use crate::world::level::{BlockGetter, LevelReader};
 use crate::world::level::block;
 use crate::world::level::update_flags::{UPDATE_ALL, UPDATE_CLIENTS, UPDATE_IMMEDIATE, UPDATE_SUPPRESS_DROPS};
 
@@ -175,7 +175,7 @@ impl BlockBehaviour for DoorBlock {
         }
     }
 
-    fn can_survive(&self, state: BlockState, level: &mut ServerLevel, pos: BlockPos) -> bool {
+    fn can_survive(&self, state: BlockState, level: &mut dyn LevelReader, pos: BlockPos) -> bool {
         let below = level.block_state(pos.below());
         if state.get(DOUBLE_BLOCK_HALF) == DoubleBlockHalf::Lower { below.is_face_sturdy(Direction::Up, SupportType::Full) } else { below.is_block(state.block()) }
     }

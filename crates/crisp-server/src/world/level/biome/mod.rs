@@ -1,4 +1,6 @@
+pub mod biome_generation_settings;
 pub mod climate;
+pub mod feature_sorter;
 pub mod mob_spawn_settings;
 
 use std::sync::LazyLock;
@@ -70,7 +72,7 @@ static FROZEN_TEMPERATURE_NOISE: LazyLock<SimplexStack> = LazyLock::new(|| {
     SimplexStack::new(vec![(a, 1.0, 0.14285715), (b, 0.5, 0.2857143), (c, 0.25, 0.5714286)])
 });
 
-static BIOME_INFO_NOISE: LazyLock<SimplexNoise> = LazyLock::new(|| SimplexNoise::new(&mut LegacyRandomSource::new(2345), true));
+pub static BIOME_INFO_NOISE: LazyLock<SimplexNoise> = LazyLock::new(|| SimplexNoise::new(&mut LegacyRandomSource::new(2345), true));
 
 impl Biome {
     fn climate(self) -> ClimateSettings {
@@ -142,6 +144,16 @@ impl MultiNoiseBiomeSource {
 
     pub fn get_noise_biome(&self, target: &TargetPoint) -> Biome {
         *self.parameters.find_value(target)
+    }
+
+    pub fn possible_biomes(&self) -> Vec<Biome> {
+        let mut biomes: Vec<Biome> = Vec::new();
+        for &(_, biome) in self.parameters.values() {
+            if !biomes.contains(&biome) {
+                biomes.push(biome);
+            }
+        }
+        biomes
     }
 }
 

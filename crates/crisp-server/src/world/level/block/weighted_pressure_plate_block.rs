@@ -7,6 +7,7 @@ use super::base_pressure_plate_block::{self as base, BasePressurePlateBlock, Pla
 use crate::server::level::ServerLevel;
 use crate::world::entity::EntityId;
 use crate::world::entity::inside_block::InsideBlockEffects;
+use crate::world::level::LevelReader;
 
 pub struct WeightedPressurePlateBlock {
     pub block: Block,
@@ -67,7 +68,7 @@ impl BlockBehaviour for WeightedPressurePlateBlock {
         base::update_shape(state, level, pos, direction)
     }
 
-    fn can_survive(&self, _state: BlockState, level: &mut ServerLevel, pos: BlockPos) -> bool {
+    fn can_survive(&self, _state: BlockState, level: &mut dyn LevelReader, pos: BlockPos) -> bool {
         base::can_survive(level, pos)
     }
 

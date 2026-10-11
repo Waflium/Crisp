@@ -38,6 +38,14 @@ pub trait BlockGetter {
     }
 }
 
+pub trait LevelReader: BlockGetter {
+    fn raw_brightness(&mut self, pos: BlockPos, darkening: i32) -> i32;
+
+    fn is_water_at(&mut self, pos: BlockPos) -> bool {
+        self.fluid_state(pos).is(&crisp_data::fluid_tags::WATER)
+    }
+}
+
 pub mod update_flags {
     pub const UPDATE_NEIGHBORS: i32 = 1;
     pub const UPDATE_CLIENTS: i32 = 2;

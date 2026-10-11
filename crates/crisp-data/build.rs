@@ -95,6 +95,9 @@ fn main() -> anyhow::Result<()> {
     embed_json(&mut out, &data, "worldgen/multi_noise_biome_source_parameter_list", "BIOME_SOURCE_PARAMETER_LISTS")?;
     embed_json(&mut out, &data, "worldgen/carver", "CARVERS")?;
     embed_json(&mut out, &data, "worldgen/structure_set", "STRUCTURE_SETS")?;
+    embed_json(&mut out, &data, "worldgen/feature", "FEATURES")?;
+    embed_json(&mut out, &data, "worldgen/placed_feature", "PLACED_FEATURES")?;
+    embed_json(&mut out, &data, "worldgen/block_state_provider", "BLOCK_STATE_PROVIDERS")?;
     writeln!(out, "pub static BIOME_PARAMETERS: &[(&str, &str)] = &[")?;
     let parameters = reports.join("biome_parameters");
     for ns in namespaces(&parameters)? {
@@ -1035,6 +1038,12 @@ fn tags(
         }
         writeln!(out, "] }},")?;
         if module.is_some() {
+            writeln!(typed, "pub static ALL: &[&Tag] = &[")?;
+            for tag in files.keys() {
+                writeln!(typed, "&{},", const_name(tag))?;
+            }
+            writeln!(typed, "];")?;
+            writeln!(typed, "pub fn by_name(name: &str) -> Option<&'static Tag> {{ ALL.iter().copied().find(|t| t.name == name) }}")?;
             writeln!(typed, "}}")?;
         }
     }

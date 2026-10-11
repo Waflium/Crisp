@@ -5,7 +5,7 @@ use crisp_data::{Block, BlockState};
 use super::{BlockBehaviour, base_torch_block};
 use crate::server::level::ServerLevel;
 use crate::server::level::events::REDSTONE_TORCH_BURNOUT;
-use crate::world::level::BlockGetter;
+use crate::world::level::{BlockGetter, LevelReader};
 
 const RECENT_TOGGLE_TIMER: i64 = 60;
 const MAX_RECENT_TOGGLES: i32 = 8;
@@ -97,7 +97,7 @@ impl BlockBehaviour for RedstoneTorchBlock {
         base_torch_block::update_shape(state, level, pos, direction)
     }
 
-    fn can_survive(&self, _state: BlockState, level: &mut ServerLevel, pos: BlockPos) -> bool {
+    fn can_survive(&self, _state: BlockState, level: &mut dyn LevelReader, pos: BlockPos) -> bool {
         base_torch_block::can_survive(level, pos)
     }
 

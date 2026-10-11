@@ -3,11 +3,12 @@ use crisp_data::{BlockState, blocks};
 
 use super::{BlockBehaviour, can_support_center};
 use crate::server::level::ServerLevel;
+use crate::world::level::LevelReader;
 
 pub struct SporeBlossomBlock;
 
 impl BlockBehaviour for SporeBlossomBlock {
-    fn can_survive(&self, _state: BlockState, level: &mut ServerLevel, pos: BlockPos) -> bool {
+    fn can_survive(&self, _state: BlockState, level: &mut dyn LevelReader, pos: BlockPos) -> bool {
         can_support_center(level, pos.above(), Direction::Down) && !level.is_water_at(pos)
     }
 

@@ -5,7 +5,7 @@ use crisp_data::{Block, BlockState, SupportType, blocks};
 use super::is_diode;
 use crate::server::level::ServerLevel;
 use crate::world::item::context::BlockPlaceContext;
-use crate::world::level::BlockGetter;
+use crate::world::level::{BlockGetter, LevelReader};
 use crate::world::level::update_flags::UPDATE_CLIENTS;
 use crate::world::ticks::TickPriority;
 
@@ -87,7 +87,7 @@ pub fn can_survive_on(neighbor_state: BlockState) -> bool {
     neighbor_state.is_face_sturdy(Direction::Up, SupportType::Rigid)
 }
 
-pub fn can_survive(level: &mut ServerLevel, pos: BlockPos) -> bool {
+pub fn can_survive(level: &mut dyn LevelReader, pos: BlockPos) -> bool {
     can_survive_on(level.block_state(pos.below()))
 }
 

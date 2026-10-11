@@ -10,13 +10,13 @@ use crate::server::level::{ServerLevel, legacy_block};
 use crate::world::entity::EntityId;
 use crate::world::item::ItemStack;
 use crate::world::item::context::BlockPlaceContext;
-use crate::world::level::BlockGetter;
+use crate::world::level::{BlockGetter, LevelReader};
 use crate::world::level::update_flags::{UPDATE_ALL, UPDATE_CLIENTS, UPDATE_KNOWN_SHAPE};
 
 pub struct SmallDripleafBlock;
 
 impl Vegetation for SmallDripleafBlock {
-    fn may_place_on(&self, state: BlockState, level: &mut ServerLevel, pos: BlockPos) -> bool {
+    fn may_place_on(&self, state: BlockState, level: &mut dyn LevelReader, pos: BlockPos) -> bool {
         state.is(&block_tags::SUPPORTS_SMALL_DRIPLEAF) || level.fluid_state(pos.above()).is_source_of_type(Fluid::Water) && state.is(&block_tags::SUPPORTS_VEGETATION)
     }
 }
@@ -35,7 +35,7 @@ impl BlockBehaviour for SmallDripleafBlock {
         level.set_block(above_pos, upper, UPDATE_ALL);
     }
 
-    fn can_survive(&self, state: BlockState, level: &mut ServerLevel, pos: BlockPos) -> bool {
+    fn can_survive(&self, state: BlockState, level: &mut dyn LevelReader, pos: BlockPos) -> bool {
         if state.get(DOUBLE_BLOCK_HALF) == DoubleBlockHalf::Upper {
             return double_plant_block::can_survive(self, state, level, pos);
         }

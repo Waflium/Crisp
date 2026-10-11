@@ -7,7 +7,7 @@ use super::BlockBehaviour;
 use super::crop_block;
 use super::vegetation_block::{self, Vegetation, block_field, fields, is_in, tag_field};
 use crate::server::level::ServerLevel;
-use crate::world::level::BlockGetter;
+use crate::world::level::{BlockGetter, LevelReader};
 use crate::world::level::update_flags::{UPDATE_ALL, UPDATE_CLIENTS};
 
 pub struct StemBlock {
@@ -30,7 +30,7 @@ impl StemBlock {
 }
 
 impl Vegetation for StemBlock {
-    fn may_place_on(&self, state: BlockState, _level: &mut ServerLevel, _pos: BlockPos) -> bool {
+    fn may_place_on(&self, state: BlockState, _level: &mut dyn LevelReader, _pos: BlockPos) -> bool {
         is_in(state, self.stem_support_blocks)
     }
 }
@@ -40,7 +40,7 @@ impl BlockBehaviour for StemBlock {
         vegetation_block::update_shape(state, level, pos)
     }
 
-    fn can_survive(&self, _state: BlockState, level: &mut ServerLevel, pos: BlockPos) -> bool {
+    fn can_survive(&self, _state: BlockState, level: &mut dyn LevelReader, pos: BlockPos) -> bool {
         vegetation_block::can_survive(self, level, pos)
     }
 

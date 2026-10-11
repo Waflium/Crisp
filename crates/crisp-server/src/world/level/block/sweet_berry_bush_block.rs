@@ -8,6 +8,7 @@ use super::{BlockBehaviour, BlockHitResult};
 use crate::server::level::{ServerLevel, SoundSource};
 use crate::world::entity::EntityId;
 use crate::world::item::ItemStack;
+use crate::world::level::LevelReader;
 use crate::world::level::block;
 use crate::world::level::update_flags::UPDATE_CLIENTS;
 use crate::world::{InteractionHand, InteractionResult};
@@ -45,7 +46,7 @@ impl BlockBehaviour for SweetBerryBushBlock {
         vegetation_block::update_shape(state, level, pos)
     }
 
-    fn can_survive(&self, _state: BlockState, level: &mut ServerLevel, pos: BlockPos) -> bool {
+    fn can_survive(&self, _state: BlockState, level: &mut dyn LevelReader, pos: BlockPos) -> bool {
         vegetation_block::can_survive(self, level, pos)
     }
 

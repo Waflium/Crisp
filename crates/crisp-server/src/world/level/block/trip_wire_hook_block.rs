@@ -8,7 +8,7 @@ use crate::server::level::{ServerLevel, SoundSource};
 use crate::world::entity::EntityId;
 use crate::world::item::ItemStack;
 use crate::world::item::context::BlockPlaceContext;
-use crate::world::level::BlockGetter;
+use crate::world::level::{BlockGetter, LevelReader};
 
 const WIRE_DIST_MAX: i32 = 42;
 const RECHECK_PERIOD: i32 = 10;
@@ -128,7 +128,7 @@ fn on_removed(state: BlockState, level: &mut ServerLevel, pos: BlockPos) {
 }
 
 impl BlockBehaviour for TripWireHookBlock {
-    fn can_survive(&self, state: BlockState, level: &mut ServerLevel, pos: BlockPos) -> bool {
+    fn can_survive(&self, state: BlockState, level: &mut dyn LevelReader, pos: BlockPos) -> bool {
         let direction = state.get(HORIZONTAL_FACING);
         let relative = pos.relative(direction.opposite());
         let block_state = level.block_state(relative);

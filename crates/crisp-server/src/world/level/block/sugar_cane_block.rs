@@ -4,7 +4,7 @@ use crisp_data::{BlockState, block_tags, fluid_tags};
 
 use super::BlockBehaviour;
 use crate::server::level::ServerLevel;
-use crate::world::level::BlockGetter;
+use crate::world::level::{BlockGetter, LevelReader};
 use crate::world::level::update_flags::{UPDATE_ALL, UPDATE_LIMIT, UPDATE_NONE};
 
 pub struct SugarCaneBlock;
@@ -42,7 +42,7 @@ impl BlockBehaviour for SugarCaneBlock {
         state
     }
 
-    fn can_survive(&self, state: BlockState, level: &mut ServerLevel, pos: BlockPos) -> bool {
+    fn can_survive(&self, state: BlockState, level: &mut dyn LevelReader, pos: BlockPos) -> bool {
         let state_below = level.block_state(pos.below());
         if state_below.is_block(state.block()) {
             return true;

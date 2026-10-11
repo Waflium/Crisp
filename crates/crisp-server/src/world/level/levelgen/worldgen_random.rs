@@ -1,5 +1,5 @@
 use crisp_core::RandomSource;
-use crisp_core::random::{Gaussian, LegacyRandomSource};
+use crisp_core::random::{Gaussian, LegacyRandomSource, XoroshiroRandomSource};
 
 use super::AlgorithmRandom;
 
@@ -26,6 +26,23 @@ impl WorldgenRandom {
             AlgorithmRandom::Legacy(r) => r.next(bits),
             AlgorithmRandom::Xoroshiro(r) => ((r.next_long() as u64) >> (64 - bits)) as i32,
         }
+    }
+
+    pub fn xoroshiro(seed: i64) -> WorldgenRandom {
+        WorldgenRandom::new(AlgorithmRandom::Xoroshiro(XoroshiroRandomSource::new(seed)))
+    }
+
+    pub fn set_decoration_seed(&mut self, seed: i64, chunk_x: i32, chunk_z: i32) -> i64 {
+        self.set_seed(seed);
+        let x_scale = self.next_long() | 1;
+        let z_scale = self.next_long() | 1;
+        let result = (chunk_x as i64).wrapping_mul(x_scale).wrapping_add((chunk_z as i64).wrapping_mul(z_scale)) ^ seed;
+        self.set_seed(result);
+        result
+    }
+
+    pub fn set_feature_seed(&mut self, seed: i64, index: i32, step: i32) {
+        self.set_seed(seed.wrapping_add(index as i64).wrapping_add((10000 * step) as i64));
     }
 
     pub fn set_large_feature_seed(&mut self, seed: i64, chunk_x: i32, chunk_z: i32) {

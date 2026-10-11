@@ -1,14 +1,19 @@
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, OnceLock};
 
-use crisp_core::ChunkPos;
+use crisp_core::{BlockPos, ChunkPos};
 use crisp_data::{BlockState, DimensionType, block_tags, blocks};
 
 use super::aquifer::{Aquifer, AquiferSamplers, FluidPicker, NoiseBasedAquifer};
 use super::carver::BIOME_CARVERS;
 use super::density_function::{Df, DensityVolume, Sampler, SamplerContext};
 use super::material::WorldGenerationContext;
+use super::placement::feature_placer::FeaturePlacer;
+use super::placement::placed_feature;
 use super::worldgen_random::WorldgenRandom;
+use crate::server::level::world_gen_region::WorldGenRegion;
+use crate::world::level::biome::biome_generation_settings;
+use crate::world::level::biome::feature_sorter::{self, StepFeatureData};
 use super::{NoiseGeneratorSettings, RandomState, WORLDGEN, quart_pos};
 use crate::world::level::biome::climate::{self, Parameter};
 use crate::world::level::biome::{self, MultiNoiseBiomeSource};
@@ -17,6 +22,7 @@ use crate::world::level::chunk::proto_chunk::{ChunkStatus, ProtoChunk};
 use crate::world::level::chunk::{Biome, HeightmapType};
 
 const MAX_CACHED_BIOMES: usize = 16384;
+const DECORATION_STEPS: usize = 11;
 const CARVER_RANGE: i32 = 8;
 const PROTECTED_BLOCKS_ON_TOP: i32 = 7;
 
@@ -52,6 +58,7 @@ pub struct NoiseBasedChunkGenerator {
     zoom_seed: i64,
     biome_cache: Mutex<HashMap<ChunkPos, Arc<ChunkBiomes>>>,
     carver_biomes: Mutex<HashMap<ChunkPos, Biome>>,
+    features_per_step: OnceLock<(Vec<StepFeatureData>, Vec<bool>)>,
 }
 
 impl NoiseBasedChunkGenerator {
@@ -74,10 +81,76 @@ impl NoiseBasedChunkGenerator {
             zoom_seed: biome::obfuscate_seed(seed),
             biome_cache: Mutex::new(HashMap::new()),
             carver_biomes: Mutex::new(HashMap::new()),
+            features_per_step: OnceLock::new(),
             settings,
             biome_source,
             state,
             samplers,
+        }
+    }
+
+    fn features_per_step(&self) -> &(Vec<StepFeatureData>, Vec<bool>) {
+        self.features_per_step.get_or_init(|| {
+            let possible_biomes = self.biome_source.possible_biomes();
+            let mut possible = vec![false; crisp_data::SyncedRegistry::get("minecraft:worldgen/biome").entries.len()];
+            for biome in &possible_biomes {
+                possible[biome.0 as usize] = true;
+            }
+            (feature_sorter::build_features_per_step(&possible_biomes), possible)
+        })
+    }
+
+    pub fn apply_biome_decoration(&self, level: &mut WorldGenRegion) {
+        let center_pos = level.get_center();
+        let origin = BlockPos::new(center_pos.min_block_x(), level.get_min_y(), center_pos.min_block_z());
+        let (feature_list, possible) = self.features_per_step();
+        let mut random = WorldgenRandom::xoroshiro(0);
+        let decoration_seed = random.set_decoration_seed(level.get_seed(), origin.x, origin.z);
+        let mut possible_biomes: Vec<Biome> = Vec::new();
+        for dz in -1..=1 {
+            for dx in -1..=1 {
+                let chunk = level.get_chunk(center_pos.x + dx, center_pos.z + dz);
+                for section in &chunk.sections {
+                    for x in 0..4 {
+                        for y in 0..4 {
+                            for z in 0..4 {
+                                let biome = section.biomes.get(x, y, z);
+                                if possible[biome.0 as usize] && !possible_biomes.contains(&biome) {
+                                    possible_biomes.push(biome);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        let feature_step_count = feature_list.len();
+        let mut placer = FeaturePlacer::default();
+        let generation_steps = DECORATION_STEPS.max(feature_step_count);
+        let mut possible_features_this_step: Vec<usize> = Vec::new();
+        for step_index in 0..generation_steps {
+            if step_index >= feature_step_count {
+                continue;
+            }
+            let step_feature_data = &feature_list[step_index];
+            possible_features_this_step.clear();
+            for &biome in &possible_biomes {
+                let features_in_biome = biome_generation_settings::get(biome).features();
+                if step_index < features_in_biome.len() {
+                    for &feature in &features_in_biome[step_index] {
+                        let index = step_feature_data.index_of(feature);
+                        if !possible_features_this_step.contains(&index) {
+                            possible_features_this_step.push(index);
+                        }
+                    }
+                }
+            }
+            possible_features_this_step.sort_unstable();
+            for &global_index_of_feature in &possible_features_this_step {
+                let feature = step_feature_data.features[global_index_of_feature];
+                random.set_feature_seed(decoration_seed, global_index_of_feature as i32, step_index as i32);
+                placer.place_with_biome_check(level, placed_feature::get(feature), feature, &mut random, origin);
+            }
         }
     }
 

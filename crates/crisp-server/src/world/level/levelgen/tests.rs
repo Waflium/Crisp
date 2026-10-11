@@ -4,7 +4,9 @@ use crisp_core::ChunkPos;
 use crisp_data::DimensionType;
 
 use super::NoiseBasedChunkGenerator;
-use crate::world::level::chunk::HeightmapType;
+use super::material::WorldGenerationContext;
+use crate::server::level::world_gen_region::WorldGenRegion;
+use crate::world::level::chunk::{HeightmapType, LevelChunk};
 use crate::world::level::chunk::proto_chunk::ProtoChunk;
 
 const FNV_OFFSET: u64 = 0xcbf29ce484222325;
@@ -82,6 +84,86 @@ fn check(fixture: &str) {
         }
     }
     assert!(failures.is_empty(), "chunks differ from vanilla:\n{}", failures.join("\n"));
+}
+
+pub fn decorate(generator: &NoiseBasedChunkGenerator, chunks: &mut HashMap<ChunkPos, LevelChunk>, center: ChunkPos) {
+    let dimension = overworld();
+    let mut taken: Vec<(ChunkPos, LevelChunk)> = Vec::new();
+    for dz in -1..=1 {
+        for dx in -1..=1 {
+            let pos = ChunkPos::new(center.x + dx, center.z + dz);
+            let chunk = chunks.remove(&pos).unwrap_or_else(|| generator.generate(pos, dimension).into_level_chunk(dimension));
+            taken.push((pos, chunk));
+        }
+    }
+    {
+        let mut iter = taken.iter_mut();
+        let cache: [Option<&mut LevelChunk>; 9] = std::array::from_fn(|_| iter.next().map(|(_, c)| c));
+        let generation = WorldGenerationContext {
+            min_gen_y: dimension.min_y.max(generator.min_y()),
+            gen_depth: (dimension.height as i32).min(generator.gen_depth()),
+            sea_level: generator.sea_level(),
+        };
+        let mut region = WorldGenRegion::new(center, cache, [true; 9], [false; 9], generator.seed(), dimension.min_y, dimension.height as i32, generation);
+        generator.apply_biome_decoration(&mut region);
+    }
+    chunks.extend(taken);
+}
+
+pub fn decorate_like_oracle(generator: &NoiseBasedChunkGenerator, pos: ChunkPos) -> LevelChunk {
+    let dimension = overworld();
+    let mut chunks: HashMap<ChunkPos, LevelChunk> = HashMap::new();
+    for dz in -1..=1 {
+        for dx in -1..=1 {
+            let center = ChunkPos::new(pos.x + dx, pos.z + dz);
+            for nz in -1..=1 {
+                for nx in -1..=1 {
+                    let p = ChunkPos::new(center.x + nx, center.z + nz);
+                    chunks.entry(p).or_insert_with(|| generator.generate(p, dimension).into_level_chunk(dimension));
+                }
+            }
+            decorate(generator, &mut chunks, center);
+        }
+    }
+    chunks.remove(&pos).expect("the decorated chunk")
+}
+
+#[test]
+#[ignore]
+fn features_match_vanilla_dump() {
+    let dir = std::env::var("CRISP_FEATURE_DUMP").expect("CRISP_FEATURE_DUMP");
+    let mut report = Vec::new();
+    for entry in std::fs::read_dir(&dir).unwrap() {
+        let path = entry.unwrap().path();
+        if path.extension().is_none_or(|e| e != "blocks") {
+            continue;
+        }
+        let stem = path.file_stem().unwrap().to_str().unwrap().to_owned();
+        let f: Vec<i64> = stem.split('_').map(|s| s.parse().unwrap()).collect();
+        let (seed, pos) = (f[0], ChunkPos::new(f[1] as i32, f[2] as i32));
+        let generator = NoiseBasedChunkGenerator::overworld(seed);
+        let chunk = decorate_like_oracle(&generator, pos);
+        let bytes = std::fs::read(&path).unwrap();
+        let mut mismatches: HashMap<(String, String), usize> = HashMap::new();
+        let mut i = 0;
+        for y in chunk.min_y()..chunk.min_y() + chunk.height() {
+            for z in 0..16 {
+                for x in 0..16 {
+                    let expected = i32::from_be_bytes(bytes[i * 4..i * 4 + 4].try_into().unwrap()) as u32;
+                    i += 1;
+                    let actual = chunk.block_state(crisp_core::BlockPos::new(pos.min_block_x() + x, y, pos.min_block_z() + z));
+                    if actual.id() != expected {
+                        let expected = crisp_data::BlockState::by_id(expected).map_or("?".into(), |s| s.block().name().to_string());
+                        *mismatches.entry((expected, actual.block().name().to_string())).or_default() += 1;
+                    }
+                }
+            }
+        }
+        let mut mismatches: Vec<_> = mismatches.into_iter().collect();
+        mismatches.sort_by_key(|m| std::cmp::Reverse(m.1));
+        report.push(format!("{stem}: {} differing blocks {:?}", mismatches.iter().map(|m| m.1).sum::<usize>(), &mismatches[..mismatches.len().min(12)]));
+    }
+    eprintln!("{}", report.join("\n"));
 }
 
 #[test]

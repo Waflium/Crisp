@@ -6,7 +6,7 @@ use super::BlockBehaviour;
 use super::vegetation_block::{block_field, fields};
 use crate::server::level::ServerLevel;
 use crate::world::item::context::BlockPlaceContext;
-use crate::world::level::BlockGetter;
+use crate::world::level::{BlockGetter, LevelReader};
 use crate::world::level::update_flags::{UPDATE_ALL, UPDATE_CLIENTS};
 
 pub struct FarmlandBlock {
@@ -23,7 +23,7 @@ impl FarmlandBlock {
     }
 }
 
-fn should_maintain_farmland(level: &mut ServerLevel, pos: BlockPos) -> bool {
+fn should_maintain_farmland(level: &mut dyn LevelReader, pos: BlockPos) -> bool {
     level.block_state(pos.above()).is(&block_tags::MAINTAINS_FARMLAND)
 }
 
@@ -53,7 +53,7 @@ impl BlockBehaviour for FarmlandBlock {
         state
     }
 
-    fn can_survive(&self, _state: BlockState, level: &mut ServerLevel, pos: BlockPos) -> bool {
+    fn can_survive(&self, _state: BlockState, level: &mut dyn LevelReader, pos: BlockPos) -> bool {
         let above_state = level.block_state(pos.above());
         !above_state.is_solid() || should_maintain_farmland(level, pos)
     }

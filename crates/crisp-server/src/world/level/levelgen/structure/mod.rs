@@ -45,3 +45,5 @@ impl BoundingBox {
         (min.z..=max.z).flat_map(move |z| (min.y..=max.y).flat_map(move |y| (min.x..=max.x).map(move |x| BlockPos::new(x, y, z))))
     }
 }
+
+pub mod templatesystem;

@@ -6,7 +6,7 @@ use super::BlockBehaviour;
 use super::simple_waterlogged_block::{is_water_source, schedule_water_tick};
 use crate::server::level::ServerLevel;
 use crate::world::item::context::BlockPlaceContext;
-use crate::world::level::BlockGetter;
+use crate::world::level::{BlockGetter, LevelReader};
 use crate::world::level::update_flags::UPDATE_ALL;
 
 const TICK_DELAY: i32 = 1;
@@ -18,7 +18,7 @@ fn is_bottom(block: Block, level: &mut ServerLevel, pos: BlockPos, distance: i32
     distance > 0 && !level.block_state(pos.below()).is_block(block)
 }
 
-pub fn get_distance(level: &mut ServerLevel, pos: BlockPos) -> i32 {
+pub fn get_distance(level: &mut dyn LevelReader, pos: BlockPos) -> i32 {
     let below_pos = pos.below();
     let below = level.block_state(below_pos);
     let mut distance = STABILITY_MAX_DISTANCE;
@@ -82,7 +82,7 @@ impl BlockBehaviour for ScaffoldingBlock {
         }
     }
 
-    fn can_survive(&self, _state: BlockState, level: &mut ServerLevel, pos: BlockPos) -> bool {
+    fn can_survive(&self, _state: BlockState, level: &mut dyn LevelReader, pos: BlockPos) -> bool {
         get_distance(level, pos) < STABILITY_MAX_DISTANCE
     }
 }

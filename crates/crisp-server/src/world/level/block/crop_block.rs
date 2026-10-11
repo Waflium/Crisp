@@ -6,7 +6,7 @@ use crisp_data::{Block, BlockState, block_tags};
 use super::BlockBehaviour;
 use super::vegetation_block::{self, Vegetation};
 use crate::server::level::ServerLevel;
-use crate::world::level::BlockGetter;
+use crate::world::level::{BlockGetter, LevelReader};
 use crate::world::level::update_flags::UPDATE_CLIENTS;
 
 pub trait Crop {
@@ -88,11 +88,11 @@ pub fn growth_speed(block: Block, level: &mut ServerLevel, pos: BlockPos) -> f32
     speed
 }
 
-pub fn has_sufficient_light(level: &mut ServerLevel, pos: BlockPos) -> bool {
+pub fn has_sufficient_light(level: &mut dyn LevelReader, pos: BlockPos) -> bool {
     level.raw_brightness(pos, 0) >= 8
 }
 
-pub fn can_survive<V: Vegetation + ?Sized>(vegetation: &V, level: &mut ServerLevel, pos: BlockPos) -> bool {
+pub fn can_survive<V: Vegetation + ?Sized>(vegetation: &V, level: &mut dyn LevelReader, pos: BlockPos) -> bool {
     has_sufficient_light(level, pos) && vegetation_block::can_survive(vegetation, level, pos)
 }
 
@@ -105,7 +105,7 @@ pub struct CropBlock;
 impl Crop for CropBlock {}
 
 impl Vegetation for CropBlock {
-    fn may_place_on(&self, state: BlockState, _level: &mut ServerLevel, _pos: BlockPos) -> bool {
+    fn may_place_on(&self, state: BlockState, _level: &mut dyn LevelReader, _pos: BlockPos) -> bool {
         may_place_on_crop_support(state)
     }
 }
@@ -115,7 +115,7 @@ impl BlockBehaviour for CropBlock {
         vegetation_block::update_shape(state, level, pos)
     }
 
-    fn can_survive(&self, _state: BlockState, level: &mut ServerLevel, pos: BlockPos) -> bool {
+    fn can_survive(&self, _state: BlockState, level: &mut dyn LevelReader, pos: BlockPos) -> bool {
         can_survive(self, level, pos)
     }
 

@@ -5,7 +5,7 @@ use crisp_data::{BlockState, block_tags, blocks, fluid_tags};
 
 use super::BlockBehaviour;
 use crate::server::level::ServerLevel;
-use crate::world::level::BlockGetter;
+use crate::world::level::{BlockGetter, LevelReader};
 use crate::world::level::update_flags::{UPDATE_ALL, UPDATE_LIMIT, UPDATE_NONE};
 
 pub struct CactusBlock;
@@ -66,7 +66,7 @@ impl BlockBehaviour for CactusBlock {
         state
     }
 
-    fn can_survive(&self, state: BlockState, level: &mut ServerLevel, pos: BlockPos) -> bool {
+    fn can_survive(&self, state: BlockState, level: &mut dyn LevelReader, pos: BlockPos) -> bool {
         for direction in Direction::PLANE_HORIZONTAL {
             let neighbour = level.block_state(pos.relative(direction));
             if neighbour.is_solid() || level.fluid_state(pos.relative(direction)).is(&fluid_tags::LAVA) {

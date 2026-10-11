@@ -6,7 +6,7 @@ use super::growing_plant_block::{self, GrowingPlant};
 use super::vegetation_block::{block_can_be_replaced, schedule_water_tick};
 use crate::server::level::ServerLevel;
 use crate::world::item::context::BlockPlaceContext;
-use crate::world::level::BlockGetter;
+use crate::world::level::{BlockGetter, LevelReader};
 
 #[allow(unused_variables)]
 pub trait BodyParts: Send + Sync {
@@ -60,7 +60,7 @@ impl<P: BodyParts> BlockBehaviour for GrowingPlantBodyBlock<P> {
         if result && !ctx.item.is_empty() && ctx.item.item == self.parts.head_block().item() { false } else { result }
     }
 
-    fn can_survive(&self, state: BlockState, level: &mut ServerLevel, pos: BlockPos) -> bool {
+    fn can_survive(&self, state: BlockState, level: &mut dyn LevelReader, pos: BlockPos) -> bool {
         growing_plant_block::can_survive(&self.plant, self.parts.head_block(), state.block(), |s| self.parts.can_attach_to(s), level, pos)
     }
 

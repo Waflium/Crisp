@@ -5,6 +5,7 @@ use super::{can_support_center, can_support_rigid_block};
 use crate::server::level::game_mode::GameType;
 use crate::server::level::{ServerLevel, SoundSource};
 use crate::world::entity::EntityId;
+use crate::world::level::LevelReader;
 use crate::world::level::update_flags::UPDATE_CLIENTS;
 
 pub const TOUCH_AABB: AABB = AABB { min_x: 0.0625, min_y: 0.0, min_z: 0.0625, max_x: 0.9375, max_y: 0.25, max_z: 0.9375 };
@@ -41,7 +42,7 @@ pub fn update_shape(state: BlockState, level: &mut ServerLevel, pos: BlockPos, d
     if direction == Direction::Down && !super::of(state).can_survive(state, level, pos) { blocks::AIR.default_state() } else { state }
 }
 
-pub fn can_survive(level: &mut ServerLevel, pos: BlockPos) -> bool {
+pub fn can_survive(level: &mut dyn LevelReader, pos: BlockPos) -> bool {
     let below = pos.below();
     can_support_rigid_block(level, below) || can_support_center(level, below, Direction::Up)
 }

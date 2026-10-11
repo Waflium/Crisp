@@ -8,7 +8,7 @@ use crate::server::level::ServerLevel;
 use crate::world::entity::EntityId;
 use crate::world::entity::inside_block::InsideBlockEffects;
 use crate::world::item::context::BlockPlaceContext;
-use crate::world::level::BlockGetter;
+use crate::world::level::{BlockGetter, LevelReader};
 use crate::world::level::update_flags::{UPDATE_ALL, UPDATE_NONE};
 
 const MAX_AGE: i32 = 15;
@@ -54,7 +54,7 @@ fn fire_tick_delay(level: &mut ServerLevel) -> i32 {
     30 + level.random.next_int_bounded(10)
 }
 
-fn is_valid_fire_location(level: &mut ServerLevel, pos: BlockPos) -> bool {
+fn is_valid_fire_location(level: &mut dyn LevelReader, pos: BlockPos) -> bool {
     Direction::VALUES.into_iter().any(|direction| can_burn(level.block_state(pos.relative(direction))))
 }
 
@@ -110,7 +110,7 @@ impl BlockBehaviour for FireBlock {
         if self.can_survive(state, level, pos) { state_with_age(level, pos, state.get(AGE_15)) } else { blocks::AIR.default_state() }
     }
 
-    fn can_survive(&self, _state: BlockState, level: &mut ServerLevel, pos: BlockPos) -> bool {
+    fn can_survive(&self, _state: BlockState, level: &mut dyn LevelReader, pos: BlockPos) -> bool {
         level.block_state(pos.below()).is_face_sturdy_full(Direction::Up) || is_valid_fire_location(level, pos)
     }
 

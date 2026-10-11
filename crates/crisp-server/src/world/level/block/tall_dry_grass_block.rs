@@ -6,6 +6,7 @@ use super::bonemealable_block::{find_spreadable_neighbour_pos, has_spreadable_ne
 use super::dry_vegetation_block::DryVegetationBlock;
 use super::vegetation_block;
 use crate::server::level::ServerLevel;
+use crate::world::level::LevelReader;
 use crate::world::level::update_flags::UPDATE_ALL;
 
 pub struct TallDryGrassBlock;
@@ -15,7 +16,7 @@ impl BlockBehaviour for TallDryGrassBlock {
         vegetation_block::update_shape(state, level, pos)
     }
 
-    fn can_survive(&self, _state: BlockState, level: &mut ServerLevel, pos: BlockPos) -> bool {
+    fn can_survive(&self, _state: BlockState, level: &mut dyn LevelReader, pos: BlockPos) -> bool {
         vegetation_block::can_survive(&DryVegetationBlock, level, pos)
     }
 
