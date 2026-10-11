@@ -47,6 +47,8 @@ impl BooleanOp {
 pub struct VoxelShape {
     coords: [Vec<f64>; 3],
     filled: Vec<bool>,
+    first_full: [usize; 3],
+    last_full: [usize; 3],
 }
 
 fn axis_index(axis: Axis) -> usize {
@@ -54,12 +56,28 @@ fn axis_index(axis: Axis) -> usize {
 }
 
 impl VoxelShape {
+    fn new(coords: [Vec<f64>; 3], filled: Vec<bool>) -> VoxelShape {
+        let sizes = [coords[0].len() - 1, coords[1].len() - 1, coords[2].len() - 1];
+        let mut first_full = sizes;
+        let mut last_full = [0; 3];
+        for x in 0..sizes[0] {
+            for y in 0..sizes[1] {
+                let row = (x * sizes[1] + y) * sizes[2];
+                let Some(min_z) = filled[row..row + sizes[2]].iter().position(|&f| f) else { continue };
+                let max_z = filled[row..row + sizes[2]].iter().rposition(|&f| f).unwrap();
+                first_full = [first_full[0].min(x), first_full[1].min(y), first_full[2].min(min_z)];
+                last_full = [last_full[0].max(x + 1), last_full[1].max(y + 1), last_full[2].max(max_z + 1)];
+            }
+        }
+        VoxelShape { coords, filled, first_full, last_full }
+    }
+
     pub fn empty() -> VoxelShape {
-        VoxelShape { coords: [vec![0.0, 1.0], vec![0.0, 1.0], vec![0.0, 1.0]], filled: vec![false] }
+        VoxelShape::new([vec![0.0, 1.0], vec![0.0, 1.0], vec![0.0, 1.0]], vec![false])
     }
 
     pub fn block() -> VoxelShape {
-        VoxelShape { coords: [vec![0.0, 1.0], vec![0.0, 1.0], vec![0.0, 1.0]], filled: vec![true] }
+        VoxelShape::new([vec![0.0, 1.0], vec![0.0, 1.0], vec![0.0, 1.0]], vec![true])
     }
 
     pub fn from_boxes(boxes: &[AABB]) -> VoxelShape {
@@ -86,12 +104,12 @@ impl VoxelShape {
                 }
             }
         }
-        VoxelShape { coords, filled }
+        VoxelShape::new(coords, filled)
     }
 
     pub fn from_cells(coords: [Vec<f64>; 3], filled: Vec<bool>) -> VoxelShape {
         debug_assert_eq!(filled.len(), coords.iter().map(|c| c.len() - 1).product::<usize>());
-        VoxelShape { coords, filled }
+        VoxelShape::new(coords, filled)
     }
 
     fn size(&self, axis: usize) -> usize {
@@ -103,20 +121,15 @@ impl VoxelShape {
     }
 
     pub fn is_empty(&self) -> bool {
-        !self.filled.iter().any(|&f| f)
+        self.first_full[0] >= self.last_full[0]
     }
 
     fn first_full(&self, axis: usize) -> usize {
-        (0..self.size(axis)).find(|&i| self.layer_has_any(axis, i)).unwrap_or(self.size(axis))
+        self.first_full[axis]
     }
 
     fn last_full(&self, axis: usize) -> usize {
-        (0..self.size(axis)).rev().find(|&i| self.layer_has_any(axis, i)).map_or(0, |i| i + 1)
-    }
-
-    fn layer_has_any(&self, axis: usize, i: usize) -> bool {
-        let (nx, ny, nz) = (self.size(0), self.size(1), self.size(2));
-        (0..nx).any(|x| (0..ny).any(|y| (0..nz).any(|z| [x, y, z][axis] == i && self.is_full(x, y, z))))
+        self.last_full[axis]
     }
 
     pub fn min(&self, axis: Axis) -> f64 {
@@ -132,8 +145,7 @@ impl VoxelShape {
     }
 
     fn find_index(&self, axis: usize, coord: f64) -> isize {
-        let coords = &self.coords[axis];
-        (0..coords.len()).find(|&i| coord < coords[i]).unwrap_or(coords.len()) as isize - 1
+        self.coords[axis].partition_point(|&c| !(coord < c)) as isize - 1
     }
 
     fn is_cube_like_along(&self, axis: usize) -> bool {
@@ -166,7 +178,7 @@ impl VoxelShape {
                 }
             }
         }
-        let slice = VoxelShape { coords, filled };
+        let slice = VoxelShape::new(coords, filled);
         if slice.is_empty() {
             VoxelShape::empty()
         } else if slice.is_cube_like() && slice.filled.iter().all(|&f| f) {
@@ -194,7 +206,7 @@ impl VoxelShape {
         for (axis, list) in coords.iter_mut().enumerate() {
             list.iter_mut().for_each(|c| *c += offset[axis]);
         }
-        VoxelShape { coords, filled: self.filled.clone() }
+        VoxelShape { coords, filled: self.filled.clone(), first_full: self.first_full, last_full: self.last_full }
     }
 
     pub fn contains_point(&self, x: f64, y: f64, z: f64) -> bool {
@@ -206,8 +218,7 @@ impl VoxelShape {
     }
 
     fn find_index_offset(&self, axis: usize, coord: f64, offset: f64) -> isize {
-        let coords = &self.coords[axis];
-        (0..coords.len()).find(|&i| coord < coords[i] + offset).unwrap_or(coords.len()) as isize - 1
+        self.coords[axis].partition_point(|&c| !(coord < c + offset)) as isize - 1
     }
 
     fn is_full_wide(&self, x: isize, y: isize, z: isize) -> bool {
@@ -295,31 +306,89 @@ impl VoxelShape {
     }
 }
 
-fn merge_coords(a: &[f64], b: &[f64]) -> Vec<f64> {
-    let mut all: Vec<f64> = a.iter().chain(b).copied().collect();
-    all.sort_by(f64::total_cmp);
-    let mut out: Vec<f64> = Vec::new();
-    for v in all {
-        if out.last().is_none_or(|&last| last < v - 1.0e-7) {
-            out.push(v);
+struct IndexMerger {
+    result: Vec<f64>,
+    first_indices: Vec<isize>,
+    second_indices: Vec<isize>,
+}
+
+impl IndexMerger {
+    fn new(first: &[f64], second: &[f64], first_only_matters: bool, second_only_matters: bool) -> IndexMerger {
+        let mut last_value = f64::NAN;
+        let (first_size, second_size) = (first.len(), second.len());
+        let capacity = first_size + second_size;
+        let mut merger = IndexMerger { result: Vec::with_capacity(capacity), first_indices: Vec::with_capacity(capacity), second_indices: Vec::with_capacity(capacity) };
+        let can_skip_first = !first_only_matters;
+        let can_skip_second = !second_only_matters;
+        let (mut first_index, mut second_index) = (0, 0);
+        loop {
+            let ran_out_of_first = first_index >= first_size;
+            let ran_out_of_second = second_index >= second_size;
+            if ran_out_of_first && ran_out_of_second {
+                break;
+            }
+            let chose_first = !ran_out_of_first && (ran_out_of_second || first[first_index] < second[second_index] + 1.0e-7);
+            if chose_first {
+                first_index += 1;
+                if can_skip_first && (second_index == 0 || ran_out_of_second) {
+                    continue;
+                }
+            } else {
+                second_index += 1;
+                if can_skip_second && (first_index == 0 || ran_out_of_first) {
+                    continue;
+                }
+            }
+            let current_first_index = first_index as isize - 1;
+            let current_second_index = second_index as isize - 1;
+            let next_value = if chose_first { first[first_index - 1] } else { second[second_index - 1] };
+            if !(last_value >= next_value - 1.0e-7) {
+                merger.first_indices.push(current_first_index);
+                merger.second_indices.push(current_second_index);
+                merger.result.push(next_value);
+                last_value = next_value;
+            } else {
+                *merger.first_indices.last_mut().unwrap() = current_first_index;
+                *merger.second_indices.last_mut().unwrap() = current_second_index;
+            }
         }
+        if merger.result.is_empty() {
+            merger.result.push(0.0);
+            merger.first_indices.push(0);
+            merger.second_indices.push(0);
+        }
+        merger
     }
-    out
+
+    fn cells(&self) -> usize {
+        self.result.len() - 1
+    }
 }
 
 pub fn join_unoptimized(first: &VoxelShape, second: &VoxelShape, op: BooleanOp) -> VoxelShape {
-    let coords: [Vec<f64>; 3] = std::array::from_fn(|a| merge_coords(&first.coords[a], &second.coords[a]));
-    let (nx, ny, nz) = (coords[0].len() - 1, coords[1].len() - 1, coords[2].len() - 1);
+    assert!(!op.apply(false, false), "joinUnoptimized needs an op that is false for empty cells");
+    let first_only_matters = op.apply(true, false);
+    let second_only_matters = op.apply(false, true);
+    if first.is_empty() {
+        return if second_only_matters { second.clone() } else { VoxelShape::empty() };
+    }
+    if second.is_empty() {
+        return if first_only_matters { first.clone() } else { VoxelShape::empty() };
+    }
+    let [x_merger, y_merger, z_merger] = std::array::from_fn(|a| IndexMerger::new(&first.coords[a], &second.coords[a], first_only_matters, second_only_matters));
+    let (nx, ny, nz) = (x_merger.cells(), y_merger.cells(), z_merger.cells());
     let mut filled = vec![false; nx * ny * nz];
-    for x in 0..nx {
-        for y in 0..ny {
-            for z in 0..nz {
-                let p = [(coords[0][x] + coords[0][x + 1]) / 2.0, (coords[1][y] + coords[1][y + 1]) / 2.0, (coords[2][z] + coords[2][z + 1]) / 2.0];
-                filled[(x * ny + y) * nz + z] = op.apply(first.contains_cell_at(p), second.contains_cell_at(p));
+    for xr in 0..nx {
+        let (x1, x2) = (x_merger.first_indices[xr], x_merger.second_indices[xr]);
+        for yr in 0..ny {
+            let (y1, y2) = (y_merger.first_indices[yr], y_merger.second_indices[yr]);
+            let row = (xr * ny + yr) * nz;
+            for zr in 0..nz {
+                filled[row + zr] = op.apply(first.is_full_wide(x1, y1, z_merger.first_indices[zr]), second.is_full_wide(x2, y2, z_merger.second_indices[zr]));
             }
         }
     }
-    VoxelShape { coords, filled }
+    VoxelShape::new([x_merger.result, y_merger.result, z_merger.result], filled)
 }
 
 pub fn join_is_not_empty(first: &VoxelShape, second: &VoxelShape, op: BooleanOp) -> bool {
@@ -335,12 +404,13 @@ pub fn join_is_not_empty(first: &VoxelShape, second: &VoxelShape, op: BooleanOp)
             return first_only || second_only;
         }
     }
-    let merged: Vec<Vec<f64>> = (0..3).map(|a| merge_coords(&first.coords[a], &second.coords[a])).collect();
-    for x in 0..merged[0].len() - 1 {
-        for y in 0..merged[1].len() - 1 {
-            for z in 0..merged[2].len() - 1 {
-                let p = [(merged[0][x] + merged[0][x + 1]) / 2.0, (merged[1][y] + merged[1][y + 1]) / 2.0, (merged[2][z] + merged[2][z + 1]) / 2.0];
-                if op.apply(first.contains_cell_at(p), second.contains_cell_at(p)) {
+    let [x_merger, y_merger, z_merger] = std::array::from_fn(|a| IndexMerger::new(&first.coords[a], &second.coords[a], first_only, second_only));
+    for xr in 0..x_merger.cells() {
+        let (x1, x2) = (x_merger.first_indices[xr], x_merger.second_indices[xr]);
+        for yr in 0..y_merger.cells() {
+            let (y1, y2) = (y_merger.first_indices[yr], y_merger.second_indices[yr]);
+            for zr in 0..z_merger.cells() {
+                if op.apply(first.is_full_wide(x1, y1, z_merger.first_indices[zr]), second.is_full_wide(x2, y2, z_merger.second_indices[zr])) {
                     return true;
                 }
             }
