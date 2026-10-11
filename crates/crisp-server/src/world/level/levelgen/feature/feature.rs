@@ -7,6 +7,10 @@ use serde_json::Value;
 use super::abstract_huge_mushroom_feature::{AbstractHugeMushroomFeature, HugeMushroomType};
 use super::bamboo_feature::BambooFeature;
 use super::disk_feature::DiskFeature;
+use super::geode_feature::GeodeFeature;
+use super::large_dripstone_feature::LargeDripstoneFeature;
+use super::speleothem_cluster_feature::SpeleothemClusterFeature;
+use super::speleothem_feature::SpeleothemFeature;
 use super::iceberg_feature::IcebergFeature;
 use super::spike_feature::SpikeFeature;
 use super::spring_feature::SpringFeature;
@@ -42,6 +46,10 @@ pub enum Feature {
     Iceberg(IcebergFeature),
     Spike(Box<SpikeFeature>),
     BlueIce,
+    Speleothem(Box<SpeleothemFeature>),
+    SpeleothemCluster(Box<SpeleothemClusterFeature>),
+    LargeDripstone(Box<LargeDripstoneFeature>),
+    Geode(Box<GeodeFeature>),
     MultifaceGrowth(MultifaceGrowthFeature),
     Bamboo(BambooFeature),
     HugeMushroom(Box<AbstractHugeMushroomFeature>),
@@ -87,6 +95,10 @@ impl Feature {
             "iceberg" => Feature::Iceberg(IcebergFeature::parse(json)?),
             "spike" => Feature::Spike(Box::new(SpikeFeature::parse(json)?)),
             "blue_ice" => Feature::BlueIce,
+            "speleothem" => Feature::Speleothem(Box::new(SpeleothemFeature::parse(json)?)),
+            "speleothem_cluster" => Feature::SpeleothemCluster(Box::new(SpeleothemClusterFeature::parse(json)?)),
+            "large_dripstone" => Feature::LargeDripstone(Box::new(LargeDripstoneFeature::parse(json)?)),
+            "geode" => Feature::Geode(Box::new(GeodeFeature::parse(json)?)),
             "multiface_growth" => Feature::MultifaceGrowth(MultifaceGrowthFeature::parse(json)?),
             "bamboo" => Feature::Bamboo(BambooFeature::parse(json)?),
             "huge_brown_mushroom" => Feature::HugeMushroom(Box::new(AbstractHugeMushroomFeature::parse(json, HugeMushroomType::Brown)?)),
@@ -116,6 +128,10 @@ impl Feature {
             Feature::Iceberg(feature) => feature.place(level, random, origin),
             Feature::Spike(feature) => feature.place(level, random, origin),
             Feature::BlueIce => blue_ice_feature::place(level, random, origin),
+            Feature::Speleothem(feature) => feature.place(level, random, origin),
+            Feature::SpeleothemCluster(feature) => feature.place(level, random, origin),
+            Feature::LargeDripstone(feature) => feature.place(level, random, origin),
+            Feature::Geode(feature) => feature.place(level, random, origin),
             Feature::MultifaceGrowth(feature) => feature.place(level, random, origin),
             Feature::Bamboo(feature) => feature.place(level, random, origin),
             Feature::HugeMushroom(feature) => feature.place(level, random, origin),

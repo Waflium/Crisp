@@ -409,6 +409,20 @@ fn parity_normalization_factor(base_amplitude: f64, octave_count: i32, modifiers
 }
 
 impl NormalNoise {
+    pub fn create_parity(first_octave: i32, amplitudes: &[f64]) -> NormalNoise {
+        let octave_count = amplitudes.len() as i32;
+        let octaves = build_octaves(first_octave, 1.0, octave_count, true, amplitudes);
+        let target_amplitude = java_double_sum(octaves.iter().map(|o| o.amplitude.abs()));
+        let new_normalization_factor = normalization_factor(target_amplitude, &octaves);
+        let base_amplitude = if new_normalization_factor == 0.0 {
+            1.0
+        } else {
+            parity_normalization_factor(1.0, octave_count, amplitudes) / new_normalization_factor
+        };
+        let amplitude_modifiers = if amplitudes.iter().all(|&modifier| modifier == 1.0) { Vec::new() } else { amplitudes.to_vec() };
+        NormalNoise::new(NormalNoiseParameters { base_amplitude, base_octave: first_octave, octave_count, normalize: Normalization::Enabled, amplitude_modifiers })
+    }
+
     pub fn new(parameters: NormalNoiseParameters) -> NormalNoise {
         let p = &parameters;
         let octaves = build_octaves(p.base_octave, p.base_amplitude, p.octave_count, p.normalize != Normalization::Disabled, &p.amplitude_modifiers);

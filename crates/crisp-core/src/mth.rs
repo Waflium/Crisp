@@ -377,6 +377,24 @@ pub fn clamped_map(value: f64, from_min: f64, from_max: f64, to_min: f64, to_max
     clamped_lerp(inverse_lerp(value, from_min, from_max), to_min, to_max)
 }
 
+pub fn clamped_lerp_f(factor: f32, min: f32, max: f32) -> f32 {
+    if factor < 0.0 {
+        min
+    } else if factor > 1.0 {
+        max
+    } else {
+        lerp_f(factor, min, max)
+    }
+}
+
+pub fn inverse_lerp_f(value: f32, min: f32, max: f32) -> f32 {
+    (value - min) / (max - min)
+}
+
+pub fn clamped_map_f(value: f32, from_min: f32, from_max: f32, to_min: f32, to_max: f32) -> f32 {
+    clamped_lerp_f(inverse_lerp_f(value, from_min, from_max), to_min, to_max)
+}
+
 pub fn map(value: f64, from_min: f64, from_max: f64, to_min: f64, to_max: f64) -> f64 {
     lerp(inverse_lerp(value, from_min, from_max), to_min, to_max)
 }
