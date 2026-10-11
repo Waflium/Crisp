@@ -9,7 +9,7 @@ use crate::world::InteractionResult;
 use crate::world::entity::EntityId;
 use crate::world::item::ItemStack;
 use crate::world::item::context::BlockPlaceContext;
-use crate::world::level::LevelReader;
+use crate::world::level::{LevelAccessor, LevelReader};
 
 pub struct RepeaterBlock {
     pub block: Block,
@@ -24,7 +24,7 @@ impl DiodeBlock for RepeaterBlock {
         state.get(DELAY) * 2
     }
 
-    fn is_locked(&self, level: &mut ServerLevel, pos: BlockPos, state: BlockState) -> bool {
+    fn is_locked(&self, level: &mut dyn LevelReader, pos: BlockPos, state: BlockState) -> bool {
         self.get_alternate_signal(level, pos, state) > 0
     }
 
@@ -50,7 +50,7 @@ impl BlockBehaviour for RepeaterBlock {
     fn update_shape(
         &self,
         state: BlockState,
-        level: &mut ServerLevel,
+        level: &mut dyn LevelAccessor,
         pos: BlockPos,
         direction: Direction,
         _neighbour_pos: BlockPos,
@@ -65,7 +65,7 @@ impl BlockBehaviour for RepeaterBlock {
         }
     }
 
-    fn should_redstone_wire_connect_to(&self, state: BlockState, _level: &mut ServerLevel, _pos: BlockPos, direction: Option<Direction>) -> bool {
+    fn should_redstone_wire_connect_to(&self, state: BlockState, _level: &mut dyn LevelReader, _pos: BlockPos, direction: Option<Direction>) -> bool {
         let repeater_direction = state.get(HORIZONTAL_FACING);
         Some(repeater_direction) == direction || Some(repeater_direction.opposite()) == direction
     }
@@ -82,15 +82,15 @@ impl BlockBehaviour for RepeaterBlock {
         diode_block::neighbor_changed(self, state, level, pos);
     }
 
-    fn own_signal(&self, state: BlockState, level: &mut ServerLevel, pos: BlockPos) -> i32 {
+    fn own_signal(&self, state: BlockState, level: &mut dyn LevelReader, pos: BlockPos) -> i32 {
         diode_block::own_signal(self, state, level, pos)
     }
 
-    fn get_direct_signal(&self, state: BlockState, level: &mut ServerLevel, pos: BlockPos, direction: Direction) -> i32 {
+    fn get_direct_signal(&self, state: BlockState, level: &mut dyn LevelReader, pos: BlockPos, direction: Direction) -> i32 {
         super::of(state).get_signal(state, level, pos, direction)
     }
 
-    fn get_signal(&self, state: BlockState, level: &mut ServerLevel, pos: BlockPos, direction: Direction) -> i32 {
+    fn get_signal(&self, state: BlockState, level: &mut dyn LevelReader, pos: BlockPos, direction: Direction) -> i32 {
         diode_block::get_signal(state, level, pos, direction)
     }
 

@@ -5,7 +5,7 @@ use super::{BlockBehaviour, base_fire_block};
 use crate::server::level::ServerLevel;
 use crate::world::entity::EntityId;
 use crate::world::entity::inside_block::InsideBlockEffects;
-use crate::world::level::LevelReader;
+use crate::world::level::{LevelAccessor, LevelReader};
 
 const FIRE_DAMAGE: f32 = 2.0;
 
@@ -15,7 +15,7 @@ impl BlockBehaviour for SoulFireBlock {
     fn update_shape(
         &self,
         state: BlockState,
-        level: &mut ServerLevel,
+        level: &mut dyn LevelAccessor,
         pos: BlockPos,
         _direction: Direction,
         _neighbour_pos: BlockPos,

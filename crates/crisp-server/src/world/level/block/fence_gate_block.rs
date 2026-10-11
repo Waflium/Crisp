@@ -9,7 +9,7 @@ use crate::server::level::{ServerLevel, SoundSource};
 use crate::world::InteractionResult;
 use crate::world::entity::EntityId;
 use crate::world::item::context::BlockPlaceContext;
-use crate::world::level::BlockGetter;
+use crate::world::level::{BlockGetter, LevelAccessor};
 use crate::world::level::update_flags::{UPDATE_CLIENTS, UPDATE_IMMEDIATE};
 
 pub struct FenceGateBlock {
@@ -50,7 +50,7 @@ impl BlockBehaviour for FenceGateBlock {
     fn update_shape(
         &self,
         state: BlockState,
-        level: &mut ServerLevel,
+        level: &mut dyn LevelAccessor,
         pos: BlockPos,
         direction: Direction,
         _neighbour_pos: BlockPos,

@@ -32,6 +32,23 @@ impl Direction {
     pub const HORIZONTAL: [Direction; 4] = [South, West, North, East];
     pub const PLANE_HORIZONTAL: [Direction; 4] = [North, East, South, West];
 
+    pub fn get_random(random: &mut impl crate::random::RandomSource) -> Direction {
+        Self::VALUES[random.next_int_bounded(Self::VALUES.len() as i32) as usize]
+    }
+
+    pub fn get_random_horizontal_direction(random: &mut impl crate::random::RandomSource) -> Direction {
+        Self::PLANE_HORIZONTAL[random.next_int_bounded(Self::PLANE_HORIZONTAL.len() as i32) as usize]
+    }
+
+    pub fn all_shuffled(random: &mut impl crate::random::RandomSource) -> [Direction; 6] {
+        let mut copy = Self::VALUES;
+        for i in (2..=copy.len()).rev() {
+            let swap_to = random.next_int_bounded(i as i32) as usize;
+            copy.swap(i - 1, swap_to);
+        }
+        copy
+    }
+
     pub const fn ordinal(self) -> usize {
         self as usize
     }

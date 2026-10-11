@@ -8,7 +8,7 @@ use super::simple_waterlogged_block::{is_water_source, schedule_water_tick};
 use super::{BlockBehaviour, is_exception_for_connection};
 use crate::server::level::ServerLevel;
 use crate::world::item::context::BlockPlaceContext;
-use crate::world::level::BlockGetter;
+use crate::world::level::{BlockGetter, LevelAccessor};
 
 pub struct FenceBlock;
 
@@ -48,7 +48,7 @@ impl BlockBehaviour for FenceBlock {
     fn update_shape(
         &self,
         state: BlockState,
-        level: &mut ServerLevel,
+        level: &mut dyn LevelAccessor,
         pos: BlockPos,
         direction: Direction,
         _neighbour_pos: BlockPos,

@@ -13,7 +13,7 @@ use crate::world::container::ContainerRef;
 use crate::world::entity::EntityId;
 use crate::world::inventory::menu_provider::MenuProvider;
 use crate::world::item::context::BlockPlaceContext;
-use crate::world::level::BlockGetter;
+use crate::world::level::{BlockGetter, LevelAccessor, LevelReader};
 use crate::world::level::block::entity::BlockEntityKind;
 
 static SOUNDS: LazyLock<Vec<(i32, i32)>> = LazyLock::new(|| {
@@ -110,7 +110,7 @@ pub fn get_container(state: BlockState, level: &mut ServerLevel, pos: BlockPos, 
     }
 }
 
-fn open_count(level: &mut ServerLevel, pos: BlockPos) -> i32 {
+fn open_count(level: &mut dyn LevelReader, pos: BlockPos) -> i32 {
     if !level.block_state(pos).has_block_entity() {
         return 0;
     }
@@ -167,7 +167,7 @@ impl ChestBlock {
         }
     }
 
-    fn chest_update_shape(&self, state: BlockState, level: &mut ServerLevel, pos: BlockPos, direction: Direction, neighbour: BlockState) -> BlockState {
+    fn chest_update_shape(&self, state: BlockState, level: &mut dyn LevelAccessor, pos: BlockPos, direction: Direction, neighbour: BlockState) -> BlockState {
         schedule_water_tick(state, level, pos);
         if self.chest_can_connect_to(neighbour) && direction.axis().is_horizontal() {
             let neighbour_type = neighbour.get(CHEST_TYPE);
@@ -247,7 +247,7 @@ impl BlockBehaviour for ChestBlock {
     fn update_shape(
         &self,
         state: BlockState,
-        level: &mut ServerLevel,
+        level: &mut dyn LevelAccessor,
         pos: BlockPos,
         direction: Direction,
         _neighbour_pos: BlockPos,
@@ -309,11 +309,11 @@ impl BlockBehaviour for ChestBlock {
         level.get_redstone_signal_from_container(container)
     }
 
-    fn own_signal(&self, _state: BlockState, level: &mut ServerLevel, pos: BlockPos) -> i32 {
+    fn own_signal(&self, _state: BlockState, level: &mut dyn LevelReader, pos: BlockPos) -> i32 {
         if self.trapped { open_count(level, pos).clamp(0, 15) } else { 0 }
     }
 
-    fn get_direct_signal(&self, state: BlockState, level: &mut ServerLevel, pos: BlockPos, direction: Direction) -> i32 {
+    fn get_direct_signal(&self, state: BlockState, level: &mut dyn LevelReader, pos: BlockPos, direction: Direction) -> i32 {
         if self.trapped && direction == Direction::Up { self.get_signal(state, level, pos, direction) } else { 0 }
     }
 }

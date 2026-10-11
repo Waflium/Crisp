@@ -4,7 +4,7 @@ use crisp_data::{Block, BlockState, blocks};
 
 use crate::server::level::ServerLevel;
 use crate::world::item::context::BlockPlaceContext;
-use crate::world::level::LevelReader;
+use crate::world::level::{LevelAccessor, LevelReader};
 
 pub fn get_connected_direction(state: BlockState) -> Direction {
     match state.get(ATTACH_FACE) {
@@ -38,7 +38,7 @@ pub fn get_state_for_placement(block: Block, ctx: &BlockPlaceContext, level: &mu
     None
 }
 
-pub fn update_shape(state: BlockState, level: &mut ServerLevel, pos: BlockPos, direction: Direction) -> BlockState {
+pub fn update_shape(state: BlockState, level: &mut dyn LevelAccessor, pos: BlockPos, direction: Direction) -> BlockState {
     if get_connected_direction(state).opposite() == direction && !super::of(state).can_survive(state, level, pos) { blocks::AIR.default_state() } else { state }
 }
 
@@ -56,7 +56,7 @@ impl super::BlockBehaviour for FaceAttachedHorizontalDirectionalBlock {
     fn update_shape(
         &self,
         state: BlockState,
-        level: &mut ServerLevel,
+        level: &mut dyn LevelAccessor,
         pos: BlockPos,
         direction: Direction,
         _neighbour_pos: BlockPos,

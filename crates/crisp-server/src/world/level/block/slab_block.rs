@@ -6,7 +6,7 @@ use super::BlockBehaviour;
 use super::simple_waterlogged_block::{is_water_source, schedule_water_tick};
 use crate::server::level::ServerLevel;
 use crate::world::item::context::BlockPlaceContext;
-use crate::world::level::BlockGetter;
+use crate::world::level::{BlockGetter, LevelAccessor};
 
 pub struct SlabBlock;
 
@@ -46,7 +46,7 @@ impl BlockBehaviour for SlabBlock {
     fn update_shape(
         &self,
         state: BlockState,
-        level: &mut ServerLevel,
+        level: &mut dyn LevelAccessor,
         pos: BlockPos,
         _direction: Direction,
         _neighbour_pos: BlockPos,

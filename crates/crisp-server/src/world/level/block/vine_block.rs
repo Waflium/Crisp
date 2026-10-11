@@ -8,7 +8,7 @@ use super::BlockBehaviour;
 use super::vegetation_block::at_most_matched;
 use crate::server::level::ServerLevel;
 use crate::world::item::context::BlockPlaceContext;
-use crate::world::level::{BlockGetter, LevelReader};
+use crate::world::level::{BlockGetter, LevelAccessor, LevelReader};
 use crate::world::level::update_flags::UPDATE_CLIENTS;
 
 pub struct VineBlock;
@@ -116,7 +116,7 @@ impl BlockBehaviour for VineBlock {
         if state.is_block(blocks::VINE) { count_faces(state) < 5 } else { super::vegetation_block::block_can_be_replaced(state, ctx) }
     }
 
-    fn update_shape(&self, state: BlockState, level: &mut ServerLevel, pos: BlockPos, direction: Direction, _: BlockPos, _: BlockState) -> BlockState {
+    fn update_shape(&self, state: BlockState, level: &mut dyn LevelAccessor, pos: BlockPos, direction: Direction, _: BlockPos, _: BlockState) -> BlockState {
         if direction == Direction::Down {
             return state;
         }

@@ -5,6 +5,7 @@ use crisp_data::{BlockState, Fluid, FluidState, items};
 use crate::server::level::ServerLevel;
 use crate::world::item::ItemStack;
 use crate::world::level::block;
+use crate::world::level::LevelAccessor;
 use crate::world::level::material::tick_delay;
 use crate::world::level::update_flags::UPDATE_ALL;
 
@@ -38,7 +39,7 @@ pub fn is_water_source(level: &mut ServerLevel, pos: BlockPos) -> bool {
     level.fluid_state(pos).fluid == Fluid::Water
 }
 
-pub fn schedule_water_tick(state: BlockState, level: &mut ServerLevel, pos: BlockPos) {
+pub fn schedule_water_tick(state: BlockState, level: &mut dyn LevelAccessor, pos: BlockPos) {
     if state.get(WATERLOGGED) {
         let delay = tick_delay(level, Fluid::Water);
         level.schedule_fluid_tick(pos, Fluid::Water, delay);

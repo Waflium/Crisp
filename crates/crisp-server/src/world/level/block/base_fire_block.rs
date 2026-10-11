@@ -7,9 +7,9 @@ use crate::server::level::events::SOUND_EXTINGUISH_FIRE;
 use crate::world::damagesource::DamageSource;
 use crate::world::entity::EntityId;
 use crate::world::entity::inside_block::{InsideBlockEffectType, InsideBlockEffects};
-use crate::world::level::BlockGetter;
+use crate::world::level::{BlockGetter, LevelReader};
 
-pub fn get_state(level: &mut ServerLevel, pos: BlockPos) -> BlockState {
+pub fn get_state(level: &mut dyn LevelReader, pos: BlockPos) -> BlockState {
     let below_state = level.block_state(pos.below());
     if can_survive_on_soul_block(below_state) { blocks::SOUL_FIRE.default_state() } else { fire_block::get_state_for_placement(level, pos) }
 }

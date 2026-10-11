@@ -1,6 +1,7 @@
 pub mod abstract_furnace_block_entity;
 mod barrel_block_entity;
 pub mod base_container_block_entity;
+pub mod beehive_block_entity;
 pub mod chest_block_entity;
 pub mod container_openers_counter;
 mod dispenser_block_entity;
@@ -22,6 +23,7 @@ use crisp_protocol::nbt::Nbt;
 pub use abstract_furnace_block_entity::AbstractFurnaceBlockEntity;
 pub use barrel_block_entity::BarrelBlockEntity;
 pub use base_container_block_entity::BaseContainerBlockEntity;
+pub use beehive_block_entity::BeehiveBlockEntity;
 pub use chest_block_entity::ChestBlockEntity;
 pub use dispenser_block_entity::DispenserBlockEntity;
 pub use hopper_block_entity::HopperBlockEntity;
@@ -52,6 +54,7 @@ pub enum BlockEntityKind {
     Furnace(AbstractFurnaceBlockEntity),
     Hopper(HopperBlockEntity),
     Dispenser(DispenserBlockEntity),
+    Beehive(BeehiveBlockEntity),
     Other(Vec<(String, Nbt)>),
 }
 
@@ -82,6 +85,7 @@ impl BlockEntity {
             types::SMOKER => BlockEntityKind::Furnace(AbstractFurnaceBlockEntity::new(CookingRecipeType::Smoking)),
             types::HOPPER => BlockEntityKind::Hopper(HopperBlockEntity::new(state)),
             types::DISPENSER | types::DROPPER => BlockEntityKind::Dispenser(DispenserBlockEntity::default()),
+            types::BEEHIVE => BlockEntityKind::Beehive(BeehiveBlockEntity::default()),
             _ => BlockEntityKind::Other(Vec::new()),
         };
         Some(BlockEntity { ty, pos, block_state: state, remove: false, components: DataComponentMap::EMPTY, id: NEXT_ID.fetch_add(1, Ordering::Relaxed), kind })
@@ -164,6 +168,7 @@ impl BlockEntity {
             BlockEntityKind::Furnace(furnace) => furnace.load_additional(input),
             BlockEntityKind::Hopper(hopper) => hopper.load_additional(input),
             BlockEntityKind::Dispenser(dispenser) => dispenser.load_additional(input),
+            BlockEntityKind::Beehive(beehive) => beehive.load_additional(input),
             BlockEntityKind::Other(data) => {
                 let _ = state;
                 *data = match input {
@@ -184,6 +189,7 @@ impl BlockEntity {
             BlockEntityKind::Furnace(furnace) => furnace.save_additional(output),
             BlockEntityKind::Hopper(hopper) => hopper.save_additional(output),
             BlockEntityKind::Dispenser(dispenser) => dispenser.save_additional(output),
+            BlockEntityKind::Beehive(beehive) => beehive.save_additional(output),
             BlockEntityKind::Other(data) => output.extend(data.iter().cloned()),
         }
     }
@@ -315,7 +321,7 @@ impl BlockEntity {
             BlockEntityKind::Furnace(f) => &f.base,
             BlockEntityKind::Hopper(h) => &h.base,
             BlockEntityKind::Dispenser(d) => &d.base,
-            BlockEntityKind::Other(_) => return None,
+            BlockEntityKind::Beehive(_) | BlockEntityKind::Other(_) => return None,
         })
     }
 
@@ -327,12 +333,12 @@ impl BlockEntity {
             BlockEntityKind::Furnace(f) => &mut f.base,
             BlockEntityKind::Hopper(h) => &mut h.base,
             BlockEntityKind::Dispenser(d) => &mut d.base,
-            BlockEntityKind::Other(_) => return None,
+            BlockEntityKind::Beehive(_) | BlockEntityKind::Other(_) => return None,
         })
     }
 
     pub fn is_randomizable(&self) -> bool {
-        !matches!(self.kind, BlockEntityKind::Furnace(_) | BlockEntityKind::Other(_))
+        !matches!(self.kind, BlockEntityKind::Furnace(_) | BlockEntityKind::Beehive(_) | BlockEntityKind::Other(_))
     }
 
     pub fn default_name(&self) -> &'static str {

@@ -5,7 +5,7 @@ use crisp_data::{Block, BlockState, blocks};
 use super::BlockBehaviour;
 use crate::server::level::ServerLevel;
 use crate::world::item::context::BlockPlaceContext;
-use crate::world::level::LevelReader;
+use crate::world::level::{LevelAccessor, LevelReader};
 
 pub struct WallTorchBlock;
 
@@ -14,7 +14,7 @@ pub fn can_survive_facing(level: &mut dyn LevelReader, pos: BlockPos, facing: Di
     level.block_state(relative_pos).is_face_sturdy_full(facing)
 }
 
-pub fn update_shape(state: BlockState, level: &mut ServerLevel, pos: BlockPos, direction: Direction) -> BlockState {
+pub fn update_shape(state: BlockState, level: &mut dyn LevelAccessor, pos: BlockPos, direction: Direction) -> BlockState {
     if direction.opposite() == state.get(HORIZONTAL_FACING) && !super::of(state).can_survive(state, level, pos) { blocks::AIR.default_state() } else { state }
 }
 
@@ -40,7 +40,7 @@ impl BlockBehaviour for WallTorchBlock {
     fn update_shape(
         &self,
         state: BlockState,
-        level: &mut ServerLevel,
+        level: &mut dyn LevelAccessor,
         pos: BlockPos,
         direction: Direction,
         _neighbour_pos: BlockPos,

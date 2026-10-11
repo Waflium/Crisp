@@ -7,6 +7,7 @@ use super::rotated_pillar_block::RotatedPillarBlock;
 use super::simple_waterlogged_block::{is_water_source, schedule_water_tick};
 use crate::server::level::ServerLevel;
 use crate::world::item::context::BlockPlaceContext;
+use crate::world::level::LevelAccessor;
 
 pub struct ChainBlock;
 
@@ -19,7 +20,7 @@ impl BlockBehaviour for ChainBlock {
     fn update_shape(
         &self,
         state: BlockState,
-        level: &mut ServerLevel,
+        level: &mut dyn LevelAccessor,
         pos: BlockPos,
         _direction: Direction,
         _neighbour_pos: BlockPos,

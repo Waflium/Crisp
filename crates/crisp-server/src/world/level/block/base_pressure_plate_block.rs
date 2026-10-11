@@ -5,7 +5,7 @@ use super::{can_support_center, can_support_rigid_block};
 use crate::server::level::game_mode::GameType;
 use crate::server::level::{ServerLevel, SoundSource};
 use crate::world::entity::EntityId;
-use crate::world::level::LevelReader;
+use crate::world::level::{LevelAccessor, LevelReader};
 use crate::world::level::update_flags::UPDATE_CLIENTS;
 
 pub const TOUCH_AABB: AABB = AABB { min_x: 0.0625, min_y: 0.0, min_z: 0.0625, max_x: 0.9375, max_y: 0.25, max_z: 0.9375 };
@@ -38,7 +38,7 @@ impl PlateSounds {
     }
 }
 
-pub fn update_shape(state: BlockState, level: &mut ServerLevel, pos: BlockPos, direction: Direction) -> BlockState {
+pub fn update_shape(state: BlockState, level: &mut dyn LevelAccessor, pos: BlockPos, direction: Direction) -> BlockState {
     if direction == Direction::Down && !super::of(state).can_survive(state, level, pos) { blocks::AIR.default_state() } else { state }
 }
 

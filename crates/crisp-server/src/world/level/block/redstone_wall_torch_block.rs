@@ -6,7 +6,7 @@ use super::redstone_torch_block::{self, RedstoneTorchBlock};
 use super::{BlockBehaviour, wall_torch_block};
 use crate::server::level::ServerLevel;
 use crate::world::item::context::BlockPlaceContext;
-use crate::world::level::LevelReader;
+use crate::world::level::{LevelAccessor, LevelReader};
 
 pub struct RedstoneWallTorchBlock {
     pub torch: RedstoneTorchBlock,
@@ -30,7 +30,7 @@ impl BlockBehaviour for RedstoneWallTorchBlock {
     fn update_shape(
         &self,
         state: BlockState,
-        level: &mut ServerLevel,
+        level: &mut dyn LevelAccessor,
         pos: BlockPos,
         direction: Direction,
         _neighbour_pos: BlockPos,
@@ -57,15 +57,15 @@ impl BlockBehaviour for RedstoneWallTorchBlock {
         self.torch.neighbor_changed_with_signal(state, level, pos, neighbor_signal);
     }
 
-    fn get_direct_signal(&self, state: BlockState, level: &mut ServerLevel, pos: BlockPos, direction: Direction) -> i32 {
+    fn get_direct_signal(&self, state: BlockState, level: &mut dyn LevelReader, pos: BlockPos, direction: Direction) -> i32 {
         redstone_torch_block::get_direct_signal(state, level, pos, direction)
     }
 
-    fn own_signal(&self, state: BlockState, _level: &mut ServerLevel, _pos: BlockPos) -> i32 {
+    fn own_signal(&self, state: BlockState, _level: &mut dyn LevelReader, _pos: BlockPos) -> i32 {
         redstone_torch_block::own_signal(state)
     }
 
-    fn get_signal(&self, state: BlockState, _level: &mut ServerLevel, _pos: BlockPos, direction: Direction) -> i32 {
+    fn get_signal(&self, state: BlockState, _level: &mut dyn LevelReader, _pos: BlockPos, direction: Direction) -> i32 {
         if state.get(HORIZONTAL_FACING) != direction { redstone_torch_block::own_signal(state) } else { 0 }
     }
 }

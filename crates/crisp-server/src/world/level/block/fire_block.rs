@@ -8,7 +8,7 @@ use crate::server::level::ServerLevel;
 use crate::world::entity::EntityId;
 use crate::world::entity::inside_block::InsideBlockEffects;
 use crate::world::item::context::BlockPlaceContext;
-use crate::world::level::{BlockGetter, LevelReader};
+use crate::world::level::{BlockGetter, LevelAccessor, LevelReader};
 use crate::world::level::update_flags::{UPDATE_ALL, UPDATE_NONE};
 
 const MAX_AGE: i32 = 15;
@@ -37,7 +37,7 @@ pub fn can_burn(state: BlockState) -> bool {
     ignite_odds(state) > 0
 }
 
-pub fn get_state_for_placement(level: &mut ServerLevel, pos: BlockPos) -> BlockState {
+pub fn get_state_for_placement(level: &mut dyn LevelReader, pos: BlockPos) -> BlockState {
     let below_state = level.block_state(pos.below());
     let mut result = blocks::FIRE.default_state();
     if !can_burn(below_state) && !below_state.is_face_sturdy_full(Direction::Up) {
@@ -65,7 +65,7 @@ fn ignite_odds_at(level: &mut ServerLevel, pos: BlockPos) -> i32 {
     Direction::VALUES.into_iter().map(|direction| ignite_odds(level.block_state(pos.relative(direction)))).fold(0, i32::max)
 }
 
-fn state_with_age(level: &mut ServerLevel, pos: BlockPos, age: i32) -> BlockState {
+fn state_with_age(level: &mut dyn LevelReader, pos: BlockPos, age: i32) -> BlockState {
     let state = base_fire_block::get_state(level, pos);
     if state.is_block(blocks::FIRE) { state.set(AGE_15, age) } else { state }
 }
@@ -101,7 +101,7 @@ impl BlockBehaviour for FireBlock {
     fn update_shape(
         &self,
         state: BlockState,
-        level: &mut ServerLevel,
+        level: &mut dyn LevelAccessor,
         pos: BlockPos,
         _direction: Direction,
         _neighbour_pos: BlockPos,

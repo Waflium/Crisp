@@ -8,7 +8,7 @@ use crisp_core::{AABB, BlockPos, Direction};
 use crisp_data::{BlockState, Fluid, FluidState, fluid_tags};
 
 use crate::server::level::ServerLevel;
-use crate::world::level::BlockGetter;
+use crate::world::level::{BlockGetter, LevelReader};
 pub use flowing_fluid::FlowingFluid;
 use lava_fluid::LavaFluid;
 use water_fluid::WaterFluid;
@@ -38,7 +38,7 @@ pub fn create_legacy_block(fluid: FluidState) -> BlockState {
     crate::server::level::legacy_block(fluid)
 }
 
-pub fn tick_delay(level: &ServerLevel, fluid: Fluid) -> i32 {
+pub fn tick_delay(level: &dyn LevelReader, fluid: Fluid) -> i32 {
     flowing(fluid).map_or(0, |f| f.tick_delay(level))
 }
 

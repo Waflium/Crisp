@@ -5,6 +5,7 @@ use crisp_data::{Block, BlockState};
 use super::BlockBehaviour;
 use crate::server::level::ServerLevel;
 use crate::world::item::context::BlockPlaceContext;
+use crate::world::level::{LevelAccessor, LevelReader};
 use crate::world::level::update_flags::{UPDATE_CLIENTS, UPDATE_KNOWN_SHAPE};
 
 pub struct ObserverBlock {
@@ -12,7 +13,7 @@ pub struct ObserverBlock {
 }
 
 impl ObserverBlock {
-    fn start_signal(&self, level: &mut ServerLevel, pos: BlockPos) {
+    fn start_signal(&self, level: &mut dyn LevelAccessor, pos: BlockPos) {
         if !level.has_scheduled_tick(pos, self.block) {
             level.schedule_tick(pos, self.block, 2);
         }
@@ -40,7 +41,7 @@ impl BlockBehaviour for ObserverBlock {
     fn update_shape(
         &self,
         state: BlockState,
-        level: &mut ServerLevel,
+        level: &mut dyn LevelAccessor,
         pos: BlockPos,
         direction: Direction,
         _neighbour_pos: BlockPos,
@@ -52,19 +53,19 @@ impl BlockBehaviour for ObserverBlock {
         state
     }
 
-    fn should_redstone_wire_connect_to(&self, state: BlockState, _level: &mut ServerLevel, _pos: BlockPos, direction: Option<Direction>) -> bool {
+    fn should_redstone_wire_connect_to(&self, state: BlockState, _level: &mut dyn LevelReader, _pos: BlockPos, direction: Option<Direction>) -> bool {
         direction == Some(state.get(FACING))
     }
 
-    fn own_signal(&self, state: BlockState, _level: &mut ServerLevel, _pos: BlockPos) -> i32 {
+    fn own_signal(&self, state: BlockState, _level: &mut dyn LevelReader, _pos: BlockPos) -> i32 {
         if state.get(POWERED) { 15 } else { 0 }
     }
 
-    fn get_direct_signal(&self, state: BlockState, level: &mut ServerLevel, pos: BlockPos, direction: Direction) -> i32 {
+    fn get_direct_signal(&self, state: BlockState, level: &mut dyn LevelReader, pos: BlockPos, direction: Direction) -> i32 {
         super::of(state).get_signal(state, level, pos, direction)
     }
 
-    fn get_signal(&self, state: BlockState, level: &mut ServerLevel, pos: BlockPos, direction: Direction) -> i32 {
+    fn get_signal(&self, state: BlockState, level: &mut dyn LevelReader, pos: BlockPos, direction: Direction) -> i32 {
         if state.get(FACING) == direction { self.own_signal(state, level, pos) } else { 0 }
     }
 

@@ -5,13 +5,13 @@ use super::BlockBehaviour;
 use super::dry_vegetation_block::DryVegetationBlock;
 use super::vegetation_block;
 use crate::server::level::ServerLevel;
-use crate::world::level::LevelReader;
+use crate::world::level::{LevelAccessor, LevelReader};
 use crate::world::level::update_flags::UPDATE_ALL;
 
 pub struct ShortDryGrassBlock;
 
 impl BlockBehaviour for ShortDryGrassBlock {
-    fn update_shape(&self, state: BlockState, level: &mut ServerLevel, pos: BlockPos, _: Direction, _: BlockPos, _: BlockState) -> BlockState {
+    fn update_shape(&self, state: BlockState, level: &mut dyn LevelAccessor, pos: BlockPos, _: Direction, _: BlockPos, _: BlockState) -> BlockState {
         vegetation_block::update_shape(state, level, pos)
     }
 

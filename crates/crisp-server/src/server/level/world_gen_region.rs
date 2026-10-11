@@ -1,13 +1,18 @@
 use crisp_core::{BlockPos, ChunkPos};
-use crisp_data::{BlockState, FluidState, blocks};
+use crisp_data::{Block, BlockState, Fluid, FluidState, blocks};
 
 use crate::world::level::biome;
 use crate::world::level::block::entity::BlockEntity;
 use crate::world::level::chunk::{Biome, HeightmapType, LevelChunk};
+use crate::world::level::levelgen::AlgorithmRandom;
 use crate::world::level::levelgen::material::WorldGenerationContext;
+use crate::world::level::levelgen::random_state::RandomState;
 use crate::world::level::lighting::has_different_light_properties;
 use crate::world::level::update_flags::UPDATE_KNOWN_SHAPE;
-use crate::world::level::{BlockGetter, LevelReader};
+use crate::world::level::{BlockGetter, LevelAccessor, LevelReader, ScheduledTickAccess};
+use crate::world::ticks::TickPriority;
+
+const WORLDGEN_REGION_RANDOM: &str = "minecraft:worldgen_region_random";
 
 pub struct WorldGenRegion<'a> {
     cache: [Option<&'a mut LevelChunk>; 9],
@@ -20,6 +25,7 @@ pub struct WorldGenRegion<'a> {
     min_y: i32,
     height: i32,
     generation: WorldGenerationContext,
+    random: AlgorithmRandom,
     write_radius: i32,
     pub light_tasks: Vec<RegionLightTask>,
 }
@@ -31,7 +37,18 @@ pub enum RegionLightTask {
 
 impl<'a> WorldGenRegion<'a> {
     #[allow(clippy::too_many_arguments)]
-    pub fn new(center: ChunkPos, cache: [Option<&'a mut LevelChunk>; 9], writable: [bool; 9], lit: [bool; 9], seed: i64, min_y: i32, height: i32, generation: WorldGenerationContext) -> WorldGenRegion<'a> {
+    pub fn new(
+        center: ChunkPos,
+        cache: [Option<&'a mut LevelChunk>; 9],
+        writable: [bool; 9],
+        lit: [bool; 9],
+        random_state: &RandomState,
+        min_y: i32,
+        height: i32,
+        generation: WorldGenerationContext,
+    ) -> WorldGenRegion<'a> {
+        let seed = random_state.seed;
+        let random = random_state.random_factory(WORLDGEN_REGION_RANDOM).at(center.min_block_x(), 0, center.min_block_z());
         WorldGenRegion {
             cache,
             writable,
@@ -43,6 +60,7 @@ impl<'a> WorldGenRegion<'a> {
             min_y,
             height,
             generation,
+            random,
             write_radius: 1,
             light_tasks: Vec::new(),
         }
@@ -231,5 +249,41 @@ impl BlockGetter for WorldGenRegion<'_> {
 impl LevelReader for WorldGenRegion<'_> {
     fn raw_brightness(&mut self, _pos: BlockPos, _darkening: i32) -> i32 {
         0
+    }
+
+    fn is_fast_lava(&self) -> bool {
+        false
+    }
+
+    fn get_control_input_signal(&mut self, pos: BlockPos, direction: crisp_core::Direction, only_diodes: bool) -> i32 {
+        crate::world::level::signal::get_control_input_signal(self, pos, direction, only_diodes)
+    }
+
+    fn get_block_entity(&mut self, pos: BlockPos) -> Option<&mut BlockEntity> {
+        WorldGenRegion::get_block_entity(self, pos)
+    }
+}
+
+impl ScheduledTickAccess for WorldGenRegion<'_> {
+    fn schedule_tick_with_priority(&mut self, pos: BlockPos, block: Block, _delay: i32, priority: TickPriority) {
+        if let Some(proto) = self.get_chunk(pos.x >> 4, pos.z >> 4).proto.as_deref_mut() {
+            proto.block_ticks.schedule(block, pos, priority);
+        }
+    }
+
+    fn schedule_fluid_tick(&mut self, pos: BlockPos, fluid: Fluid, _delay: i32) {
+        if let Some(proto) = self.get_chunk(pos.x >> 4, pos.z >> 4).proto.as_deref_mut() {
+            proto.fluid_ticks.schedule(fluid, pos, TickPriority::NORMAL);
+        }
+    }
+
+    fn has_scheduled_tick(&self, pos: BlockPos, block: Block) -> bool {
+        self.chunk(pos.x >> 4, pos.z >> 4).proto.as_deref().is_some_and(|proto| proto.block_ticks.has_scheduled_tick(pos, block))
+    }
+}
+
+impl LevelAccessor for WorldGenRegion<'_> {
+    fn get_random(&mut self) -> &mut dyn crisp_core::random::RandomSource {
+        &mut self.random
     }
 }

@@ -6,7 +6,7 @@ use super::base_rail_block::{self as base, BaseRailBlock};
 use super::rail_state::RailState;
 use crate::server::level::ServerLevel;
 use crate::world::item::context::BlockPlaceContext;
-use crate::world::level::LevelReader;
+use crate::world::level::{LevelAccessor, LevelReader};
 
 pub struct RailBlock {
     pub block: Block,
@@ -48,7 +48,7 @@ impl BlockBehaviour for RailBlock {
     fn update_shape(
         &self,
         state: BlockState,
-        level: &mut ServerLevel,
+        level: &mut dyn LevelAccessor,
         pos: BlockPos,
         _direction: Direction,
         _neighbour_pos: BlockPos,

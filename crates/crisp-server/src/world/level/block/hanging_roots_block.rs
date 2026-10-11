@@ -6,7 +6,7 @@ use super::BlockBehaviour;
 use super::vegetation_block::schedule_water_tick;
 use crate::server::level::ServerLevel;
 use crate::world::item::context::BlockPlaceContext;
-use crate::world::level::{BlockGetter, LevelReader};
+use crate::world::level::{BlockGetter, LevelAccessor, LevelReader};
 
 pub struct HangingRootsBlock;
 
@@ -20,7 +20,7 @@ impl BlockBehaviour for HangingRootsBlock {
         level.block_state(pos.above()).is_face_sturdy(Direction::Down, SupportType::Full)
     }
 
-    fn update_shape(&self, state: BlockState, level: &mut ServerLevel, pos: BlockPos, direction: Direction, _: BlockPos, _: BlockState) -> BlockState {
+    fn update_shape(&self, state: BlockState, level: &mut dyn LevelAccessor, pos: BlockPos, direction: Direction, _: BlockPos, _: BlockState) -> BlockState {
         if direction == Direction::Up && !self.can_survive(state, level, pos) {
             return blocks::AIR.default_state();
         }

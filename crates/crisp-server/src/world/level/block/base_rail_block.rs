@@ -6,7 +6,7 @@ use super::can_support_rigid_block;
 use super::rail_state::RailState;
 use crate::server::level::ServerLevel;
 use crate::world::item::context::BlockPlaceContext;
-use crate::world::level::{BlockGetter, LevelReader};
+use crate::world::level::{BlockGetter, LevelAccessor, LevelReader};
 
 const WATER_TICK_DELAY: i32 = 5;
 
@@ -108,7 +108,7 @@ pub fn get_state_for_placement(block: Block, ctx: &BlockPlaceContext, level: &mu
     block.default_state().set(shape_property(block), shape).set(WATERLOGGED, is_water_source)
 }
 
-pub fn update_shape(state: BlockState, level: &mut ServerLevel, pos: BlockPos) -> BlockState {
+pub fn update_shape(state: BlockState, level: &mut dyn LevelAccessor, pos: BlockPos) -> BlockState {
     if state.get(WATERLOGGED) {
         level.schedule_fluid_tick(pos, Fluid::Water, WATER_TICK_DELAY);
     }

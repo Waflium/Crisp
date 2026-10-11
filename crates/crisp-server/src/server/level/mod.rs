@@ -1300,6 +1300,38 @@ impl crate::world::level::LevelReader for ServerLevel {
     fn raw_brightness(&mut self, pos: BlockPos, darkening: i32) -> i32 {
         ServerLevel::raw_brightness(self, pos, darkening)
     }
+
+    fn is_fast_lava(&self) -> bool {
+        crate::world::level::material::lava_fluid::is_fast_lava(self)
+    }
+
+    fn get_control_input_signal(&mut self, pos: BlockPos, direction: crisp_core::Direction, only_diodes: bool) -> i32 {
+        ServerLevel::get_control_input_signal(self, pos, direction, only_diodes)
+    }
+
+    fn get_block_entity(&mut self, pos: BlockPos) -> Option<&mut crate::world::level::block::entity::BlockEntity> {
+        ServerLevel::get_block_entity(self, pos)
+    }
+}
+
+impl crate::world::level::ScheduledTickAccess for ServerLevel {
+    fn schedule_tick_with_priority(&mut self, pos: BlockPos, block: Block, delay: i32, priority: TickPriority) {
+        ServerLevel::schedule_tick_with_priority(self, pos, block, delay, priority);
+    }
+
+    fn schedule_fluid_tick(&mut self, pos: BlockPos, fluid: crisp_data::Fluid, delay: i32) {
+        ServerLevel::schedule_fluid_tick(self, pos, fluid, delay);
+    }
+
+    fn has_scheduled_tick(&self, pos: BlockPos, block: Block) -> bool {
+        ServerLevel::has_scheduled_tick(self, pos, block)
+    }
+}
+
+impl crate::world::level::LevelAccessor for ServerLevel {
+    fn get_random(&mut self) -> &mut dyn crisp_core::random::RandomSource {
+        &mut self.random
+    }
 }
 
 pub fn legacy_block(fluid: crisp_data::FluidState) -> BlockState {

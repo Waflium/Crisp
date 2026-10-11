@@ -122,7 +122,7 @@ pub mod quart_pos {
 pub fn parse_block_state(v: &Value) -> Result<BlockState, String> {
     let (name, properties) = match v {
         Value::String(name) => (name.as_str(), None),
-        _ => (v.get("Name").and_then(Value::as_str).ok_or("block state without Name")?, v.get("Properties").and_then(Value::as_object)),
+        _ => (v.get("id").and_then(Value::as_str).ok_or("block state without id")?, v.get("properties").and_then(Value::as_object)),
     };
     let block = Block::by_name(&resource_name(name)).ok_or_else(|| format!("unknown block {name}"))?;
     let mut state = block.default_state();
@@ -194,7 +194,7 @@ pub struct WorldgenRegistries {
 
 pub static WORLDGEN: LazyLock<WorldgenRegistries> = LazyLock::new(|| WorldgenRegistries::load().expect("vanilla worldgen data"));
 
-fn parse_noise(json: &Value) -> Result<NormalNoise, String> {
+pub fn parse_noise(json: &Value) -> Result<NormalNoise, String> {
     let normalize = match json.get("normalize") {
         None | Some(Value::Bool(true)) => Normalization::Enabled,
         Some(Value::Bool(false)) => Normalization::Disabled,

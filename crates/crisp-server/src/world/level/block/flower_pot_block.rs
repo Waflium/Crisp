@@ -10,6 +10,7 @@ use crate::server::level::ServerLevel;
 use crate::server::level::game_mode::GameType;
 use crate::world::entity::EntityId;
 use crate::world::item::ItemStack;
+use crate::world::level::LevelAccessor;
 use crate::world::level::update_flags::UPDATE_ALL;
 use crate::world::{InteractionHand, InteractionResult};
 
@@ -96,7 +97,7 @@ impl BlockBehaviour for FlowerPotBlock {
         InteractionResult::SUCCESS
     }
 
-    fn update_shape(&self, state: BlockState, level: &mut ServerLevel, pos: BlockPos, direction: Direction, _: BlockPos, _: BlockState) -> BlockState {
+    fn update_shape(&self, state: BlockState, level: &mut dyn LevelAccessor, pos: BlockPos, direction: Direction, _: BlockPos, _: BlockState) -> BlockState {
         if direction == Direction::Down && !self.can_survive(state, level, pos) { blocks::AIR.default_state() } else { state }
     }
 }

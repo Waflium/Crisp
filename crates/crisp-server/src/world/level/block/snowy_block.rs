@@ -5,7 +5,7 @@ use crisp_data::{Block, BlockState, block_tags};
 use super::BlockBehaviour;
 use crate::server::level::ServerLevel;
 use crate::world::item::context::BlockPlaceContext;
-use crate::world::level::BlockGetter;
+use crate::world::level::{BlockGetter, LevelAccessor};
 
 pub fn is_snowy_setting(above_state: BlockState) -> bool {
     above_state.is(&block_tags::SNOW)
@@ -27,7 +27,7 @@ impl BlockBehaviour for SnowyBlock {
         Some(get_state_for_placement(block, ctx, level))
     }
 
-    fn update_shape(&self, state: BlockState, _level: &mut ServerLevel, _pos: BlockPos, direction: Direction, _: BlockPos, neighbour_state: BlockState) -> BlockState {
+    fn update_shape(&self, state: BlockState, _level: &mut dyn LevelAccessor, _pos: BlockPos, direction: Direction, _: BlockPos, neighbour_state: BlockState) -> BlockState {
         update_shape(state, direction, neighbour_state)
     }
 }

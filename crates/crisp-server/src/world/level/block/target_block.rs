@@ -4,6 +4,7 @@ use crisp_data::{Block, BlockState};
 
 use super::BlockBehaviour;
 use crate::server::level::ServerLevel;
+use crate::world::level::LevelReader;
 use crate::world::level::update_flags::{UPDATE_CLIENTS, UPDATE_KNOWN_SHAPE};
 
 pub struct TargetBlock {
@@ -17,7 +18,7 @@ impl BlockBehaviour for TargetBlock {
         }
     }
 
-    fn own_signal(&self, state: BlockState, _level: &mut ServerLevel, _pos: BlockPos) -> i32 {
+    fn own_signal(&self, state: BlockState, _level: &mut dyn LevelReader, _pos: BlockPos) -> i32 {
         state.get(POWER)
     }
 

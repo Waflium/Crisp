@@ -334,6 +334,26 @@ public final class WorldgenOracle {
         public FeatureFlagSet enabledFeatures() {
             return FeatureFlags.DEFAULT_FLAGS;
         }
+
+        static net.minecraft.server.level.ServerChunkCache chunkSource;
+
+        @Override
+        public net.minecraft.server.level.ServerChunkCache getChunkSource() {
+            return chunkSource;
+        }
+    }
+
+    public static class OracleChunkCache extends net.minecraft.server.level.ServerChunkCache {
+        static net.minecraft.world.level.chunk.ChunkGenerator generator;
+
+        OracleChunkCache() {
+            super(null, null, null, null, null, null, 0, 0, false, null);
+        }
+
+        @Override
+        public net.minecraft.world.level.chunk.ChunkGenerator getGenerator() {
+            return generator;
+        }
     }
 
     private static final class UnlitLightEngine extends LevelLightEngine {
@@ -477,6 +497,20 @@ public final class WorldgenOracle {
         OracleLevel.registryAccess = registries;
         OracleLevel.dimensionType = registries.lookupOrThrow(Registries.DIMENSION_TYPE).getOrThrow(BuiltinDimensionTypes.OVERWORLD).value();
         OracleLevel.lightEngine = new UnlitLightEngine();
+        OracleChunkCache.generator = world.generator;
+        String skip = System.getenv("ORACLE_SKIP_FEATURE_TYPES");
+        if (skip != null) {
+            Set<String> skipped = Set.of(skip.split(","));
+            Field value = Holder.Reference.class.getDeclaredField("value");
+            value.setAccessible(true);
+            for (Holder.Reference<net.minecraft.world.level.levelgen.feature.Feature> holder : registries.lookupOrThrow(Registries.FEATURE).listElements().toList()) {
+                String type = net.minecraft.core.registries.BuiltInRegistries.FEATURE_TYPE.getKey(holder.value().codec()).toString();
+                if (skipped.contains(type)) {
+                    value.set(holder, new net.minecraft.world.level.levelgen.feature.NoOpFeature());
+                }
+            }
+        }
+        OracleLevel.chunkSource = (OracleChunkCache) unsafe().allocateInstance(OracleChunkCache.class);
         ServerLevel level = (ServerLevel) unsafe().allocateInstance(OracleLevel.class);
         StructureManager structures = new StructureManager(null, new WorldOptions(seed, false, false), null);
         Map<Long, ProtoChunk> biomeChunks = new LinkedHashMap<>();

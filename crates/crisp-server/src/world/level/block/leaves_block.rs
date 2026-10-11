@@ -6,7 +6,7 @@ use super::BlockBehaviour;
 use super::vegetation_block::schedule_water_tick;
 use crate::server::level::ServerLevel;
 use crate::world::item::context::BlockPlaceContext;
-use crate::world::level::BlockGetter;
+use crate::world::level::{BlockGetter, LevelAccessor};
 use crate::world::level::update_flags::UPDATE_ALL;
 
 pub fn update_distance(state: BlockState, level: &mut ServerLevel, pos: BlockPos) -> BlockState {
@@ -44,7 +44,7 @@ pub fn tick(state: BlockState, level: &mut ServerLevel, pos: BlockPos) {
     level.set_block(pos, updated, UPDATE_ALL);
 }
 
-pub fn update_shape(state: BlockState, level: &mut ServerLevel, pos: BlockPos, neighbour_state: BlockState) -> BlockState {
+pub fn update_shape(state: BlockState, level: &mut dyn LevelAccessor, pos: BlockPos, neighbour_state: BlockState) -> BlockState {
     if state.get(WATERLOGGED) {
         schedule_water_tick(level, pos);
     }
@@ -68,7 +68,7 @@ impl BlockBehaviour for LeavesBlock {
         Some(get_state_for_placement(block, ctx, level))
     }
 
-    fn update_shape(&self, state: BlockState, level: &mut ServerLevel, pos: BlockPos, _: Direction, _: BlockPos, neighbour_state: BlockState) -> BlockState {
+    fn update_shape(&self, state: BlockState, level: &mut dyn LevelAccessor, pos: BlockPos, _: Direction, _: BlockPos, neighbour_state: BlockState) -> BlockState {
         update_shape(state, level, pos, neighbour_state)
     }
 

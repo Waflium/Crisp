@@ -5,7 +5,7 @@ use crisp_data::{Block, BlockState};
 use super::{BlockBehaviour, base_torch_block};
 use crate::server::level::ServerLevel;
 use crate::server::level::events::REDSTONE_TORCH_BURNOUT;
-use crate::world::level::{BlockGetter, LevelReader};
+use crate::world::level::{BlockGetter, LevelAccessor, LevelReader};
 
 const RECENT_TOGGLE_TIMER: i64 = 60;
 const MAX_RECENT_TOGGLES: i32 = 8;
@@ -80,7 +80,7 @@ pub fn own_signal(state: BlockState) -> i32 {
     if state.get(LIT) { 15 } else { 0 }
 }
 
-pub fn get_direct_signal(state: BlockState, level: &mut ServerLevel, pos: BlockPos, direction: Direction) -> i32 {
+pub fn get_direct_signal(state: BlockState, level: &mut dyn LevelReader, pos: BlockPos, direction: Direction) -> i32 {
     if direction == Direction::Down { super::of(state).get_signal(state, level, pos, direction) } else { 0 }
 }
 
@@ -88,7 +88,7 @@ impl BlockBehaviour for RedstoneTorchBlock {
     fn update_shape(
         &self,
         state: BlockState,
-        level: &mut ServerLevel,
+        level: &mut dyn LevelAccessor,
         pos: BlockPos,
         direction: Direction,
         _neighbour_pos: BlockPos,
@@ -119,15 +119,15 @@ impl BlockBehaviour for RedstoneTorchBlock {
         self.neighbor_changed_with_signal(state, level, pos, neighbor_signal);
     }
 
-    fn get_direct_signal(&self, state: BlockState, level: &mut ServerLevel, pos: BlockPos, direction: Direction) -> i32 {
+    fn get_direct_signal(&self, state: BlockState, level: &mut dyn LevelReader, pos: BlockPos, direction: Direction) -> i32 {
         get_direct_signal(state, level, pos, direction)
     }
 
-    fn own_signal(&self, state: BlockState, _level: &mut ServerLevel, _pos: BlockPos) -> i32 {
+    fn own_signal(&self, state: BlockState, _level: &mut dyn LevelReader, _pos: BlockPos) -> i32 {
         own_signal(state)
     }
 
-    fn get_signal(&self, state: BlockState, _level: &mut ServerLevel, _pos: BlockPos, direction: Direction) -> i32 {
+    fn get_signal(&self, state: BlockState, _level: &mut dyn LevelReader, _pos: BlockPos, direction: Direction) -> i32 {
         if direction != Direction::Up { own_signal(state) } else { 0 }
     }
 }

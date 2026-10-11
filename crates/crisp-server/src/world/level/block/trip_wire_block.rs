@@ -9,7 +9,7 @@ use crate::world::InteractionHand;
 use crate::world::entity::EntityId;
 use crate::world::entity::inside_block::InsideBlockEffects;
 use crate::world::item::context::BlockPlaceContext;
-use crate::world::level::BlockGetter;
+use crate::world::level::{BlockGetter, LevelAccessor};
 use crate::world::level::update_flags::UPDATE_NONE;
 
 const RECHECK_PERIOD: i32 = 10;
@@ -100,7 +100,7 @@ impl BlockBehaviour for TripWireBlock {
     fn update_shape(
         &self,
         state: BlockState,
-        _level: &mut ServerLevel,
+        _level: &mut dyn LevelAccessor,
         _pos: BlockPos,
         direction: Direction,
         _neighbour_pos: BlockPos,

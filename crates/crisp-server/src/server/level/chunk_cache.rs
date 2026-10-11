@@ -846,13 +846,20 @@ impl ChunkCache {
                 self.add_light_task(TaskType::PostUpdate, LightTask::LightChunkDone { pos, done: token });
             }
             ChunkStatus::Full => {
+                let mut proto_ticks = None;
                 if let Some(chunk) = self.chunks.get_mut(&pos) {
-                    chunk.proto = None;
+                    if let Some(proto) = chunk.proto.take() {
+                        let proto = *proto;
+                        proto_ticks = Some((LevelChunkTicks::with_pending(proto.block_ticks.scheduled_ticks()), LevelChunkTicks::with_pending(proto.fluid_ticks.scheduled_ticks())));
+                    }
                     chunk.loaded = true;
                     chunk.register_all_block_entities_after_level_load(&mut self.block_entity_tickers);
                 }
                 let holder = self.holders.get_mut(pos.pack()).unwrap();
-                let (block_ticks, fluid_ticks) = holder.saved_ticks.take().map_or_else(|| (LevelChunkTicks::default(), LevelChunkTicks::default()), |t| *t);
+                let (block_ticks, fluid_ticks) = match holder.saved_ticks.take() {
+                    Some(ticks) => *ticks,
+                    None => proto_ticks.unwrap_or_default(),
+                };
                 self.block_ticks.register_container(pos, block_ticks);
                 self.fluid_ticks.register_container(pos, fluid_ticks);
                 self.complete_step(job);
@@ -893,7 +900,7 @@ impl ChunkCache {
                 gen_depth: (dimension.height as i32).min(generator.gen_depth()),
                 sea_level: generator.sea_level(),
             };
-            let mut region = WorldGenRegion::new(center, cache, writable, lit, generator.seed(), dimension.min_y, dimension.height as i32, generation);
+            let mut region = WorldGenRegion::new(center, cache, writable, lit, &generator.state, dimension.min_y, dimension.height as i32, generation);
             generator.apply_biome_decoration(&mut region);
             std::mem::take(&mut region.light_tasks)
         };

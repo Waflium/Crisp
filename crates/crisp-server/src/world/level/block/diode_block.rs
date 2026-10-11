@@ -15,7 +15,7 @@ pub trait DiodeBlock {
 
     fn get_delay(&self, state: BlockState) -> i32;
 
-    fn is_locked(&self, level: &mut ServerLevel, pos: BlockPos, state: BlockState) -> bool {
+    fn is_locked(&self, level: &mut dyn LevelReader, pos: BlockPos, state: BlockState) -> bool {
         false
     }
 
@@ -23,7 +23,7 @@ pub trait DiodeBlock {
         false
     }
 
-    fn get_output_signal(&self, level: &mut ServerLevel, pos: BlockPos, state: BlockState) -> i32 {
+    fn get_output_signal(&self, level: &mut dyn LevelReader, pos: BlockPos, state: BlockState) -> i32 {
         15
     }
 
@@ -42,7 +42,7 @@ pub trait DiodeBlock {
         input.max(if target_state.is_block(blocks::REDSTONE_WIRE) { target_state.get(POWER) } else { 0 })
     }
 
-    fn get_alternate_signal(&self, level: &mut ServerLevel, pos: BlockPos, state: BlockState) -> i32 {
+    fn get_alternate_signal(&self, level: &mut dyn LevelReader, pos: BlockPos, state: BlockState) -> i32 {
         let direction = state.get(HORIZONTAL_FACING);
         let clockwise = direction.clockwise();
         let counter_clockwise = direction.counter_clockwise();
@@ -120,11 +120,11 @@ pub fn neighbor_changed(diode: &(impl DiodeBlock + ?Sized), state: BlockState, l
     }
 }
 
-pub fn own_signal(diode: &(impl DiodeBlock + ?Sized), state: BlockState, level: &mut ServerLevel, pos: BlockPos) -> i32 {
+pub fn own_signal(diode: &(impl DiodeBlock + ?Sized), state: BlockState, level: &mut dyn LevelReader, pos: BlockPos) -> i32 {
     if state.get(POWERED) { diode.get_output_signal(level, pos, state) } else { 0 }
 }
 
-pub fn get_signal(state: BlockState, level: &mut ServerLevel, pos: BlockPos, direction: Direction) -> i32 {
+pub fn get_signal(state: BlockState, level: &mut dyn LevelReader, pos: BlockPos, direction: Direction) -> i32 {
     if state.get(HORIZONTAL_FACING) == direction { super::of(state).own_signal(state, level, pos) } else { 0 }
 }
 

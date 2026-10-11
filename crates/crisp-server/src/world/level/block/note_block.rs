@@ -10,7 +10,7 @@ use crate::server::level::{ServerLevel, SoundSource};
 use crate::world::entity::EntityId;
 use crate::world::item::ItemStack;
 use crate::world::item::context::BlockPlaceContext;
-use crate::world::level::BlockGetter;
+use crate::world::level::{BlockGetter, LevelAccessor, LevelReader};
 use crate::world::{InteractionHand, InteractionResult};
 
 const NOTE_VOLUME: f32 = 3.0;
@@ -70,7 +70,7 @@ pub fn get_pitch_from_note(two_octave_range_note: i32) -> f32 {
 }
 
 impl NoteBlock {
-    fn set_instrument(&self, level: &mut ServerLevel, position: BlockPos, state: BlockState) -> BlockState {
+    fn set_instrument(&self, level: &mut dyn LevelReader, position: BlockPos, state: BlockState) -> BlockState {
         let instrument_above = level.block_state(position.above()).instrument();
         if works_above_note_block(instrument_above) {
             return state.set(NOTEBLOCK_INSTRUMENT, instrument_above);
@@ -95,7 +95,7 @@ impl BlockBehaviour for NoteBlock {
     fn update_shape(
         &self,
         state: BlockState,
-        level: &mut ServerLevel,
+        level: &mut dyn LevelAccessor,
         pos: BlockPos,
         direction: Direction,
         _neighbour_pos: BlockPos,

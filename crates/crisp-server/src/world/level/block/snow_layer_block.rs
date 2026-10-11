@@ -6,7 +6,7 @@ use crisp_data::{Block, BlockState, block_tags, blocks};
 use super::BlockBehaviour;
 use crate::server::level::ServerLevel;
 use crate::world::item::context::BlockPlaceContext;
-use crate::world::level::{BlockGetter, LevelReader};
+use crate::world::level::{BlockGetter, LevelAccessor, LevelReader};
 use crate::world::level::block;
 use crate::world::level::light_layer::LightLayer;
 
@@ -27,7 +27,7 @@ impl BlockBehaviour for SnowLayerBlock {
     fn update_shape(
         &self,
         state: BlockState,
-        level: &mut ServerLevel,
+        level: &mut dyn LevelAccessor,
         pos: BlockPos,
         _direction: Direction,
         _neighbour_pos: BlockPos,

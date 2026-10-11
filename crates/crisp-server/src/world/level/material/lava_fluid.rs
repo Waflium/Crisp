@@ -7,7 +7,7 @@ use crate::server::level::ServerLevel;
 use crate::world::attribute::environment_attributes;
 use crate::server::level::events::LAVA_FIZZ;
 use crate::server::level::game_mode::GameType;
-use crate::world::level::BlockGetter;
+use crate::world::level::{BlockGetter, LevelReader};
 use crate::world::level::block::base_fire_block;
 use crate::world::level::update_flags::UPDATE_ALL;
 
@@ -16,7 +16,7 @@ const FIRE_SPREAD_RADIUS_AROUND_PLAYER: i32 = 128;
 
 pub struct LavaFluid;
 
-fn is_fast_lava(level: &ServerLevel) -> bool {
+pub fn is_fast_lava(level: &ServerLevel) -> bool {
     level.environment_attributes().get_dimension_value(environment_attributes::FAST_LAVA)
 }
 
@@ -62,8 +62,8 @@ impl FlowingFluid for LavaFluid {
         if is_fast_lava(level) { 1 } else { 2 }
     }
 
-    fn tick_delay(&self, level: &ServerLevel) -> i32 {
-        if is_fast_lava(level) { 10 } else { 30 }
+    fn tick_delay(&self, level: &dyn LevelReader) -> i32 {
+        if level.is_fast_lava() { 10 } else { 30 }
     }
 
     fn spread_delay(&self, level: &mut ServerLevel, pos: BlockPos, old: FluidState, new: FluidState) -> i32 {

@@ -6,7 +6,7 @@ use super::BlockBehaviour;
 use super::vegetation_block::{block_field, fields};
 use crate::server::level::ServerLevel;
 use crate::world::item::context::BlockPlaceContext;
-use crate::world::level::{BlockGetter, LevelReader};
+use crate::world::level::{BlockGetter, LevelAccessor, LevelReader};
 use crate::world::level::update_flags::{UPDATE_ALL, UPDATE_CLIENTS};
 
 pub struct FarmlandBlock {
@@ -46,7 +46,7 @@ impl BlockBehaviour for FarmlandBlock {
         Some(if !self.can_survive(default, level, ctx.clicked_pos()) { self.base_block.default_state() } else { default })
     }
 
-    fn update_shape(&self, state: BlockState, level: &mut ServerLevel, pos: BlockPos, direction: Direction, _: BlockPos, _: BlockState) -> BlockState {
+    fn update_shape(&self, state: BlockState, level: &mut dyn LevelAccessor, pos: BlockPos, direction: Direction, _: BlockPos, _: BlockState) -> BlockState {
         if direction == Direction::Up && !self.can_survive(state, level, pos) {
             level.schedule_tick(pos, state.block(), 1);
         }

@@ -6,6 +6,7 @@ use super::BlockBehaviour;
 use super::simple_waterlogged_block::{is_water_source, schedule_water_tick};
 use crate::server::level::ServerLevel;
 use crate::world::item::context::BlockPlaceContext;
+use crate::world::level::{LevelAccessor, LevelReader};
 use crate::world::level::update_flags::UPDATE_ALL;
 
 const ACTIVATION_TICKS: i32 = 8;
@@ -26,7 +27,7 @@ impl BlockBehaviour for LightningRodBlock {
     fn update_shape(
         &self,
         state: BlockState,
-        level: &mut ServerLevel,
+        level: &mut dyn LevelAccessor,
         pos: BlockPos,
         _direction: Direction,
         _neighbour_pos: BlockPos,
@@ -36,11 +37,11 @@ impl BlockBehaviour for LightningRodBlock {
         state
     }
 
-    fn own_signal(&self, state: BlockState, _level: &mut ServerLevel, _pos: BlockPos) -> i32 {
+    fn own_signal(&self, state: BlockState, _level: &mut dyn LevelReader, _pos: BlockPos) -> i32 {
         if state.get(POWERED) { 15 } else { 0 }
     }
 
-    fn get_direct_signal(&self, state: BlockState, _level: &mut ServerLevel, _pos: BlockPos, direction: Direction) -> i32 {
+    fn get_direct_signal(&self, state: BlockState, _level: &mut dyn LevelReader, _pos: BlockPos, direction: Direction) -> i32 {
         if state.get(POWERED) && state.get(FACING) == direction { 15 } else { 0 }
     }
 

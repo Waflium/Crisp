@@ -23,8 +23,11 @@ pub mod timers;
 pub mod validation;
 pub mod world_data_configuration;
 
-use crisp_core::BlockPos;
-use crisp_data::{BlockState, FluidState};
+use crisp_core::random::RandomSource;
+use crisp_core::{BlockPos, Direction};
+use crisp_data::{Block, BlockState, Fluid, FluidState};
+
+use crate::world::ticks::TickPriority;
 
 pub fn is_in_spawnable_bounds(pos: BlockPos) -> bool {
     (-20_000_000..20_000_000).contains(&pos.y) && (-30_000_000..30_000_000).contains(&pos.x) && (-30_000_000..30_000_000).contains(&pos.z)
@@ -41,9 +44,31 @@ pub trait BlockGetter {
 pub trait LevelReader: BlockGetter {
     fn raw_brightness(&mut self, pos: BlockPos, darkening: i32) -> i32;
 
+    fn is_fast_lava(&self) -> bool;
+
+    fn get_control_input_signal(&mut self, pos: BlockPos, direction: Direction, only_diodes: bool) -> i32;
+
+    fn get_block_entity(&mut self, pos: BlockPos) -> Option<&mut block::entity::BlockEntity>;
+
     fn is_water_at(&mut self, pos: BlockPos) -> bool {
         self.fluid_state(pos).is(&crisp_data::fluid_tags::WATER)
     }
+}
+
+pub trait ScheduledTickAccess {
+    fn schedule_tick_with_priority(&mut self, pos: BlockPos, block: Block, delay: i32, priority: TickPriority);
+
+    fn schedule_fluid_tick(&mut self, pos: BlockPos, fluid: Fluid, delay: i32);
+
+    fn has_scheduled_tick(&self, pos: BlockPos, block: Block) -> bool;
+
+    fn schedule_tick(&mut self, pos: BlockPos, block: Block, delay: i32) {
+        self.schedule_tick_with_priority(pos, block, delay, TickPriority::NORMAL);
+    }
+}
+
+pub trait LevelAccessor: LevelReader + ScheduledTickAccess {
+    fn get_random(&mut self) -> &mut dyn RandomSource;
 }
 
 pub mod update_flags {

@@ -6,7 +6,7 @@ use super::BlockBehaviour;
 use super::simple_waterlogged_block::{is_water_source, schedule_water_tick};
 use crate::server::level::ServerLevel;
 use crate::world::item::context::BlockPlaceContext;
-use crate::world::level::{BlockGetter, LevelReader};
+use crate::world::level::{BlockGetter, LevelAccessor, LevelReader};
 use crate::world::level::update_flags::UPDATE_ALL;
 
 const TICK_DELAY: i32 = 1;
@@ -59,7 +59,7 @@ impl BlockBehaviour for ScaffoldingBlock {
     fn update_shape(
         &self,
         state: BlockState,
-        level: &mut ServerLevel,
+        level: &mut dyn LevelAccessor,
         pos: BlockPos,
         _direction: Direction,
         _neighbour_pos: BlockPos,

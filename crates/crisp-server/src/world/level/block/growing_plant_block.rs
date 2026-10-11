@@ -1,4 +1,3 @@
-use crisp_core::random::RandomSource;
 use crisp_core::{BlockPos, Direction};
 use crisp_data::properties::AGE_25;
 use crisp_data::{Block, BlockState, SupportType};
@@ -6,7 +5,7 @@ use crisp_data::{Block, BlockState, SupportType};
 use super::vegetation_block::fields;
 use crate::server::level::ServerLevel;
 use crate::world::item::context::BlockPlaceContext;
-use crate::world::level::{BlockGetter, LevelReader};
+use crate::world::level::{BlockGetter, LevelAccessor, LevelReader};
 use crate::world::level::update_flags::UPDATE_LIMIT;
 
 pub struct GrowingPlant {
@@ -24,8 +23,8 @@ impl GrowingPlant {
     }
 }
 
-pub fn head_state_for_placement(head: Block, level: &mut ServerLevel) -> BlockState {
-    head.default_state().set(AGE_25, level.random.next_int_bounded(25))
+pub fn head_state_for_placement(head: Block, level: &mut dyn LevelAccessor) -> BlockState {
+    head.default_state().set(AGE_25, level.get_random().next_int_bounded(25))
 }
 
 pub fn get_state_for_placement(

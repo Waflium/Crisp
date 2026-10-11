@@ -2,8 +2,7 @@ use crisp_core::{BlockPos, Direction};
 use crisp_data::BlockState;
 
 use super::{BlockBehaviour, base_torch_block};
-use crate::server::level::ServerLevel;
-use crate::world::level::LevelReader;
+use crate::world::level::{LevelAccessor, LevelReader};
 
 pub struct TorchBlock;
 
@@ -11,7 +10,7 @@ impl BlockBehaviour for TorchBlock {
     fn update_shape(
         &self,
         state: BlockState,
-        level: &mut ServerLevel,
+        level: &mut dyn LevelAccessor,
         pos: BlockPos,
         direction: Direction,
         _neighbour_pos: BlockPos,

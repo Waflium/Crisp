@@ -3,6 +3,7 @@ use crisp_data::{BlockState, Fluid};
 
 use super::FlowingFluid;
 use crate::server::level::ServerLevel;
+use crate::world::level::LevelReader;
 
 const WATER_SOURCE_CONVERSION: bool = true;
 
@@ -33,7 +34,7 @@ impl FlowingFluid for WaterFluid {
         1
     }
 
-    fn tick_delay(&self, _level: &ServerLevel) -> i32 {
+    fn tick_delay(&self, _level: &dyn LevelReader) -> i32 {
         5
     }
 }

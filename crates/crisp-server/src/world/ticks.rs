@@ -132,6 +132,33 @@ impl<T: Copy + Eq + Hash> LevelChunkTicks<T> {
     }
 }
 
+pub struct ProtoChunkTicks<T> {
+    ticks: Vec<SavedTick<T>>,
+    ticks_per_position: HashSet<(BlockPos, T)>,
+}
+
+impl<T: Copy + Eq + Hash> Default for ProtoChunkTicks<T> {
+    fn default() -> Self {
+        ProtoChunkTicks { ticks: Vec::new(), ticks_per_position: HashSet::new() }
+    }
+}
+
+impl<T: Copy + Eq + Hash> ProtoChunkTicks<T> {
+    pub fn schedule(&mut self, ty: T, pos: BlockPos, priority: TickPriority) {
+        if self.ticks_per_position.insert((pos, ty)) {
+            self.ticks.push(SavedTick { ty, pos, delay: 0, priority });
+        }
+    }
+
+    pub fn has_scheduled_tick(&self, pos: BlockPos, ty: T) -> bool {
+        self.ticks_per_position.contains(&(pos, ty))
+    }
+
+    pub fn scheduled_ticks(self) -> Vec<SavedTick<T>> {
+        self.ticks
+    }
+}
+
 pub struct LevelTicks<T> {
     containers: FastMap<ChunkPos, LevelChunkTicks<T>>,
     to_run_this_tick: HashSet<(BlockPos, T)>,

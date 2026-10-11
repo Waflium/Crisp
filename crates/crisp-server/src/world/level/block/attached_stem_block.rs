@@ -5,7 +5,7 @@ use crisp_data::{Block, BlockState};
 use super::BlockBehaviour;
 use super::vegetation_block::{self, Vegetation, block_field, fields, is_in, tag_field};
 use crate::server::level::ServerLevel;
-use crate::world::level::LevelReader;
+use crate::world::level::{LevelAccessor, LevelReader};
 
 pub struct AttachedStemBlock {
     fruit: Block,
@@ -31,7 +31,7 @@ impl BlockBehaviour for AttachedStemBlock {
         crate::world::item::ItemStack::new(self.stem.item(), 1)
     }
 
-    fn update_shape(&self, state: BlockState, level: &mut ServerLevel, pos: BlockPos, direction: Direction, _: BlockPos, neighbour_state: BlockState) -> BlockState {
+    fn update_shape(&self, state: BlockState, level: &mut dyn LevelAccessor, pos: BlockPos, direction: Direction, _: BlockPos, neighbour_state: BlockState) -> BlockState {
         if !neighbour_state.is_block(self.fruit) && direction == state.get(HORIZONTAL_FACING) {
             return self.stem.default_state().try_set(AGE_7, 7);
         }

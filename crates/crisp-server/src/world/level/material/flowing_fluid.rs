@@ -7,7 +7,7 @@ use crisp_data::{BlockState, Fluid, FluidState, block_tags, blocks};
 
 use super::{can_be_replaced_with, create_legacy_block};
 use crate::server::level::ServerLevel;
-use crate::world::level::BlockGetter;
+use crate::world::level::{BlockGetter, LevelReader};
 use crate::world::level::block;
 use crate::world::level::update_flags::UPDATE_ALL;
 
@@ -30,7 +30,7 @@ pub trait FlowingFluid: Sync {
 
     fn drop_off(&self, level: &ServerLevel) -> i32;
 
-    fn tick_delay(&self, level: &ServerLevel) -> i32;
+    fn tick_delay(&self, level: &dyn LevelReader) -> i32;
 
     fn random_tick(&self, _level: &mut ServerLevel, _pos: BlockPos, _fluid: FluidState) {}
 

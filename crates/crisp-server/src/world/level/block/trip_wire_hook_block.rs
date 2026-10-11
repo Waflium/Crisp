@@ -8,7 +8,7 @@ use crate::server::level::{ServerLevel, SoundSource};
 use crate::world::entity::EntityId;
 use crate::world::item::ItemStack;
 use crate::world::item::context::BlockPlaceContext;
-use crate::world::level::{BlockGetter, LevelReader};
+use crate::world::level::{BlockGetter, LevelAccessor, LevelReader};
 
 const WIRE_DIST_MAX: i32 = 42;
 const RECHECK_PERIOD: i32 = 10;
@@ -138,7 +138,7 @@ impl BlockBehaviour for TripWireHookBlock {
     fn update_shape(
         &self,
         state: BlockState,
-        level: &mut ServerLevel,
+        level: &mut dyn LevelAccessor,
         pos: BlockPos,
         direction: Direction,
         _neighbour_pos: BlockPos,
@@ -179,11 +179,11 @@ impl BlockBehaviour for TripWireHookBlock {
         }
     }
 
-    fn own_signal(&self, state: BlockState, _level: &mut ServerLevel, _pos: BlockPos) -> i32 {
+    fn own_signal(&self, state: BlockState, _level: &mut dyn LevelReader, _pos: BlockPos) -> i32 {
         if state.get(POWERED) { 15 } else { 0 }
     }
 
-    fn get_direct_signal(&self, state: BlockState, _level: &mut ServerLevel, _pos: BlockPos, direction: Direction) -> i32 {
+    fn get_direct_signal(&self, state: BlockState, _level: &mut dyn LevelReader, _pos: BlockPos, direction: Direction) -> i32 {
         if !state.get(POWERED) {
             0
         } else if state.get(HORIZONTAL_FACING) == direction {

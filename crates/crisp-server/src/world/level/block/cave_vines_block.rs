@@ -9,7 +9,7 @@ use crate::server::level::ServerLevel;
 use crate::world::InteractionResult;
 use crate::world::entity::EntityId;
 use crate::world::item::context::BlockPlaceContext;
-use crate::world::level::LevelReader;
+use crate::world::level::{LevelAccessor, LevelReader};
 use crate::world::level::update_flags::UPDATE_CLIENTS;
 
 pub struct CaveVinesParts;
@@ -55,7 +55,7 @@ impl BlockBehaviour for CaveVinesBlock {
         self.0.random_tick(state, level, pos);
     }
 
-    fn update_shape(&self, state: BlockState, level: &mut ServerLevel, pos: BlockPos, direction: Direction, neighbour_pos: BlockPos, neighbour_state: BlockState) -> BlockState {
+    fn update_shape(&self, state: BlockState, level: &mut dyn LevelAccessor, pos: BlockPos, direction: Direction, neighbour_pos: BlockPos, neighbour_state: BlockState) -> BlockState {
         self.0.update_shape(state, level, pos, direction, neighbour_pos, neighbour_state)
     }
 

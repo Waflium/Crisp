@@ -6,7 +6,7 @@ use super::BlockBehaviour;
 use super::big_dripleaf_block;
 use super::vegetation_block::schedule_water_tick;
 use crate::server::level::ServerLevel;
-use crate::world::level::{BlockGetter, LevelReader};
+use crate::world::level::{BlockGetter, LevelAccessor, LevelReader};
 use crate::world::level::update_flags::{UPDATE_ALL, UPDATE_LIMIT};
 
 pub struct BigDripleafStemBlock;
@@ -40,7 +40,7 @@ impl BlockBehaviour for BigDripleafStemBlock {
             && (above_state.is_block(state.block()) || above_state.is_block(blocks::BIG_DRIPLEAF))
     }
 
-    fn update_shape(&self, state: BlockState, level: &mut ServerLevel, pos: BlockPos, direction: Direction, _: BlockPos, _: BlockState) -> BlockState {
+    fn update_shape(&self, state: BlockState, level: &mut dyn LevelAccessor, pos: BlockPos, direction: Direction, _: BlockPos, _: BlockState) -> BlockState {
         if (direction == Direction::Down || direction == Direction::Up) && !self.can_survive(state, level, pos) {
             level.schedule_tick(pos, state.block(), 1);
         }

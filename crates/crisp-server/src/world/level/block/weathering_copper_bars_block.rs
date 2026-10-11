@@ -6,6 +6,7 @@ use super::iron_bars_block::IronBarsBlock;
 use super::weathering_copper::change_over_time;
 use crate::server::level::ServerLevel;
 use crate::world::item::context::BlockPlaceContext;
+use crate::world::level::LevelAccessor;
 
 pub struct WeatheringCopperBarsBlock;
 
@@ -17,7 +18,7 @@ impl BlockBehaviour for WeatheringCopperBarsBlock {
     fn update_shape(
         &self,
         state: BlockState,
-        level: &mut ServerLevel,
+        level: &mut dyn LevelAccessor,
         pos: BlockPos,
         direction: Direction,
         neighbour_pos: BlockPos,

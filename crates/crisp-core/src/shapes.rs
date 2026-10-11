@@ -357,6 +357,103 @@ pub fn is_face_full(shape: &VoxelShape, direction: Direction) -> bool {
     is_shape_full_block(&shape.face_shape(direction))
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum AxisCycle {
+    None,
+    Forward,
+    Backward,
+}
+
+impl AxisCycle {
+    fn inverse(self) -> AxisCycle {
+        match self {
+            AxisCycle::None => AxisCycle::None,
+            AxisCycle::Forward => AxisCycle::Backward,
+            AxisCycle::Backward => AxisCycle::Forward,
+        }
+    }
+
+    fn cycle(self, x: i32, y: i32, z: i32, axis: Axis) -> i32 {
+        match self {
+            AxisCycle::None => axis.choose(x, y, z),
+            AxisCycle::Forward => axis.choose(z, x, y),
+            AxisCycle::Backward => axis.choose(y, z, x),
+        }
+    }
+
+    fn cycle_axis(self, axis: Axis) -> Axis {
+        let ordinal = Axis::VALUES.iter().position(|&a| a == axis).unwrap_or(0);
+        match self {
+            AxisCycle::None => axis,
+            AxisCycle::Forward => Axis::VALUES[(ordinal + 1) % 3],
+            AxisCycle::Backward => Axis::VALUES[(ordinal + 2) % 3],
+        }
+    }
+}
+
+pub struct BitSetDiscreteVoxelShape {
+    x_size: i32,
+    y_size: i32,
+    z_size: i32,
+    storage: Vec<u64>,
+}
+
+impl BitSetDiscreteVoxelShape {
+    pub fn new(x_size: i32, y_size: i32, z_size: i32) -> BitSetDiscreteVoxelShape {
+        let bits = (x_size * y_size * z_size) as usize;
+        BitSetDiscreteVoxelShape { x_size, y_size, z_size, storage: vec![0; bits.div_ceil(64)] }
+    }
+
+    fn get_index(&self, x: i32, y: i32, z: i32) -> usize {
+        ((x * self.y_size + y) * self.z_size + z) as usize
+    }
+
+    pub fn get_size(&self, axis: Axis) -> i32 {
+        axis.choose(self.x_size, self.y_size, self.z_size)
+    }
+
+    pub fn is_full(&self, x: i32, y: i32, z: i32) -> bool {
+        let index = self.get_index(x, y, z);
+        self.storage[index / 64] & (1 << (index % 64)) != 0
+    }
+
+    pub fn fill(&mut self, x: i32, y: i32, z: i32) {
+        let index = self.get_index(x, y, z);
+        self.storage[index / 64] |= 1 << (index % 64);
+    }
+
+    pub fn for_all_faces(&self, mut consumer: impl FnMut(Direction, i32, i32, i32)) {
+        for transform in [AxisCycle::None, AxisCycle::Forward, AxisCycle::Backward] {
+            self.for_all_axis_faces(&mut consumer, transform);
+        }
+    }
+
+    fn for_all_axis_faces(&self, consumer: &mut impl FnMut(Direction, i32, i32, i32), transform: AxisCycle) {
+        let inverse = transform.inverse();
+        let c_axis = inverse.cycle_axis(Axis::Z);
+        let a_size = self.get_size(inverse.cycle_axis(Axis::X));
+        let b_size = self.get_size(inverse.cycle_axis(Axis::Y));
+        let c_size = self.get_size(c_axis);
+        let negative = Direction::from_axis_and_direction(c_axis, crate::AxisDirection::Negative);
+        let positive = Direction::from_axis_and_direction(c_axis, crate::AxisDirection::Positive);
+        for a in 0..a_size {
+            for b in 0..b_size {
+                let mut last_full = false;
+                for c in 0..=c_size {
+                    let full = c != c_size && self.is_full(inverse.cycle(a, b, c, Axis::X), inverse.cycle(a, b, c, Axis::Y), inverse.cycle(a, b, c, Axis::Z));
+                    if !last_full && full {
+                        consumer(negative, inverse.cycle(a, b, c, Axis::X), inverse.cycle(a, b, c, Axis::Y), inverse.cycle(a, b, c, Axis::Z));
+                    }
+                    if last_full && !full {
+                        consumer(positive, inverse.cycle(a, b, c - 1, Axis::X), inverse.cycle(a, b, c - 1, Axis::Y), inverse.cycle(a, b, c - 1, Axis::Z));
+                    }
+                    last_full = full;
+                }
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

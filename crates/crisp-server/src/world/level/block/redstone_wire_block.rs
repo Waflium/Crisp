@@ -9,7 +9,7 @@ use crate::server::level::ServerLevel;
 use crate::world::InteractionResult;
 use crate::world::entity::EntityId;
 use crate::world::item::context::BlockPlaceContext;
-use crate::world::level::{BlockGetter, LevelReader};
+use crate::world::level::{BlockGetter, LevelAccessor, LevelReader};
 use crate::world::level::redstone::default_redstone_wire_evaluator::DefaultRedstoneWireEvaluator;
 
 const PLANE_VERTICAL: [Direction; 2] = [Direction::Up, Direction::Down];
@@ -48,12 +48,12 @@ fn is_dot(state: BlockState) -> bool {
     !connected(state, Direction::North) && !connected(state, Direction::South) && !connected(state, Direction::East) && !connected(state, Direction::West)
 }
 
-fn should_connect_to_pos(level: &mut ServerLevel, pos: BlockPos) -> bool {
+fn should_connect_to_pos(level: &mut dyn LevelReader, pos: BlockPos) -> bool {
     let state = level.block_state(pos);
     should_connect_to(state, level, pos, None)
 }
 
-fn should_connect_to(state: BlockState, level: &mut ServerLevel, pos: BlockPos, direction: Option<Direction>) -> bool {
+fn should_connect_to(state: BlockState, level: &mut dyn LevelReader, pos: BlockPos, direction: Option<Direction>) -> bool {
     super::of(state).should_redstone_wire_connect_to(state, level, pos, direction)
 }
 
@@ -85,7 +85,7 @@ impl RedstoneWireBlock {
         RedstoneWireBlock { block, cross_state, evaluator: DefaultRedstoneWireEvaluator { wire_block: block } }
     }
 
-    fn get_connection_state(&self, level: &mut ServerLevel, state: BlockState, pos: BlockPos) -> BlockState {
+    fn get_connection_state(&self, level: &mut dyn LevelReader, state: BlockState, pos: BlockPos) -> BlockState {
         let was_dot = is_dot(state);
         let mut state = self.get_missing_connections(level, self.block.default_state().set(POWER, state.get(POWER)), pos);
         if was_dot && is_dot(state) {
@@ -112,7 +112,7 @@ impl RedstoneWireBlock {
         state
     }
 
-    fn get_missing_connections(&self, level: &mut ServerLevel, mut state: BlockState, pos: BlockPos) -> BlockState {
+    fn get_missing_connections(&self, level: &mut dyn LevelReader, mut state: BlockState, pos: BlockPos) -> BlockState {
         let can_connect_up = !level.block_state(pos.above()).is_redstone_conductor();
         for direction in Direction::PLANE_HORIZONTAL {
             if !connected(state, direction) {
@@ -123,12 +123,12 @@ impl RedstoneWireBlock {
         state
     }
 
-    fn get_connecting_side(&self, level: &mut ServerLevel, pos: BlockPos, direction: Direction) -> RedstoneSide {
+    fn get_connecting_side(&self, level: &mut dyn LevelReader, pos: BlockPos, direction: Direction) -> RedstoneSide {
         let can_connect_up = !level.block_state(pos.above()).is_redstone_conductor();
         self.get_connecting_side_up(level, pos, direction, can_connect_up)
     }
 
-    fn get_connecting_side_up(&self, level: &mut ServerLevel, pos: BlockPos, direction: Direction, can_connect_up: bool) -> RedstoneSide {
+    fn get_connecting_side_up(&self, level: &mut dyn LevelReader, pos: BlockPos, direction: Direction, can_connect_up: bool) -> RedstoneSide {
         let relative_pos = pos.relative(direction);
         let relative_state = level.block_state(relative_pos);
         if can_connect_up {
@@ -190,7 +190,7 @@ impl BlockBehaviour for RedstoneWireBlock {
     fn update_shape(
         &self,
         state: BlockState,
-        level: &mut ServerLevel,
+        level: &mut dyn LevelAccessor,
         pos: BlockPos,
         direction: Direction,
         _neighbour_pos: BlockPos,
@@ -264,11 +264,11 @@ impl BlockBehaviour for RedstoneWireBlock {
         }
     }
 
-    fn get_direct_signal(&self, state: BlockState, level: &mut ServerLevel, pos: BlockPos, direction: Direction) -> i32 {
+    fn get_direct_signal(&self, state: BlockState, level: &mut dyn LevelReader, pos: BlockPos, direction: Direction) -> i32 {
         if !should_signal() { 0 } else { self.get_signal(state, level, pos, direction) }
     }
 
-    fn get_signal(&self, state: BlockState, level: &mut ServerLevel, pos: BlockPos, direction: Direction) -> i32 {
+    fn get_signal(&self, state: BlockState, level: &mut dyn LevelReader, pos: BlockPos, direction: Direction) -> i32 {
         if should_signal() && direction != Direction::Down {
             let power = state.get(POWER);
             if power == 0 {
@@ -283,11 +283,11 @@ impl BlockBehaviour for RedstoneWireBlock {
         }
     }
 
-    fn own_signal(&self, state: BlockState, _level: &mut ServerLevel, _pos: BlockPos) -> i32 {
+    fn own_signal(&self, state: BlockState, _level: &mut dyn LevelReader, _pos: BlockPos) -> i32 {
         state.get(POWER)
     }
 
-    fn should_redstone_wire_connect_to(&self, _state: BlockState, _level: &mut ServerLevel, _pos: BlockPos, _direction: Option<Direction>) -> bool {
+    fn should_redstone_wire_connect_to(&self, _state: BlockState, _level: &mut dyn LevelReader, _pos: BlockPos, _direction: Option<Direction>) -> bool {
         true
     }
 

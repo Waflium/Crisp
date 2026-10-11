@@ -7,7 +7,7 @@ use super::BlockBehaviour;
 use super::crop_block::{self, Crop};
 use super::vegetation_block::{self, Vegetation};
 use crate::server::level::ServerLevel;
-use crate::world::level::LevelReader;
+use crate::world::level::{LevelAccessor, LevelReader};
 
 pub struct BeetrootBlock;
 
@@ -32,7 +32,7 @@ impl Vegetation for BeetrootBlock {
 }
 
 impl BlockBehaviour for BeetrootBlock {
-    fn update_shape(&self, state: BlockState, level: &mut ServerLevel, pos: BlockPos, _: Direction, _: BlockPos, _: BlockState) -> BlockState {
+    fn update_shape(&self, state: BlockState, level: &mut dyn LevelAccessor, pos: BlockPos, _: Direction, _: BlockPos, _: BlockState) -> BlockState {
         vegetation_block::update_shape(state, level, pos)
     }
 

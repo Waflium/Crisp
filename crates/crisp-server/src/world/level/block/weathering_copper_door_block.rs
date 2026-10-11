@@ -10,7 +10,7 @@ use crate::world::InteractionResult;
 use crate::world::entity::EntityId;
 use crate::world::item::ItemStack;
 use crate::world::item::context::BlockPlaceContext;
-use crate::world::level::LevelReader;
+use crate::world::level::{LevelAccessor, LevelReader};
 
 pub struct WeatheringCopperDoorBlock {
     door: DoorBlock,
@@ -34,7 +34,7 @@ impl BlockBehaviour for WeatheringCopperDoorBlock {
     fn update_shape(
         &self,
         state: BlockState,
-        level: &mut ServerLevel,
+        level: &mut dyn LevelAccessor,
         pos: BlockPos,
         direction: Direction,
         neighbour_pos: BlockPos,

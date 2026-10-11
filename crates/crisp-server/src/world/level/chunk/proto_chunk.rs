@@ -1,7 +1,8 @@
 use crisp_core::ChunkPos;
-use crisp_data::{BlockState, DimensionType, blocks};
+use crisp_data::{Block, BlockState, DimensionType, Fluid, blocks};
 
 use super::{Biome, Heightmap, HeightmapType, LevelChunk, LevelChunkSection};
+use crate::world::ticks::ProtoChunkTicks;
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub enum ChunkStatus {
@@ -26,6 +27,14 @@ impl ChunkStatus {
 pub struct ProtoChunkData {
     pub heightmaps: [Option<Heightmap>; 2],
     pub post_processing: Vec<Vec<u16>>,
+    pub block_ticks: ProtoChunkTicks<Block>,
+    pub fluid_ticks: ProtoChunkTicks<Fluid>,
+}
+
+impl ProtoChunkData {
+    pub fn new(sections: usize) -> ProtoChunkData {
+        ProtoChunkData { heightmaps: [None, None], post_processing: vec![Vec::new(); sections], block_ticks: ProtoChunkTicks::default(), fluid_ticks: ProtoChunkTicks::default() }
+    }
 }
 
 pub struct ProtoChunk {
@@ -168,6 +177,8 @@ impl ProtoChunk {
         let proto = ProtoChunkData {
             heightmaps: HeightmapType::WORLDGEN.map(|kind| self.heightmaps[kind.id() as usize].take()),
             post_processing: std::mem::take(&mut self.post_processing),
+            block_ticks: ProtoChunkTicks::default(),
+            fluid_ticks: ProtoChunkTicks::default(),
         };
         let mut chunk = LevelChunk::with_sections(self.pos, dimension, self.sections);
         chunk.proto = Some(Box::new(proto));

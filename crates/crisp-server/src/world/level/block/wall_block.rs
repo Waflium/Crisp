@@ -10,7 +10,7 @@ use super::simple_waterlogged_block::{is_water_source, schedule_water_tick};
 use super::{BlockBehaviour, is_exception_for_connection};
 use crate::server::level::ServerLevel;
 use crate::world::item::context::BlockPlaceContext;
-use crate::world::level::BlockGetter;
+use crate::world::level::{BlockGetter, LevelAccessor, LevelReader};
 
 pub struct WallBlock;
 
@@ -50,7 +50,7 @@ impl WallBlock {
         Self::update_wall_shape(state, top_neighbour, north, east, south, west)
     }
 
-    fn side_update(level: &mut ServerLevel, pos: BlockPos, state: BlockState, neighbour: BlockState, direction: Direction) -> BlockState {
+    fn side_update(level: &mut dyn LevelReader, pos: BlockPos, state: BlockState, neighbour: BlockState, direction: Direction) -> BlockState {
         let opposite = direction.opposite();
         let north = if direction == Direction::North { Self::connects_to_neighbour(neighbour, opposite) } else { is_connected(state, NORTH_WALL) };
         let east = if direction == Direction::East { Self::connects_to_neighbour(neighbour, opposite) } else { is_connected(state, EAST_WALL) };
@@ -129,7 +129,7 @@ impl BlockBehaviour for WallBlock {
     fn update_shape(
         &self,
         state: BlockState,
-        level: &mut ServerLevel,
+        level: &mut dyn LevelAccessor,
         pos: BlockPos,
         direction: Direction,
         _neighbour_pos: BlockPos,

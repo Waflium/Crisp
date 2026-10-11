@@ -12,7 +12,7 @@ use crate::world::InteractionResult;
 use crate::world::entity::EntityId;
 use crate::world::item::ItemStack;
 use crate::world::item::context::BlockPlaceContext;
-use crate::world::level::{BlockGetter, LevelReader};
+use crate::world::level::{BlockGetter, LevelAccessor, LevelReader};
 use crate::world::level::block;
 use crate::world::level::update_flags::{UPDATE_ALL, UPDATE_CLIENTS, UPDATE_IMMEDIATE, UPDATE_SUPPRESS_DROPS};
 
@@ -127,7 +127,7 @@ impl BlockBehaviour for DoorBlock {
     fn update_shape(
         &self,
         state: BlockState,
-        level: &mut ServerLevel,
+        level: &mut dyn LevelAccessor,
         pos: BlockPos,
         direction: Direction,
         _neighbour_pos: BlockPos,

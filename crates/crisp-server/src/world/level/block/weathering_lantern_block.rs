@@ -6,7 +6,7 @@ use super::lantern_block::LanternBlock;
 use super::weathering_copper::change_over_time;
 use crate::server::level::ServerLevel;
 use crate::world::item::context::BlockPlaceContext;
-use crate::world::level::LevelReader;
+use crate::world::level::{LevelAccessor, LevelReader};
 
 pub struct WeatheringLanternBlock;
 
@@ -22,7 +22,7 @@ impl BlockBehaviour for WeatheringLanternBlock {
     fn update_shape(
         &self,
         state: BlockState,
-        level: &mut ServerLevel,
+        level: &mut dyn LevelAccessor,
         pos: BlockPos,
         direction: Direction,
         neighbour_pos: BlockPos,

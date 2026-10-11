@@ -123,7 +123,7 @@ mod hanging_roots_block;
 mod kelp_block;
 mod kelp_plant_block;
 mod leaf_litter_block;
-mod leaves_block;
+pub mod leaves_block;
 mod lily_pad_block;
 mod mangrove_leaves_block;
 mod mangrove_propagule_block;
@@ -170,7 +170,7 @@ use crisp_core::{AABB, BlockPos, Direction, Vec3};
 use crisp_data::properties::WATERLOGGED;
 use crisp_data::{Block, BlockState, Fluid, FluidState};
 
-use crate::world::level::LevelReader;
+use crate::world::level::{LevelAccessor, LevelReader};
 use crate::world::level::biome::Precipitation;
 use crate::server::level::ServerLevel;
 use crate::world::entity::EntityId;
@@ -208,7 +208,7 @@ pub trait BlockBehaviour: Send + Sync {
     fn update_shape(
         &self,
         state: BlockState,
-        level: &mut ServerLevel,
+        level: &mut dyn LevelAccessor,
         pos: BlockPos,
         direction: Direction,
         neighbour_pos: BlockPos,
@@ -272,15 +272,15 @@ pub trait BlockBehaviour: Send + Sync {
         false
     }
 
-    fn get_signal(&self, state: BlockState, level: &mut ServerLevel, pos: BlockPos, direction: Direction) -> i32 {
+    fn get_signal(&self, state: BlockState, level: &mut dyn LevelReader, pos: BlockPos, direction: Direction) -> i32 {
         self.own_signal(state, level, pos)
     }
 
-    fn own_signal(&self, state: BlockState, level: &mut ServerLevel, pos: BlockPos) -> i32 {
+    fn own_signal(&self, state: BlockState, level: &mut dyn LevelReader, pos: BlockPos) -> i32 {
         0
     }
 
-    fn get_direct_signal(&self, state: BlockState, level: &mut ServerLevel, pos: BlockPos, direction: Direction) -> i32 {
+    fn get_direct_signal(&self, state: BlockState, level: &mut dyn LevelReader, pos: BlockPos, direction: Direction) -> i32 {
         0
     }
 
@@ -317,7 +317,7 @@ pub trait BlockBehaviour: Send + Sync {
         None
     }
 
-    fn should_redstone_wire_connect_to(&self, state: BlockState, level: &mut ServerLevel, pos: BlockPos, direction: Option<Direction>) -> bool {
+    fn should_redstone_wire_connect_to(&self, state: BlockState, level: &mut dyn LevelReader, pos: BlockPos, direction: Option<Direction>) -> bool {
         state.is_signal_source() && direction.is_some()
     }
 

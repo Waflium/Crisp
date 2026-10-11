@@ -4,7 +4,7 @@ use crisp_data::{BlockState, Fluid, block_tags, blocks};
 use super::BlockBehaviour;
 use crate::server::level::ServerLevel;
 use crate::world::item::context::BlockPlaceContext;
-use crate::world::level::{BlockGetter, LevelReader};
+use crate::world::level::{BlockGetter, LevelAccessor, LevelReader};
 
 #[allow(unused_variables)]
 pub trait Vegetation {
@@ -19,7 +19,7 @@ pub fn can_survive<V: Vegetation + ?Sized>(vegetation: &V, level: &mut dyn Level
     vegetation.may_place_on(below_state, level, below)
 }
 
-pub fn update_shape(state: BlockState, level: &mut ServerLevel, pos: BlockPos) -> BlockState {
+pub fn update_shape(state: BlockState, level: &mut dyn LevelAccessor, pos: BlockPos) -> BlockState {
     if !super::of(state).can_survive(state, level, pos) { blocks::AIR.default_state() } else { state }
 }
 
@@ -27,7 +27,7 @@ pub fn block_can_be_replaced(state: BlockState, ctx: &BlockPlaceContext) -> bool
     state.can_be_replaced() && (ctx.item.is_empty() || ctx.item.item != state.block().item())
 }
 
-pub fn schedule_water_tick(level: &mut ServerLevel, pos: BlockPos) {
+pub fn schedule_water_tick(level: &mut dyn LevelAccessor, pos: BlockPos) {
     level.schedule_fluid_tick(pos, Fluid::Water, 5);
 }
 
@@ -69,7 +69,7 @@ pub struct VegetationBlock;
 impl Vegetation for VegetationBlock {}
 
 impl BlockBehaviour for VegetationBlock {
-    fn update_shape(&self, state: BlockState, level: &mut ServerLevel, pos: BlockPos, _: crisp_core::Direction, _: BlockPos, _: BlockState) -> BlockState {
+    fn update_shape(&self, state: BlockState, level: &mut dyn LevelAccessor, pos: BlockPos, _: crisp_core::Direction, _: BlockPos, _: BlockState) -> BlockState {
         update_shape(state, level, pos)
     }
 

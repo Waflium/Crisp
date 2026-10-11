@@ -6,7 +6,7 @@ use super::simple_waterlogged_block::{is_water_source, schedule_water_tick};
 use super::{BlockBehaviour, can_support_center};
 use crate::server::level::ServerLevel;
 use crate::world::item::context::BlockPlaceContext;
-use crate::world::level::LevelReader;
+use crate::world::level::{LevelAccessor, LevelReader};
 use crate::world::level::block;
 
 pub struct LanternBlock;
@@ -37,7 +37,7 @@ impl BlockBehaviour for LanternBlock {
     fn update_shape(
         &self,
         state: BlockState,
-        level: &mut ServerLevel,
+        level: &mut dyn LevelAccessor,
         pos: BlockPos,
         direction: Direction,
         _neighbour_pos: BlockPos,

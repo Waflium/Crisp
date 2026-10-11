@@ -2,8 +2,7 @@ use crisp_core::{BlockPos, Direction};
 use crisp_data::{BlockState, blocks};
 
 use super::BlockBehaviour;
-use crate::server::level::ServerLevel;
-use crate::world::level::LevelReader;
+use crate::world::level::{LevelAccessor, LevelReader};
 use crate::world::level::block;
 
 pub struct CarpetBlock;
@@ -12,7 +11,7 @@ impl BlockBehaviour for CarpetBlock {
     fn update_shape(
         &self,
         state: BlockState,
-        level: &mut ServerLevel,
+        level: &mut dyn LevelAccessor,
         pos: BlockPos,
         _direction: Direction,
         _neighbour_pos: BlockPos,

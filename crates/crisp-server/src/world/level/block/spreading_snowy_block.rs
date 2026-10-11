@@ -8,7 +8,7 @@ use super::snowy_block;
 use super::vegetation_block::{block_field, fields};
 use crate::server::level::ServerLevel;
 use crate::world::item::context::BlockPlaceContext;
-use crate::world::level::BlockGetter;
+use crate::world::level::{BlockGetter, LevelAccessor};
 use crate::world::level::lighting::light_dampening_into;
 use crate::world::level::update_flags::UPDATE_ALL;
 
@@ -42,7 +42,7 @@ impl BlockBehaviour for SpreadingSnowyBlock {
         Some(snowy_block::get_state_for_placement(block, ctx, level))
     }
 
-    fn update_shape(&self, state: BlockState, _level: &mut ServerLevel, _pos: BlockPos, direction: Direction, _: BlockPos, neighbour_state: BlockState) -> BlockState {
+    fn update_shape(&self, state: BlockState, _level: &mut dyn LevelAccessor, _pos: BlockPos, direction: Direction, _: BlockPos, neighbour_state: BlockState) -> BlockState {
         snowy_block::update_shape(state, direction, neighbour_state)
     }
 

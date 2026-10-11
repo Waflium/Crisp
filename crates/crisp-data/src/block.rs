@@ -383,6 +383,17 @@ impl BlockState {
         BlockState(self.0 - old * p.stride + new * p.stride)
     }
 
+    pub fn with_properties_of(self, source: BlockState) -> BlockState {
+        let mut result = self;
+        for p in source.block().info().properties {
+            if let Some(target) = result.property(p.id) {
+                let old = result.value_index(target);
+                result = BlockState(result.0 - old * target.stride + source.value_index(p) * target.stride);
+            }
+        }
+        result
+    }
+
     pub fn property_value_by_name(self, name: &str) -> Option<&'static str> {
         let p = self.block().info().properties.iter().find(|p| PROPERTIES[p.id.0 as usize].name == name)?;
         Some(PROPERTIES[p.id.0 as usize].values[self.value_index(p) as usize])

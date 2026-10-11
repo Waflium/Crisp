@@ -6,7 +6,7 @@ use super::BlockBehaviour;
 use crate::server::level::ServerLevel;
 use crate::world::entity::EntityId;
 use crate::world::item::ItemStack;
-use crate::world::level::{BlockGetter, LevelReader};
+use crate::world::level::{BlockGetter, LevelAccessor, LevelReader};
 use crate::world::level::material::{self, tick_delay};
 
 const CHECK_PERIOD: i32 = 5;
@@ -64,7 +64,7 @@ impl BlockBehaviour for BubbleColumnBlock {
     fn update_shape(
         &self,
         state: BlockState,
-        level: &mut ServerLevel,
+        level: &mut dyn LevelAccessor,
         pos: BlockPos,
         direction: Direction,
         _neighbour_pos: BlockPos,

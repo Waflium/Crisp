@@ -1,5 +1,16 @@
 pub mod abstract_ore_feature;
 pub mod block_replacement;
 pub mod feature;
+pub mod featuresize;
+pub mod foliageplacers;
 pub mod ore_feature;
+pub mod random_boolean_selector_feature;
+pub mod random_selector_feature;
+pub mod rootplacers;
 pub mod scattered_ore_feature;
+pub mod simple_random_selector_feature;
+pub mod stateproviders;
+pub mod tree_feature;
+pub mod treedecorators;
+pub mod trunkplacers;
+pub mod weighted_random_selector_feature;

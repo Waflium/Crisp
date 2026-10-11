@@ -6,7 +6,7 @@ use super::{BlockBehaviour, bubble_column_block};
 use crate::server::level::ServerLevel;
 use crate::server::level::events::LAVA_FIZZ;
 use crate::world::item::ItemStack;
-use crate::world::level::BlockGetter;
+use crate::world::level::{BlockGetter, LevelAccessor};
 use crate::world::level::material::{self, FlowingFluid};
 use crate::world::level::update_flags::UPDATE_ALL;
 
@@ -34,7 +34,7 @@ impl LiquidBlock {
         fluid.is(&fluid_tags::BUBBLE_COLUMN_CAN_OCCUPY) && fluid.is_source() && fluid.amount == 8
     }
 
-    fn try_schedule_bubble_block_column(&self, level: &mut ServerLevel, pos: BlockPos, state_below: BlockState) {
+    fn try_schedule_bubble_block_column(&self, level: &mut dyn LevelAccessor, pos: BlockPos, state_below: BlockState) {
         if state_below.is(&block_tags::ENABLES_BUBBLE_COLUMN_DRAG_DOWN) || state_below.is(&block_tags::ENABLES_BUBBLE_COLUMN_PUSH_UP) {
             level.schedule_tick(pos, self.block, BUBBLE_COLUMN_CHECK_DELAY);
         }
@@ -92,7 +92,7 @@ impl BlockBehaviour for LiquidBlock {
     fn update_shape(
         &self,
         state: BlockState,
-        level: &mut ServerLevel,
+        level: &mut dyn LevelAccessor,
         pos: BlockPos,
         direction: Direction,
         _neighbour_pos: BlockPos,

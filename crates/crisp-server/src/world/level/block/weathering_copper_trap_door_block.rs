@@ -8,6 +8,7 @@ use crate::server::level::ServerLevel;
 use crate::world::InteractionResult;
 use crate::world::entity::EntityId;
 use crate::world::item::context::BlockPlaceContext;
+use crate::world::level::LevelAccessor;
 
 pub struct WeatheringCopperTrapDoorBlock {
     trap_door: TrapDoorBlock,
@@ -35,7 +36,7 @@ impl BlockBehaviour for WeatheringCopperTrapDoorBlock {
     fn update_shape(
         &self,
         state: BlockState,
-        level: &mut ServerLevel,
+        level: &mut dyn LevelAccessor,
         pos: BlockPos,
         direction: Direction,
         neighbour_pos: BlockPos,

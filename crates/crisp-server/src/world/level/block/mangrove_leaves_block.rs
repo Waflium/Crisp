@@ -6,7 +6,7 @@ use super::leaves_block;
 use super::mangrove_propagule_block::new_hanging_propagule;
 use crate::server::level::ServerLevel;
 use crate::world::item::context::BlockPlaceContext;
-use crate::world::level::BlockGetter;
+use crate::world::level::{BlockGetter, LevelAccessor};
 use crate::world::level::update_flags::UPDATE_CLIENTS;
 
 pub struct MangroveLeavesBlock;
@@ -16,7 +16,7 @@ impl BlockBehaviour for MangroveLeavesBlock {
         Some(leaves_block::get_state_for_placement(block, ctx, level))
     }
 
-    fn update_shape(&self, state: BlockState, level: &mut ServerLevel, pos: BlockPos, _: Direction, _: BlockPos, neighbour_state: BlockState) -> BlockState {
+    fn update_shape(&self, state: BlockState, level: &mut dyn LevelAccessor, pos: BlockPos, _: Direction, _: BlockPos, neighbour_state: BlockState) -> BlockState {
         leaves_block::update_shape(state, level, pos, neighbour_state)
     }
 

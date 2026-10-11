@@ -4,7 +4,7 @@ use crisp_data::{Block, BlockState, SupportType, fluid_tags};
 use super::BlockBehaviour;
 use crate::server::level::ServerLevel;
 use crate::world::item::context::BlockPlaceContext;
-use crate::world::level::BlockGetter;
+use crate::world::level::{BlockGetter, LevelAccessor, LevelReader};
 
 pub struct ConcretePowderBlock {
     concrete: Block,
@@ -22,7 +22,7 @@ fn should_solidify(level: &mut ServerLevel, pos: BlockPos, replaced_block: Block
     can_solidify(replaced_block) || touches_liquid(level, pos)
 }
 
-fn touches_liquid(level: &mut ServerLevel, pos: BlockPos) -> bool {
+fn touches_liquid(level: &mut dyn LevelReader, pos: BlockPos) -> bool {
     let mut test_pos = pos;
     for direction in Direction::VALUES {
         let block_state = level.block_state(test_pos);
@@ -51,7 +51,7 @@ impl BlockBehaviour for ConcretePowderBlock {
     fn update_shape(
         &self,
         state: BlockState,
-        level: &mut ServerLevel,
+        level: &mut dyn LevelAccessor,
         pos: BlockPos,
         _direction: Direction,
         _neighbour_pos: BlockPos,

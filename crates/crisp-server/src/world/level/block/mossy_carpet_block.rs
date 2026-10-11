@@ -9,7 +9,7 @@ use crate::server::level::ServerLevel;
 use crate::world::entity::EntityId;
 use crate::world::item::ItemStack;
 use crate::world::item::context::BlockPlaceContext;
-use crate::world::level::{BlockGetter, LevelReader};
+use crate::world::level::{BlockGetter, LevelAccessor, LevelReader};
 use crate::world::level::update_flags::UPDATE_ALL;
 
 pub struct MossyCarpetBlock;
@@ -28,7 +28,7 @@ fn has_faces(state: BlockState) -> bool {
     state.get(BOTTOM) || Direction::PLANE_HORIZONTAL.into_iter().any(|d| state.get(property_for_face(d)) != WallSide::None)
 }
 
-fn can_support_at_face(level: &mut ServerLevel, pos: BlockPos, direction: Direction) -> bool {
+fn can_support_at_face(level: &mut dyn LevelReader, pos: BlockPos, direction: Direction) -> bool {
     if direction == Direction::Up {
         return false;
     }
@@ -36,7 +36,7 @@ fn can_support_at_face(level: &mut ServerLevel, pos: BlockPos, direction: Direct
     can_attach_to(direction, neighbour)
 }
 
-fn updated_state(mut state: BlockState, level: &mut ServerLevel, pos: BlockPos, mut create_sides: bool) -> BlockState {
+fn updated_state(mut state: BlockState, level: &mut dyn LevelReader, pos: BlockPos, mut create_sides: bool) -> BlockState {
     let mut above_state = None;
     let mut below_state = None;
     create_sides |= state.get(BOTTOM);
@@ -103,7 +103,7 @@ impl BlockBehaviour for MossyCarpetBlock {
         if state.get(BOTTOM) { !below_state.is_air() } else { below_state.is_block(state.block()) && below_state.get(BOTTOM) }
     }
 
-    fn update_shape(&self, state: BlockState, level: &mut ServerLevel, pos: BlockPos, _: Direction, _: BlockPos, _: BlockState) -> BlockState {
+    fn update_shape(&self, state: BlockState, level: &mut dyn LevelAccessor, pos: BlockPos, _: Direction, _: BlockPos, _: BlockState) -> BlockState {
         if !self.can_survive(state, level, pos) {
             return blocks::AIR.default_state();
         }

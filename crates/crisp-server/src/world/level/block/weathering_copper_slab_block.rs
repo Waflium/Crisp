@@ -6,6 +6,7 @@ use super::slab_block::SlabBlock;
 use super::weathering_copper::change_over_time;
 use crate::server::level::ServerLevel;
 use crate::world::item::context::BlockPlaceContext;
+use crate::world::level::LevelAccessor;
 
 pub struct WeatheringCopperSlabBlock;
 
@@ -21,7 +22,7 @@ impl BlockBehaviour for WeatheringCopperSlabBlock {
     fn update_shape(
         &self,
         state: BlockState,
-        level: &mut ServerLevel,
+        level: &mut dyn LevelAccessor,
         pos: BlockPos,
         direction: Direction,
         neighbour_pos: BlockPos,

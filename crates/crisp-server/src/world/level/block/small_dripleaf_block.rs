@@ -10,7 +10,7 @@ use crate::server::level::{ServerLevel, legacy_block};
 use crate::world::entity::EntityId;
 use crate::world::item::ItemStack;
 use crate::world::item::context::BlockPlaceContext;
-use crate::world::level::{BlockGetter, LevelReader};
+use crate::world::level::{BlockGetter, LevelAccessor, LevelReader};
 use crate::world::level::update_flags::{UPDATE_ALL, UPDATE_CLIENTS, UPDATE_KNOWN_SHAPE};
 
 pub struct SmallDripleafBlock;
@@ -42,7 +42,7 @@ impl BlockBehaviour for SmallDripleafBlock {
         vegetation_block::can_survive(self, level, pos)
     }
 
-    fn update_shape(&self, state: BlockState, level: &mut ServerLevel, pos: BlockPos, direction: Direction, _: BlockPos, neighbour_state: BlockState) -> BlockState {
+    fn update_shape(&self, state: BlockState, level: &mut dyn LevelAccessor, pos: BlockPos, direction: Direction, _: BlockPos, neighbour_state: BlockState) -> BlockState {
         if state.get(WATERLOGGED) {
             schedule_water_tick(level, pos);
         }

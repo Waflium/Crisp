@@ -5,7 +5,7 @@ use super::BlockBehaviour;
 use super::bonemealable_block::{find_spreadable_neighbour_pos, has_spreadable_neighbour_pos};
 use super::vegetation_block::{self, Vegetation};
 use crate::server::level::ServerLevel;
-use crate::world::level::LevelReader;
+use crate::world::level::{LevelAccessor, LevelReader};
 use crate::world::level::update_flags::UPDATE_ALL;
 
 pub struct FireflyBushBlock;
@@ -13,7 +13,7 @@ pub struct FireflyBushBlock;
 impl Vegetation for FireflyBushBlock {}
 
 impl BlockBehaviour for FireflyBushBlock {
-    fn update_shape(&self, state: BlockState, level: &mut ServerLevel, pos: BlockPos, _: Direction, _: BlockPos, _: BlockState) -> BlockState {
+    fn update_shape(&self, state: BlockState, level: &mut dyn LevelAccessor, pos: BlockPos, _: Direction, _: BlockPos, _: BlockState) -> BlockState {
         vegetation_block::update_shape(state, level, pos)
     }
 

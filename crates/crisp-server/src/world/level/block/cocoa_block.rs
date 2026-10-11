@@ -6,7 +6,7 @@ use crisp_data::{Block, BlockState, block_tags, blocks};
 use super::BlockBehaviour;
 use crate::server::level::ServerLevel;
 use crate::world::item::context::BlockPlaceContext;
-use crate::world::level::LevelReader;
+use crate::world::level::{LevelAccessor, LevelReader};
 use crate::world::level::update_flags::UPDATE_CLIENTS;
 
 pub struct CocoaBlock;
@@ -25,7 +25,7 @@ impl BlockBehaviour for CocoaBlock {
         None
     }
 
-    fn update_shape(&self, state: BlockState, level: &mut ServerLevel, pos: BlockPos, direction: Direction, _: BlockPos, _: BlockState) -> BlockState {
+    fn update_shape(&self, state: BlockState, level: &mut dyn LevelAccessor, pos: BlockPos, direction: Direction, _: BlockPos, _: BlockState) -> BlockState {
         if direction == state.get(HORIZONTAL_FACING) && !self.can_survive(state, level, pos) { blocks::AIR.default_state() } else { state }
     }
 

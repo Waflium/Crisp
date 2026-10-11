@@ -369,7 +369,7 @@ impl ChunkGenerator {
             ChunkGenerator::Flat(flat) => {
                 let mut chunk = flat.generate(pos, dimension);
                 let sections = chunk.sections.len();
-                chunk.proto = Some(Box::new(proto_chunk::ProtoChunkData { heightmaps: [None, None], post_processing: vec![Vec::new(); sections] }));
+                chunk.proto = Some(Box::new(proto_chunk::ProtoChunkData::new(sections)));
                 chunk
             }
             ChunkGenerator::Noise(noise) => noise.generate(pos, dimension).into_level_chunk(dimension),

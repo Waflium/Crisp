@@ -1643,7 +1643,7 @@ mod tests {
         let mut server = Server::new(config.clone()).unwrap();
         let spawn = server.spawn;
         assert!(((spawn.x >> 4) - 6).abs() <= 5 && ((spawn.z >> 4) + 2).abs() <= 5, "{spawn:?}");
-        assert!(server.level.chunks.block_state(spawn.below()).is_face_sturdy_full(crisp_core::Direction::Up), "{spawn:?}");
+        assert!(crisp_core::shapes::is_face_full(server.level.chunks.block_state(spawn.below()).collision_voxel_shape(), crisp_core::Direction::Up), "{spawn:?}");
         assert!(server.save_everything(true, true, true));
         drop(server);
         let server = Server::new(config).unwrap();

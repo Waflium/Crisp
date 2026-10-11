@@ -104,7 +104,7 @@ pub fn decorate(generator: &NoiseBasedChunkGenerator, chunks: &mut HashMap<Chunk
             gen_depth: (dimension.height as i32).min(generator.gen_depth()),
             sea_level: generator.sea_level(),
         };
-        let mut region = WorldGenRegion::new(center, cache, [true; 9], [false; 9], generator.seed(), dimension.min_y, dimension.height as i32, generation);
+        let mut region = WorldGenRegion::new(center, cache, [true; 9], [false; 9], &generator.state, dimension.min_y, dimension.height as i32, generation);
         generator.apply_biome_decoration(&mut region);
     }
     chunks.extend(taken);

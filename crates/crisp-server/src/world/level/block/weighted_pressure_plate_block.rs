@@ -7,7 +7,7 @@ use super::base_pressure_plate_block::{self as base, BasePressurePlateBlock, Pla
 use crate::server::level::ServerLevel;
 use crate::world::entity::EntityId;
 use crate::world::entity::inside_block::InsideBlockEffects;
-use crate::world::level::LevelReader;
+use crate::world::level::{LevelAccessor, LevelReader};
 
 pub struct WeightedPressurePlateBlock {
     pub block: Block,
@@ -59,7 +59,7 @@ impl BlockBehaviour for WeightedPressurePlateBlock {
     fn update_shape(
         &self,
         state: BlockState,
-        level: &mut ServerLevel,
+        level: &mut dyn LevelAccessor,
         pos: BlockPos,
         direction: Direction,
         _neighbour_pos: BlockPos,
@@ -92,11 +92,11 @@ impl BlockBehaviour for WeightedPressurePlateBlock {
         base::affect_neighbors_after_removal(self, state, level, pos, moved_by_piston);
     }
 
-    fn get_direct_signal(&self, state: BlockState, _level: &mut ServerLevel, _pos: BlockPos, direction: Direction) -> i32 {
+    fn get_direct_signal(&self, state: BlockState, _level: &mut dyn LevelReader, _pos: BlockPos, direction: Direction) -> i32 {
         base::get_direct_signal(self, state, direction)
     }
 
-    fn own_signal(&self, state: BlockState, _level: &mut ServerLevel, _pos: BlockPos) -> i32 {
+    fn own_signal(&self, state: BlockState, _level: &mut dyn LevelReader, _pos: BlockPos) -> i32 {
         self.get_signal_for_state(state)
     }
 }
