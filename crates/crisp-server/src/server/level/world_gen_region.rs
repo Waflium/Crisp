@@ -191,7 +191,7 @@ impl<'a> WorldGenRegion<'a> {
         if state.has_block_entity() {
             chunk.block_entities.pending.insert(pos, dummy_block_entity(pos));
         } else if old.is_some_and(|old| old.has_block_entity()) {
-            chunk.block_entities.pending.shift_remove(&pos);
+            chunk.block_entities.pending.remove(&pos);
             chunk.block_entities.map.remove(&pos);
         }
         if flags & UPDATE_KNOWN_SHAPE == 0
@@ -228,7 +228,7 @@ impl<'a> WorldGenRegion<'a> {
                 BlockEntity::load_static(pos, state, tag)
             };
             if let Some(entity) = entity {
-                chunk.block_entities.pending.shift_remove(&pos);
+                chunk.block_entities.pending.remove(&pos);
                 chunk.set_block_entity(entity);
             }
         }

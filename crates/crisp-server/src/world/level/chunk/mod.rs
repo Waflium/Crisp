@@ -208,6 +208,7 @@ pub struct LevelChunk {
     pub loaded: bool,
     pub proto: Option<Box<proto_chunk::ProtoChunkData>>,
     pub structures: ChunkStructures,
+    pub post_processing: Vec<Vec<u16>>,
 }
 
 impl LevelChunk {
@@ -221,6 +222,7 @@ impl LevelChunk {
         LevelChunk {
             pos,
             min_y: dimension.min_y,
+            post_processing: vec![Vec::new(); sections.len()],
             sections,
             heightmaps,
             unsaved: false,
@@ -261,10 +263,7 @@ impl LevelChunk {
             return;
         }
         let index = self.section_index(pos.y);
-        if let Some(proto) = &mut self.proto {
-            let packed = ((pos.x & 15) | ((pos.y & 15) << 4) | ((pos.z & 15) << 8)) as u16;
-            proto.post_processing[index].push(packed);
-        }
+        self.post_processing[index].push(((pos.x & 15) | ((pos.y & 15) << 4) | ((pos.z & 15) << 8)) as u16);
     }
 
     pub fn initialize_light_sources(&mut self) {
@@ -300,7 +299,8 @@ impl LevelChunk {
     pub fn set_block_state(&mut self, pos: BlockPos, state: BlockState) -> Option<BlockState> {
         let i = self.section_index(pos.y);
         let section = &mut self.sections[i];
-        if section.has_only_air() && state.is_air() {
+        let skipped = state.is_air();
+        if section.has_only_air() && skipped {
             return None;
         }
         let (x, z) = ((pos.x & 15) as usize, (pos.z & 15) as usize);
@@ -406,11 +406,26 @@ impl ChunkGenerator {
         match self {
             ChunkGenerator::Flat(flat) => {
                 let mut chunk = flat.generate(pos, dimension);
-                let sections = chunk.sections.len();
-                chunk.proto = Some(Box::new(proto_chunk::ProtoChunkData::new(sections)));
+                chunk.proto = Some(Box::default());
+                for kind in HeightmapType::WORLDGEN {
+                    chunk.get_height(kind, pos.min_block_x(), pos.min_block_z());
+                }
                 chunk
             }
             ChunkGenerator::Noise(noise) => noise.generate_with_beardifier(pos, dimension, beardifier).into_level_chunk(dimension),
+        }
+    }
+
+    pub fn fill_biomes_from_noise(&self, chunk: &mut LevelChunk, dimension: &DimensionType) {
+        match self {
+            ChunkGenerator::Flat(flat) => {
+                for section in &mut chunk.sections {
+                    *section = LevelChunkSection::new(flat.biome);
+                }
+            }
+            ChunkGenerator::Noise(noise) => {
+                crate::world::level::levelgen::NoiseBasedChunkGenerator::fill_biomes_from_noise(&mut chunk.sections, &noise.chunk_biomes(chunk.pos, dimension));
+            }
         }
     }
 

@@ -26,14 +26,13 @@ impl ChunkStatus {
 
 pub struct ProtoChunkData {
     pub heightmaps: [Option<Heightmap>; 2],
-    pub post_processing: Vec<Vec<u16>>,
     pub block_ticks: ProtoChunkTicks<Block>,
     pub fluid_ticks: ProtoChunkTicks<Fluid>,
 }
 
-impl ProtoChunkData {
-    pub fn new(sections: usize) -> ProtoChunkData {
-        ProtoChunkData { heightmaps: [None, None], post_processing: vec![Vec::new(); sections], block_ticks: ProtoChunkTicks::default(), fluid_ticks: ProtoChunkTicks::default() }
+impl Default for ProtoChunkData {
+    fn default() -> ProtoChunkData {
+        ProtoChunkData { heightmaps: [None, None], block_ticks: ProtoChunkTicks::default(), fluid_ticks: ProtoChunkTicks::default() }
     }
 }
 
@@ -174,14 +173,10 @@ impl ProtoChunk {
         for kind in HeightmapType::LIVE {
             heightmaps.push(self.heightmaps[kind.id() as usize].take());
         }
-        let proto = ProtoChunkData {
-            heightmaps: HeightmapType::WORLDGEN.map(|kind| self.heightmaps[kind.id() as usize].take()),
-            post_processing: std::mem::take(&mut self.post_processing),
-            block_ticks: ProtoChunkTicks::default(),
-            fluid_ticks: ProtoChunkTicks::default(),
-        };
+        let proto = ProtoChunkData { heightmaps: HeightmapType::WORLDGEN.map(|kind| self.heightmaps[kind.id() as usize].take()), ..ProtoChunkData::default() };
         let mut chunk = LevelChunk::with_sections(self.pos, dimension, self.sections);
         chunk.proto = Some(Box::new(proto));
+        chunk.post_processing = self.post_processing;
         let mut missing = false;
         for (i, heightmap) in heightmaps.into_iter().enumerate() {
             match heightmap {

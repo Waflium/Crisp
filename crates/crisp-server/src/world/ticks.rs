@@ -157,6 +157,20 @@ impl<T: Copy + Eq + Hash> ProtoChunkTicks<T> {
     pub fn scheduled_ticks(self) -> Vec<SavedTick<T>> {
         self.ticks
     }
+
+    pub fn pack(&self) -> &[SavedTick<T>] {
+        &self.ticks
+    }
+
+    pub fn load(ticks: Vec<SavedTick<T>>) -> ProtoChunkTicks<T> {
+        let mut result = ProtoChunkTicks::default();
+        for tick in ticks {
+            if result.ticks_per_position.insert((tick.pos, tick.ty)) {
+                result.ticks.push(tick);
+            }
+        }
+        result
+    }
 }
 
 pub struct LevelTicks<T> {

@@ -9,6 +9,7 @@ use crisp_protocol::nbt::Nbt;
 
 use crisp_data::{Block, Fluid};
 
+use super::chunk_level::ChunkStatus;
 use crate::world::level::chunk::{ChunkStructures, LevelChunk};
 use crate::world::level::chunk::serialization::{self, ReadChunk, SectionLight};
 use crate::world::level::chunk::storage::RegionStorage;
@@ -61,6 +62,8 @@ pub enum WorkResult {
 
 pub struct ChunkToSave {
     pub chunk: LevelChunk,
+    pub status: ChunkStatus,
+    pub block_entities: Vec<Nbt>,
     pub game_time: i64,
     pub block_ticks: Vec<SavedTick<Block>>,
     pub fluid_ticks: Vec<SavedTick<Fluid>>,
@@ -95,8 +98,8 @@ impl IoWorker {
                             }
                         }
                         IoRequest::WriteChunk(save) => {
-                            let ChunkToSave { chunk, game_time, block_ticks, fluid_ticks, light } = *save;
-                            write(&mut storage, chunk.pos, &serialization::write(&chunk, game_time, &block_ticks, &fluid_ticks, &light));
+                            let ChunkToSave { chunk, status, block_entities, game_time, block_ticks, fluid_ticks, light } = *save;
+                            write(&mut storage, chunk.pos, &serialization::write(&chunk, status, block_entities, game_time, &block_ticks, &fluid_ticks, &light));
                         }
                         IoRequest::Flush { flush, reply } => drop(reply.send(if flush { storage.flush() } else { Ok(()) })),
                     }

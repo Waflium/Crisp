@@ -7,13 +7,16 @@ use crisp_protocol::nbt::Nbt;
 
 use super::data_layer::{self, DataLayer};
 use super::palette::{PackedData, PalettedContainer};
-use super::{Biome, ChunkStructures, HeightmapType, LevelChunk, LevelChunkSection, biome_strategy, block_strategy};
+use super::proto_chunk::ProtoChunkData;
+use super::{Biome, ChunkStructures, Heightmap, HeightmapType, LevelChunk, LevelChunkSection, biome_strategy, block_strategy};
+use crate::server::level::chunk_level::ChunkStatus;
 use crate::world::level::levelgen::structure::structure::StructureHolder;
 use crate::world::level::levelgen::structure::structure_start::StructureStart;
-use crate::world::ticks::{LevelChunkTicks, SavedTick, TickPriority};
+use crate::world::ticks::{LevelChunkTicks, ProtoChunkTicks, SavedTick, TickPriority};
 
 pub struct ReadChunk {
     pub chunk: LevelChunk,
+    pub status: ChunkStatus,
     pub block_ticks: LevelChunkTicks<Block>,
     pub fluid_ticks: LevelChunkTicks<Fluid>,
     pub light: Vec<SectionLight>,
@@ -68,8 +71,8 @@ fn ticks_to_nbt<T: Copy>(ticks: &[SavedTick<T>], name: impl Fn(T) -> &'static st
     )
 }
 
-fn ticks_from_nbt<T: Copy + Eq + std::hash::Hash>(nbt: Option<&Nbt>, ty: impl Fn(&str) -> Option<T>) -> LevelChunkTicks<T> {
-    let ticks = nbt
+fn ticks_from_nbt<T: Copy + Eq + std::hash::Hash>(nbt: Option<&Nbt>, ty: impl Fn(&str) -> Option<T>) -> Vec<SavedTick<T>> {
+    nbt
         .map(Nbt::as_list)
         .unwrap_or(&[])
         .iter()
@@ -82,8 +85,7 @@ fn ticks_from_nbt<T: Copy + Eq + std::hash::Hash>(nbt: Option<&Nbt>, ty: impl Fn
                 priority: TickPriority::by_value(int("p").unwrap_or(0)),
             })
         })
-        .collect();
-    LevelChunkTicks::with_pending(ticks)
+        .collect()
 }
 
 fn invalid(what: &str) -> io::Error {
@@ -143,7 +145,25 @@ fn container_from_nbt<T: super::palette::PaletteValue>(
     PalettedContainer::unpack(strategy, PackedData { palette, storage }).map_err(|e| invalid(&e))
 }
 
-pub fn write(chunk: &LevelChunk, last_update: i64, block_ticks: &[SavedTick<Block>], fluid_ticks: &[SavedTick<Fluid>], light: &[SectionLight]) -> Nbt {
+fn heightmaps_to_nbt(chunk: &LevelChunk, status: ChunkStatus) -> Nbt {
+    let mut heightmaps = Vec::new();
+    for kind in HeightmapType::VALUES {
+        let data = match (HeightmapType::LIVE.iter().position(|&t| t == kind), &chunk.proto) {
+            (Some(i), _) => (status >= ChunkStatus::Terrain).then(|| chunk.heightmaps[i].raw()),
+            (None, Some(proto)) => {
+                let i = HeightmapType::WORLDGEN.iter().position(|&t| t == kind).unwrap();
+                proto.heightmaps[i].as_ref().map(|h| h.raw())
+            }
+            (None, None) => None,
+        };
+        if let Some(data) = data {
+            heightmaps.push((kind.serialization_key().to_string(), Nbt::LongArray(data.to_vec())));
+        }
+    }
+    Nbt::Compound(heightmaps)
+}
+
+pub fn write(chunk: &LevelChunk, status: ChunkStatus, block_entities: Vec<Nbt>, last_update: i64, block_ticks: &[SavedTick<Block>], fluid_ticks: &[SavedTick<Fluid>], light: &[SectionLight]) -> Nbt {
     let min_section = chunk.min_y() >> 4;
     let mut sections = Vec::new();
     for section_y in min_section - 1..=min_section + chunk.sections.len() as i32 {
@@ -168,7 +188,6 @@ pub fn write(chunk: &LevelChunk, last_update: i64, block_ticks: &[SavedTick<Bloc
         tag.push(("Y".into(), Nbt::Byte(section_y as i8)));
         sections.push(Nbt::Compound(tag));
     }
-    let heightmaps = chunk.heightmaps.iter().map(|h| (h.kind.serialization_key().to_string(), Nbt::LongArray(h.raw().to_vec()))).collect();
     let mut tag = vec![
         ("DataVersion".into(), Nbt::Int(WORLD_VERSION)),
         ("xPos".into(), Nbt::Int(chunk.pos.x)),
@@ -176,18 +195,26 @@ pub fn write(chunk: &LevelChunk, last_update: i64, block_ticks: &[SavedTick<Bloc
         ("zPos".into(), Nbt::Int(chunk.pos.z)),
         ("LastUpdate".into(), Nbt::Long(last_update)),
         ("InhabitedTime".into(), Nbt::Long(chunk.inhabited_time)),
-        ("Status".into(), Nbt::String("minecraft:full".into())),
+        ("Status".into(), Nbt::String(format!("minecraft:{}", status.get_name()))),
         ("sections".into(), Nbt::List(sections)),
     ];
     if chunk.light_correct {
         tag.push(("isLightOn".into(), Nbt::Byte(1)));
     }
+    tag.push(("block_entities".into(), Nbt::List(block_entities)));
+    if status != ChunkStatus::Full {
+        tag.push(("entities".into(), Nbt::List(Vec::new())));
+    }
+    let (block_ticks, fluid_ticks) = match &chunk.proto {
+        Some(proto) => (proto.block_ticks.pack(), proto.fluid_ticks.pack()),
+        None => (block_ticks, fluid_ticks),
+    };
+    let post_processing = chunk.post_processing.iter().map(|offsets| Nbt::List(offsets.iter().map(|&offset| Nbt::Short(offset as i16)).collect())).collect();
     tag.extend([
-        ("block_entities".into(), Nbt::List(chunk.block_entities_for_saving())),
         ("block_ticks".into(), ticks_to_nbt(block_ticks, Block::name)),
         ("fluid_ticks".into(), ticks_to_nbt(fluid_ticks, |f| registry::FLUID[f as usize])),
-        ("PostProcessing".into(), Nbt::List(chunk.sections.iter().map(|_| Nbt::List(Vec::new())).collect())),
-        ("Heightmaps".into(), Nbt::Compound(heightmaps)),
+        ("PostProcessing".into(), Nbt::List(post_processing)),
+        ("Heightmaps".into(), heightmaps_to_nbt(chunk, status)),
         ("structures".into(), pack_structure_data(chunk.pos, &chunk.structures)),
     ]);
     Nbt::Compound(tag)
@@ -246,6 +273,10 @@ pub fn read(nbt: &Nbt, dimension: &DimensionType, seed: i64) -> io::Result<ReadC
     if version != WORLD_VERSION as i64 {
         return Err(invalid(&format!("chunk data version {version} is not {WORLD_VERSION}")));
     }
+    let status = match nbt.get("Status").and_then(Nbt::as_str) {
+        Some(name) if !name.is_empty() => ChunkStatus::by_name(name).unwrap_or(ChunkStatus::Empty),
+        _ => return Err(invalid("missing level data")),
+    };
     let x = nbt.get("xPos").and_then(Nbt::as_i64).ok_or_else(|| invalid("missing xPos"))? as i32;
     let z = nbt.get("zPos").and_then(Nbt::as_i64).ok_or_else(|| invalid("missing zPos"))? as i32;
     let plains = Biome::by_name("minecraft:plains").unwrap_or(Biome(0));
@@ -272,22 +303,47 @@ pub fn read(nbt: &Nbt, dimension: &DimensionType, seed: i64) -> io::Result<ReadC
     let mut chunk = LevelChunk::with_sections(ChunkPos::new(x, z), dimension, sections);
     chunk.inhabited_time = nbt.get("InhabitedTime").and_then(Nbt::as_i64).unwrap_or(0);
     chunk.light_correct = nbt.get("isLightOn").and_then(Nbt::as_i64).is_some_and(|b| b != 0);
-    chunk.load_block_entities(nbt.get("block_entities").map(Nbt::as_list).unwrap_or(&[]));
-    chunk.structures = unpack_structure_data(chunk.pos, nbt.get("structures"), seed);
-    let mut missing = false;
-    for kind in HeightmapType::LIVE {
-        let i = HeightmapType::LIVE.iter().position(|&t| t == kind).unwrap();
-        match nbt.get("Heightmaps").and_then(|h| h.get(kind.serialization_key())) {
-            Some(Nbt::LongArray(data)) if chunk.heightmaps[i].set_raw(data) => {}
-            _ => missing = true,
+    let block_entities = nbt.get("block_entities").map(Nbt::as_list).unwrap_or(&[]);
+    if status == ChunkStatus::Full {
+        chunk.load_block_entities(block_entities);
+    } else {
+        for tag in block_entities {
+            chunk.block_entities.pending.insert(crate::world::level::block::entity::BlockEntity::get_pos_from_tag(chunk.pos, tag), tag.clone());
         }
+    }
+    chunk.structures = unpack_structure_data(chunk.pos, nbt.get("structures"), seed);
+    let heightmap_data = |kind: HeightmapType| match nbt.get("Heightmaps").and_then(|h| h.get(kind.serialization_key())) {
+        Some(Nbt::LongArray(data)) => Some(data),
+        _ => None,
+    };
+    let mut missing = false;
+    for (i, kind) in HeightmapType::LIVE.into_iter().enumerate() {
+        missing |= !heightmap_data(kind).is_some_and(|data| chunk.heightmaps[i].set_raw(data));
     }
     if missing {
         chunk.prime_heightmaps();
     }
+    for (section, offsets) in chunk.post_processing.iter_mut().zip(nbt.get("PostProcessing").map(Nbt::as_list).unwrap_or(&[])) {
+        section.extend(offsets.as_list().iter().filter_map(Nbt::as_i64).map(|offset| offset as u16));
+    }
     let block_ticks = ticks_from_nbt(nbt.get("block_ticks"), Block::by_name);
     let fluid_ticks = ticks_from_nbt(nbt.get("fluid_ticks"), fluid_by_name);
-    Ok(ReadChunk { chunk, block_ticks, fluid_ticks, light })
+    if status == ChunkStatus::Full {
+        return Ok(ReadChunk { chunk, status, block_ticks: LevelChunkTicks::with_pending(block_ticks), fluid_ticks: LevelChunkTicks::with_pending(fluid_ticks), light });
+    }
+    let mut proto = ProtoChunkData::default();
+    for (i, kind) in HeightmapType::WORLDGEN.into_iter().enumerate() {
+        if let Some(data) = heightmap_data(kind) {
+            let mut heightmap = Heightmap::new(kind, dimension.min_y, dimension.height as i32);
+            if heightmap.set_raw(data) {
+                proto.heightmaps[i] = Some(heightmap);
+            }
+        }
+    }
+    proto.block_ticks = ProtoChunkTicks::load(block_ticks);
+    proto.fluid_ticks = ProtoChunkTicks::load(fluid_ticks);
+    chunk.proto = Some(Box::new(proto));
+    Ok(ReadChunk { chunk, status, block_ticks: LevelChunkTicks::default(), fluid_ticks: LevelChunkTicks::default(), light })
 }
 
 #[cfg(test)]
@@ -309,7 +365,7 @@ mod tests {
         let stairs = blocks::OAK_STAIRS.default_state().set(HORIZONTAL_FACING, Direction::East);
         chunk.set_block_state(BlockPos::new(49, -60, -110), stairs);
         chunk.set_block_state(BlockPos::new(53, 100, -103), blocks::GLOWSTONE.default_state());
-        let read = read(&write(&chunk, 0, &[], &[], &[]), overworld(), 0).unwrap().chunk;
+        let read = read(&write(&chunk, ChunkStatus::Full, Vec::new(), 0, &[], &[], &[]), overworld(), 0).unwrap().chunk;
         assert_eq!(read.pos, ChunkPos::new(3, -7));
         assert_eq!(read.block_state(BlockPos::new(49, -60, -110)), stairs);
         assert_eq!(read.block_state(BlockPos::new(53, 100, -103)), blocks::GLOWSTONE.default_state());

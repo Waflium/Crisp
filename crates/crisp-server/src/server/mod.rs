@@ -522,7 +522,7 @@ impl Server {
                     Err(_) => error!("Could not save data to chunk_tickets.dat"),
                 }
             }
-            if self.level.chunks.save(self.level.game_time).is_err() {
+            if self.level.chunks.save(self.level.game_time, flush).is_err() {
                 warn!("Failed to synchronize chunks");
             }
             if flush {
@@ -615,7 +615,16 @@ impl Server {
         }
         info!("Saving worlds");
         self.level.no_save = false;
-        self.level.chunks.deactivate_tickets_on_closing();
+        while self.level.chunks.has_work() {
+            let next_tick = Instant::now() + Duration::from_millis(1);
+            self.level.chunks.deactivate_tickets_on_closing();
+            self.level.tick_chunk_source_without_chunks();
+            while let Some(wait) = next_tick.checked_duration_since(Instant::now()).filter(|w| !w.is_zero()) {
+                if !self.level.poll_chunk_task() {
+                    self.level.wait_for_chunk_work(wait);
+                }
+            }
+        }
         self.save_all_chunks(false, true, false);
         self.level.close();
     }

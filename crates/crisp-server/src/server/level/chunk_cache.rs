@@ -1,4 +1,4 @@
-use crisp_core::hash_map::FastMap;
+use crisp_core::hash_map::{FastMap, FastSet};
 use std::collections::{HashMap, VecDeque};
 use std::io;
 use std::sync::mpsc::{Receiver, RecvTimeoutError, Sender};
@@ -25,7 +25,7 @@ use crate::world::level::block::entity::BlockEntity;
 use crate::world::level::chunk::block_entities::{BlockEntityTickers, EntityCreationType};
 use super::world_gen_region::{RegionLightTask, WorldGenRegion};
 use crate::world::level::chunk::chunk_generator_structure_state::ChunkGeneratorStructureState;
-use crate::world::level::chunk::{ChunkGenerator, ChunkStructures, LevelChunk};
+use crate::world::level::chunk::{Biome, ChunkGenerator, ChunkStructures, HeightmapType, LevelChunk};
 use crate::world::level::levelgen::beardifier::Beardifier;
 use crate::world::level::levelgen::structure::structure::StructureHolder;
 use crate::world::level::levelgen::structure::terrain_adjustment::TerrainAdjustment;
@@ -49,6 +49,7 @@ pub struct ChunkCache {
     chunks: FastMap<ChunkPos, LevelChunk>,
     terrain_chunks: FastMap<ChunkPos, LevelChunk>,
     structure_chunks: FastMap<ChunkPos, ChunkStructures>,
+    loaded_structure_chunks: FastSet<ChunkPos>,
     structure_state: Option<Arc<ChunkGeneratorStructureState>>,
     pub generate_structures: bool,
     pub seed: i64,
@@ -71,6 +72,7 @@ pub struct ChunkCache {
     unload_queue: VecDeque<i64>,
     waiting_unloads: IndexSet<i64>,
     ready_to_send: Vec<ChunkPos>,
+    ticking_ready: Vec<ChunkPos>,
     full_status_changes: VecDeque<(ChunkPos, FullChunkStatus)>,
     last_chunk_pos: [Option<ChunkPos>; 4],
     server_view_distance: i32,
@@ -92,6 +94,7 @@ impl ChunkCache {
             chunks: FastMap::default(),
             terrain_chunks: FastMap::default(),
             structure_chunks: FastMap::default(),
+            loaded_structure_chunks: FastSet::default(),
             structure_state,
             generate_structures: true,
             seed: 0,
@@ -114,6 +117,7 @@ impl ChunkCache {
             unload_queue: VecDeque::new(),
             waiting_unloads: IndexSet::new(),
             ready_to_send: Vec::new(),
+            ticking_ready: Vec::new(),
             full_status_changes: VecDeque::new(),
             last_chunk_pos: [None; 4],
             server_view_distance: 0,
@@ -298,6 +302,16 @@ impl ChunkCache {
         is_position_ticking(&self.distance_manager, &self.holders, pos)
     }
 
+    pub fn take_ticking_ready(&mut self) -> Vec<ChunkPos> {
+        std::mem::take(&mut self.ticking_ready)
+    }
+
+    pub fn start_ticking_chunk(&mut self, pos: ChunkPos) {
+        self.block_ticks.unpack_container(pos, self.game_time);
+        self.fluid_ticks.unpack_container(pos, self.game_time);
+        self.ready_to_send.push(pos);
+    }
+
     pub fn take_ready_to_send(&mut self) -> Vec<ChunkPos> {
         std::mem::take(&mut self.ready_to_send)
     }
@@ -328,9 +342,21 @@ impl ChunkCache {
         self.distance_manager.purge_stale_tickets(&mut self.holders);
     }
 
-    pub fn tick_unloads(&mut self, no_save: bool) {
+    pub fn has_work(&self) -> bool {
+        self.light_engine.has_work()
+            || !self.holders.pending_unloads.is_empty()
+            || !self.holders.map.is_empty()
+            || !self.holders.to_drop.is_empty()
+            || !self.unload_queue.is_empty()
+            || !self.waiting_unloads.is_empty()
+            || self.in_flight > 0
+            || !self.holders.tasks.is_empty()
+            || self.distance_manager.has_tickets()
+    }
+
+    pub fn tick_unloads(&mut self, no_save: bool, have_time: bool) {
         if !no_save {
-            self.process_unloads();
+            self.process_unloads(have_time);
         }
         self.clear_cache();
         let count = self.holders.future_count();
@@ -587,9 +613,7 @@ impl ChunkCache {
             }
             RangeThen::Ticking { pos, future } => {
                 if success {
-                    self.block_ticks.unpack_container(pos, self.game_time);
-                    self.fluid_ticks.unpack_container(pos, self.game_time);
-                    self.ready_to_send.push(pos);
+                    self.ticking_ready.push(pos);
                 }
                 self.holders.futures.complete(future, success);
             }
@@ -860,8 +884,13 @@ impl ChunkCache {
             }
             ChunkStatus::Terrain => {
                 let holder = self.holders.get_mut(pos.pack()).unwrap();
+                let decorated = holder.persisted_status.is_some_and(|status| status >= ChunkStatus::Features);
                 if let Some(chunk) = holder.loaded.take() {
-                    self.chunks.insert(pos, *chunk);
+                    if decorated {
+                        self.chunks.insert(pos, *chunk);
+                    } else {
+                        self.terrain_chunks.insert(pos, *chunk);
+                    }
                 }
                 self.complete_step(job);
             }
@@ -1071,7 +1100,7 @@ impl ChunkCache {
             }
         };
         let persisted = match read {
-            Some(serialization::ReadChunk { chunk, block_ticks, fluid_ticks, light }) => {
+            Some(serialization::ReadChunk { chunk, status, block_ticks, fluid_ticks, light }) => {
                 let mut loaded_any_light = false;
                 for SectionLight { y, block, sky } in light {
                     let sky = sky.filter(|_| self.dimension.has_skylight);
@@ -1090,10 +1119,17 @@ impl ChunkCache {
                         self.add_light_task(TaskType::PreUpdate, LightTask::QueueSectionData(LightLayer::Sky, section_node, sky));
                     }
                 }
-                let holder = self.holders.get_mut(pos.pack()).unwrap();
-                holder.loaded = Some(Box::new(chunk));
-                holder.saved_ticks = Some(Box::new((block_ticks, fluid_ticks)));
-                ChunkStatus::Full
+                if status < ChunkStatus::Terrain {
+                    self.structure_chunks.insert(pos, chunk.structures);
+                    self.loaded_structure_chunks.insert(pos);
+                } else {
+                    let holder = self.holders.get_mut(pos.pack()).unwrap();
+                    holder.loaded = Some(Box::new(chunk));
+                    if status == ChunkStatus::Full {
+                        holder.saved_ticks = Some(Box::new((block_ticks, fluid_ticks)));
+                    }
+                }
+                status
             }
             None => ChunkStatus::Empty,
         };
@@ -1117,6 +1153,7 @@ impl ChunkCache {
             WorkResult::Generated { mut chunk, .. } => {
                 chunk.unsaved = true;
                 chunk.structures = self.structure_chunks.remove(&pos).unwrap_or_default();
+                self.loaded_structure_chunks.remove(&pos);
                 self.terrain_chunks.insert(pos, chunk);
                 self.complete_step(job);
             }
@@ -1267,7 +1304,7 @@ impl ChunkCache {
         lighting::write_light_data(w, pos, &self.light_engine.engine, None, None);
     }
 
-    fn process_unloads(&mut self) {
+    fn process_unloads(&mut self, have_time: bool) {
         let mut dropped = Vec::new();
         self.holders.to_drop.retain(|pos| {
             dropped.push(pos);
@@ -1291,7 +1328,7 @@ impl ChunkCache {
             self.unload_queue.push_back(pos);
         }
         let mut forced = self.unload_queue.len().saturating_sub(2000);
-        while forced > 0 || self.tick_deadline.is_none_or(|deadline| Instant::now() < deadline) {
+        while forced > 0 || have_time || self.tick_deadline.is_none_or(|deadline| Instant::now() < deadline) {
             let Some(pos) = self.unload_queue.pop_front() else { break };
             forced = forced.saturating_sub(1);
             self.unload(pos);
@@ -1308,27 +1345,57 @@ impl ChunkCache {
         let chunk_pos = holder.pos;
         let is_full = holder.status_done(&self.holders.futures, ChunkStatus::Full);
         let terrain_chunk = self.terrain_chunks.remove(&chunk_pos);
-        self.structure_chunks.remove(&chunk_pos);
+        let structures = self.structure_chunks.remove(&chunk_pos);
+        let loaded_structures = self.loaded_structure_chunks.remove(&chunk_pos);
         let mut chunk = self.chunks.remove(&chunk_pos);
         if let Some(chunk) = &mut chunk {
             chunk.loaded = false;
         }
         let had_chunk = chunk.is_some() || terrain_chunk.is_some() || holder.loaded.is_some() || holder.persisted_status.is_some();
-        if is_full && let Some(chunk) = chunk {
-            if let Some(io) = &self.io
-                && chunk.unsaved
-            {
+        if is_full && let Some(mut chunk) = chunk {
+            if self.io.is_some() && chunk.unsaved {
+                let block_entities = chunk.block_entities_for_saving(&mut self.block_entity_tickers);
                 let light = self.light_to_save(chunk_pos);
                 let block_ticks = self.block_ticks.pack(chunk_pos, self.game_time);
                 let fluid_ticks = self.fluid_ticks.pack(chunk_pos, self.game_time);
-                io.write_chunk(ChunkToSave { chunk, game_time: self.game_time, block_ticks, fluid_ticks, light });
+                let save = ChunkToSave { chunk, status: ChunkStatus::Full, block_entities, game_time: self.game_time, block_ticks, fluid_ticks, light };
+                self.io.as_ref().unwrap().write_chunk(save);
             }
             self.block_ticks.remove_container(chunk_pos);
             self.fluid_ticks.remove_container(chunk_pos);
+        } else if let Some(status) = holder.persisted_status.filter(|&status| status != ChunkStatus::Empty && status != ChunkStatus::Full) {
+            let proto_chunk = if status < ChunkStatus::Terrain {
+                structures.map(|structures| self.create_proto_chunk(chunk_pos, status, structures, loaded_structures))
+            } else {
+                terrain_chunk.or(chunk).or(holder.loaded.map(|chunk| *chunk))
+            };
+            if self.io.is_some()
+                && let Some(mut proto_chunk) = proto_chunk
+            {
+                let block_entities = proto_chunk.block_entities_for_saving(&mut self.block_entity_tickers);
+                let light = self.light_to_save(chunk_pos);
+                let save = ChunkToSave { chunk: proto_chunk, status, block_entities, game_time: self.game_time, block_ticks: Vec::new(), fluid_ticks: Vec::new(), light };
+                self.io.as_ref().unwrap().write_chunk(save);
+            }
         }
         if had_chunk {
             self.add_light_task(TaskType::PreUpdate, LightTask::UpdateChunkStatus(chunk_pos));
         }
+    }
+
+    fn create_proto_chunk(&self, pos: ChunkPos, status: ChunkStatus, structures: ChunkStructures, loaded: bool) -> LevelChunk {
+        let mut chunk = LevelChunk::empty(pos, self.dimension, Biome::by_name("minecraft:plains").expect("plains"));
+        if status >= ChunkStatus::Biomes {
+            self.generator.fill_biomes_from_noise(&mut chunk, self.dimension);
+        }
+        chunk.proto = Some(Box::default());
+        if loaded {
+            for kind in HeightmapType::WORLDGEN {
+                chunk.get_height(kind, pos.min_block_x(), pos.min_block_z());
+            }
+        }
+        chunk.structures = structures;
+        chunk
     }
 
     fn light_to_save(&self, pos: ChunkPos) -> Vec<SectionLight> {
@@ -1341,22 +1408,28 @@ impl ChunkCache {
     }
 
     fn save_chunk(&mut self, pos: ChunkPos) -> bool {
-        let Some(io) = &self.io else { return false };
-        let Some(chunk) = self.chunks.get(&pos).filter(|c| c.unsaved) else { return false };
+        if self.io.is_none() {
+            return false;
+        }
+        let Some(chunk) = self.chunks.get_mut(&pos).filter(|c| c.unsaved) else { return false };
+        let block_entities = chunk.block_entities_for_saving(&mut self.block_entity_tickers);
         let light = self.light_to_save(pos);
         let block_ticks = self.block_ticks.pack(pos, self.game_time);
         let fluid_ticks = self.fluid_ticks.pack(pos, self.game_time);
-        let nbt = serialization::write(chunk, self.game_time, &block_ticks, &fluid_ticks, &light);
-        io.write(pos, nbt);
+        let nbt = serialization::write(&self.chunks[&pos], ChunkStatus::Full, block_entities, self.game_time, &block_ticks, &fluid_ticks, &light);
+        self.io.as_ref().unwrap().write(pos, nbt);
         self.chunks.get_mut(&pos).unwrap().unsaved = false;
         true
     }
 
-    pub fn save(&mut self, game_time: i64) -> io::Result<usize> {
+    pub fn save(&mut self, game_time: i64, flush: bool) -> io::Result<usize> {
         if self.io.is_none() {
             return Ok(0);
         }
         self.game_time = game_time;
+        if flush {
+            self.run_distance_manager_updates();
+        }
         let mut full: Vec<ChunkPos> = self
             .holders
             .map
@@ -1367,6 +1440,9 @@ impl ChunkCache {
             .collect();
         full.sort();
         let saved = full.into_iter().filter(|&pos| self.save_chunk(pos)).count();
+        if flush {
+            self.process_unloads(true);
+        }
         self.io.as_ref().unwrap().flush()?;
         Ok(saved)
     }

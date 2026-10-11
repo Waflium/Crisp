@@ -374,7 +374,7 @@ fn chunks_without_light_are_lit_from_scratch() {
     for x in -2..=3 {
         for z in -2..=2 {
             let Some(chunk) = built.chunk_if_present(ChunkPos::new(x, z)) else { continue };
-            let mut nbt = serialization::write(chunk, 0, &[], &[], &[]);
+            let mut nbt = serialization::write(chunk, crate::server::level::chunk_level::ChunkStatus::Full, Vec::new(), 0, &[], &[], &[]);
             if let Nbt::Compound(fields) = &mut nbt {
                 fields.retain(|(key, _)| key != "isLightOn");
             }
@@ -400,7 +400,7 @@ fn saved_light_is_loaded_back() {
             }
         }
     }
-    built.save(0).unwrap();
+    built.save(0, false).unwrap();
     let mut loaded = ChunkCache::new(overworld(), FlatLevelSource::default(), Some(RegionStorage::new(dir.clone(), false)));
     loaded.prepare_ticking_chunk(ChunkPos::new(0, 0));
     loaded.prepare_ticking_chunk(ChunkPos::new(1, 0));

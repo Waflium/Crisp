@@ -280,6 +280,10 @@ impl ServerLevel {
     }
 
     pub fn process_chunk_events(&mut self) {
+        for pos in self.chunks.take_ticking_ready() {
+            self.post_process_generation(pos);
+            self.chunks.start_ticking_chunk(pos);
+        }
         while let Some((pos, status)) = self.chunks.pop_full_status_change() {
             self.update_chunk_status(pos, status);
         }

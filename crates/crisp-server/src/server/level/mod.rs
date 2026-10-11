@@ -702,6 +702,38 @@ impl ServerLevel {
         new
     }
 
+    pub fn post_process_generation(&mut self, chunk_pos: ChunkPos) {
+        let chunk = self.chunks.chunk(chunk_pos);
+        let min_section_y = chunk.min_y() >> 4;
+        let section_count = chunk.post_processing.len();
+        for section_index in 0..section_count {
+            let offsets = std::mem::take(&mut self.chunks.chunk(chunk_pos).post_processing[section_index]);
+            for packed in offsets {
+                let pos = BlockPos::new(
+                    chunk_pos.min_block_x() + (packed & 15) as i32,
+                    ((min_section_y + section_index as i32) << 4) + ((packed >> 4) & 15) as i32,
+                    chunk_pos.min_block_z() + ((packed >> 8) & 15) as i32,
+                );
+                let state = self.block_state(pos);
+                if !state.fluid_state().is_empty() {
+                    crate::world::level::material::tick(self, pos, state);
+                }
+                if state.block().info().classes.contains(&"LiquidBlock") {
+                    block::of(state).tick(state, self, pos);
+                } else {
+                    let new_state = self.update_from_neighbour_shapes(state, pos);
+                    if new_state != state {
+                        self.set_block(pos, new_state, 276);
+                    }
+                }
+            }
+        }
+        for pos in self.chunks.chunk(chunk_pos).block_entities.pending.keys().collect::<Vec<_>>() {
+            self.chunks.block_entity(pos, EntityCreationType::Check);
+        }
+        self.chunks.chunk(chunk_pos).block_entities.pending.clear();
+    }
+
     pub fn block_event(&mut self, pos: BlockPos, block: Block, b0: i32, b1: i32) {
         if !self.block_events.contains(&(pos, block, b0, b1)) {
             self.block_events.push((pos, block, b0, b1));
@@ -862,7 +894,7 @@ impl ServerLevel {
         if self.world_border.save().is_err() {
             error!("Could not save data to world_border.dat");
         }
-        if self.chunks.save(self.game_time).is_err() {
+        if self.chunks.save(self.game_time, true).is_err() {
             warn!("Failed to synchronize chunks");
         }
         self.save_all_entities();
@@ -926,6 +958,13 @@ impl ServerLevel {
         self.game_time
     }
 
+    pub fn tick_chunk_source_without_chunks(&mut self) {
+        self.chunks.purge_stale_tickets();
+        self.chunks.run_distance_manager_updates();
+        self.process_chunk_events();
+        self.chunks.tick_unloads(self.no_save, true);
+    }
+
     pub fn tick_after_time(&mut self, runs: bool) {
         if runs {
             self.tick_block_ticks();
@@ -942,7 +981,7 @@ impl ServerLevel {
         }
         self.broadcast_changed_chunks();
         self.tick_chunk_map();
-        self.chunks.tick_unloads(self.no_save);
+        self.chunks.tick_unloads(self.no_save, false);
         if runs {
             self.run_block_events();
         }

@@ -1,34 +1,31 @@
 use std::collections::HashMap;
 
-use indexmap::IndexMap;
+use crisp_core::fastutil::OpenHashMap;
+use crisp_core::hash_map::FastMap;
 
 use crisp_core::BlockPos;
 use crisp_protocol::nbt::Nbt;
 
 use super::LevelChunk;
+use crate::util::java_collections::JavaObjectHashSet;
 use crate::world::level::block::entity::{BlockEntity, BlockEntityTicker};
 
 #[derive(Clone, Default)]
 pub struct BlockEntityMap {
-    map: IndexMap<BlockPos, BlockEntity>,
-    capacity: usize,
-}
-
-fn block_pos_hash(pos: BlockPos) -> i32 {
-    (pos.y.wrapping_add(pos.z.wrapping_mul(31))).wrapping_mul(31).wrapping_add(pos.x)
+    map: OpenHashMap<BlockPos, BlockEntity>,
 }
 
 impl BlockEntityMap {
     pub fn get(&self, pos: &BlockPos) -> Option<&BlockEntity> {
-        self.map.get(pos)
+        self.map.get(*pos)
     }
 
     pub fn get_mut(&mut self, pos: &BlockPos) -> Option<&mut BlockEntity> {
-        self.map.get_mut(pos)
+        self.map.get_mut(*pos)
     }
 
     pub fn contains_key(&self, pos: &BlockPos) -> bool {
-        self.map.contains_key(pos)
+        self.map.contains_key(*pos)
     }
 
     pub fn len(&self) -> usize {
@@ -40,17 +37,11 @@ impl BlockEntityMap {
     }
 
     pub fn insert(&mut self, pos: BlockPos, entity: BlockEntity) -> Option<BlockEntity> {
-        let previous = self.map.insert(pos, entity);
-        let mut capacity = self.capacity.max(16);
-        while self.map.len() > capacity * 3 / 4 {
-            capacity *= 2;
-        }
-        self.capacity = capacity;
-        previous
+        self.map.insert(pos, entity)
     }
 
     pub fn remove(&mut self, pos: &BlockPos) -> Option<BlockEntity> {
-        self.map.shift_remove(pos)
+        self.map.remove(*pos)
     }
 
     pub fn clear(&mut self) {
@@ -58,19 +49,61 @@ impl BlockEntityMap {
     }
 
     pub fn keys_in_order(&self) -> Vec<BlockPos> {
-        let capacity = self.capacity.max(16);
-        let bucket = |pos: &BlockPos| {
-            let h = block_pos_hash(*pos);
-            ((h ^ ((h as u32) >> 16) as i32) as u32 as usize) & (capacity - 1)
-        };
-        let mut keys: Vec<BlockPos> = self.map.keys().copied().collect();
-        keys.sort_by_key(bucket);
-        keys
+        self.map.keys().collect()
     }
 
     pub fn values_mut(&mut self) -> impl Iterator<Item = &mut BlockEntity> {
         self.map.values_mut()
     }
+}
+
+#[derive(Clone, Default)]
+pub struct PendingBlockEntities {
+    order: JavaObjectHashSet<BlockPos>,
+    tags: FastMap<BlockPos, Nbt>,
+}
+
+impl PendingBlockEntities {
+    pub fn get(&self, pos: &BlockPos) -> Option<&Nbt> {
+        self.tags.get(pos)
+    }
+
+    pub fn contains_key(&self, pos: &BlockPos) -> bool {
+        self.tags.contains_key(pos)
+    }
+
+    pub fn len(&self) -> usize {
+        self.tags.len()
+    }
+
+    pub fn insert(&mut self, pos: BlockPos, tag: Nbt) -> Option<Nbt> {
+        self.order.insert(pos);
+        self.tags.insert(pos, tag)
+    }
+
+    pub fn remove(&mut self, pos: &BlockPos) -> Option<Nbt> {
+        self.order.remove(pos);
+        self.tags.remove(pos)
+    }
+
+    pub fn clear(&mut self) {
+        self.order.clear();
+        self.tags.clear();
+    }
+
+    pub fn keys(&self) -> impl Iterator<Item = BlockPos> + '_ {
+        self.order.iter()
+    }
+}
+
+fn put_keep_packed(tag: Nbt, keep_packed: bool) -> Nbt {
+    let Nbt::Compound(mut fields) = tag else { return tag };
+    let value = Nbt::Byte(keep_packed as i8);
+    match fields.iter_mut().find(|(key, _)| key == "keepPacked") {
+        Some((_, existing)) => *existing = value,
+        None => fields.push(("keepPacked".into(), value)),
+    }
+    Nbt::Compound(fields)
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -99,7 +132,7 @@ impl BlockEntityTickers {
 #[derive(Default)]
 pub struct ChunkBlockEntities {
     pub map: BlockEntityMap,
-    pub pending: IndexMap<BlockPos, Nbt>,
+    pub pending: PendingBlockEntities,
     pub tickers_in_level: HashMap<BlockPos, (u64, BlockEntityTicker)>,
 }
 
@@ -110,7 +143,7 @@ impl LevelChunk {
 
     pub fn get_block_entity(&mut self, pos: BlockPos, creation: EntityCreationType, tickers: &mut BlockEntityTickers) -> Option<&mut BlockEntity> {
         if !self.block_entities.map.contains_key(&pos)
-            && let Some(tag) = self.block_entities.pending.shift_remove(&pos)
+            && let Some(tag) = self.block_entities.pending.remove(&pos)
             && self.promote_pending_block_entity(pos, &tag, tickers)
         {
             return self.block_entities.map.get_mut(&pos);
@@ -239,29 +272,36 @@ impl LevelChunk {
         self.block_entities.tickers_in_level.get(&pos).filter(|(bound, _)| *bound == id).map(|(_, ticker)| *ticker)
     }
 
-    pub fn block_entities_for_saving(&self) -> Vec<Nbt> {
-        let mut out = Vec::new();
-        for (pos, tag) in &self.block_entities.pending {
-            if self.block_entities.map.get(pos).is_some_and(|e| !e.is_removed()) {
-                continue;
-            }
-            let mut tag = tag.clone();
-            if let Nbt::Compound(fields) = &mut tag {
-                fields.retain(|(k, _)| k != "keepPacked");
-                fields.push(("keepPacked".into(), Nbt::Byte(1)));
-            }
-            out.push(tag);
+    pub fn get_block_entities_pos(&self) -> Vec<BlockPos> {
+        let pending = &self.block_entities.pending;
+        let mut result = JavaObjectHashSet::with_capacity((pending.len().max(12) as f64 / 0.75).ceil() as usize);
+        for pos in pending.keys() {
+            result.insert(pos);
         }
         for pos in self.block_entities.map.keys_in_order() {
-            let entity = &self.block_entities.map.get(&pos).unwrap();
-            if entity.is_removed() {
-                continue;
-            }
-            let Nbt::Compound(mut fields) = entity.save_with_full_metadata() else { unreachable!() };
-            fields.push(("keepPacked".into(), Nbt::Byte(0)));
-            out.push(Nbt::Compound(fields));
+            result.insert(pos);
         }
-        out
+        result.iter().collect()
+    }
+
+    pub fn block_entities_for_saving(&mut self, tickers: &mut BlockEntityTickers) -> Vec<Nbt> {
+        let positions = self.get_block_entities_pos();
+        positions.into_iter().filter_map(|pos| self.get_block_entity_nbt_for_saving(pos, tickers)).collect()
+    }
+
+    fn get_block_entity_nbt_for_saving(&mut self, pos: BlockPos, tickers: &mut BlockEntityTickers) -> Option<Nbt> {
+        if self.proto.is_some() {
+            return match self.block_entities.map.get(&pos) {
+                Some(entity) => Some(entity.save_with_full_metadata()),
+                None => self.block_entities.pending.get(&pos).cloned(),
+            };
+        }
+        if let Some(entity) = self.get_block_entity(pos, EntityCreationType::Check, tickers)
+            && !entity.is_removed()
+        {
+            return Some(put_keep_packed(entity.save_with_full_metadata(), false));
+        }
+        self.block_entities.pending.get(&pos).map(|tag| put_keep_packed(tag.clone(), true))
     }
 
     pub fn load_block_entities(&mut self, tags: &[Nbt]) {

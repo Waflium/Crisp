@@ -41,6 +41,14 @@ impl OpenHashKey for i32 {
     }
 }
 
+impl OpenHashKey for crate::BlockPos {
+    const NULL: crate::BlockPos = crate::BlockPos::new(i32::MIN, i32::MIN, i32::MIN);
+
+    fn mix(self) -> usize {
+        mix_int(self.y.wrapping_add(self.z.wrapping_mul(31)).wrapping_mul(31).wrapping_add(self.x)) as u32 as usize
+    }
+}
+
 pub type Long2ObjectOpenHashMap<V> = OpenHashMap<i64, V>;
 pub type Int2ObjectOpenHashMap<V> = OpenHashMap<i32, V>;
 
@@ -268,6 +276,10 @@ impl<K: OpenHashKey, V> OpenHashMap<K, V> {
 
     pub fn values(&self) -> impl Iterator<Item = &V> + '_ {
         self.positions().map(|pos| self.value[pos].as_ref().unwrap())
+    }
+
+    pub fn values_mut(&mut self) -> impl Iterator<Item = &mut V> + '_ {
+        self.value.iter_mut().filter_map(Option::as_mut)
     }
 
     pub fn retain(&mut self, mut keep: impl FnMut(K, &mut V) -> bool) {

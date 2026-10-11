@@ -64,7 +64,9 @@ fn block_entities_are_saved_with_their_chunk() {
     let c = container(&level, pos);
     level.set_item(c, 0, ItemStack::new(items::RAW_IRON, 3));
     let dimension = &crisp_data::DIMENSION_TYPES[0];
-    let saved = crate::world::level::chunk::serialization::write(level.chunks.chunk(pos.chunk()), 0, &[], &[], &[]);
+    let chunk = level.chunks.chunk(pos.chunk());
+    let block_entities = chunk.block_entities_for_saving(&mut Default::default());
+    let saved = crate::world::level::chunk::serialization::write(chunk, crate::server::level::chunk_level::ChunkStatus::Full, block_entities, 0, &[], &[], &[]);
     let list = saved.get("block_entities").unwrap().as_list();
     assert_eq!(list.len(), 1);
     assert_eq!(list[0].get("id"), Some(&Nbt::String("minecraft:furnace".into())));

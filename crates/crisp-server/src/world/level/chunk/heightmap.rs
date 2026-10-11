@@ -16,6 +16,14 @@ impl HeightmapType {
     pub const LIVE: [HeightmapType; 4] =
         [HeightmapType::WorldSurface, HeightmapType::OceanFloor, HeightmapType::MotionBlocking, HeightmapType::MotionBlockingNoLeaves];
     pub const WORLDGEN: [HeightmapType; 2] = [HeightmapType::OceanFloorWg, HeightmapType::WorldSurfaceWg];
+    pub const VALUES: [HeightmapType; 6] = [
+        HeightmapType::WorldSurfaceWg,
+        HeightmapType::WorldSurface,
+        HeightmapType::OceanFloorWg,
+        HeightmapType::OceanFloor,
+        HeightmapType::MotionBlocking,
+        HeightmapType::MotionBlockingNoLeaves,
+    ];
 
     pub fn id(self) -> i32 {
         match self {

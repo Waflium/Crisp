@@ -27,7 +27,7 @@ use crate::world::level::chunk::ChunkStructures;
 use crate::world::level::chunk::carving_mask::CarvingMask;
 use crate::world::level::chunk::chunk_generator_structure_state::ChunkGeneratorStructureState;
 use crate::world::level::chunk::proto_chunk::{ChunkStatus, ProtoChunk};
-use crate::world::level::chunk::{Biome, HeightmapType};
+use crate::world::level::chunk::{Biome, HeightmapType, LevelChunkSection};
 use crate::world::level::noise_column::NoiseColumn;
 
 const MAX_CACHED_BIOMES: usize = 16384;
@@ -261,18 +261,21 @@ impl NoiseBasedChunkGenerator {
         self.build_terrain(pos, dimension, std::array::from_fn(|i| &*region[i]), beardifier)
     }
 
-    pub fn build_terrain(&self, pos: ChunkPos, dimension: &DimensionType, biomes: [&ChunkBiomes; 9], beardifier: Option<Arc<Beardifier>>) -> ProtoChunk {
-        let mut chunk = ProtoChunk::new(pos, dimension);
-        let center = biomes[4];
-        for (i, section) in chunk.sections.iter_mut().enumerate() {
+    pub fn fill_biomes_from_noise(sections: &mut [LevelChunkSection], biomes: &ChunkBiomes) {
+        for (i, section) in sections.iter_mut().enumerate() {
             for x in 0..4 {
                 for y in 0..4 {
                     for z in 0..4 {
-                        section.biomes.set(x, y, z, center.get_local(x, i * 4 + y, z));
+                        section.biomes.set(x, y, z, biomes.get_local(x, i * 4 + y, z));
                     }
                 }
             }
         }
+    }
+
+    pub fn build_terrain(&self, pos: ChunkPos, dimension: &DimensionType, biomes: [&ChunkBiomes; 9], beardifier: Option<Arc<Beardifier>>) -> ProtoChunk {
+        let mut chunk = ProtoChunk::new(pos, dimension);
+        NoiseBasedChunkGenerator::fill_biomes_from_noise(&mut chunk.sections, biomes[4]);
         chunk.status = ChunkStatus::Biomes;
         let noise = self.settings.noise.clamp_to(dimension.min_y, dimension.height as i32);
         if noise.height <= 0 {

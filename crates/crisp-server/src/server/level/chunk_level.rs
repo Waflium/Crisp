@@ -30,6 +30,26 @@ impl ChunkStatus {
         self as usize
     }
 
+    pub fn get_name(self) -> &'static str {
+        match self {
+            ChunkStatus::Empty => "empty",
+            ChunkStatus::StructureStarts => "structure_starts",
+            ChunkStatus::StructureReferences => "structure_references",
+            ChunkStatus::Biomes => "biomes",
+            ChunkStatus::Terrain => "terrain",
+            ChunkStatus::Features => "features",
+            ChunkStatus::InitializeLight => "initialize_light",
+            ChunkStatus::Light => "light",
+            ChunkStatus::Spawn => "spawn",
+            ChunkStatus::Full => "full",
+        }
+    }
+
+    pub fn by_name(name: &str) -> Option<ChunkStatus> {
+        let name = name.strip_prefix("minecraft:").unwrap_or(name);
+        ChunkStatus::ALL.into_iter().find(|status| status.get_name() == name)
+    }
+
     pub fn parent(self) -> ChunkStatus {
         ChunkStatus::ALL[self.index().saturating_sub(1)]
     }

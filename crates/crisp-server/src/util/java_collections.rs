@@ -91,8 +91,19 @@ impl<T: JavaHashCode + PartialEq + Copy> JavaObjectHashSet<T> {
         hash as u32 as usize & (self.table.len() - 1)
     }
 
+    pub fn with_capacity(initial_capacity: usize) -> JavaObjectHashSet<T> {
+        JavaObjectHashSet { table: vec![NO_NODE; initial_capacity.max(1).next_power_of_two()], nodes: Vec::new(), free: Vec::new(), len: 0 }
+    }
+
     pub fn is_empty(&self) -> bool {
         self.len == 0
+    }
+
+    pub fn clear(&mut self) {
+        self.table.iter_mut().for_each(|head| *head = NO_NODE);
+        self.nodes.clear();
+        self.free.clear();
+        self.len = 0;
     }
 
     pub fn contains(&self, value: &T) -> bool {
