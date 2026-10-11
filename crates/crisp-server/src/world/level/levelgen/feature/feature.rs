@@ -6,6 +6,11 @@ use serde_json::Value;
 
 use super::abstract_huge_mushroom_feature::{AbstractHugeMushroomFeature, HugeMushroomType};
 use super::bamboo_feature::BambooFeature;
+use super::disk_feature::DiskFeature;
+use super::iceberg_feature::IcebergFeature;
+use super::spike_feature::SpikeFeature;
+use super::spring_feature::SpringFeature;
+use super::{blue_ice_feature, snow_and_freeze_feature};
 use super::block_column_feature::BlockColumnFeature;
 use super::block_pile_feature::BlockPileFeature;
 use super::fallen_tree_feature::FallenTreeFeature;
@@ -31,6 +36,12 @@ pub enum Feature {
     BlockPile(BlockPileFeature),
     VegetationPatch(Box<VegetationPatchFeature>),
     Vines,
+    Disk(DiskFeature),
+    Spring(SpringFeature),
+    FreezeTopLayer,
+    Iceberg(IcebergFeature),
+    Spike(Box<SpikeFeature>),
+    BlueIce,
     MultifaceGrowth(MultifaceGrowthFeature),
     Bamboo(BambooFeature),
     HugeMushroom(Box<AbstractHugeMushroomFeature>),
@@ -70,6 +81,12 @@ impl Feature {
             "vegetation_patch" => Feature::VegetationPatch(Box::new(VegetationPatchFeature::parse(json, false)?)),
             "waterlogged_vegetation_patch" => Feature::VegetationPatch(Box::new(VegetationPatchFeature::parse(json, true)?)),
             "vines" => Feature::Vines,
+            "disk" => Feature::Disk(DiskFeature::parse(json)?),
+            "spring_feature" => Feature::Spring(SpringFeature::parse(json)?),
+            "freeze_top_layer" => Feature::FreezeTopLayer,
+            "iceberg" => Feature::Iceberg(IcebergFeature::parse(json)?),
+            "spike" => Feature::Spike(Box::new(SpikeFeature::parse(json)?)),
+            "blue_ice" => Feature::BlueIce,
             "multiface_growth" => Feature::MultifaceGrowth(MultifaceGrowthFeature::parse(json)?),
             "bamboo" => Feature::Bamboo(BambooFeature::parse(json)?),
             "huge_brown_mushroom" => Feature::HugeMushroom(Box::new(AbstractHugeMushroomFeature::parse(json, HugeMushroomType::Brown)?)),
@@ -93,6 +110,12 @@ impl Feature {
             Feature::BlockPile(feature) => feature.place(level, random, origin),
             Feature::VegetationPatch(feature) => feature.place(level, random, origin),
             Feature::Vines => vines_feature::place(level, origin),
+            Feature::Disk(feature) => feature.place(level, random, origin),
+            Feature::Spring(feature) => feature.place(level, origin),
+            Feature::FreezeTopLayer => snow_and_freeze_feature::place(level, origin),
+            Feature::Iceberg(feature) => feature.place(level, random, origin),
+            Feature::Spike(feature) => feature.place(level, random, origin),
+            Feature::BlueIce => blue_ice_feature::place(level, random, origin),
             Feature::MultifaceGrowth(feature) => feature.place(level, random, origin),
             Feature::Bamboo(feature) => feature.place(level, random, origin),
             Feature::HugeMushroom(feature) => feature.place(level, random, origin),

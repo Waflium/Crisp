@@ -44,6 +44,12 @@ pub trait BlockGetter {
 pub trait LevelReader: BlockGetter {
     fn raw_brightness(&mut self, pos: BlockPos, darkening: i32) -> i32;
 
+    fn get_brightness(&mut self, layer: light_layer::LightLayer, pos: BlockPos) -> i32;
+
+    fn get_sea_level(&self) -> i32;
+
+    fn is_inside_build_height(&self, y: i32) -> bool;
+
     fn is_fast_lava(&self) -> bool;
 
     fn get_control_input_signal(&mut self, pos: BlockPos, direction: Direction, only_diodes: bool) -> i32;

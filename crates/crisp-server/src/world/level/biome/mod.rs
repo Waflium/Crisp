@@ -9,7 +9,12 @@ use crisp_core::random::LegacyRandomSource;
 use crisp_core::BlockPos;
 use serde_json::Value;
 
+use crisp_data::{Fluid, blocks};
+
 use crate::world::attribute::EnvironmentAttributeMap;
+use crate::world::level::block;
+use crate::world::level::light_layer::LightLayer;
+use crate::world::level::LevelReader;
 use crate::world::level::chunk::Biome;
 use crate::world::level::levelgen::density_function::float;
 use crate::world::level::levelgen::synth::{SimplexNoise, SimplexStack};
@@ -118,6 +123,40 @@ impl Biome {
 
     pub fn should_melt_frozen_ocean_iceberg_slightly(self, pos: BlockPos, sea_level: i32) -> bool {
         self.temperature(pos, sea_level) > 0.1
+    }
+
+    pub fn should_freeze(self, level: &mut dyn LevelReader, pos: BlockPos, check_neighbors: bool) -> bool {
+        if self.warm_enough_to_rain(pos, level.get_sea_level()) {
+            return false;
+        }
+        if level.is_inside_build_height(pos.y) && level.get_brightness(LightLayer::Block, pos) < 10 {
+            let block_state = level.block_state(pos);
+            let fluid_state = level.fluid_state(pos);
+            if fluid_state.fluid == Fluid::Water && block_state.block().is_instance_of("LiquidBlock") {
+                if !check_neighbors {
+                    return true;
+                }
+                let surrounded_by_water = level.is_water_at(pos.west()) && level.is_water_at(pos.east()) && level.is_water_at(pos.north()) && level.is_water_at(pos.south());
+                if !surrounded_by_water {
+                    return true;
+                }
+            }
+        }
+        false
+    }
+
+    pub fn should_snow(self, level: &mut dyn LevelReader, pos: BlockPos) -> bool {
+        if self.precipitation_at(pos, level.get_sea_level()) != Precipitation::Snow {
+            return false;
+        }
+        if level.is_inside_build_height(pos.y) && level.get_brightness(LightLayer::Block, pos) < 10 {
+            let state = level.block_state(pos);
+            let snow = blocks::SNOW.default_state();
+            if (state.is_air() || state.is_block(blocks::SNOW)) && block::of(snow).can_survive(snow, level, pos) {
+                return true;
+            }
+        }
+        false
     }
 }
 

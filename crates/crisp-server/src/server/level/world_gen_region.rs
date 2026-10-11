@@ -255,6 +255,18 @@ impl LevelReader for WorldGenRegion<'_> {
         self.light_engine.raw_brightness(pos, darkening)
     }
 
+    fn get_brightness(&mut self, layer: crate::world::level::light_layer::LightLayer, pos: BlockPos) -> i32 {
+        self.light_engine.light_value(layer, pos)
+    }
+
+    fn get_sea_level(&self) -> i32 {
+        self.sea_level
+    }
+
+    fn is_inside_build_height(&self, y: i32) -> bool {
+        !self.is_outside_build_height(y)
+    }
+
     fn is_fast_lava(&self) -> bool {
         false
     }

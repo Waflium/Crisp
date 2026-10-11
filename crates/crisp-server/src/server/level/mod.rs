@@ -1301,6 +1301,18 @@ impl crate::world::level::LevelReader for ServerLevel {
         ServerLevel::raw_brightness(self, pos, darkening)
     }
 
+    fn get_brightness(&mut self, layer: crate::world::level::light_layer::LightLayer, pos: BlockPos) -> i32 {
+        ServerLevel::brightness(self, layer, pos)
+    }
+
+    fn get_sea_level(&self) -> i32 {
+        ServerLevel::sea_level(self)
+    }
+
+    fn is_inside_build_height(&self, y: i32) -> bool {
+        ServerLevel::is_inside_build_height(self, y)
+    }
+
     fn is_fast_lava(&self) -> bool {
         crate::world::level::material::lava_fluid::is_fast_lava(self)
     }

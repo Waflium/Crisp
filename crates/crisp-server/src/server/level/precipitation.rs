@@ -1,7 +1,7 @@
 use crisp_core::shapes::{BooleanOp, VoxelShape, join_unoptimized};
 use crisp_core::{AABB, Axis, BlockPos, ChunkPos, Vec3};
 use crisp_data::properties::LAYERS;
-use crisp_data::{BlockState, blocks, fluid_tags};
+use crisp_data::{BlockState, blocks};
 
 use super::ServerLevel;
 use crate::world::entity::relative;
@@ -43,7 +43,7 @@ impl ServerLevel {
         self.brightness(LightLayer::Sky, pos) >= 15
     }
 
-    fn is_inside_build_height(&self, y: i32) -> bool {
+    pub fn is_inside_build_height(&self, y: i32) -> bool {
         y >= self.chunks.min_y() && y <= self.chunks.max_y()
     }
 
@@ -63,12 +63,12 @@ impl ServerLevel {
         let top_pos = self.heightmap_pos(HeightmapType::MotionBlocking, pos);
         let below_pos = top_pos.below();
         let biome = self.get_biome(top_pos);
-        if self.should_freeze(biome, below_pos) {
+        if biome.should_freeze(self, below_pos, true) {
             self.set_block(below_pos, blocks::ICE.default_state(), UPDATE_ALL);
         }
         if self.is_raining() {
             let max_height = self.game_rules.get_int(crisp_data::game_rule::MAX_SNOW_ACCUMULATION_HEIGHT);
-            if max_height > 0 && self.should_snow(biome, top_pos) {
+            if max_height > 0 && biome.should_snow(self, top_pos) {
                 let state = self.block_state(top_pos);
                 if state.is_block(blocks::SNOW) {
                     let current_layers = state.get(LAYERS);
@@ -87,36 +87,6 @@ impl ServerLevel {
                 block::of(below_state).handle_precipitation(below_state, self, below_pos, precipitation);
             }
         }
-    }
-
-    fn should_freeze(&mut self, biome: Biome, pos: BlockPos) -> bool {
-        if biome.warm_enough_to_rain(pos, self.sea_level()) {
-            return false;
-        }
-        if self.is_inside_build_height(pos.y) && self.brightness(LightLayer::Block, pos) < 10 {
-            let state = self.block_state(pos);
-            let fluid = state.fluid_state();
-            if fluid.fluid == crisp_data::Fluid::Water && state.block().info().classes.contains(&"LiquidBlock") {
-                let surrounded = [pos.west(), pos.east(), pos.north(), pos.south()].into_iter().all(|p| self.block_state(p).fluid_state().is(&fluid_tags::WATER));
-                if !surrounded {
-                    return true;
-                }
-            }
-        }
-        false
-    }
-
-    fn should_snow(&mut self, biome: Biome, pos: BlockPos) -> bool {
-        if biome.precipitation_at(pos, self.sea_level()) != Precipitation::Snow {
-            return false;
-        }
-        if self.is_inside_build_height(pos.y) && self.brightness(LightLayer::Block, pos) < 10 {
-            let state = self.block_state(pos);
-            if (state.is_air() || state.is_block(blocks::SNOW)) && block::of(blocks::SNOW.default_state()).can_survive(blocks::SNOW.default_state(), self, pos) {
-                return true;
-            }
-        }
-        false
     }
 
     pub fn push_entities_up(&mut self, state: BlockState, new_state: BlockState, pos: BlockPos) {
