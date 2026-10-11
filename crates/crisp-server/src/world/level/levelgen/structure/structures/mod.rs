@@ -6,6 +6,8 @@ pub mod igloo_pieces;
 pub mod igloo_structure;
 pub mod jigsaw_structure;
 pub mod jungle_temple_piece;
+pub mod stronghold_pieces;
+pub mod stronghold_structure;
 pub mod swamp_hut_piece;
 pub mod swamp_hut_structure;
 
@@ -18,6 +20,7 @@ use buried_treasure_pieces::BuriedTreasurePiece;
 use desert_pyramid_piece::DesertPyramidPiece;
 use igloo_pieces::IglooPiece;
 use jungle_temple_piece::JungleTemplePiece;
+use stronghold_pieces::StrongholdPieceKind;
 use swamp_hut_piece::SwampHutPiece;
 
 use super::BoundingBox;
@@ -34,6 +37,7 @@ pub enum StructureType {
     Igloo,
     Jigsaw(Box<jigsaw_structure::JigsawStructure>),
     JungleTemple,
+    Stronghold,
     SwampHut,
     NotImplemented,
 }
@@ -47,6 +51,7 @@ impl StructureType {
             "igloo" => StructureType::Igloo,
             "jigsaw" => StructureType::Jigsaw(Box::new(jigsaw_structure::JigsawStructure::parse(json)?)),
             "jungle_temple" => StructureType::JungleTemple,
+            "stronghold" => StructureType::Stronghold,
             "swamp_hut" => StructureType::SwampHut,
             _ => StructureType::NotImplemented,
         })
@@ -63,6 +68,7 @@ impl StructureType {
             StructureType::JungleTemple => {
                 single_piece_structure::find_generation_point(context, |random, x, z| Piece::JungleTemple(JungleTemplePiece::new(random, x, z)), 12, 15)
             }
+            StructureType::Stronghold => stronghold_structure::find_generation_point(context),
             StructureType::SwampHut => swamp_hut_structure::find_generation_point(context),
             StructureType::NotImplemented => None,
         }
@@ -82,6 +88,7 @@ pub enum Piece {
     Igloo(IglooPiece),
     Jigsaw(PoolElementStructurePiece),
     JungleTemple(JungleTemplePiece),
+    Stronghold(StrongholdPieceKind),
     SwampHut(SwampHutPiece),
 }
 
@@ -93,7 +100,20 @@ impl Piece {
             Piece::Igloo(piece) => &piece.template.piece,
             Piece::Jigsaw(piece) => &piece.piece,
             Piece::JungleTemple(piece) => &piece.scattered.piece,
+            Piece::Stronghold(piece) => piece.piece(),
             Piece::SwampHut(piece) => &piece.scattered.piece,
+        }
+    }
+
+    pub fn piece_mut(&mut self) -> &mut StructurePiece {
+        match self {
+            Piece::BuriedTreasure(piece) => &mut piece.piece,
+            Piece::DesertPyramid(piece) => &mut piece.scattered.piece,
+            Piece::Igloo(piece) => &mut piece.template.piece,
+            Piece::Jigsaw(piece) => &mut piece.piece,
+            Piece::JungleTemple(piece) => &mut piece.scattered.piece,
+            Piece::Stronghold(piece) => piece.piece_mut(),
+            Piece::SwampHut(piece) => &mut piece.scattered.piece,
         }
     }
 
@@ -104,6 +124,19 @@ impl Piece {
             igloo_pieces::IGLOO => Piece::Igloo(IglooPiece::load(tag)?),
             pool_element_structure_piece::JIGSAW => Piece::Jigsaw(PoolElementStructurePiece::load(tag)?),
             jungle_temple_piece::JUNGLE_PYRAMID_PIECE => Piece::JungleTemple(JungleTemplePiece::load(tag)?),
+            stronghold_pieces::STRONGHOLD_CHEST_CORRIDOR
+            | stronghold_pieces::STRONGHOLD_FILLER_CORRIDOR
+            | stronghold_pieces::STRONGHOLD_FIVE_CROSSING
+            | stronghold_pieces::STRONGHOLD_LEFT_TURN
+            | stronghold_pieces::STRONGHOLD_LIBRARY
+            | stronghold_pieces::STRONGHOLD_PORTAL_ROOM
+            | stronghold_pieces::STRONGHOLD_PRISON_HALL
+            | stronghold_pieces::STRONGHOLD_RIGHT_TURN
+            | stronghold_pieces::STRONGHOLD_ROOM_CROSSING
+            | stronghold_pieces::STRONGHOLD_STAIRS_DOWN
+            | stronghold_pieces::STRONGHOLD_START
+            | stronghold_pieces::STRONGHOLD_STRAIGHT
+            | stronghold_pieces::STRONGHOLD_STRAIGHT_STAIRS_DOWN => Piece::Stronghold(StrongholdPieceKind::load(piece_id, tag)?),
             swamp_hut_piece::SWAMPLAND_HUT => Piece::SwampHut(SwampHutPiece::load(tag)?),
             _ => return None,
         })
@@ -117,6 +150,7 @@ impl Piece {
             Piece::Igloo(piece) => piece.add_additional_save_data(&mut additional),
             Piece::Jigsaw(piece) => piece.add_additional_save_data(&mut additional),
             Piece::JungleTemple(piece) => piece.add_additional_save_data(&mut additional),
+            Piece::Stronghold(piece) => piece.add_additional_save_data(&mut additional),
             Piece::SwampHut(piece) => piece.add_additional_save_data(&mut additional),
         }
         self.piece().create_tag(additional)
@@ -129,6 +163,7 @@ impl Piece {
             Piece::Igloo(piece) => piece.post_process(level, random, chunk_bb, reference_pos),
             Piece::Jigsaw(piece) => piece.post_process(level, random, chunk_bb, reference_pos),
             Piece::JungleTemple(piece) => piece.post_process(level, random, chunk_bb),
+            Piece::Stronghold(piece) => piece.post_process(level, random, chunk_bb),
             Piece::SwampHut(piece) => piece.post_process(level, chunk_bb, chunk_pos, reference_pos),
         }
     }

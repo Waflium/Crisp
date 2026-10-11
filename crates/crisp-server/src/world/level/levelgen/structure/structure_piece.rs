@@ -5,6 +5,7 @@ use crisp_data::{BlockState, blocks};
 use crisp_protocol::nbt::Nbt;
 
 use super::BoundingBox;
+use super::structures::Piece;
 use crate::server::level::world_gen_region::WorldGenRegion;
 use crate::world::level::block;
 use crate::world::level::block::entity::BlockEntityKind;
@@ -243,6 +244,49 @@ impl StructurePiece {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
+    pub fn generate_maybe_box(
+        &self,
+        level: &mut WorldGenRegion,
+        chunk_bb: &BoundingBox,
+        random: &mut impl RandomSource,
+        probability: f32,
+        x0: i32,
+        y0: i32,
+        z0: i32,
+        x1: i32,
+        y1: i32,
+        z1: i32,
+        edge_block: BlockState,
+        fill_block: BlockState,
+        skip_air: bool,
+        has_to_be_inside: bool,
+    ) {
+        for y in y0..=y1 {
+            for x in x0..=x1 {
+                for z in z0..=z1 {
+                    if random.next_float() <= probability
+                        && (!skip_air || !self.get_block(level, x, y, z, chunk_bb).is_air())
+                        && (!has_to_be_inside || self.is_interior(level, x, y, z, chunk_bb))
+                    {
+                        if y != y0 && y != y1 && x != x0 && x != x1 && z != z0 && z != z1 {
+                            self.place_block(level, fill_block, x, y, z, chunk_bb);
+                        } else {
+                            self.place_block(level, edge_block, x, y, z, chunk_bb);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn maybe_generate_block(&self, level: &mut WorldGenRegion, chunk_bb: &BoundingBox, random: &mut impl RandomSource, probability: f32, x: i32, y: i32, z: i32, block_state: BlockState) {
+        if random.next_float() < probability {
+            self.place_block(level, block_state, x, y, z, chunk_bb);
+        }
+    }
+
     pub fn fill_column_down(&self, level: &mut WorldGenRegion, block_state: BlockState, x: i32, start_y: i32, z: i32, chunk_bb: &BoundingBox) {
         let mut pos = self.get_world_pos(x, start_y, z);
         if chunk_bb.is_inside(pos) {
@@ -300,6 +344,10 @@ pub trait BlockSelector {
     fn next(&mut self, random: &mut impl RandomSource, world_x: i32, world_y: i32, world_z: i32, is_edge: bool);
 
     fn get_next(&self) -> BlockState;
+}
+
+pub fn find_collision_piece<'a>(pieces: &'a [Piece], bounding_box: &BoundingBox) -> Option<&'a Piece> {
+    pieces.iter().find(|piece| piece.piece().bounding_box.intersects(bounding_box))
 }
 
 pub fn is_replaceable_by_structures(state: BlockState) -> bool {

@@ -11,6 +11,44 @@ impl BoundingBox {
         BoundingBox::from_corners(BlockPos::new(min_x, min_y, min_z), BlockPos::new(max_x, max_y, max_z))
     }
 
+    #[allow(clippy::too_many_arguments)]
+    pub fn orient_box(foot_x: i32, foot_y: i32, foot_z: i32, off_x: i32, off_y: i32, off_z: i32, width: i32, height: i32, depth: i32, direction: crisp_core::Direction) -> BoundingBox {
+        match direction {
+            crisp_core::Direction::North => BoundingBox::new(
+                foot_x + off_x,
+                foot_y + off_y,
+                foot_z - depth + 1 + off_z,
+                foot_x + width - 1 + off_x,
+                foot_y + height - 1 + off_y,
+                foot_z + off_z,
+            ),
+            crisp_core::Direction::West => BoundingBox::new(
+                foot_x - depth + 1 + off_z,
+                foot_y + off_y,
+                foot_z + off_x,
+                foot_x + off_z,
+                foot_y + height - 1 + off_y,
+                foot_z + width - 1 + off_x,
+            ),
+            crisp_core::Direction::East => BoundingBox::new(
+                foot_x + off_z,
+                foot_y + off_y,
+                foot_z + off_x,
+                foot_x + depth - 1 + off_z,
+                foot_y + height - 1 + off_y,
+                foot_z + width - 1 + off_x,
+            ),
+            _ => BoundingBox::new(
+                foot_x + off_x,
+                foot_y + off_y,
+                foot_z + off_z,
+                foot_x + width - 1 + off_x,
+                foot_y + height - 1 + off_y,
+                foot_z + depth - 1 + off_z,
+            ),
+        }
+    }
+
     pub fn move_by(mut self, amount: BlockPos) -> BoundingBox {
         self.min = self.min.offset(amount.x, amount.y, amount.z);
         self.max = self.max.offset(amount.x, amount.y, amount.z);
