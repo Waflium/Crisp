@@ -1,13 +1,17 @@
-use crisp_core::{Axis, BlockPos, Vec3, mth};
-use crisp_data::{EquipmentSlot, damage_type_tags, game_rule};
+use crisp_core::{AABB, Axis, BlockPos, Vec3, mth};
+use crisp_data::{DamageType, EquipmentSlot, damage_type_tags, damage_types, game_rule, item_tags, mob_effects};
+use crisp_protocol::nbt::Nbt;
 
 use crate::server::level::ServerLevel;
+use crate::server::level::server_entity::set_entity_motion;
 use crate::util::Prediction;
 use crate::world::damagesource::DamageSource;
 use crate::world::difficulty::Difficulty;
+use crate::world::entity::attributes::Attribute;
 use crate::world::entity::data::Pose;
-use crate::world::entity::{EntityDimensions, EntityId, RemovalReason};
+use crate::world::entity::{EntityDimensions, EntityId, RemovalReason, sound_event};
 use crate::world::item::ItemStack;
+use crate::world::item::component::{self as dc, codec as component_codec};
 use crate::world::level::BlockGetter;
 
 pub fn get_default_dimensions(pose: Pose) -> EntityDimensions {
@@ -39,7 +43,221 @@ impl ServerLevel {
             let y = e.y();
             e.set_pos(Vec3::new(nx, y, nz));
         }
+        let main_hand_item_stack = self.item_by_slot(id, EquipmentSlot::Mainhand).unwrap_or_else(ItemStack::empty);
+        let p = self.player_mut(id);
+        p.attack_strength_ticker += 1;
+        p.item_swap_ticker += 1;
+        if !ItemStack::matches(&p.last_item_in_main_hand, &main_hand_item_stack) {
+            if !ItemStack::is_same_item(&p.last_item_in_main_hand, &main_hand_item_stack) {
+                self.reset_attack_strength_ticker(id);
+            }
+            self.player_mut(id).last_item_in_main_hand = main_hand_item_stack.copy();
+        }
         self.update_player_pose(id);
+    }
+
+    pub fn get_current_item_attack_strength_delay(&self, id: EntityId) -> f32 {
+        (1.0 / self.attribute_value(id, Attribute::AttackSpeed) * 20.0) as f32
+    }
+
+    pub fn cannot_attack_with_item(&self, id: EntityId, item_stack: &ItemStack, tolerance: i32) -> bool {
+        let required_strength = item_stack.get(dc::MINIMUM_ATTACK_CHARGE).map_or(0.0, component_codec::as_f32);
+        let optimistic_strength = (self.player(id).attack_strength_ticker + tolerance) as f32 / self.get_current_item_attack_strength_delay(id);
+        required_strength > 0.0 && optimistic_strength < required_strength
+    }
+
+    pub fn get_attack_strength_scale(&self, id: EntityId, a: f32) -> f32 {
+        mth::clamp_f((self.player(id).attack_strength_ticker as f32 + a) / self.get_current_item_attack_strength_delay(id), 0.0, 1.0)
+    }
+
+    pub fn reset_attack_strength_ticker(&mut self, id: EntityId) {
+        let p = self.player_mut(id);
+        p.attack_strength_ticker = 0;
+        p.item_swap_ticker = 0;
+    }
+
+    fn reset_only_attack_strength_ticker(&mut self, id: EntityId) {
+        self.player_mut(id).attack_strength_ticker = 0;
+    }
+
+    pub fn is_within_attack_range(&self, id: EntityId, weapon_item: &ItemStack, aabb: &AABB, buffer: f64) -> bool {
+        self.get_attack_range_with(id, weapon_item).is_in_range(self, id, aabb, buffer)
+    }
+
+    fn play_server_side_sound(&mut self, id: EntityId, sound: &str) {
+        let e = self.entity(id);
+        let (x, y, z) = (e.x(), e.y(), e.z());
+        let source = self.sound_source(id);
+        self.play_sound_at(None, x, y, z, sound_event(sound), source, 1.0, 1.0);
+    }
+
+    fn create_attack_source(&self, id: EntityId, attacking_item_stack: &ItemStack) -> DamageSource {
+        let ty = attacking_item_stack.get(dc::DAMAGE_TYPE).and_then(Nbt::as_str).and_then(DamageType::by_name).unwrap_or(damage_types::PLAYER_ATTACK);
+        DamageSource { causing_entity: Some(id), direct_entity: Some(id), ..DamageSource::new(ty) }
+    }
+
+    fn cannot_attack(&self, entity: EntityId) -> bool {
+        !self.is_attackable(entity)
+    }
+
+    fn base_damage_scale_factor(&self, id: EntityId) -> f32 {
+        let attack_strength_scale = self.get_attack_strength_scale(id, 0.5);
+        0.2 + attack_strength_scale * attack_strength_scale * 0.8
+    }
+
+    pub fn player_attack(&mut self, id: EntityId, entity: EntityId) {
+        if self.cannot_attack(entity) {
+            return;
+        }
+        let mut base_damage = self.attribute_value(id, Attribute::AttackDamage) as f32;
+        let attacking_item_stack = self.get_weapon_item(id);
+        let damage_source = self.create_attack_source(id, &attacking_item_stack);
+        let attack_strength_scale = self.get_attack_strength_scale(id, 0.5);
+        let magic_boost = attack_strength_scale * (self.get_enchanted_damage(id, entity, base_damage, &damage_source) - base_damage);
+        base_damage *= self.base_damage_scale_factor(id);
+        self.reset_only_attack_strength_ticker(id);
+        if base_damage > 0.0 || magic_boost > 0.0 {
+            let full_strength_attack = attack_strength_scale > 0.9;
+            let knockback_attack = if self.entity(id).is_sprinting() && full_strength_attack {
+                self.play_server_side_sound(id, "minecraft:entity.player.attack.knockback");
+                true
+            } else {
+                false
+            };
+            let critical_attack = full_strength_attack && self.can_critical_attack(id, entity);
+            if critical_attack {
+                base_damage *= 1.5;
+            }
+            let total_damage = base_damage + magic_boost;
+            let sweep_attack = self.is_sweep_attack(id, full_strength_attack, critical_attack, knockback_attack);
+            let old_living_entity_health = if self.is_living(entity) { self.health(entity) } else { 0.0 };
+            let old_movement = self.entity(entity).delta_movement;
+            let was_hurt = self.hurt_server(entity, damage_source, total_damage);
+            if was_hurt {
+                let knockback = self.get_knockback(id, entity, &damage_source) + if knockback_attack { 0.5 } else { 0.0 };
+                self.cause_extra_knockback(id, entity, knockback, old_movement);
+                if sweep_attack {
+                    self.do_sweep_attack(id, entity, base_damage, &damage_source, attack_strength_scale);
+                }
+                self.attack_visual_effects(id, entity, critical_attack, sweep_attack, full_strength_attack, false, magic_boost);
+                self.set_last_hurt_mob(id, entity);
+                self.item_attack_interaction(id, entity, &attacking_item_stack, &damage_source, true);
+                self.damage_stats_and_hearts(entity, old_living_entity_health);
+                self.cause_food_exhaustion(id, 0.1);
+            } else {
+                self.play_server_side_sound(id, "minecraft:entity.player.attack.nodamage");
+            }
+        }
+        self.post_piercing_attack(id);
+    }
+
+    fn can_critical_attack(&mut self, id: EntityId, entity: EntityId) -> bool {
+        let e = self.entity(id);
+        e.fall_distance > 0.0
+            && !e.on_ground
+            && !self.on_climbable(id)
+            && !self.entity(id).is_in_water()
+            && !self.has_effect(id, mob_effects::BLINDNESS)
+            && self.is_living(entity)
+            && !self.entity(id).is_sprinting()
+    }
+
+    fn is_sweep_attack(&self, id: EntityId, full_strength_attack: bool, critical_attack: bool, knockback_attack: bool) -> bool {
+        if full_strength_attack && !critical_attack && !knockback_attack && self.entity(id).on_ground {
+            let approximate_speed_sq = self.known_movement(id).horizontal_distance_sqr();
+            let max_speed_for_sweep_attack = self.get_speed(id) as f64 * 2.5;
+            if approximate_speed_sq < mth::square(max_speed_for_sweep_attack) {
+                return self.item_by_slot(id, EquipmentSlot::Mainhand).is_some_and(|stack| stack.item.is(&item_tags::SWORDS));
+            }
+        }
+        false
+    }
+
+    fn attack_visual_effects(&mut self, id: EntityId, entity: EntityId, critical_attack: bool, sweep_attack: bool, full_strength_attack: bool, stab_attack: bool, magic_boost: f32) {
+        if critical_attack {
+            self.play_server_side_sound(id, "minecraft:entity.player.attack.crit");
+            self.crit(id, entity);
+        }
+        if !critical_attack && !sweep_attack && !stab_attack {
+            let sound = if full_strength_attack { "minecraft:entity.player.attack.strong" } else { "minecraft:entity.player.attack.weak" };
+            self.play_server_side_sound(id, sound);
+        }
+        if magic_boost > 0.0 {
+            self.magic_crit(id, entity);
+        }
+    }
+
+    fn damage_stats_and_hearts(&mut self, entity: EntityId, old_living_entity_health: f32) {
+        if self.is_living(entity) {
+            let actual_damage = old_living_entity_health - self.health(entity);
+            if actual_damage > 2.0 {
+                let count = (actual_damage as f64 * 0.5) as i32;
+                let e = self.entity(entity);
+                let (x, y, z) = (e.x(), e.y() + e.dimensions.height as f64 * 0.5, e.z());
+                self.send_particles("minecraft:damage_indicator", |_| {}, x, y, z, count, (0.1, 0.0, 0.1), 0.2);
+            }
+        }
+    }
+
+    fn item_attack_interaction(&mut self, id: EntityId, entity: EntityId, attacking_item_stack: &ItemStack, damage_source: &DamageSource, apply_to_target: bool) {
+        let hurt_target = entity;
+        let item_hurt_enemy = self.is_living(hurt_target) && attacking_item_stack.has(dc::WEAPON);
+        if apply_to_target {
+            self.do_post_attack_effects_with_item_source(entity, damage_source, Some(attacking_item_stack));
+        }
+        if !attacking_item_stack.is_empty() && self.is_living(hurt_target) && item_hurt_enemy {
+            let item_damage_per_attack = attacking_item_stack.get(dc::WEAPON).and_then(|weapon| weapon.get("item_damage_per_attack")).map_or(1, component_codec::as_i32);
+            self.hurt_and_break(id, EquipmentSlot::Mainhand, item_damage_per_attack);
+        }
+    }
+
+    fn cause_extra_knockback(&mut self, id: EntityId, entity: EntityId, knockback_amount: f32, old_movement: Vec3) {
+        if knockback_amount > 0.0 {
+            let y_rot = self.entity(id).y_rot * mth::DEG_TO_RAD;
+            let (sin, cos) = (mth::sin(y_rot as f64) as f64, mth::cos(y_rot as f64) as f64);
+            if self.is_living(entity) {
+                self.knockback(entity, knockback_amount as f64, sin, -cos);
+            } else {
+                self.entity_mut(entity).push(-sin * knockback_amount as f64, 0.1, cos * knockback_amount as f64);
+            }
+            let e = self.entity_mut(id);
+            e.set_delta_movement(e.delta_movement.multiply(0.6, 1.0, 0.6));
+            self.set_sprinting(id, false);
+        }
+        if let Some(target) = self.players.get_mut(&entity)
+            && target.entity.sync_velocity
+        {
+            let packet = set_entity_motion(entity, target.entity.delta_movement);
+            target.connection.send_raw(packet);
+            target.entity.sync_velocity = false;
+            target.entity.set_delta_movement(old_movement);
+        }
+    }
+
+    fn do_sweep_attack(&mut self, id: EntityId, entity: EntityId, base_damage: f32, damage_source: &DamageSource, attack_strength_scale: f32) {
+        self.play_server_side_sound(id, "minecraft:entity.player.attack.sweep");
+        let sweep_damage = 1.0 + self.attribute_value(id, Attribute::SweepingDamageRatio) as f32 * base_damage;
+        let area = self.entity(entity).bounding_box().inflate(1.0, 0.25, 1.0);
+        for nearby in self.get_entities(None, &area) {
+            if !self.is_living(nearby) || nearby == id || nearby == entity || self.is_allied_to(id, nearby) {
+                continue;
+            }
+            if self.entity(id).position().distance_to_sqr(self.entity(nearby).position()) < 9.0 {
+                let enchanted_damage = self.get_enchanted_damage(id, nearby, sweep_damage, damage_source) * attack_strength_scale;
+                if self.hurt_server(nearby, *damage_source, enchanted_damage) {
+                    let y_rot = self.entity(id).y_rot * mth::DEG_TO_RAD;
+                    let (sin, cos) = (mth::sin(y_rot as f64) as f64, mth::cos(y_rot as f64) as f64);
+                    self.knockback(nearby, 0.4f32 as f64, sin, -cos);
+                    self.do_post_attack_effects(nearby, damage_source);
+                }
+            }
+        }
+        let e = self.entity(id);
+        let y_rot = e.y_rot * mth::DEG_TO_RAD;
+        let dx = -mth::sin(y_rot as f64) as f64;
+        let dz = mth::cos(y_rot as f64) as f64;
+        let (x, y, z) = (e.x() + dx, e.y() + e.dimensions.height as f64 * 0.5, e.z() + dz);
+        self.send_particles("minecraft:sweep_attack", |_| {}, x, y, z, 0, (dx, 0.0, dz), 0.0);
     }
 
     pub fn player_ai_step(&mut self, id: EntityId) {
@@ -139,8 +357,8 @@ impl ServerLevel {
         if damage == 0.0 { false } else { self.living_entity_hurt_server(id, source, damage) }
     }
 
-    pub fn player_is_invulnerable_to(&self, id: EntityId, source: &DamageSource) -> bool {
-        if self.is_invulnerable_to_base(id, source) {
+    pub fn player_is_invulnerable_to(&mut self, id: EntityId, source: &DamageSource) -> bool {
+        if self.living_entity_is_invulnerable_to(id, source) {
             return true;
         }
         let rules = &self.game_rules;
@@ -276,5 +494,95 @@ impl ServerLevel {
     fn can_player_fit_within_blocks_and_entities_when(&self, id: EntityId, pose: Pose) -> bool {
         let box_ = get_default_dimensions(pose).make_bounding_box(self.entity(id).position()).deflate_all(1.0e-7);
         self.no_collision_for(id, &box_)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crisp_core::Vec3;
+    use crisp_data::{EquipmentSlot, items};
+
+    use crate::server::level::{ServerLevel, testing};
+    use crate::world::entity::animal::chicken::Chicken;
+    use crate::world::entity::{EntityId, LevelEntity};
+    use crate::world::item::ItemStack;
+    use crate::world::item::enchantment::enchantment_helper::enchant;
+
+    fn setup(weapon: Option<ItemStack>) -> (ServerLevel, EntityId, EntityId) {
+        let mut level = testing::level();
+        let player = testing::player(&mut level, Vec3::new(0.5, -60.0, 0.5), 0.0, 0.0);
+        if let Some(weapon) = weapon {
+            level.set_item_slot(player, EquipmentSlot::Mainhand, weapon);
+            level.detect_equipment_updates(player);
+        }
+        let mut mob = Chicken::create();
+        mob.entity.set_pos(Vec3::new(0.5, -60.0, 2.0));
+        mob.set_health(4.0);
+        let chicken = mob.entity.id;
+        level.add_fresh_entity(LevelEntity::Mob(Box::new(mob)));
+        level.player_mut(player).attack_strength_ticker = 100;
+        (level, player, chicken)
+    }
+
+    fn sword(enchantments: &[(&str, i32)]) -> ItemStack {
+        let mut sword = ItemStack::new(items::WOODEN_SWORD, 1);
+        for &(enchantment, level) in enchantments {
+            enchant(&mut sword, enchantment, level);
+        }
+        sword
+    }
+
+    #[test]
+    fn a_full_strength_punch_deals_one_damage() {
+        let (mut level, player, chicken) = setup(None);
+        level.player_attack(player, chicken);
+        assert_eq!(level.health(chicken), 3.0);
+        assert_eq!(level.player(player).attack_strength_ticker, 0);
+        assert_eq!(level.living(player).last_hurt_mob, Some(chicken));
+    }
+
+    #[test]
+    fn swords_deal_their_attack_damage_and_wear_out() {
+        let (mut level, player, chicken) = setup(Some(sword(&[])));
+        level.player_attack(player, chicken);
+        assert_eq!(level.health(chicken), 0.0);
+        assert_eq!(level.item_by_slot(player, EquipmentSlot::Mainhand).unwrap().damage_value(), 1);
+    }
+
+    #[test]
+    fn attacks_right_after_a_swing_are_weak() {
+        let (mut level, player, chicken) = setup(None);
+        level.player_mut(player).attack_strength_ticker = 0;
+        level.player_attack(player, chicken);
+        let scale = 0.5f32 / 5.0;
+        assert_eq!(level.health(chicken), 4.0 - (0.2 + scale * scale * 0.8));
+    }
+
+    #[test]
+    fn sharpness_adds_magic_damage() {
+        let (mut level, player, chicken) = setup(Some(ItemStack::new(items::STICK, 1)));
+        let mut stick = ItemStack::new(items::STICK, 1);
+        enchant(&mut stick, "minecraft:sharpness", 1);
+        level.set_item_slot(player, EquipmentSlot::Mainhand, stick);
+        level.player_attack(player, chicken);
+        assert_eq!(level.health(chicken), 2.0);
+    }
+
+    #[test]
+    fn fire_aspect_sets_the_target_on_fire() {
+        let (mut level, player, chicken) = setup(Some(sword(&[("minecraft:fire_aspect", 1)])));
+        level.mob_mut(chicken).unwrap().set_health(4.0);
+        level.player_attack(player, chicken);
+        assert_eq!(level.entity(chicken).remaining_fire_ticks, 80);
+    }
+
+    #[test]
+    fn falling_players_land_critical_hits() {
+        let (mut level, player, chicken) = setup(None);
+        let e = level.entity_mut(player);
+        e.on_ground = false;
+        e.fall_distance = 1.0;
+        level.player_attack(player, chicken);
+        assert_eq!(level.health(chicken), 2.5);
     }
 }

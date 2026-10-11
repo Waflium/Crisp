@@ -9,7 +9,7 @@ use crate::network::connection::Outbound;
 use crate::server::level::{ServerLevel, testing};
 use crate::world::InteractionHand;
 use crate::world::damagesource::DamageSource;
-use crate::world::damagesource::combat_rules::damage_after_absorb;
+use crate::world::damagesource::combat_rules::get_damage_after_absorb;
 use crate::world::difficulty::Difficulty;
 use crate::world::entity::EntityId;
 use crate::world::entity::attributes::Attribute;
@@ -61,8 +61,11 @@ fn armor_absorbs_damage_as_vanilla() {
         (7.0, 20.0, 8.0, 1072819076),
         (6.0, 3.0, 0.0, 1086022746),
     ];
+    let mut level = crate::server::level::testing::level();
+    let player = crate::server::level::testing::player(&mut level, crisp_core::Vec3::new(0.5, -60.0, 0.5), 0.0, 0.0);
+    let source = crate::world::damagesource::DamageSource::new(crisp_data::damage_types::GENERIC);
     for (damage, armor, toughness, bits) in cases {
-        assert_eq!(damage_after_absorb(damage, armor, toughness).to_bits(), bits, "{damage} {armor} {toughness}");
+        assert_eq!(get_damage_after_absorb(&mut level, player, damage, &source, armor, toughness).to_bits(), bits, "{damage} {armor} {toughness}");
     }
 }
 

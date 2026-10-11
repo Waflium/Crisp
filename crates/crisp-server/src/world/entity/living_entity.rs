@@ -19,6 +19,7 @@ use crate::world::effect::MobEffectInstance;
 use crate::world::effect::mob_effect::{add_attribute_modifiers, remove_attribute_modifiers, should_apply_effect_tick_this_tick};
 use crate::world::item::ItemStack;
 use crate::world::item::component as dc;
+use crate::world::item::component::attack_range::AttackRange;
 use crate::world::item::component::swing_animation::SwingAnimation;
 use crate::world::item::enchantment::{enchantment, enchantment_helper};
 use crate::world::level::BlockGetter;
@@ -38,6 +39,8 @@ pub struct LivingEntity {
     pub last_hurt_by_player_memory_time: i32,
     pub last_hurt_by_mob: Option<u128>,
     pub last_hurt_by_mob_timestamp: i32,
+    pub last_hurt_mob: Option<EntityId>,
+    pub last_hurt_mob_timestamp: i32,
     pub jumping: bool,
     pub xxa: f32,
     pub yya: f32,
@@ -80,6 +83,8 @@ impl LivingEntity {
             last_hurt_by_player_memory_time: 0,
             last_hurt_by_mob: None,
             last_hurt_by_mob_timestamp: 0,
+            last_hurt_mob: None,
+            last_hurt_mob_timestamp: 0,
             jumping: false,
             xxa: 0.0,
             yya: 0.0,
@@ -317,6 +322,31 @@ impl ServerLevel {
         p.dirty_slots.push(index);
     }
 
+    pub fn set_last_hurt_mob(&mut self, id: EntityId, target: EntityId) {
+        let target = self.is_living(target).then_some(target);
+        let tick_count = self.entity(id).tick_count;
+        let living = self.living_mut(id);
+        living.last_hurt_mob = target;
+        living.last_hurt_mob_timestamp = tick_count;
+    }
+
+    pub fn get_knockback(&mut self, id: EntityId, target: EntityId, damage_source: &DamageSource) -> f32 {
+        let knockback = self.attribute_value(id, Attribute::AttackKnockback) as f32;
+        let weapon = self.get_weapon_item(id);
+        self.modify_knockback(&weapon, target, damage_source, knockback) / 2.0
+    }
+
+    pub fn post_piercing_attack(&mut self, id: EntityId) {
+        self.do_post_piercing_attack_effects(id);
+    }
+
+    pub fn get_attack_range_with(&self, id: EntityId, weapon_item: &ItemStack) -> AttackRange {
+        match weapon_item.get(dc::ATTACK_RANGE) {
+            Some(attack_range) => AttackRange::from_nbt(attack_range),
+            None => AttackRange::default_for(self.attribute_value(id, Attribute::EntityInteractionRange) as f32),
+        }
+    }
+
     pub fn get_weapon_item(&self, id: EntityId) -> ItemStack {
         self.item_by_slot(id, EquipmentSlot::Mainhand).unwrap_or_else(ItemStack::empty)
     }
@@ -447,6 +477,10 @@ impl ServerLevel {
         }
     }
 
+    pub fn living_entity_is_invulnerable_to(&mut self, id: EntityId, source: &DamageSource) -> bool {
+        self.is_invulnerable_to_base(id, source) || self.is_immune_to_damage(id, source)
+    }
+
     pub fn living_entity_hurt_server(&mut self, id: EntityId, source: DamageSource, mut damage: f32) -> bool {
         if self.is_invulnerable_to(id, &source) || self.is_dead_or_dying(id) {
             return false;
@@ -463,7 +497,7 @@ impl ServerLevel {
             damage *= 5.0;
         }
         if source.is(&damage_type_tags::DAMAGES_HELMET) && self.item_by_slot(id, EquipmentSlot::Head).is_some() {
-            self.do_hurt_equipment(id, &source, damage, &[EquipmentSlot::Head]);
+            self.hurt_helmet(id, &source, damage);
             damage *= 0.75;
         }
         if !damage.is_finite() {
@@ -594,17 +628,29 @@ impl ServerLevel {
         }
     }
 
+    fn hurt_armor(&mut self, id: EntityId, source: &DamageSource, damage: f32) {
+        if self.is_player(id) {
+            self.do_hurt_equipment(id, source, damage, &[EquipmentSlot::Feet, EquipmentSlot::Legs, EquipmentSlot::Chest, EquipmentSlot::Head]);
+        }
+    }
+
+    fn hurt_helmet(&mut self, id: EntityId, source: &DamageSource, damage: f32) {
+        if self.is_player(id) {
+            self.do_hurt_equipment(id, source, damage, &[EquipmentSlot::Head]);
+        }
+    }
+
     pub fn damage_after_armor_absorb(&mut self, id: EntityId, source: &DamageSource, damage: f32) -> f32 {
         if source.is(&damage_type_tags::BYPASSES_ARMOR) {
             return damage;
         }
-        self.do_hurt_equipment(id, source, damage, &[EquipmentSlot::Feet, EquipmentSlot::Legs, EquipmentSlot::Chest, EquipmentSlot::Head]);
+        self.hurt_armor(id, source, damage);
         let armor = self.armor_value(id) as f32;
         let toughness = self.attribute_value(id, Attribute::ArmorToughness) as f32;
-        combat_rules::damage_after_absorb(damage, armor, toughness)
+        combat_rules::get_damage_after_absorb(self, id, damage, source, armor, toughness)
     }
 
-    pub fn damage_after_magic_absorb(&self, id: EntityId, source: &DamageSource, mut damage: f32) -> f32 {
+    pub fn damage_after_magic_absorb(&mut self, id: EntityId, source: &DamageSource, mut damage: f32) -> f32 {
         if source.is(&damage_type_tags::BYPASSES_EFFECTS) {
             return damage;
         }
@@ -616,6 +662,13 @@ impl ServerLevel {
         }
         if damage <= 0.0 {
             return 0.0;
+        }
+        if source.is(&damage_type_tags::BYPASSES_ENCHANTMENTS) {
+            return damage;
+        }
+        let enchantment_armor = self.get_damage_protection(id, source);
+        if enchantment_armor > 0.0 {
+            damage = combat_rules::get_damage_after_magic_absorb(damage, enchantment_armor);
         }
         damage
     }
@@ -1762,6 +1815,23 @@ mod tests {
         level.detect_equipment_updates(player);
         assert_eq!(level.attribute_value(player, crate::world::entity::attributes::Attribute::AttackDamage), 7.0);
         assert_eq!(level.attribute_value(player, crate::world::entity::attributes::Attribute::SweepingDamageRatio), 0.75);
+    }
+
+    #[test]
+    fn protection_enchantments_reduce_damage() {
+        let damage_taken = |protection: i32| {
+            let mut level = testing::level();
+            let player = testing::player(&mut level, Vec3::new(0.5, -60.0, 0.5), 0.0, 0.0);
+            let mut boots = crate::world::item::ItemStack::new(crisp_data::items::LEATHER_BOOTS, 1);
+            crate::world::item::enchantment::enchantment_helper::enchant(&mut boots, "minecraft:protection", protection);
+            level.set_item_slot(player, crisp_data::EquipmentSlot::Feet, boots);
+            level.detect_equipment_updates(player);
+            level.player_mut(player).movement.client_loaded_timeout_timer = 0;
+            level.hurt_server(player, DamageSource::new(damage_types::MAGIC), 10.0);
+            20.0 - level.health(player)
+        };
+        assert_eq!(damage_taken(0), 10.0);
+        assert_eq!(damage_taken(4), 10.0 * (1.0 - 4.0 / 25.0));
     }
 
     #[test]

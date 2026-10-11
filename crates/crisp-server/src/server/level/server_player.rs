@@ -85,6 +85,9 @@ pub struct ServerPlayer {
     pub last_sent_food: i32,
     pub last_food_saturation_zero: bool,
     pub last_sent_exp: i32,
+    pub attack_strength_ticker: i32,
+    pub item_swap_ticker: i32,
+    pub last_item_in_main_hand: ItemStack,
     pub last_recorded: LastRecorded,
     pub last_death_location: Option<(String, BlockPos)>,
     pub inventory: Inventory,
@@ -152,6 +155,9 @@ impl ServerPlayer {
             last_sent_food: -99999999,
             last_food_saturation_zero: true,
             last_sent_exp: -99999999,
+            attack_strength_ticker: 0,
+            item_swap_ticker: 0,
+            last_item_in_main_hand: ItemStack::empty(),
             last_recorded: LastRecorded::default(),
             last_death_location: None,
             inventory: Inventory::new(),
@@ -512,7 +518,7 @@ impl ServerLevel {
         self.player_hurt_server(id, source, damage)
     }
 
-    pub fn server_player_is_invulnerable_to(&self, id: EntityId, source: &DamageSource) -> bool {
+    pub fn server_player_is_invulnerable_to(&mut self, id: EntityId, source: &DamageSource) -> bool {
         self.player_is_invulnerable_to(id, source) || !self.player(id).movement.has_client_loaded()
     }
 
@@ -574,6 +580,27 @@ impl ServerLevel {
                 let _ = score.increment(level);
             });
         }
+    }
+
+    pub fn get_enchanted_damage(&mut self, id: EntityId, entity: EntityId, damage: f32, damage_source: &DamageSource) -> f32 {
+        let weapon = self.get_weapon_item(id);
+        self.modify_damage(&weapon, entity, damage_source, damage)
+    }
+
+    pub fn crit(&self, id: EntityId, entity: EntityId) {
+        let packet = crate::network::connection::encode(clientbound::ANIMATE, |w| {
+            w.varint(entity);
+            w.u8(1);
+        });
+        self.send_to_tracking_players_and_self(id, &packet);
+    }
+
+    pub fn magic_crit(&self, id: EntityId, entity: EntityId) {
+        let packet = crate::network::connection::encode(clientbound::ANIMATE, |w| {
+            w.varint(entity);
+            w.u8(2);
+        });
+        self.send_to_tracking_players_and_self(id, &packet);
     }
 
     pub fn server_player_indicate_damage(&mut self, id: EntityId, xd: f64, zd: f64) {

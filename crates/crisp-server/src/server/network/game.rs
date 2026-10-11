@@ -112,6 +112,11 @@ impl ServerLevel {
                 self.player_mut(id).reset_last_action_time();
                 let animation = self.player(id).item_in_hand(InteractionHand::MainHand).map_or(SwingAnimation::DEFAULT, |s| s.attack_animation());
                 self.swing(id, InteractionHand::MainHand, animation, false);
+                self.reset_attack_strength_ticker(id);
+            }
+            serverbound::ATTACK => {
+                let entity_id = r.varint()?;
+                self.handle_attack(id, entity_id);
             }
             serverbound::CONTAINER_CLICK => self.handle_container_click(id, &mut r)?,
             serverbound::SET_CREATIVE_MODE_SLOT => {
@@ -273,6 +278,32 @@ impl ServerLevel {
                 w.position(p.x, p.y, p.z);
                 w.varint(state.id() as i32);
             });
+        }
+    }
+
+    fn handle_attack(&mut self, id: EntityId, entity_id: EntityId) {
+        if !self.player(id).movement.has_client_loaded() || self.is_spectator(id) {
+            return;
+        }
+        let Some(target) = self.entity_ref(entity_id) else {
+            self.player_mut(id).reset_last_action_time();
+            return;
+        };
+        let (target_pos, target_bounds) = (target.block_position(), target.bounding_box());
+        self.player_mut(id).reset_last_action_time();
+        if !self.world_border.is_within_bounds(target_pos.x as f64, target_pos.z as f64) {
+            return;
+        }
+        let main_hand_item = self.item_by_slot(id, crisp_data::EquipmentSlot::Mainhand).unwrap_or_else(ItemStack::empty);
+        if !self.is_within_attack_range(id, &main_hand_item, &target_bounds, 3.0) || main_hand_item.has(crate::world::item::component::PIERCING_WEAPON) {
+            return;
+        }
+        let invalid = entity_id == id || matches!(self.entities.get(&entity_id), Some(crate::world::entity::LevelEntity::Item(_) | crate::world::entity::LevelEntity::ExperienceOrb(_)));
+        if invalid {
+            self.player_mut(id).disconnect("multiplayer.disconnect.invalid_entity_attacked");
+            warn!("Player {} tried to attack an invalid entity", self.player(id).profile.name);
+        } else if !self.cannot_attack_with_item(id, &main_hand_item, 5) {
+            self.player_attack(id, entity_id);
         }
     }
 

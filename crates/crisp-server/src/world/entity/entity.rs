@@ -349,6 +349,13 @@ impl Entity {
         self.old_pos
     }
 
+    pub fn push(&mut self, xa: f64, ya: f64, za: f64) {
+        if xa.is_finite() && ya.is_finite() && za.is_finite() {
+            self.set_delta_movement(self.delta_movement.add(xa, ya, za));
+            self.needs_sync = true;
+        }
+    }
+
     pub fn snap_to(&mut self, x: f64, y: f64, z: f64, y_rot: f32, x_rot: f32) {
         self.set_pos_raw(Vec3::new(x, y, z));
         self.set_y_rot(y_rot);
@@ -1750,8 +1757,14 @@ impl ServerLevel {
         }
     }
 
-    pub fn is_invulnerable_to(&self, id: EntityId, source: &DamageSource) -> bool {
-        if self.is_player(id) { self.server_player_is_invulnerable_to(id, source) } else { self.is_invulnerable_to_base(id, source) }
+    pub fn is_invulnerable_to(&mut self, id: EntityId, source: &DamageSource) -> bool {
+        if self.is_player(id) {
+            self.server_player_is_invulnerable_to(id, source)
+        } else if self.is_living(id) {
+            self.living_entity_is_invulnerable_to(id, source)
+        } else {
+            self.is_invulnerable_to_base(id, source)
+        }
     }
 
     pub fn is_invulnerable_to_base(&self, id: EntityId, source: &DamageSource) -> bool {
@@ -1767,6 +1780,17 @@ impl ServerLevel {
         match self.entities.get(&id) {
             Some(LevelEntity::Item(_)) => self.item_entity_should_play_lava_hurt_sound(id),
             _ => true,
+        }
+    }
+
+    pub fn is_attackable(&self, id: EntityId) -> bool {
+        !matches!(self.entities.get(&id), Some(LevelEntity::Item(_) | LevelEntity::ExperienceOrb(_)))
+    }
+
+    pub fn is_allied_to(&self, id: EntityId, other: EntityId) -> bool {
+        match (self.team_of(id), self.team_of(other)) {
+            (Some(team), Some(other_team)) => team.name() == other_team.name(),
+            _ => false,
         }
     }
 

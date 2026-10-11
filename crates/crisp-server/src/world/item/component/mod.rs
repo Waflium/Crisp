@@ -1,3 +1,4 @@
+pub mod attack_range;
 pub mod bundle_contents;
 pub mod codec;
 mod custom;

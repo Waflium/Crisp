@@ -54,6 +54,10 @@ impl DamageSource {
         self.causing_entity.and_then(|e| level.players.get(&e)).is_some_and(|p| p.abilities.instabuild)
     }
 
+    pub fn get_weapon_item(&self, level: &ServerLevel) -> Option<crate::world::item::ItemStack> {
+        self.direct_entity.filter(|&e| level.is_living(e)).map(|e| level.get_weapon_item(e))
+    }
+
     pub fn source_position(&self, level: &ServerLevel) -> Option<Vec3> {
         self.damage_source_position.or_else(|| self.direct_entity.and_then(|e| level.entity_ref(e)).map(|e| e.position()))
     }
