@@ -1,10 +1,11 @@
 use crisp_core::{BlockPos, Direction};
 use crisp_data::properties::{SLAB_TYPE, SlabType, WATERLOGGED};
-use crisp_data::{Block, BlockState};
+use crisp_data::{Block, BlockState, Fluid, FluidState};
 
 use super::BlockBehaviour;
-use super::simple_waterlogged_block::{is_water_source, schedule_water_tick};
+use super::simple_waterlogged_block::{self, is_water_source, schedule_water_tick};
 use crate::server::level::ServerLevel;
+use crate::world::entity::EntityId;
 use crate::world::item::context::BlockPlaceContext;
 use crate::world::level::{BlockGetter, LevelAccessor};
 
@@ -54,6 +55,14 @@ impl BlockBehaviour for SlabBlock {
     ) -> BlockState {
         schedule_water_tick(state, level, pos);
         state
+    }
+
+    fn place_liquid(&self, level: &mut dyn LevelAccessor, pos: BlockPos, state: BlockState, fluid: FluidState) -> bool {
+        if state.get(SLAB_TYPE) != SlabType::Double { simple_waterlogged_block::place_liquid(level, pos, state, fluid) } else { false }
+    }
+
+    fn can_place_liquid(&self, _player: Option<EntityId>, _level: &mut ServerLevel, _pos: BlockPos, state: BlockState, fluid: Fluid) -> bool {
+        if state.get(SLAB_TYPE) != SlabType::Double { simple_waterlogged_block::can_place_liquid(fluid) } else { false }
     }
 }
 

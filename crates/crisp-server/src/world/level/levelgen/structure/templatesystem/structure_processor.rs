@@ -7,6 +7,7 @@ use crisp_protocol::nbt::Nbt;
 use serde_json::Value;
 
 use super::pos_rule_test::PosRuleTest;
+use super::{blackstone_replace_processor, block_age_processor, lava_submerged_block_processor};
 use super::rule_test::RuleTest;
 use super::structure_place_settings::StructurePlaceSettings;
 use super::structure_template::StructureBlockInfo;
@@ -27,6 +28,9 @@ pub enum StructureProcessor {
     Rule(Vec<ProcessorRule>),
     Capped { delegate: Box<StructureProcessor>, limit: IntProvider },
     Nop,
+    BlockAge { mossiness: f32 },
+    LavaSubmergedBlock,
+    BlackstoneReplace,
     NotImplemented,
 }
 
@@ -151,6 +155,9 @@ impl StructureProcessor {
             },
             "protected_blocks" => StructureProcessor::ProtectedBlocks(BlockSet::parse(json.get("value").ok_or("missing value")?)?),
             "rule" => StructureProcessor::Rule(json.get("rules").and_then(Value::as_array).ok_or("missing rules")?.iter().map(ProcessorRule::parse).collect::<Result<_, _>>()?),
+            "block_age" => StructureProcessor::BlockAge { mossiness: float(json.get("mossiness").ok_or("missing mossiness")?)? },
+            "lava_submerged_block" => StructureProcessor::LavaSubmergedBlock,
+            "blackstone_replace" => StructureProcessor::BlackstoneReplace,
             _ => StructureProcessor::NotImplemented,
         })
     }
@@ -214,6 +221,9 @@ impl StructureProcessor {
                     Some(StructureBlockInfo { pos: processed_block_info.pos, state: block_state, nbt: None })
                 }
             }
+            StructureProcessor::BlockAge { mossiness } => block_age_processor::process_block(*mossiness, processed_block_info, settings, random),
+            StructureProcessor::LavaSubmergedBlock => lava_submerged_block_processor::process_block(level, processed_block_info),
+            StructureProcessor::BlackstoneReplace => blackstone_replace_processor::process_block(processed_block_info),
             StructureProcessor::Capped { .. } | StructureProcessor::Nop | StructureProcessor::NotImplemented => Some(processed_block_info),
         }
     }

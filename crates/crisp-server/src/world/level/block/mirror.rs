@@ -11,6 +11,20 @@ pub enum Mirror {
 }
 
 impl Mirror {
+    pub const VALUES: [Mirror; 3] = [Mirror::None, Mirror::LeftRight, Mirror::FrontBack];
+
+    pub fn legacy_name(self) -> &'static str {
+        match self {
+            Mirror::None => "NONE",
+            Mirror::LeftRight => "LEFT_RIGHT",
+            Mirror::FrontBack => "FRONT_BACK",
+        }
+    }
+
+    pub fn by_legacy_name(name: &str) -> Option<Mirror> {
+        Mirror::VALUES.into_iter().find(|mirror| mirror.legacy_name() == name)
+    }
+
     pub fn mirror_index(self, rotation: i32, steps: i32) -> i32 {
         let half_steps = steps / 2;
         let corrected_rotation = if rotation > half_steps { rotation - steps } else { rotation };

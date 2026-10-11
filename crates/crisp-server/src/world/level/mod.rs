@@ -14,6 +14,7 @@ pub mod levelgen;
 pub mod lighting;
 pub mod material;
 pub mod moon_phase;
+pub mod noise_column;
 pub mod path_navigation_region;
 pub mod pathfinder;
 pub mod saveddata;

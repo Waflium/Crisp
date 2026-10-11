@@ -28,6 +28,7 @@ use crate::world::level::chunk::carving_mask::CarvingMask;
 use crate::world::level::chunk::chunk_generator_structure_state::ChunkGeneratorStructureState;
 use crate::world::level::chunk::proto_chunk::{ChunkStatus, ProtoChunk};
 use crate::world::level::chunk::{Biome, HeightmapType};
+use crate::world::level::noise_column::NoiseColumn;
 
 const MAX_CACHED_BIOMES: usize = 16384;
 const DECORATION_STEPS: usize = 11;
@@ -521,7 +522,18 @@ impl NoiseBasedChunkGenerator {
         self.get_base_height(x, z, kind, min_y, height) - 1
     }
 
-    fn iterate_noise_column(&self, min_y: i32, height: i32, block_x: i32, block_z: i32, tester: impl Fn(BlockState) -> bool) -> Option<i32> {
+    pub fn get_base_column(&self, x: i32, z: i32, min_y: i32, height: i32) -> NoiseColumn {
+        let noise = self.settings.noise.clamp_to(min_y, height);
+        let mut column = Vec::with_capacity(noise.height.max(0) as usize);
+        self.iterate_noise_column(min_y, height, x, z, |state| {
+            column.push(state);
+            false
+        });
+        column.reverse();
+        NoiseColumn::new(noise.min_y, column)
+    }
+
+    fn iterate_noise_column(&self, min_y: i32, height: i32, block_x: i32, block_z: i32, mut tester: impl FnMut(BlockState) -> bool) -> Option<i32> {
         let noise = self.settings.noise.clamp_to(min_y, height);
         if noise.height <= 0 {
             return None;

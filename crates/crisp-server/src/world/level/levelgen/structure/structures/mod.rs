@@ -14,6 +14,8 @@ pub mod shipwreck_pieces;
 pub mod shipwreck_structure;
 pub mod stronghold_pieces;
 pub mod stronghold_structure;
+pub mod ruined_portal_piece;
+pub mod ruined_portal_structure;
 pub mod swamp_hut_piece;
 pub mod swamp_hut_structure;
 
@@ -32,6 +34,8 @@ use ocean_ruin_pieces::OceanRuinPiece;
 use ocean_ruin_structure::OceanRuinStructure;
 use shipwreck_pieces::ShipwreckPiece;
 use stronghold_pieces::StrongholdPieceKind;
+use ruined_portal_piece::RuinedPortalPiece;
+use ruined_portal_structure::RuinedPortalStructure;
 use swamp_hut_piece::SwampHutPiece;
 
 use super::BoundingBox;
@@ -52,6 +56,7 @@ pub enum StructureType {
     OceanRuin(OceanRuinStructure),
     Shipwreck { is_beached: bool },
     Stronghold,
+    RuinedPortal(RuinedPortalStructure),
     SwampHut,
     NotImplemented,
 }
@@ -69,6 +74,7 @@ impl StructureType {
             "ocean_ruin" => StructureType::OceanRuin(OceanRuinStructure::parse(json)?),
             "shipwreck" => StructureType::Shipwreck { is_beached: json.get("is_beached").and_then(Value::as_bool).ok_or("missing is_beached")? },
             "stronghold" => StructureType::Stronghold,
+            "ruined_portal" => StructureType::RuinedPortal(RuinedPortalStructure::parse(json)?),
             "swamp_hut" => StructureType::SwampHut,
             _ => StructureType::NotImplemented,
         })
@@ -89,6 +95,7 @@ impl StructureType {
             StructureType::OceanRuin(structure) => structure.find_generation_point(context),
             StructureType::Shipwreck { is_beached } => shipwreck_structure::find_generation_point(context, *is_beached),
             StructureType::Stronghold => stronghold_structure::find_generation_point(context),
+            StructureType::RuinedPortal(structure) => structure.find_generation_point(context),
             StructureType::SwampHut => swamp_hut_structure::find_generation_point(context),
             StructureType::NotImplemented => None,
         }
@@ -115,6 +122,7 @@ pub enum Piece {
     OceanRuin(OceanRuinPiece),
     Shipwreck(ShipwreckPiece),
     Stronghold(StrongholdPieceKind),
+    RuinedPortal(RuinedPortalPiece),
     SwampHut(SwampHutPiece),
 }
 
@@ -133,6 +141,7 @@ impl Piece {
             Piece::OceanRuin(piece) => &piece.template.piece,
             Piece::Shipwreck(piece) => &piece.template.piece,
             Piece::Stronghold(piece) => piece.piece(),
+            Piece::RuinedPortal(piece) => &piece.template.piece,
             Piece::SwampHut(piece) => &piece.scattered.piece,
         }
     }
@@ -149,6 +158,7 @@ impl Piece {
             Piece::MineShaftRoom(piece) => &mut piece.mine_shaft.piece,
             Piece::MineShaftStairs(piece) => &mut piece.mine_shaft.piece,
             Piece::OceanRuin(piece) => &mut piece.template.piece,
+            Piece::RuinedPortal(piece) => &mut piece.template.piece,
             Piece::Shipwreck(piece) => &mut piece.template.piece,
             Piece::Stronghold(piece) => piece.piece_mut(),
             Piece::SwampHut(piece) => &mut piece.scattered.piece,
@@ -167,6 +177,7 @@ impl Piece {
             Piece::MineShaftRoom(piece) => piece.move_by(dx, dy, dz),
             Piece::MineShaftStairs(piece) => piece.mine_shaft.piece.move_by(dx, dy, dz),
             Piece::OceanRuin(piece) => piece.template.move_by(dx, dy, dz),
+            Piece::RuinedPortal(piece) => piece.template.move_by(dx, dy, dz),
             Piece::Shipwreck(piece) => piece.template.move_by(dx, dy, dz),
             Piece::Stronghold(piece) => piece.piece_mut().move_by(dx, dy, dz),
             Piece::SwampHut(piece) => piece.scattered.piece.move_by(dx, dy, dz),
@@ -199,6 +210,7 @@ impl Piece {
             | stronghold_pieces::STRONGHOLD_START
             | stronghold_pieces::STRONGHOLD_STRAIGHT
             | stronghold_pieces::STRONGHOLD_STRAIGHT_STAIRS_DOWN => Piece::Stronghold(StrongholdPieceKind::load(piece_id, tag)?),
+            ruined_portal_piece::RUINED_PORTAL => Piece::RuinedPortal(RuinedPortalPiece::load(tag)?),
             swamp_hut_piece::SWAMPLAND_HUT => Piece::SwampHut(SwampHutPiece::load(tag)?),
             _ => return None,
         })
@@ -219,6 +231,7 @@ impl Piece {
             Piece::OceanRuin(piece) => piece.add_additional_save_data(&mut additional),
             Piece::Shipwreck(piece) => piece.add_additional_save_data(&mut additional),
             Piece::Stronghold(piece) => piece.add_additional_save_data(&mut additional),
+            Piece::RuinedPortal(piece) => piece.add_additional_save_data(&mut additional),
             Piece::SwampHut(piece) => piece.add_additional_save_data(&mut additional),
         }
         self.piece().create_tag(additional)
@@ -238,6 +251,7 @@ impl Piece {
             Piece::OceanRuin(piece) => piece.post_process(level, random, chunk_bb, reference_pos),
             Piece::Shipwreck(piece) => piece.post_process(level, random, chunk_bb, reference_pos),
             Piece::Stronghold(piece) => piece.post_process(level, random, chunk_bb),
+            Piece::RuinedPortal(piece) => piece.post_process(level, random, chunk_bb, reference_pos),
             Piece::SwampHut(piece) => piece.post_process(level, chunk_bb, chunk_pos, reference_pos),
         }
     }
