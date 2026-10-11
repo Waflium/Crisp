@@ -1,6 +1,7 @@
 pub mod abstract_container_menu;
 pub mod menu_provider;
 pub mod slot;
+pub mod slot_ranges;
 
 use std::sync::OnceLock;
 

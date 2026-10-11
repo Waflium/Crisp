@@ -32,6 +32,25 @@ impl LevelBasedValue {
         })
     }
 
+    pub fn decode(tag: &crisp_protocol::nbt::Nbt) -> crate::util::codec::DataResult<LevelBasedValue> {
+        use crate::util::codec;
+        if let Ok(constant) = codec::float(tag) {
+            return Ok(LevelBasedValue::Constant(constant));
+        }
+        let boxed = |key| codec::decode_field(tag, key, LevelBasedValue::decode).map(Box::new);
+        let float = |key| codec::decode_field(tag, key, codec::float);
+        let ty = codec::decode_field(tag, "type", codec::identifier)?;
+        Ok(match ty.as_str() {
+            "minecraft:clamped" => LevelBasedValue::Clamped { value: boxed("value")?, min: float("min")?, max: float("max")? },
+            "minecraft:exponent" => LevelBasedValue::Exponent { base: boxed("base")?, power: boxed("power")? },
+            "minecraft:fraction" => LevelBasedValue::Fraction { numerator: boxed("numerator")?, denominator: boxed("denominator")? },
+            "minecraft:levels_squared" => LevelBasedValue::LevelsSquared { added: float("added")? },
+            "minecraft:linear" => LevelBasedValue::Linear { base: float("base")?, per_level_above_first: float("per_level_above_first")? },
+            "minecraft:lookup" => LevelBasedValue::Lookup { values: codec::decode_field(tag, "values", |t| codec::list_of(t, codec::float))?, fallback: boxed("fallback")? },
+            other => return Err(format!("Unknown registry key in ResourceKey[minecraft:root / minecraft:enchantment_level_based_value_type]: {other}")),
+        })
+    }
+
     pub fn calculate(&self, level: i32) -> f32 {
         match self {
             LevelBasedValue::Constant(value) => *value,

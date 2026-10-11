@@ -4,13 +4,16 @@ use crisp_data::{BlockState, items};
 use crisp_protocol::nbt::Nbt;
 
 use super::base_container_block_entity::{BaseContainerBlockEntity, save_all_items};
-use super::{BlockEntityKind, float_value, int_or, int_value};
+use super::{BlockEntity, BlockEntityKind, float_value, int_or, int_value};
 use crate::server::level::ServerLevel;
 use crate::world::entity::EntityId;
 use crate::world::item::ItemStack;
 use crate::world::item::component as dc;
 use crate::world::item::crafting::{self, CookingRecipeType};
-use crate::world::level::storage::loot::{self, LootContext};
+use crate::world::level::storage::loot::loot_context::{LootContext, LootContextBuilder};
+use crate::world::level::storage::loot::loot_params::{LootParams, SlotProvider};
+use crate::world::level::storage::loot::providers::number::floats::resolvable_float::ResolvableFloat;
+use crate::world::level::storage::loot::providers::number::ints::resolvable_int::ResolvableInt;
 use crate::world::level::update_flags::UPDATE_ALL;
 
 pub const SLOT_INPUT: usize = 0;
@@ -185,12 +188,29 @@ impl ServerLevel {
         }
     }
 
-    fn furnace_loot_context(state: BlockState) -> LootContext<'static> {
-        LootContext { block_state: Some(state), ..Default::default() }
+    fn get_loot_context<'a>(&'a mut self, pos: BlockPos, state: BlockState, block_entity: Option<&'a BlockEntity>) -> LootContext<'a> {
+        let mut params = LootParams::new(self);
+        params.block_state = Some(state);
+        params.block_entity = block_entity;
+        params.origin = Some(Vec3::at_center_of(pos));
+        params.container = block_entity.map(SlotProvider::BlockEntity);
+        LootContextBuilder::new(params).create(None)
+    }
+
+    fn get_burn_duration(&mut self, pos: BlockPos, state: BlockState, fuel_item: &ItemStack) -> i32 {
+        let block_entity = self.get_block_entity(pos).cloned();
+        let mut context = self.get_loot_context(pos, state, block_entity.as_ref());
+        ResolvableInt::get_from_item(fuel_item, dc::COOKING_FUEL, |fuel| fuel.get("burn_time"), &mut context, 0)
+    }
+
+    fn get_speed_multiplier(&mut self, pos: BlockPos, state: BlockState, fuel_item: &ItemStack) -> f32 {
+        let block_entity = self.get_block_entity(pos).cloned();
+        let mut context = self.get_loot_context(pos, state, block_entity.as_ref());
+        ResolvableFloat::get_from_item(fuel_item, dc::COOKING_FUEL, |fuel| fuel.get("speed_multiplier"), &mut context, 1.0)
     }
 
     pub fn furnace_server_tick(&mut self, pos: BlockPos, mut state: BlockState) {
-        let Some(entity) = self.furnace(pos) else { return };
+        let Some(mut entity) = self.furnace(pos) else { return };
         let mut changed = false;
         let (was_lit, mut is_lit) = if entity.lit_time_remaining > 0 {
             entity.lit_time_remaining -= 1;
@@ -209,9 +229,9 @@ impl ServerLevel {
                     let burn_result = crafting::cooking_recipes()[recipe].assemble();
                     if !burn_result.is_empty() && can_burn(&entity.base.items, 99, &burn_result) {
                         if !is_lit {
-                            let ctx = Self::furnace_loot_context(state);
-                            let new_lit_time = fuel.get(dc::COOKING_FUEL).map_or(0, |f| loot::resolvable_int(f.get("burn_time"), &ctx, 0));
-                            let new_speed_multiplier = fuel.get(dc::COOKING_FUEL).map_or(1.0, |f| loot::resolvable_float(f.get("speed_multiplier"), &ctx, 1.0));
+                            let new_lit_time = self.get_burn_duration(pos, state, &fuel);
+                            let new_speed_multiplier = self.get_speed_multiplier(pos, state, &fuel);
+                            entity = self.furnace(pos).expect("a furnace");
                             entity.lit_time_remaining = new_lit_time;
                             entity.lit_total_time = new_lit_time;
                             entity.speed_multiplier = new_speed_multiplier;

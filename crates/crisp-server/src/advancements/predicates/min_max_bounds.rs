@@ -1,7 +1,10 @@
+use crisp_protocol::nbt::Nbt;
+
 use crate::commands::brigadier::{
     CommandSyntaxException, DynamicCommandExceptionType, READER_INVALID_DOUBLE, READER_INVALID_FLOAT, READER_INVALID_INT, SimpleCommandExceptionType,
     StringReader,
 };
+use crate::util::codec::{self, DataResult};
 
 pub static ERROR_EMPTY: SimpleCommandExceptionType = SimpleCommandExceptionType("argument.range.empty");
 pub static ERROR_SWAPPED: SimpleCommandExceptionType = SimpleCommandExceptionType("argument.range.swapped");
@@ -19,6 +22,33 @@ impl<T: Copy + PartialOrd> Bounds<T> {
 
     fn map<U>(&self, f: impl Fn(T) -> U) -> Bounds<U> {
         Bounds { min: self.min.map(&f), max: self.max.map(&f) }
+    }
+
+    pub fn is_any(&self) -> bool {
+        self.min.is_none() && self.max.is_none()
+    }
+
+    fn decode(tag: &Nbt, number: fn(&Nbt) -> DataResult<T>) -> DataResult<Bounds<T>>
+    where
+        T: std::fmt::Display,
+    {
+        let bounds = match codec::either(
+            tag,
+            |t| {
+                codec::map(t)?;
+                Ok(Bounds { min: codec::decode_optional(t, "min", number)?, max: codec::decode_optional(t, "max", number)? })
+            },
+            number,
+        )? {
+            Ok(bounds) => bounds,
+            Err(value) => Bounds { min: Some(value), max: Some(value) },
+        };
+        if let (Some(min), Some(max)) = (bounds.min, bounds.max)
+            && min > max
+        {
+            return Err(format!("Swapped bounds in range: Optional[{min}] is higher than Optional[{max}]"));
+        }
+        Ok(bounds)
     }
 
     fn from_reader(
@@ -84,6 +114,24 @@ pub struct Ints {
 }
 
 impl Ints {
+    pub const ANY: Ints = Ints { bounds: Bounds { min: None, max: None } };
+
+    pub fn decode(tag: &Nbt) -> DataResult<Ints> {
+        Ok(Ints { bounds: Bounds::decode(tag, codec::int)? })
+    }
+
+    pub fn is_any(&self) -> bool {
+        self.bounds.is_any()
+    }
+
+    pub fn matches_sqr(&self, value_sqr: i64) -> bool {
+        let sqr = self.bounds.map(|v| v as i64 * v as i64);
+        if sqr.min.is_some_and(|min| min > value_sqr) {
+            return false;
+        }
+        sqr.max.is_none_or(|max| max >= value_sqr)
+    }
+
     pub fn matches(&self, value: i32) -> bool {
         if self.bounds.min.is_some_and(|min| min > value) {
             return false;
@@ -109,8 +157,25 @@ pub struct Doubles {
 }
 
 impl Doubles {
+    pub const ANY: Doubles = Doubles { bounds: Bounds { min: None, max: None }, bounds_sqr: Bounds { min: None, max: None } };
+
     fn new(bounds: Bounds<f64>) -> Doubles {
         Doubles { bounds, bounds_sqr: bounds.map(|v| v * v) }
+    }
+
+    pub fn decode(tag: &Nbt) -> DataResult<Doubles> {
+        Ok(Doubles::new(Bounds::decode(tag, codec::double)?))
+    }
+
+    pub fn is_any(&self) -> bool {
+        self.bounds.is_any()
+    }
+
+    pub fn matches(&self, value: f64) -> bool {
+        if self.bounds.min.is_some_and(|min| min > value) {
+            return false;
+        }
+        self.bounds.max.is_none_or(|max| !(max < value))
     }
 
     pub fn matches_sqr(&self, value_sqr: f64) -> bool {

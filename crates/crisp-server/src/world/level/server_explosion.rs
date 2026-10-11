@@ -12,7 +12,7 @@ use crate::world::item::ItemStack;
 use crate::world::level::BlockGetter;
 use crate::world::level::block::{self, base_fire_block};
 use crate::world::level::clip::{ClipBlock, ClipContext, ClipFluid};
-use crate::world::level::storage::loot::{LootContext, generate};
+use crate::world::level::storage::loot::loot_params::LootParams;
 use crate::world::level::update_flags::UPDATE_ALL;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -283,13 +283,18 @@ impl ServerLevel {
         if behaviour.drop_from_explosion() {
             let drop_experience = explosion.indirect_source.is_some_and(|e| self.is_player(e));
             let block_entity = if state.has_block_entity() { self.get_block_entity(pos).cloned() } else { None };
+            let tool = ItemStack::empty();
             behaviour.spawn_after_break(state, self, pos, None, drop_experience);
-            if let Some(table) = state.block().info().loot_table {
-                let radius = (explosion.block_interaction == BlockInteraction::DestroyWithDecay).then_some(explosion.radius);
-                let ctx = LootContext { block_state: Some(state), explosion_radius: radius, block_entity: block_entity.as_ref(), ..Default::default() };
-                for stack in generate(table, &ctx, &mut rand::rng()) {
-                    add_or_append_stack(stacks, stack, pos);
-                }
+            let mut params = LootParams::new(self);
+            params.origin = Some(Vec3::at_center_of(pos));
+            params.tool = Some(&tool);
+            params.block_entity = block_entity.as_ref();
+            params.this_entity = explosion.source;
+            if explosion.block_interaction == BlockInteraction::DestroyWithDecay {
+                params.explosion_radius = Some(explosion.radius);
+            }
+            for stack in behaviour.get_drops(state, params) {
+                add_or_append_stack(stacks, stack, pos);
             }
         }
         self.set_block(pos, crisp_data::blocks::AIR.default_state(), UPDATE_ALL);

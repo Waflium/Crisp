@@ -1,3 +1,4 @@
+pub mod bundle_contents;
 pub mod codec;
 mod custom;
 #[cfg(test)]

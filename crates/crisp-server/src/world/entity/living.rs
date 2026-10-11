@@ -175,6 +175,24 @@ pub fn player_dimensions(pose: Pose) -> EntityDimensions {
 }
 
 impl ServerLevel {
+    pub fn has_line_of_sight(&mut self, id: EntityId, target: EntityId) -> bool {
+        let e = self.entity(id);
+        let from = Vec3::new(e.x(), e.eye_y(), e.z());
+        let t = self.entity(target);
+        let to = Vec3::new(t.x(), t.eye_y(), t.z());
+        if to.distance_to(from) > 128.0 {
+            return false;
+        }
+        let ctx = crate::world::level::clip::ClipContext {
+            from,
+            to,
+            block: crate::world::level::clip::ClipBlock::Collider,
+            fluid: crate::world::level::clip::ClipFluid::None,
+            is_player: self.is_player(id),
+        };
+        self.clip(&ctx).miss
+    }
+
     pub fn swing(&mut self, id: EntityId, hand: InteractionHand, animation: SwingAnimation, send_to_swinging_entity: bool) -> bool {
         let duration = animation.duration;
         if !self.living_mut(id).swing_state.start_if_able(hand, animation, duration) {

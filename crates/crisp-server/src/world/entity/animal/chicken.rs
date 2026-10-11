@@ -139,7 +139,7 @@ impl ServerLevel {
             chicken.egg_time -= 1;
             chicken.egg_time <= 0
         } {
-            if self.drop_from_gift_loot_table(id, CHICKEN_LAY) {
+            if self.drop_from_gift_loot_table(id, CHICKEN_LAY, |level, item_stack| level.spawn_at_location(id, item_stack, 0.0)) {
                 let random = &mut self.entity_mut(id).random;
                 let pitch = (random.next_float() - random.next_float()) * 0.2 + 1.0;
                 self.entity_play_sound(id, sound_event("minecraft:entity.chicken.egg"), 1.0, pitch);

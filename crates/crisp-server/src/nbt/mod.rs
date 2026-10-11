@@ -8,7 +8,6 @@ use crisp_protocol::nbt::{Nbt, java_hash_map_order};
 use crate::commands::brigadier::{CommandSyntaxException, SimpleCommandExceptionType, StringReader};
 use crate::util::parsing::packrat::ParseState;
 
-#[cfg(test)]
 pub static ERROR_TRAILING_DATA: SimpleCommandExceptionType = SimpleCommandExceptionType("argument.nbt.trailing");
 pub static ERROR_EXPECTED_COMPOUND: SimpleCommandExceptionType = SimpleCommandExceptionType("argument.nbt.expected.compound");
 
@@ -25,7 +24,6 @@ pub fn parse_compound_as_argument(reader: &mut StringReader) -> Result<Nbt, Comm
     }
 }
 
-#[cfg(test)]
 pub fn parse_fully(input: &str) -> Result<Nbt, CommandSyntaxException> {
     let units: Vec<u16> = input.encode_utf16().collect();
     let mut reader = StringReader::new(&units);

@@ -13,9 +13,12 @@ use super::entity_save::uuid_from_nbt;
 use super::living::LivingEntity;
 use super::{Entity, EntityDimensions, EntityId, LevelEntity};
 use crate::server::level::ServerLevel;
+use crate::world::damagesource::DamageSource;
 use crate::world::effect::MobEffectInstance;
 use crate::world::item::ItemStack;
 use crate::world::level::block::entity::int_value;
+use crate::world::level::storage::loot::loot_params::LootParams;
+use crate::world::level::storage::loot::loot_table::LootTable;
 use crate::world::level::storage::uuid_ints;
 
 pub const DEFAULT_EQUIPMENT_DROP_CHANCE: f32 = 0.085;
@@ -41,6 +44,7 @@ pub struct Mob {
     pub loot_table_seed: i64,
     pub home_position: BlockPos,
     pub home_radius: i32,
+    pub target: Option<EntityId>,
     pub ai: MobAi,
     pub kind: MobKind,
 }
@@ -62,6 +66,7 @@ impl Mob {
             loot_table_seed: 0,
             home_position: BlockPos::ZERO,
             home_radius: -1,
+            target: None,
             ai: MobAi::default(),
             kind,
         };
@@ -114,6 +119,24 @@ impl Mob {
 
     pub fn is_baby(&self) -> bool {
         self.ageable().is_some_and(|a| a.age < 0)
+    }
+
+    pub fn cube_mob_size(&self) -> Option<i32> {
+        match &self.kind {
+            MobKind::Chicken(_) => None,
+        }
+    }
+
+    pub fn raider(&self) -> Option<(bool, bool)> {
+        match &self.kind {
+            MobKind::Chicken(_) => None,
+        }
+    }
+
+    pub fn sheep_sheared(&self) -> Option<bool> {
+        match &self.kind {
+            MobKind::Chicken(_) => None,
+        }
     }
 
     pub fn ageable(&self) -> Option<&AgeableMob> {
@@ -580,7 +603,7 @@ impl ServerLevel {
         let player_killed = self.living(id).last_hurt_by_player_memory_time > 0;
         let mob_drops = self.game_rules.get_bool(crisp_data::game_rule::MOB_DROPS);
         if !self.mob(id).expect("a mob").is_baby() && mob_drops {
-            self.drop_from_mob_loot_table(id, source, player_killed);
+            self.drop_from_loot_table(id, source, player_killed);
         }
         if player_killed && mob_drops {
             let reward = self.base_experience_reward(id);
@@ -598,54 +621,70 @@ impl ServerLevel {
         }
     }
 
-    fn drop_from_mob_loot_table(&mut self, id: EntityId, source: &crate::world::damagesource::DamageSource, player_killed: bool) {
-        let mob = self.mob_mut(id).expect("a mob");
-        let Some(table) = mob.loot_table_id() else { return };
-        mob.loot_table = None;
-        let stacks = self.entity_loot(id, &table, Some(source), player_killed);
-        for stack in stacks {
-            self.spawn_at_location(id, stack, 0.0);
+    fn drop_from_loot_table(&mut self, id: EntityId, source: &DamageSource, player_killed: bool) {
+        let Some(loot_table) = self.mob(id).expect("a mob").loot_table_id() else { return };
+        self.drop_from_loot_table_into(id, source, player_killed, &loot_table, &mut |level, item_stack| level.spawn_at_location(id, item_stack, 0.0));
+        self.mob_mut(id).expect("a mob").loot_table = None;
+    }
+
+    pub fn get_last_hurt_by_player(&self, id: EntityId) -> Option<EntityId> {
+        self.living(id).last_hurt_by_player.as_ref().and_then(|&uuid| self.entity_manager.visible_entity_storage.get(uuid)).filter(|&p| self.is_player(p))
+    }
+
+    pub fn get_loot_table_seed(&self, id: EntityId) -> i64 {
+        self.mob(id).map_or(0, |mob| mob.loot_table_seed)
+    }
+
+    pub fn drop_from_loot_table_into(
+        &mut self,
+        id: EntityId,
+        source: &DamageSource,
+        player_killed: bool,
+        loot_table: &str,
+        item_stack_consumer: &mut dyn FnMut(&mut ServerLevel, ItemStack),
+    ) {
+        let table = LootTable::get(loot_table);
+        let position = self.entity(id).position();
+        let killer_player = self.get_last_hurt_by_player(id).filter(|_| player_killed);
+        let luck = killer_player.map(|player| self.attribute_value(player, Attribute::Luck) as f32);
+        let loot_table_seed = self.get_loot_table_seed(id);
+        let mut params = LootParams::new(self);
+        params.this_entity = Some(id);
+        params.origin = Some(position);
+        params.damage_source = Some(*source);
+        params.attacking_entity = source.causing_entity;
+        params.direct_attacking_entity = source.direct_entity;
+        if let (Some(killer_player), Some(luck)) = (killer_player, luck) {
+            params.last_damage_player = Some(killer_player);
+            params.luck = luck;
         }
+        table.get_random_items_with_seed(params, loot_table_seed, item_stack_consumer);
     }
 
-    fn entity_loot(&self, id: EntityId, table: &str, source: Option<&crate::world::damagesource::DamageSource>, player_killed: bool) -> Vec<ItemStack> {
-        use crate::world::level::storage::loot::{self, LootContext};
-        let killer_player = self.living(id).last_hurt_by_player.as_ref().and_then(|&uuid| self.entity_manager.visible_entity_storage.get(uuid)).filter(|&p| self.is_player(p));
-        let ctx = LootContext {
-            this_entity: Some(self.loot_entity(id)),
-            attacking_entity: source.and_then(|s| s.causing_entity).map(|e| self.loot_entity(e)),
-            direct_attacking_entity: source.and_then(|s| s.direct_entity).map(|e| self.loot_entity(e)),
-            last_damage_player: killer_player.filter(|_| player_killed).map(|p| self.loot_entity(p)),
-            ..Default::default()
-        };
-        loot::generate(table, &ctx, &mut rand::rng())
+    pub fn drop_from_gift_loot_table(&mut self, id: EntityId, key: &str, consumer: impl FnMut(&mut ServerLevel, ItemStack)) -> bool {
+        let position = self.entity(id).position();
+        self.drop_from_loot_table_with_params(
+            key,
+            |params| {
+                params.origin = Some(position);
+                params.this_entity = Some(id);
+            },
+            consumer,
+        )
     }
 
-    pub fn drop_from_gift_loot_table(&mut self, id: EntityId, table: &str) -> bool {
-        use crate::world::level::storage::loot::{self, LootContext};
-        let ctx = LootContext { this_entity: Some(self.loot_entity(id)), ..Default::default() };
-        let drops = loot::generate(table, &ctx, &mut rand::rng());
+    fn drop_from_loot_table_with_params(&mut self, key: &str, params_builder: impl FnOnce(&mut LootParams), mut consumer: impl FnMut(&mut ServerLevel, ItemStack)) -> bool {
+        let loot_table = LootTable::get(key);
+        let mut params = LootParams::new(self);
+        params_builder(&mut params);
+        let drops = loot_table.get_random_items(params);
         if drops.is_empty() {
             return false;
         }
         for stack in drops {
-            self.spawn_at_location(id, stack, 0.0);
+            consumer(self, stack);
         }
         true
-    }
-
-    fn loot_entity(&self, id: EntityId) -> crate::world::level::storage::loot::LootEntity {
-        let mob = self.mob(id);
-        crate::world::level::storage::loot::LootEntity {
-            living: self.is_living(id),
-            on_fire: self.is_on_fire(id),
-            baby: mob.is_some_and(Mob::is_baby),
-            mainhand: if self.is_living(id) { self.item_by_slot(id, EquipmentSlot::Mainhand) } else { None },
-            chicken_variant: mob.and_then(|m| match (&m.kind, m.entity.data.get(chicken::DATA_VARIANT)) {
-                (MobKind::Chicken(_), DataValue::ChickenVariant(variant)) => Some(chicken::variant_name(*variant)),
-                _ => None,
-            }),
-        }
     }
 
     pub fn spawn_at_location(&mut self, id: EntityId, stack: ItemStack, offset: f32) {

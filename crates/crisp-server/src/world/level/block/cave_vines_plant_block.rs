@@ -53,8 +53,8 @@ impl BlockBehaviour for CaveVinesPlantBlock {
         self.0.update_shape(state, level, pos, direction, neighbour_pos, neighbour_state)
     }
 
-    fn use_without_item(&self, state: BlockState, level: &mut ServerLevel, pos: BlockPos, _player: EntityId, _hit: &BlockHitResult) -> InteractionResult {
-        cave_vines::use_vine(state, level, pos)
+    fn use_without_item(&self, state: BlockState, level: &mut ServerLevel, pos: BlockPos, player: EntityId, _hit: &BlockHitResult) -> InteractionResult {
+        cave_vines::use_vine(Some(player), state, level, pos)
     }
 
     fn is_valid_bonemeal_target(&self, _level: &mut ServerLevel, _pos: BlockPos, state: BlockState) -> bool {

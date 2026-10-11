@@ -42,7 +42,6 @@ use crate::world::level::entity::entity_tick_list::EntityTickList;
 use crate::world::level::gamerules::GameRules;
 use crate::world::level::saveddata::weather_data::WeatherData;
 use crate::world::tick_rate_manager::TickRateManager;
-use crate::world::level::storage::loot::{LootContext, generate};
 use crate::world::level::update_flags::*;
 use crate::world::scores::scoreboard::Scoreboard;
 use crate::world::ticks::{ScheduledTick, TickPriority};
@@ -94,6 +93,9 @@ struct NeighborUpdater {
 
 pub struct ServerLevel {
     pub level_name: String,
+    pub seed: i64,
+    pub command_storage: crate::world::level::storage::command_storage::CommandStorage,
+    pub random_sequences: crate::world::random_sequences::RandomSequences,
     pub game_rules: GameRules,
     pub spawn_protection: SpawnProtection,
     pub difficulty: crate::world::difficulty::Difficulty,
@@ -170,6 +172,9 @@ impl ServerLevel {
         chunks.set_simulation_distance(simulation_distance);
         let mut level = ServerLevel {
             level_name: String::new(),
+            seed: 0,
+            command_storage: crate::world::level::storage::command_storage::CommandStorage::new(None),
+            random_sequences: crate::world::random_sequences::RandomSequences::load(None),
             game_rules: GameRules::default(),
             difficulty: crate::world::difficulty::Difficulty::Easy,
             no_save: false,
@@ -217,6 +222,14 @@ impl ServerLevel {
 
     pub fn environment_attributes(&self) -> EnvironmentAttributeReader<'_, ServerLevel> {
         self.environment_attributes.reader(self)
+    }
+
+    pub fn environment_attribute_loot_value(
+        &self,
+        attribute: &crate::world::attribute::environment_attribute::EnvironmentAttributeInfo,
+        origin: Option<Vec3>,
+    ) -> crate::world::attribute::Value {
+        self.environment_attributes.get_loot_value(attribute, origin, self)
     }
 
     pub fn sync_clocks(&mut self, clocks: &ServerClockManager) {
@@ -500,12 +513,10 @@ impl ServerLevel {
         self.drop_resources_with_entity(state, pos, None, breaker, tool);
     }
 
-    pub fn drop_resources_with_entity(&mut self, state: BlockState, pos: BlockPos, block_entity: Option<&BlockEntity>, _breaker: Option<EntityId>, tool: Option<ItemStack>) {
-        if let Some(table) = state.block().info().loot_table {
-            let ctx = LootContext { block_state: Some(state), tool: tool.as_ref(), block_entity, ..Default::default() };
-            for stack in generate(table, &ctx, &mut rand::rng()) {
-                self.pop_resource(pos, stack);
-            }
+    pub fn drop_resources_with_entity(&mut self, state: BlockState, pos: BlockPos, block_entity: Option<&BlockEntity>, breaker: Option<EntityId>, tool: Option<ItemStack>) {
+        let drops = block::get_drops(state, self, pos, block_entity, breaker, tool.as_ref().unwrap_or(&ItemStack::empty()));
+        for stack in drops {
+            self.pop_resource(pos, stack);
         }
         block::of(state).spawn_after_break(state, self, pos, tool, true);
     }

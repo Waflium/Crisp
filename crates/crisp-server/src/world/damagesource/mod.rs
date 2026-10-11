@@ -34,6 +34,10 @@ impl DamageSource {
         self.ty == ty
     }
 
+    pub fn is_direct(&self) -> bool {
+        self.causing_entity == self.direct_entity
+    }
+
     pub fn msg_id(&self) -> &'static str {
         self.ty.info().msg_id
     }

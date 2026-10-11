@@ -482,6 +482,12 @@ pub fn is_too_deep(tag: &Nbt, depth: usize) -> bool {
 }
 
 impl NbtPath {
+    pub fn decode(tag: &Nbt) -> Result<NbtPath, String> {
+        let string = crate::util::codec::string(tag)?;
+        let units: Vec<u16> = string.encode_utf16().collect();
+        parse(&mut StringReader::new(&units)).map_err(|e| format!("Failed to parse path {string}: {}", e.get_message()))
+    }
+
     fn not_found(&self, node: usize) -> CommandSyntaxException {
         let text: Vec<u16> = self.original.encode_utf16().take(self.nodes[node].1).collect();
         ERROR_NOTHING_FOUND.create(String::from_utf16_lossy(&text))

@@ -3,6 +3,7 @@ use crisp_data::packets::play::clientbound;
 use crisp_data::{block_entity_types as types, registry, registry_id};
 
 use super::abstract_container_menu::{AbstractContainerMenu, MenuKind, menu_type_id};
+use crate::advancements::predicates::item_predicate::ItemPredicate;
 use crate::network::chat::{Arg, ChatFormatting, Component};
 use crate::server::level::{ServerLevel, SoundSource};
 use crate::world::container::ContainerRef;
@@ -40,7 +41,7 @@ impl ServerLevel {
         let loot_ok = !randomizable || base.loot_table.is_none() || !spectator;
         let unlocks = match &base.lock_key {
             None => true,
-            Some(lock) => spectator || crate::world::level::storage::loot::item_predicate_nbt_matches(lock, &held),
+            Some(lock) => spectator || ItemPredicate::decode(lock).map_or(true, |predicate| predicate.test(&held)),
         };
         loot_ok && unlocks
     }

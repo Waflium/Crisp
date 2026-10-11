@@ -133,7 +133,7 @@ impl Operation {
         }
     }
 
-    fn by_name(name: &str) -> Option<Operation> {
+    pub fn by_name(name: &str) -> Option<Operation> {
         [Operation::AddValue, Operation::AddMultipliedBase, Operation::AddMultipliedTotal].into_iter().find(|o| o.name() == name)
     }
 }

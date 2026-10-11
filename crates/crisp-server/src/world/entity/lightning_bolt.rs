@@ -39,6 +39,10 @@ impl LightningBolt {
         LightningBolt { entity, life: START_LIFE, seed, flashes, visual_only: false, cause: None, hit_entities: HashSet::new(), blocks_set_on_fire: 0 }
     }
 
+    pub fn hit_entities(&self) -> impl Iterator<Item = EntityId> + '_ {
+        self.hit_entities.iter().copied()
+    }
+
     fn strike_position(&self) -> BlockPos {
         let pos = self.entity.position();
         BlockPos::containing(pos.x, pos.y - 1.0e-6, pos.z)

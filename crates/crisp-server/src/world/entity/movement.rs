@@ -74,6 +74,25 @@ impl ServerLevel {
         self.players.get(&id).is_some_and(|p| p.game_mode.game_type == GameType::Spectator)
     }
 
+    pub fn vehicle(&self, _id: EntityId) -> Option<EntityId> {
+        None
+    }
+
+    pub fn passengers(&self, _id: EntityId) -> Vec<EntityId> {
+        Vec::new()
+    }
+
+    pub fn known_movement(&self, id: EntityId) -> Vec3 {
+        match self.players.get(&id) {
+            Some(player) => player.known_movement,
+            None => self.entity(id).delta_movement,
+        }
+    }
+
+    pub fn fishing_hook_open_water(&self, _id: EntityId) -> Option<bool> {
+        None
+    }
+
     pub fn is_alive(&self, id: EntityId) -> bool {
         match self.players.get(&id) {
             Some(p) => !p.entity.is_removed() && p.health > 0.0,

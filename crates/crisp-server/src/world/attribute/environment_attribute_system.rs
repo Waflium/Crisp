@@ -223,6 +223,21 @@ impl EnvironmentAttributeSystem {
         }
     }
 
+    pub fn get_loot_value(&self, attribute: &EnvironmentAttributeInfo, origin: Option<Vec3>, access: &impl EnvironmentAccess) -> Value {
+        if attribute.is_positional {
+            let Some(position) = origin else { return attribute.default_value().clone() };
+            return match self.sampler(attribute.id) {
+                Some(sampler) if sampler.is_affected_by_position => sampler.compute(Some(position), access),
+                Some(sampler) => sampler.dimension_value(access).clone(),
+                None => attribute.default_value().clone(),
+            };
+        }
+        match self.sampler(attribute.id) {
+            Some(sampler) => sampler.dimension_value(access).clone(),
+            None => attribute.default_value().clone(),
+        }
+    }
+
     pub fn reader<'a, A: EnvironmentAccess>(&'a self, access: &'a A) -> EnvironmentAttributeReader<'a, A> {
         EnvironmentAttributeReader { system: self, access }
     }

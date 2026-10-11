@@ -1,0 +1,16 @@
+pub mod any_value;
+pub mod attribute_modifiers_predicate;
+pub mod bundle_predicate;
+pub mod container_predicate;
+pub mod custom_data_predicate;
+pub mod damage_predicate;
+pub mod data_component_predicate;
+pub mod enchantments_predicate;
+pub mod firework_explosion_predicate;
+pub mod fireworks_predicate;
+pub mod jukebox_playable_predicate;
+pub mod potions_predicate;
+pub mod trim_predicate;
+pub mod villager_type_predicate;
+pub mod writable_book_predicate;
+pub mod written_book_predicate;

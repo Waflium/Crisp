@@ -1,9 +1,11 @@
 pub mod argb;
 pub mod basic_file_attributes;
+pub mod codec;
 pub mod dependency_sorter;
 pub mod ease;
 pub mod easing_type;
 pub mod directory_lock;
+pub mod fraction;
 pub mod hash_ops;
 pub mod java_collections;
 pub mod keyframe_track;
@@ -59,6 +61,21 @@ pub fn java_max_f(a: f32, b: f32) -> f32 {
         a
     } else {
         b
+    }
+}
+
+pub fn java_round_f(a: f32) -> i32 {
+    let int_bits = a.to_bits() as i32;
+    let biased_exp = (int_bits & 0x7F80_0000) >> 23;
+    let shift = (24 - 2 + 127) - biased_exp;
+    if shift & -32 == 0 {
+        let mut r = (int_bits & 0x007F_FFFF) | (0x007F_FFFF + 1);
+        if int_bits < 0 {
+            r = -r;
+        }
+        ((r >> shift) + 1) >> 1
+    } else {
+        a as i32
     }
 }
 

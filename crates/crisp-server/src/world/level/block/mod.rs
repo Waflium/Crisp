@@ -15,6 +15,7 @@ mod base_torch_block;
 mod block_set_type;
 mod bubble_column_block;
 mod button_block;
+pub mod campfire_block;
 mod candle_cake_block;
 mod carpet_block;
 mod cauldron_block;
@@ -174,6 +175,8 @@ use crate::server::level::ServerLevel;
 use crate::world::entity::EntityId;
 use crate::world::item::ItemStack;
 use crate::world::item::context::BlockPlaceContext;
+use crate::world::level::storage::loot::loot_params::LootParams;
+use crate::world::level::storage::loot::loot_table::LootTable;
 use crate::world::{InteractionHand, InteractionResult};
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -288,6 +291,10 @@ pub trait BlockBehaviour: Send + Sync {
 
     fn spawn_after_break(&self, state: BlockState, level: &mut ServerLevel, pos: BlockPos, tool: Option<ItemStack>, drop_experience: bool) {}
 
+    fn get_drops(&self, state: BlockState, params: LootParams) -> Vec<ItemStack> {
+        block_get_drops(state, params)
+    }
+
     fn player_destroy(&self, level: &mut ServerLevel, player: EntityId, pos: BlockPos, state: BlockState, block_entity: Option<&entity::BlockEntity>, tool: Option<ItemStack>) {
         level.drop_resources_with_entity(state, pos, block_entity, Some(player), tool);
     }
@@ -366,6 +373,56 @@ pub trait BlockBehaviour: Send + Sync {
 pub fn block_player_will_destroy(level: &mut ServerLevel, pos: BlockPos, state: BlockState, player: EntityId) -> BlockState {
     level.level_event(Some(player), crate::server::level::events::PARTICLES_AND_SOUND_DESTROY_BLOCK, pos, state.id() as i32);
     state
+}
+
+pub fn block_get_drops(state: BlockState, mut params: LootParams) -> Vec<ItemStack> {
+    let Some(loot_table) = state.block().info().loot_table else { return Vec::new() };
+    params.block_state = Some(state);
+    LootTable::get(loot_table).get_random_items(params)
+}
+
+pub fn get_drops(
+    state: BlockState,
+    level: &mut ServerLevel,
+    pos: BlockPos,
+    block_entity: Option<&entity::BlockEntity>,
+    breaker: Option<EntityId>,
+    tool: &ItemStack,
+) -> Vec<ItemStack> {
+    let mut params = LootParams::new(level);
+    params.origin = Some(Vec3::at_center_of(pos));
+    params.tool = Some(tool);
+    params.this_entity = breaker;
+    params.block_entity = block_entity;
+    of(state).get_drops(state, params)
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn drop_from_block_interact_loot_table(
+    level: &mut ServerLevel,
+    key: &str,
+    interacted_block_pos: BlockPos,
+    interacted_block_state: BlockState,
+    interacted_block_entity: Option<&entity::BlockEntity>,
+    tool: Option<&ItemStack>,
+    interacting_entity: Option<EntityId>,
+    mut consumer: impl FnMut(&mut ServerLevel, ItemStack),
+) -> bool {
+    let loot_table = LootTable::get(key);
+    let mut params = LootParams::new(level);
+    params.block_state = Some(interacted_block_state);
+    params.origin = Some(Vec3::at_center_of(interacted_block_pos));
+    params.block_entity = interacted_block_entity;
+    params.interacting_entity = interacting_entity;
+    params.tool = tool;
+    let drops = loot_table.get_random_items(params);
+    if drops.is_empty() {
+        return false;
+    }
+    for stack in drops {
+        consumer(level, stack);
+    }
+    true
 }
 
 pub fn is_exception_for_connection(state: BlockState) -> bool {

@@ -6,6 +6,7 @@ pub mod data;
 #[cfg(test)]
 mod effect_tests;
 pub mod effects;
+pub mod entity_components;
 pub mod entity_save;
 pub mod experience_orb;
 pub mod fluid_interaction;
@@ -15,12 +16,14 @@ pub mod item;
 pub mod lightning_bolt;
 pub mod mob;
 pub mod primed_tnt;
+pub mod projectile;
 pub mod raid;
 pub mod living;
 pub mod movement;
 pub mod player;
 pub mod relative;
 pub mod schedule;
+pub mod slot_access;
 #[cfg(test)]
 mod survival_tests;
 pub mod using_item;

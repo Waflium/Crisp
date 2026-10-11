@@ -6,8 +6,11 @@ use crisp_protocol::nbt::Nbt;
 use super::ServerLevel;
 use crate::network::connection::encode;
 use crate::world::container::ContainerRef;
+use crate::world::entity::attributes::Attribute;
 use crate::world::level::block::entity::{BlockEntity, BlockEntityKind, BlockEntityTicker};
 use crate::world::level::chunk::block_entities::EntityCreationType;
+use crate::world::level::storage::loot::loot_params::LootParams;
+use crate::world::level::storage::loot::loot_table::LootTable;
 
 impl ServerLevel {
     pub fn get_block_entity(&mut self, pos: BlockPos) -> Option<&mut BlockEntity> {
@@ -63,20 +66,24 @@ impl ServerLevel {
         }
     }
 
-    pub fn unpack_loot_table(&mut self, pos: BlockPos, _player: Option<crate::world::entity::EntityId>) {
+    pub fn unpack_loot_table(&mut self, pos: BlockPos, player: Option<crate::world::entity::EntityId>) {
         let Some(entity) = self.chunks.block_entity(pos, EntityCreationType::Check) else { return };
         if !entity.is_randomizable() {
             return;
         }
         let Some(base) = entity.container_base_mut() else { return };
-        let Some(table) = base.loot_table.take() else { return };
-        let seed = base.loot_table_seed;
-        let ctx = crate::world::level::storage::loot::LootContext::default();
-        let items = crate::world::level::storage::loot::generate(&table, &ctx, &mut rand::rng());
-        let mut random =
-            if seed != 0 { crisp_core::random::LegacyRandomSource::new(seed) } else { crisp_core::random::LegacyRandomSource::new(crisp_core::random::RandomSource::next_long(&mut self.random)) };
+        let Some(loot_table_key) = base.loot_table.take() else { return };
+        let loot_table_seed = base.loot_table_seed;
+        let loot_table = LootTable::get(&loot_table_key);
         let container = ContainerRef::block(self, pos);
-        crate::world::level::storage::loot::fill(self, container, items, &mut random);
+        let luck = player.map(|player| self.attribute_value(player, Attribute::Luck) as f32);
+        let mut params = LootParams::new(self);
+        params.origin = Some(crisp_core::Vec3::at_center_of(pos));
+        if let Some(luck) = luck {
+            params.luck = luck;
+            params.this_entity = player;
+        }
+        loot_table.fill(container, params, loot_table_seed);
     }
 
     pub fn block_entity_update_packet(&mut self, pos: BlockPos) -> Option<Vec<u8>> {

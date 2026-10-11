@@ -172,8 +172,6 @@ pub struct Server {
     generate_structures: bool,
     server_brands: Vec<String>,
     was_modded: bool,
-    pub command_storage: CommandStorage,
-    pub random_sequences: RandomSequences,
     pub scheduled_events: TimerQueue,
     pub name_to_id_cache: CachedUserNameToIdResolver,
     pub custom_boss_events: CustomBossEvents,
@@ -290,6 +288,9 @@ impl Server {
         level.entity_broadcast_range_percentage = config.entity_broadcast_range_percentage;
         let scoreboard_save_data = ScoreboardSaveData::load(world_dir.as_ref().map(WorldDir::data_folder));
         level.scoreboard.load(scoreboard_save_data.data());
+        level.seed = seed;
+        level.command_storage = CommandStorage::new(world_dir.as_ref().map(WorldDir::data_folder));
+        level.random_sequences = RandomSequences::load(world_dir.as_ref().map(WorldDir::data_folder));
         let (config_replies_to_status, config_accepts_transfers) = (config.replies_to_status, config.accepts_transfers);
         let mut server = Server {
             config,
@@ -333,8 +334,6 @@ impl Server {
             generate_structures,
             server_brands,
             was_modded,
-            command_storage: CommandStorage::new(world_dir.as_ref().map(WorldDir::data_folder)),
-            random_sequences: RandomSequences::load(world_dir.as_ref().map(WorldDir::data_folder)),
             scheduled_events: TimerQueue::load(world_dir.as_ref().map(WorldDir::data_folder)),
             name_to_id_cache,
             custom_boss_events: CustomBossEvents::load(world_dir.as_ref().map(WorldDir::data_folder)),
@@ -550,8 +549,8 @@ impl Server {
         if data.save(dir).is_err() {
             error!("Failed to save level {}", dir.root.display());
         }
-        log_save_failure("command_storage.dat", self.command_storage.save());
-        log_save_failure("random_sequences.dat", self.random_sequences.save());
+        log_save_failure("command_storage.dat", self.level.command_storage.save());
+        log_save_failure("random_sequences.dat", self.level.random_sequences.save());
         log_save_failure("scheduled_events.dat", self.scheduled_events.save());
         log_save_failure("custom_boss_events.dat", self.custom_boss_events.save());
         log_save_failure("stopwatches.dat", self.stopwatches.save());

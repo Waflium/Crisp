@@ -8,7 +8,7 @@ use super::{BlockBehaviour, BlockHitResult};
 use crate::server::level::{ServerLevel, SoundSource};
 use crate::world::entity::EntityId;
 use crate::world::item::ItemStack;
-use crate::world::level::storage::loot::{LootContext, generate};
+use crate::world::level::block;
 use crate::world::level::update_flags::UPDATE_CLIENTS;
 use crate::world::{InteractionHand, InteractionResult};
 
@@ -64,14 +64,14 @@ impl BlockBehaviour for SweetBerryBushBlock {
         }
     }
 
-    fn use_without_item(&self, state: BlockState, level: &mut ServerLevel, pos: BlockPos, _player: EntityId, _hit: &BlockHitResult) -> InteractionResult {
+    fn use_without_item(&self, state: BlockState, level: &mut ServerLevel, pos: BlockPos, player: EntityId, _hit: &BlockHitResult) -> InteractionResult {
         if state.get(AGE_3) <= 1 {
             return InteractionResult::Pass;
         }
-        let ctx = LootContext { block_state: Some(state), ..Default::default() };
-        for stack in generate("minecraft:harvest/sweet_berry_bush", &ctx, &mut rand::rng()) {
-            level.pop_resource(pos, stack);
-        }
+        let block_entity = level.get_block_entity(pos).cloned();
+        block::drop_from_block_interact_loot_table(level, "minecraft:harvest/sweet_berry_bush", pos, state, block_entity.as_ref(), None, Some(player), |level, stack| {
+            level.pop_resource(pos, stack)
+        });
         let pitch = 0.8 + level.random.next_float() * 0.4;
         let sound = registry_id(registry::SOUND_EVENT, "minecraft:block.sweet_berry_bush.pick_berries");
         level.play_sound(None, pos, sound, SoundSource::Blocks, 1.0, pitch);

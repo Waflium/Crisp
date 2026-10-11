@@ -1,13 +1,16 @@
+pub mod alchemy;
 pub mod block_item;
 pub mod bucket_item;
 pub mod bone_meal_item;
 pub mod component;
 pub mod context;
 pub mod crafting;
+pub mod dye_color;
 pub mod enchantment;
 pub mod flint_and_steel_item;
 mod item_stack;
 pub mod scaffolding_block_item;
+pub mod slot;
 
 use crisp_data::Item;
 
@@ -61,6 +64,10 @@ pub fn use_item(level: &mut ServerLevel, player: EntityId, hand: InteractionHand
             None => (InteractionResult::Pass, None),
         },
     }
+}
+
+pub fn can_fit_inside_container_items(item: Item) -> bool {
+    !item.info().block.is_some_and(|block| block.is_instance_of("ShulkerBoxBlock"))
 }
 
 pub const HOTBAR_START: usize = 36;

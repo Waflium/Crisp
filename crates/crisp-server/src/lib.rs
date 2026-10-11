@@ -3,6 +3,7 @@ pub mod logging;
 mod advancements;
 pub mod crash_report;
 mod commands;
+mod core;
 mod nbt;
 mod resources;
 mod tags;
