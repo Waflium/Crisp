@@ -13,6 +13,7 @@ use crate::server::level::ServerLevel;
 use crate::util::java_format_fixed;
 use crate::world::entity::EntityId;
 use crate::world::entity::relative::{PositionMoveRotation, relative};
+use crate::world::level::is_in_spawnable_bounds;
 
 static INVALID_POSITION: SimpleCommandExceptionType = SimpleCommandExceptionType("commands.teleport.invalidPosition");
 
@@ -133,10 +134,6 @@ fn relatives(destination: &Coordinates, rotation: Option<&Coordinates>) -> u16 {
 
 fn format_double(value: f64) -> String {
     java_format_fixed(value, 6)
-}
-
-pub fn is_in_spawnable_bounds(pos: BlockPos) -> bool {
-    (-20_000_000..20_000_000).contains(&pos.y) && (-30_000_000..30_000_000).contains(&pos.x) && (-30_000_000..30_000_000).contains(&pos.z)
 }
 
 #[allow(clippy::too_many_arguments)]

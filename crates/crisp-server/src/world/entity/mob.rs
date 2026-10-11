@@ -460,9 +460,13 @@ impl ServerLevel {
         mob.ambient_sound_time += 1;
         if roll < ambient_sound_time {
             mob.ambient_sound_time = -mob.ambient_sound_interval();
-            let sound = super::sound_event(&mob.sound_set().ambient_sound);
-            self.make_sound(id, sound);
+            self.play_ambient_sound(id);
         }
+    }
+
+    pub fn play_ambient_sound(&mut self, id: EntityId) {
+        let sound = super::sound_event(&self.mob(id).expect("a mob").sound_set().ambient_sound);
+        self.make_sound(id, sound);
     }
 
     pub fn mob_ai_step(&mut self, id: EntityId) {

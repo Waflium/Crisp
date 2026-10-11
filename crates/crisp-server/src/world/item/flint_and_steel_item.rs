@@ -42,8 +42,7 @@ pub fn flint_and_steel_use_on(level: &mut ServerLevel, player: EntityId, hand: I
     level.play_sound(Some(player), target, sound_event("minecraft:item.flintandsteel.use"), SoundSource::Blocks, 1.0, pitch);
     let new_state = if target == pos { state.set(LIT, true) } else { base_fire_block::get_state(level, target) };
     level.set_block(target, new_state, UPDATE_ALL_IMMEDIATE);
-    let slot = level.player(player).hand_slot(hand);
-    level.hurt_and_break(player, slot, 1, equipment_slot(hand));
+    level.hurt_and_break(player, equipment_slot(hand), 1);
     InteractionResult::SUCCESS
 }
 

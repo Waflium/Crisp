@@ -1,5 +1,3 @@
-use serde_json::Value;
-
 #[derive(Clone, Debug, PartialEq)]
 pub enum LevelBasedValue {
     Constant(f32),
@@ -11,27 +9,7 @@ pub enum LevelBasedValue {
     Lookup { values: Vec<f32>, fallback: Box<LevelBasedValue> },
 }
 
-fn float(v: &Value) -> Option<f32> {
-    v.as_f64().map(|v| v as f32)
-}
-
 impl LevelBasedValue {
-    pub fn parse(v: &Value) -> Option<LevelBasedValue> {
-        if let Some(constant) = float(v) {
-            return Some(LevelBasedValue::Constant(constant));
-        }
-        let boxed = |key: &str| LevelBasedValue::parse(&v[key]).map(Box::new);
-        Some(match v["type"].as_str()?.trim_start_matches("minecraft:") {
-            "clamped" => LevelBasedValue::Clamped { value: boxed("value")?, min: float(&v["min"])?, max: float(&v["max"])? },
-            "exponent" => LevelBasedValue::Exponent { base: boxed("base")?, power: boxed("power")? },
-            "fraction" => LevelBasedValue::Fraction { numerator: boxed("numerator")?, denominator: boxed("denominator")? },
-            "levels_squared" => LevelBasedValue::LevelsSquared { added: float(&v["added"])? },
-            "linear" => LevelBasedValue::Linear { base: float(&v["base"])?, per_level_above_first: float(&v["per_level_above_first"])? },
-            "lookup" => LevelBasedValue::Lookup { values: v["values"].as_array()?.iter().map(float).collect::<Option<_>>()?, fallback: boxed("fallback")? },
-            _ => return None,
-        })
-    }
-
     pub fn decode(tag: &crisp_protocol::nbt::Nbt) -> crate::util::codec::DataResult<LevelBasedValue> {
         use crate::util::codec;
         if let Ok(constant) = codec::float(tag) {

@@ -6,7 +6,6 @@ use crate::util::Prediction;
 use crate::world::damagesource::DamageSource;
 use crate::world::difficulty::Difficulty;
 use crate::world::entity::data::Pose;
-use crate::world::entity::living_entity::entity_event_for_equipment_break;
 use crate::world::entity::{EntityDimensions, EntityId, RemovalReason};
 use crate::world::item::ItemStack;
 use crate::world::level::BlockGetter;
@@ -237,25 +236,6 @@ impl ServerLevel {
             EquipmentSlot::Chest => Some(6),
             EquipmentSlot::Head => Some(5),
             EquipmentSlot::Body | EquipmentSlot::Saddle => None,
-        }
-    }
-
-    pub fn hurt_and_break(&mut self, id: EntityId, index: usize, amount: i32, slot: EquipmentSlot) {
-        let p = self.player_mut(id);
-        if p.abilities.instabuild {
-            return;
-        }
-        let Some(stack) = &mut p.inventory.slots[index] else { return };
-        if amount == 0 {
-            return;
-        }
-        let broken = stack.hurt(amount);
-        let before = stack.clone();
-        p.dirty_slots.push(index);
-        if broken {
-            p.inventory.slots[index] = None;
-            self.broadcast_entity_event(id, entity_event_for_equipment_break(slot));
-            self.stop_location_based_effects(id, &before, slot);
         }
     }
 

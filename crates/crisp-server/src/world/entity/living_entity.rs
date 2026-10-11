@@ -2,7 +2,8 @@ use crisp_core::random::RandomSource;
 use crisp_core::{BlockPos, Vec3, mth};
 use crisp_data::packets::play::clientbound;
 use crisp_data::properties::{HORIZONTAL_FACING, OPEN};
-use crisp_data::{EquipmentSlot, MobEffect, block_tags, blocks, damage_type_tags, damage_types, entity_type_tags, fluid_tags, game_rule, item_tags, items, mob_effects};
+use crisp_protocol::nbt::Nbt;
+use crisp_data::{EquipmentSlot, EquipmentSlotGroup, MobEffect, block_tags, blocks, damage_type_tags, damage_types, entity_type_tags, fluid_tags, game_rule, item_tags, items, mob_effects};
 
 use super::attributes::{Attribute, AttributeMap, AttributeModifier, AttributeSupplier, Operation, PLAYER_ATTRIBUTES, SPEED_MODIFIER_SPRINTING};
 use super::data::{DataValue, Pose, ids};
@@ -17,7 +18,9 @@ use crate::world::damagesource::combat_tracker::CombatTracker;
 use crate::world::effect::MobEffectInstance;
 use crate::world::effect::mob_effect::{add_attribute_modifiers, remove_attribute_modifiers, should_apply_effect_tick_this_tick};
 use crate::world::item::ItemStack;
+use crate::world::item::component as dc;
 use crate::world::item::component::swing_animation::SwingAnimation;
+use crate::world::item::enchantment::{enchantment, enchantment_helper};
 use crate::world::level::BlockGetter;
 use crate::world::level::clip::{ClipBlock, ClipContext, ClipFluid};
 use crate::world::level::storage::loot::loot_params::LootParams;
@@ -204,14 +207,22 @@ pub fn entity_event_for_equipment_break(slot: EquipmentSlot) -> u8 {
 }
 
 fn for_each_modifier(stack: &ItemStack, slot: EquipmentSlot, mut f: impl FnMut(Attribute, AttributeModifier)) {
-    for m in stack.item.info().attribute_modifiers {
-        if !m.slot.test(slot) {
-            continue;
-        }
-        if let Some(attribute) = Attribute::by_name(m.attribute) {
-            f(attribute, AttributeModifier { id: std::borrow::Cow::Borrowed(m.id), amount: m.amount, operation: Operation::by_id(m.operation) });
+    if let Some(modifiers) = stack.get(dc::ATTRIBUTE_MODIFIERS) {
+        for entry in modifiers.as_list() {
+            let group = entry.get("slot").map_or(Ok(EquipmentSlotGroup::Any), enchantment::slot_group);
+            if !group.is_ok_and(|group| group.test(slot)) {
+                continue;
+            }
+            let attribute = entry.get("type").and_then(Nbt::as_str).and_then(Attribute::by_name);
+            let id = entry.get("id").and_then(Nbt::as_str);
+            let operation = entry.get("operation").and_then(Nbt::as_str).and_then(Operation::by_name);
+            let amount = entry.get("amount").map(crate::world::item::component::codec::as_f64);
+            if let (Some(attribute), Some(id), Some(operation), Some(amount)) = (attribute, id, operation, amount) {
+                f(attribute, AttributeModifier { id: std::borrow::Cow::Owned(id.to_string()), amount, operation });
+            }
         }
     }
+    enchantment_helper::for_each_modifier(stack, slot, f);
 }
 
 pub fn set_equipment(id: EntityId, slots: &[(EquipmentSlot, Option<ItemStack>)]) -> Vec<u8> {
@@ -293,6 +304,49 @@ impl ServerLevel {
         }
         let index = self.equipment_inventory_slot(id, slot)?;
         self.player(id).inventory.slots[index].clone().filter(|s| !s.is_empty())
+    }
+
+    pub fn set_item_slot(&mut self, id: EntityId, slot: EquipmentSlot, item_stack: ItemStack) {
+        if let Some(mob) = self.mob_mut(id) {
+            mob.equipment[slot as usize] = Some(item_stack).filter(|s| !s.is_empty());
+            return;
+        }
+        let Some(index) = self.equipment_inventory_slot(id, slot) else { return };
+        let p = self.player_mut(id);
+        p.inventory.slots[index] = Some(item_stack).filter(|s| !s.is_empty());
+        p.dirty_slots.push(index);
+    }
+
+    pub fn get_weapon_item(&self, id: EntityId) -> ItemStack {
+        self.item_by_slot(id, EquipmentSlot::Mainhand).unwrap_or_else(ItemStack::empty)
+    }
+
+    pub fn hurt_and_break(&mut self, owner: EntityId, slot: EquipmentSlot, amount: i32) {
+        let Some(mut item_stack) = self.item_by_slot(owner, slot) else { return };
+        let new_amount = if !item_stack.is_damageable_item() || self.players.get(&owner).is_some_and(|p| p.abilities.instabuild) {
+            0
+        } else if amount > 0 {
+            self.process_durability_change(&item_stack, amount)
+        } else {
+            amount
+        };
+        if new_amount == 0 {
+            return;
+        }
+        item_stack.set_damage_value(item_stack.damage_value() + new_amount);
+        if item_stack.is_broken() {
+            let broken = item_stack.copy();
+            item_stack.shrink(1);
+            self.set_item_slot(owner, slot, item_stack);
+            self.on_equipped_item_broken(owner, &broken, slot);
+        } else {
+            self.set_item_slot(owner, slot, item_stack);
+        }
+    }
+
+    pub fn on_equipped_item_broken(&mut self, id: EntityId, broken_item: &ItemStack, in_slot: EquipmentSlot) {
+        self.broadcast_entity_event(id, entity_event_for_equipment_break(in_slot));
+        self.stop_location_based_effects(id, broken_item, in_slot);
     }
 
     pub fn max_health(&self, id: EntityId) -> f32 {
@@ -567,17 +621,16 @@ impl ServerLevel {
     }
 
     fn do_hurt_equipment(&mut self, id: EntityId, source: &DamageSource, damage: f32, slots: &[EquipmentSlot]) {
-        if damage <= 0.0 || !self.is_player(id) {
+        if damage <= 0.0 {
             return;
         }
         let durability_damage = (damage / 4.0).max(1.0) as i32;
         for &slot in slots {
-            let Some(index) = self.equipment_inventory_slot(id, slot) else { continue };
-            let Some(stack) = self.player(id).inventory.slots[index].clone() else { continue };
+            let Some(stack) = self.item_by_slot(id, slot) else { continue };
             let info = stack.item.info();
             let can_be_hurt_by = info.damage_resistant.is_none_or(|tag| !source.is(tag));
             if info.equipment_slot.is_some() && info.damage_on_hurt && stack.is_damageable_item() && can_be_hurt_by {
-                self.hurt_and_break(id, index, durability_damage, slot);
+                self.hurt_and_break(id, slot, durability_damage);
             }
         }
     }
@@ -658,18 +711,14 @@ impl ServerLevel {
     }
 
     fn check_totem_death_protection(&mut self, id: EntityId, source: &DamageSource) -> bool {
-        if source.is(&damage_type_tags::BYPASSES_INVULNERABILITY) || !self.is_player(id) {
+        if source.is(&damage_type_tags::BYPASSES_INVULNERABILITY) {
             return false;
         }
         for slot in [EquipmentSlot::Mainhand, EquipmentSlot::Offhand] {
-            let Some(index) = self.equipment_inventory_slot(id, slot) else { continue };
-            let Some(stack) = self.player(id).inventory.slots[index].clone() else { continue };
+            let Some(mut stack) = self.item_by_slot(id, slot) else { continue };
             let Some(death_effects) = stack.item.info().death_protection else { continue };
-            let p = self.player_mut(id);
-            let mut stack = stack;
-            stack.count -= 1;
-            p.inventory.slots[index] = Some(stack).filter(|s| s.count > 0);
-            p.dirty_slots.push(index);
+            stack.shrink(1);
+            self.set_item_slot(id, slot, stack);
             self.set_health(id, 1.0);
             for effect in death_effects {
                 self.apply_consume_effect(id, effect);
@@ -1701,6 +1750,18 @@ mod tests {
 
     fn experience_orbs(level: &ServerLevel) -> usize {
         level.entities.values().filter(|e| matches!(e, LevelEntity::ExperienceOrb(_))).count()
+    }
+
+    #[test]
+    fn held_weapons_apply_their_and_their_enchantments_attribute_modifiers() {
+        let mut level = testing::level();
+        let player = testing::player(&mut level, Vec3::new(0.5, -60.0, 0.5), 0.0, 0.0);
+        let mut sword = crate::world::item::ItemStack::new(crisp_data::items::DIAMOND_SWORD, 1);
+        crate::world::item::enchantment::enchantment_helper::enchant(&mut sword, "minecraft:sweeping_edge", 3);
+        level.set_item_slot(player, crisp_data::EquipmentSlot::Mainhand, sword);
+        level.detect_equipment_updates(player);
+        assert_eq!(level.attribute_value(player, crate::world::entity::attributes::Attribute::AttackDamage), 7.0);
+        assert_eq!(level.attribute_value(player, crate::world::entity::attributes::Attribute::SweepingDamageRatio), 0.75);
     }
 
     #[test]

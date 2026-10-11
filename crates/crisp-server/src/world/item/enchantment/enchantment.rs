@@ -1,25 +1,27 @@
 use std::collections::HashMap;
 use std::sync::OnceLock;
 
-use crisp_core::random::RandomSource;
+use crisp_core::Vec3;
 use crisp_data::{EquipmentSlot, EquipmentSlotGroup};
-use serde_json::Value;
+use crisp_protocol::nbt::Nbt;
 
-use super::effects::EnchantmentValueEffect;
+use super::conditional_effect::ConditionalEffect;
+use super::effects::enchantment_entity_effect::EnchantmentEntityEffect;
+use super::effects::enchantment_value_effect::EnchantmentValueEffect;
+use super::enchanted_item_in_use::EnchantedItemInUse;
+use super::enchantment_effect_components::EnchantmentEffectComponents;
+use super::targeted_conditional_effect::{EnchantmentTarget, TargetedConditionalEffect};
+use crate::core::holder::RegistryElement;
 use crate::core::holder_set::HolderSet;
+use crate::server::level::ServerLevel;
+use crate::util::codec::{self, DataResult};
+use crate::world::damagesource::DamageSource;
+use crate::world::entity::EntityId;
 use crate::world::item::ItemStack;
+use crate::world::level::storage::loot::loot_context::{LootContext, LootContextBuilder};
+use crate::world::level::storage::loot::loot_params::LootParams;
 
-pub mod components {
-    pub const BLOCK_EXPERIENCE: &str = "minecraft:block_experience";
-    pub const MOB_EXPERIENCE: &str = "minecraft:mob_experience";
-    pub const REPAIR_WITH_XP: &str = "minecraft:repair_with_xp";
-}
-
-#[derive(Debug)]
-struct ConditionalEffect {
-    effect: EnchantmentValueEffect,
-    has_requirements: bool,
-}
+pub const MAX_LEVEL: i32 = 255;
 
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Cost {
@@ -28,8 +30,8 @@ pub struct Cost {
 }
 
 impl Cost {
-    fn parse(v: &Value) -> Cost {
-        Cost { base: v["base"].as_i64().unwrap_or(0) as i32, per_level_above_first: v["per_level_above_first"].as_i64().unwrap_or(0) as i32 }
+    fn decode(tag: &Nbt) -> DataResult<Cost> {
+        Ok(Cost { base: codec::decode_field(tag, "base", codec::int)?, per_level_above_first: codec::decode_field(tag, "per_level_above_first", codec::int)? })
     }
 
     pub fn calculate(self, level: i32) -> i32 {
@@ -37,6 +39,7 @@ impl Cost {
     }
 }
 
+#[allow(dead_code)]
 #[derive(Debug)]
 pub struct EnchantmentDefinition {
     supported_items: HolderSet,
@@ -45,23 +48,21 @@ pub struct EnchantmentDefinition {
     max_level: i32,
     min_cost: Cost,
     max_cost: Cost,
-}
-
-#[derive(Debug)]
-pub struct Enchantment {
-    definition: EnchantmentDefinition,
-    exclusive_set: HolderSet,
+    anvil_cost: i32,
     slots: Vec<EquipmentSlotGroup>,
-    effect_components: Vec<String>,
-    value_effects: Vec<(&'static str, Vec<ConditionalEffect>)>,
 }
 
-fn holder_set(registry: &'static str, v: &Value) -> HolderSet {
-    HolderSet::decode(registry, &crate::world::item::component::json_to_nbt(v)).expect("vanilla holder set")
+fn int_range(tag: &Nbt, min: i32, max: i32) -> DataResult<i32> {
+    let value = codec::int(tag)?;
+    if value < min || value > max {
+        return Err(format!("Value {value} outside of range [{min}:{max}]"));
+    }
+    Ok(value)
 }
 
-fn slot_group(name: &str) -> Option<EquipmentSlotGroup> {
-    Some(match name {
+pub fn slot_group(tag: &Nbt) -> DataResult<EquipmentSlotGroup> {
+    let name = codec::string(tag)?;
+    Ok(match name {
         "any" => EquipmentSlotGroup::Any,
         "mainhand" => EquipmentSlotGroup::Mainhand,
         "offhand" => EquipmentSlotGroup::Offhand,
@@ -73,36 +74,105 @@ fn slot_group(name: &str) -> Option<EquipmentSlotGroup> {
         "armor" => EquipmentSlotGroup::Armor,
         "body" => EquipmentSlotGroup::Body,
         "saddle" => EquipmentSlotGroup::Saddle,
-        _ => return None,
+        _ => return Err(format!("Unknown element name:{name}")),
     })
 }
 
-impl Enchantment {
-    fn parse(v: &Value) -> Enchantment {
-        let slots = v["slots"].as_array().into_iter().flatten().filter_map(|s| slot_group(s.as_str()?)).collect();
-        let effects = v["effects"].as_object();
-        let effect_components = effects.into_iter().flatten().map(|(id, _)| id.clone()).collect();
-        let value_effects = [components::BLOCK_EXPERIENCE, components::MOB_EXPERIENCE, components::REPAIR_WITH_XP]
-            .into_iter()
-            .filter_map(|component| {
-                let list = effects?.get(component)?.as_array()?;
-                let effects = list
+impl EnchantmentDefinition {
+    fn decode(tag: &Nbt) -> DataResult<EnchantmentDefinition> {
+        Ok(EnchantmentDefinition {
+            supported_items: codec::decode_field(tag, "supported_items", |t| HolderSet::decode("minecraft:item", t))?,
+            primary_items: codec::decode_optional(tag, "primary_items", |t| HolderSet::decode("minecraft:item", t))?,
+            weight: codec::decode_field(tag, "weight", |t| int_range(t, 1, 1024))?,
+            max_level: codec::decode_field(tag, "max_level", |t| int_range(t, 1, MAX_LEVEL))?,
+            min_cost: codec::decode_field(tag, "min_cost", Cost::decode)?,
+            max_cost: codec::decode_field(tag, "max_cost", Cost::decode)?,
+            anvil_cost: codec::decode_field(tag, "anvil_cost", |t| int_range(t, 0, i32::MAX))?,
+            slots: codec::decode_field(tag, "slots", |t| codec::list_of(t, slot_group))?,
+        })
+    }
+}
+
+#[allow(dead_code)]
+pub struct Enchantment {
+    description: Nbt,
+    definition: EnchantmentDefinition,
+    exclusive_set: HolderSet,
+    pub effects: EnchantmentEffectComponents,
+}
+
+impl RegistryElement for Enchantment {
+    const REGISTRY: &'static str = "minecraft:enchantment";
+
+    fn contains_key(key: &str) -> bool {
+        crisp_data::ENCHANTMENTS.iter().any(|(name, _)| *name == key)
+    }
+
+    fn lookup(key: &str) -> Option<&'static Enchantment> {
+        static ENCHANTMENTS: OnceLock<HashMap<&'static str, Enchantment>> = OnceLock::new();
+        ENCHANTMENTS
+            .get_or_init(|| {
+                crisp_data::ENCHANTMENTS
                     .iter()
-                    .filter_map(|e| Some(ConditionalEffect { effect: EnchantmentValueEffect::parse(&e["effect"])?, has_requirements: !e["requirements"].is_null() }))
-                    .collect();
-                Some((component, effects))
+                    .map(|&(name, json)| {
+                        let tag = crate::world::item::component::json_to_nbt(&serde_json::from_str(json).expect("vanilla JSON"));
+                        (name, Enchantment::decode(&tag).unwrap_or_else(|e| panic!("{name}: {e}")))
+                    })
+                    .collect()
             })
-            .collect();
-        let definition = EnchantmentDefinition {
-            supported_items: holder_set("minecraft:item", &v["supported_items"]),
-            primary_items: (!v["primary_items"].is_null()).then(|| holder_set("minecraft:item", &v["primary_items"])),
-            weight: v["weight"].as_i64().unwrap_or(1) as i32,
-            max_level: v["max_level"].as_i64().unwrap_or(1) as i32,
-            min_cost: Cost::parse(&v["min_cost"]),
-            max_cost: Cost::parse(&v["max_cost"]),
-        };
-        let exclusive_set = if v["exclusive_set"].is_null() { HolderSet::Direct(Vec::new()) } else { holder_set("minecraft:enchantment", &v["exclusive_set"]) };
-        Enchantment { definition, exclusive_set, slots, effect_components, value_effects }
+            .get(key)
+    }
+}
+
+fn damage_context<'a>(level: &'a mut ServerLevel, enchantment_level: i32, victim: EntityId, source: &DamageSource) -> LootContext<'a> {
+    let position = level.entity(victim).position();
+    let mut params = LootParams::new(level);
+    params.this_entity = Some(victim);
+    params.enchantment_level = Some(enchantment_level);
+    params.origin = Some(position);
+    params.damage_source = Some(*source);
+    params.attacking_entity = source.causing_entity;
+    params.direct_attacking_entity = source.direct_entity;
+    LootContextBuilder::new(params).create(None)
+}
+
+fn item_context<'a>(level: &'a mut ServerLevel, enchantment_level: i32, item_stack: &'a ItemStack) -> LootContext<'a> {
+    let mut params = LootParams::new(level);
+    params.tool = Some(item_stack);
+    params.enchantment_level = Some(enchantment_level);
+    LootContextBuilder::new(params).create(None)
+}
+
+fn entity_context(level: &mut ServerLevel, enchantment_level: i32, entity: EntityId, position: Vec3) -> LootContext<'_> {
+    let mut params = LootParams::new(level);
+    params.this_entity = Some(entity);
+    params.enchantment_level = Some(enchantment_level);
+    params.origin = Some(position);
+    LootContextBuilder::new(params).create(None)
+}
+
+impl Enchantment {
+    fn decode(tag: &Nbt) -> DataResult<Enchantment> {
+        Ok(Enchantment {
+            description: codec::decode_field(tag, "description", |t| Ok(t.clone()))?,
+            definition: EnchantmentDefinition::decode(tag)?,
+            exclusive_set: codec::decode_or(tag, "exclusive_set", HolderSet::Direct(Vec::new()), |t| HolderSet::decode("minecraft:enchantment", t))?,
+            effects: codec::decode_or(tag, "effects", EnchantmentEffectComponents::default(), EnchantmentEffectComponents::decode)?,
+        })
+    }
+
+    pub fn by_id(id: &str) -> Option<&'static Enchantment> {
+        Enchantment::lookup(id).or_else(|| Enchantment::lookup(&crate::commands::arguments::parse_identifier(id)?))
+    }
+
+    pub fn decode_holder(tag: &Nbt) -> DataResult<String> {
+        let id = codec::identifier(tag)?;
+        crate::world::item::component::codec::registry_id("minecraft:enchantment", &id)?;
+        Ok(id)
+    }
+
+    pub fn matching_slot(&self, slot: EquipmentSlot) -> bool {
+        self.definition.slots.iter().any(|group| group.test(slot))
     }
 
     pub fn is_primary_item(&self, item: &ItemStack) -> bool {
@@ -110,10 +180,6 @@ impl Enchantment {
     }
 
     pub fn is_supported_item(&self, item: &ItemStack) -> bool {
-        self.definition.supported_items.contains(item.item.0 as i32)
-    }
-
-    pub fn can_enchant(&self, item: &ItemStack) -> bool {
         self.definition.supported_items.contains(item.item.0 as i32)
     }
 
@@ -143,30 +209,160 @@ impl Enchantment {
         enchantment != other && !a.exclusive_set.contains(id(other)) && !b.exclusive_set.contains(id(enchantment))
     }
 
-    pub fn decode_holder(tag: &crisp_protocol::nbt::Nbt) -> crate::util::codec::DataResult<String> {
-        let id = crate::util::codec::identifier(tag)?;
-        crate::world::item::component::codec::registry_id("minecraft:enchantment", &id)?;
-        Ok(id)
+    pub fn can_enchant(&self, item_stack: &ItemStack) -> bool {
+        self.definition.supported_items.contains(item_stack.item.0 as i32)
     }
 
-    pub fn by_id(id: &str) -> Option<&'static Enchantment> {
-        static ENCHANTMENTS: OnceLock<HashMap<&'static str, Enchantment>> = OnceLock::new();
-        let all = ENCHANTMENTS.get_or_init(|| {
-            crisp_data::ENCHANTMENTS.iter().map(|&(id, json)| (id, Enchantment::parse(&serde_json::from_str(json).expect("vanilla JSON")))).collect()
-        });
-        all.get(id).or_else(|| all.get(crate::commands::arguments::parse_identifier(id)?.as_str()))
+    pub fn is_immune_to_damage(&self, level: &mut ServerLevel, enchantment_level: i32, victim: EntityId, source: &DamageSource) -> bool {
+        let mut context = damage_context(level, enchantment_level, victim, source);
+        self.effects.damage_immunity.iter().any(|effect| effect.matches(&mut context))
     }
 
-    pub fn matching_slot(&self, slot: EquipmentSlot) -> bool {
-        self.slots.iter().any(|group| group.test(slot))
+    pub fn modify_damage_protection(&self, level: &mut ServerLevel, enchantment_level: i32, victim: EntityId, source: &DamageSource, protection: &mut f32) {
+        modify_damage_filtered_value(&self.effects.damage_protection, level, enchantment_level, victim, source, protection);
     }
 
-    pub fn has_effect(&self, component: &str) -> bool {
-        self.effect_components.iter().any(|c| c == component)
+    pub fn modify_durability_change(&self, level: &mut ServerLevel, enchantment_level: i32, item_stack: &ItemStack, change: &mut f32) {
+        modify_item_filtered_count(&self.effects.item_damage, level, enchantment_level, item_stack, change);
     }
 
-    pub fn modify_value(&self, component: &str, level: i32, random: &mut impl RandomSource, value: f32) -> f32 {
-        let Some((_, effects)) = self.value_effects.iter().find(|(c, _)| *c == component) else { return value };
-        effects.iter().filter(|e| !e.has_requirements).fold(value, |value, e| e.effect.process(level, random, value))
+    pub fn modify_block_experience(&self, level: &mut ServerLevel, enchantment_level: i32, item_stack: &ItemStack, count: &mut f32) {
+        modify_item_filtered_count(&self.effects.block_experience, level, enchantment_level, item_stack, count);
+    }
+
+    pub fn modify_mob_experience(&self, level: &mut ServerLevel, enchantment_level: i32, killer: EntityId, experience: &mut f32) {
+        modify_entity_filtered_value(&self.effects.mob_experience, level, enchantment_level, killer, experience);
+    }
+
+    pub fn modify_durability_to_repair_from_xp(&self, level: &mut ServerLevel, enchantment_level: i32, item_stack: &ItemStack, change: &mut f32) {
+        modify_item_filtered_count(&self.effects.repair_with_xp, level, enchantment_level, item_stack, change);
+    }
+
+    pub fn modify_damage(&self, level: &mut ServerLevel, enchantment_level: i32, victim: EntityId, source: &DamageSource, amount: &mut f32) {
+        modify_damage_filtered_value(&self.effects.damage, level, enchantment_level, victim, source, amount);
+    }
+
+    pub fn modify_fall_based_damage(&self, level: &mut ServerLevel, enchantment_level: i32, victim: EntityId, source: &DamageSource, amount: &mut f32) {
+        modify_damage_filtered_value(&self.effects.smash_damage_per_fallen_block, level, enchantment_level, victim, source, amount);
+    }
+
+    pub fn modify_knockback(&self, level: &mut ServerLevel, enchantment_level: i32, victim: EntityId, source: &DamageSource, amount: &mut f32) {
+        modify_damage_filtered_value(&self.effects.knockback, level, enchantment_level, victim, source, amount);
+    }
+
+    pub fn modify_armor_effectiveness(&self, level: &mut ServerLevel, enchantment_level: i32, victim: EntityId, source: &DamageSource, amount: &mut f32) {
+        modify_damage_filtered_value(&self.effects.armor_effectiveness, level, enchantment_level, victim, source, amount);
+    }
+
+    pub fn do_post_attack(
+        &self,
+        level: &mut ServerLevel,
+        enchantment_level: i32,
+        item: &EnchantedItemInUse,
+        for_target: EnchantmentTarget,
+        victim: EntityId,
+        source: &DamageSource,
+    ) {
+        for effect in &self.effects.post_attack {
+            if for_target == effect.enchanted {
+                do_post_attack(effect, level, enchantment_level, item, victim, source);
+            }
+        }
+    }
+
+    pub fn do_post_piercing_attack(&self, level: &mut ServerLevel, enchantment_level: i32, item: &EnchantedItemInUse, user: EntityId) {
+        let position = level.entity(user).position();
+        for effect in &self.effects.post_piercing_attack {
+            let matches = effect.matches(&mut entity_context(level, enchantment_level, user, position));
+            if matches {
+                effect.effect.apply(level, enchantment_level, item, user, position);
+            }
+        }
+    }
+}
+
+fn do_post_attack(
+    effect: &TargetedConditionalEffect<EnchantmentEntityEffect>,
+    level: &mut ServerLevel,
+    enchantment_level: i32,
+    item: &EnchantedItemInUse,
+    victim: EntityId,
+    source: &DamageSource,
+) {
+    if effect.matches(&mut damage_context(level, enchantment_level, victim, source)) {
+        let target = match effect.affected {
+            EnchantmentTarget::Attacker => source.causing_entity,
+            EnchantmentTarget::DamagingEntity => source.direct_entity,
+            EnchantmentTarget::Victim => Some(victim),
+        };
+        if let Some(target) = target {
+            let position = level.entity(target).position();
+            effect.effect.apply(level, enchantment_level, item, target, position);
+        }
+    }
+}
+
+fn modify_item_filtered_count(
+    effects: &[ConditionalEffect<EnchantmentValueEffect>],
+    level: &mut ServerLevel,
+    enchantment_level: i32,
+    item_stack: &ItemStack,
+    value: &mut f32,
+) {
+    if effects.is_empty() {
+        return;
+    }
+    let mut context = item_context(level, enchantment_level, item_stack);
+    for effect in effects {
+        if effect.matches(&mut context) {
+            *value = effect.effect.process(enchantment_level, &mut context.random(), *value);
+        }
+    }
+}
+
+fn modify_entity_filtered_value(effects: &[ConditionalEffect<EnchantmentValueEffect>], level: &mut ServerLevel, enchantment_level: i32, entity: EntityId, value: &mut f32) {
+    if effects.is_empty() {
+        return;
+    }
+    let position = level.entity(entity).position();
+    let mut context = entity_context(level, enchantment_level, entity, position);
+    for effect in effects {
+        if effect.matches(&mut context) {
+            *value = effect.effect.process(enchantment_level, &mut context.level().entity_mut(entity).random, *value);
+        }
+    }
+}
+
+fn modify_damage_filtered_value(
+    effects: &[ConditionalEffect<EnchantmentValueEffect>],
+    level: &mut ServerLevel,
+    enchantment_level: i32,
+    victim: EntityId,
+    source: &DamageSource,
+    value: &mut f32,
+) {
+    if effects.is_empty() {
+        return;
+    }
+    let mut context = damage_context(level, enchantment_level, victim, source);
+    for effect in effects {
+        if effect.matches(&mut context) {
+            *value = effect.effect.process(enchantment_level, &mut context.level().entity_mut(victim).random, *value);
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Enchantment;
+    use crate::world::item::component::json_to_nbt;
+
+    #[test]
+    fn every_vanilla_enchantment_decodes() {
+        let errors: Vec<String> = crisp_data::ENCHANTMENTS
+            .iter()
+            .filter_map(|&(name, json)| Enchantment::decode(&json_to_nbt(&serde_json::from_str(json).unwrap())).err().map(|e| format!("{name}: {e}")))
+            .collect();
+        assert!(errors.is_empty(), "{errors:#?}");
     }
 }

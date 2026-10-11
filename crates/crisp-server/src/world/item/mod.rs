@@ -22,7 +22,6 @@ use crate::world::level::block::BlockHitResult;
 use crate::world::{InteractionHand, InteractionResult};
 use context::BlockPlaceContext;
 
-pub const EVENT_MAINHAND_BREAK: u8 = 47;
 
 static BLOCK_ITEMS: std::sync::LazyLock<Vec<Option<Box<dyn block_item::BlockItemBehaviour>>>> =
     std::sync::LazyLock::new(|| (0..Item::count()).map(|i| block_item::for_item(Item(i as u16))).collect());

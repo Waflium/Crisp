@@ -1,6 +1,6 @@
-use crisp_core::Vec3;
 use crisp_core::hash_map::java_hash_map_order;
-use crisp_core::random::java_string_hash;
+use crisp_core::random::{RandomSource, java_string_hash};
+use crisp_core::{BlockPos, Vec3, mth};
 use crisp_protocol::nbt::Nbt;
 
 use super::data::{DataValue, ids};
@@ -229,17 +229,40 @@ impl LevelEntity {
 }
 
 impl ServerLevel {
-    pub fn load_entity(&mut self, nbt: &Nbt) -> Option<LevelEntity> {
-        let mut entity = match nbt.get("id").and_then(Nbt::as_str)? {
+    pub fn create_entity(entity_type: &str) -> Option<LevelEntity> {
+        Some(match entity_type {
             "minecraft:item" => LevelEntity::Item(ItemEntity::with_movement(Vec3::ZERO, ItemStack::new(crisp_data::items::AIR, 0), Vec3::ZERO)),
             "minecraft:tnt" => LevelEntity::PrimedTnt(PrimedTnt::of_type()),
             "minecraft:experience_orb" => LevelEntity::ExperienceOrb(super::experience_orb::ExperienceOrb::of_type()),
             "minecraft:lightning_bolt" => LevelEntity::LightningBolt(super::lightning_bolt::LightningBolt::new(Vec3::ZERO)),
             "minecraft:chicken" => LevelEntity::Mob(Box::new(super::animal::chicken::Chicken::create())),
-            other => {
-                warn!("Skipping Entity with id {other}");
-                return None;
-            }
+            _ => return None,
+        })
+    }
+
+    pub fn spawn_entity_type(&mut self, entity_type: &str, spawn_pos: BlockPos) -> Option<EntityId> {
+        let mut entity = ServerLevel::create_entity(entity_type)?;
+        let y_rot = mth::wrap_degrees(self.random.next_float() * 360.0);
+        entity.entity_mut().snap_to(spawn_pos.x as f64 + 0.5, spawn_pos.y as f64, spawn_pos.z as f64 + 0.5, y_rot, 0.0);
+        if let LevelEntity::Mob(mob) = &mut entity {
+            mob.entity.y_head_rot = mob.entity.y_rot;
+            mob.living.y_body_rot = mob.entity.y_rot;
+            self.finalize_mob_spawn(mob);
+        }
+        let id = entity.entity().id;
+        let is_mob = matches!(entity, LevelEntity::Mob(_));
+        self.add_fresh_entity(entity);
+        if is_mob {
+            self.play_ambient_sound(id);
+        }
+        Some(id)
+    }
+
+    pub fn load_entity(&mut self, nbt: &Nbt) -> Option<LevelEntity> {
+        let entity_type = nbt.get("id").and_then(Nbt::as_str)?;
+        let Some(mut entity) = ServerLevel::create_entity(entity_type) else {
+            warn!("Skipping Entity with id {entity_type}");
+            return None;
         };
         if let Err(e) = entity.load(nbt) {
             error!("{e}");

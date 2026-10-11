@@ -24,6 +24,10 @@ pub mod world_data_configuration;
 use crisp_core::BlockPos;
 use crisp_data::{BlockState, FluidState};
 
+pub fn is_in_spawnable_bounds(pos: BlockPos) -> bool {
+    (-20_000_000..20_000_000).contains(&pos.y) && (-30_000_000..30_000_000).contains(&pos.x) && (-30_000_000..30_000_000).contains(&pos.z)
+}
+
 pub trait BlockGetter {
     fn block_state(&mut self, pos: BlockPos) -> BlockState;
 

@@ -389,25 +389,12 @@ impl ServerLevel {
     }
 
     fn mine_block_with_held_item(&mut self, player: EntityId, state: BlockState) {
-        let p = self.player_mut(player);
-        let slot = p.inventory.selected_slot();
-        let Some(held) = &mut p.inventory.slots[slot] else { return };
+        let Some(held) = self.item_by_slot(player, crisp_data::EquipmentSlot::Mainhand) else { return };
         let Some(tool) = held.tool() else { return };
         if state.destroy_speed() == 0.0 || tool.damage_per_block <= 0 {
             return;
         }
-        if held.hurt(tool.damage_per_block) {
-            p.inventory.slots[slot] = None;
-            p.dirty_slots.push(slot);
-            let id = p.entity.id;
-            let packet = crate::network::connection::encode(clientbound::ENTITY_EVENT, |w| {
-                w.i32(id);
-                w.u8(item::EVENT_MAINHAND_BREAK);
-            });
-            self.send_to_tracking_players_and_self(id, &packet);
-        } else {
-            p.dirty_slots.push(slot);
-        }
+        self.hurt_and_break(player, crisp_data::EquipmentSlot::Mainhand, tool.damage_per_block);
     }
 
     pub fn use_item_on(&mut self, player: EntityId, hand: InteractionHand, hit: BlockHitResult) -> InteractionResult {

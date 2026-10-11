@@ -349,6 +349,14 @@ impl Entity {
         self.old_pos
     }
 
+    pub fn snap_to(&mut self, x: f64, y: f64, z: f64, y_rot: f32, x_rot: f32) {
+        self.set_pos_raw(Vec3::new(x, y, z));
+        self.set_y_rot(y_rot);
+        self.set_x_rot(x_rot);
+        self.set_old_pos();
+        self.reapply_position();
+    }
+
     pub fn abs_snap_to(&mut self, x: f64, y: f64, z: f64) {
         let cx = mth::clamp(x, -3.0e7, 3.0e7);
         let cz = mth::clamp(z, -3.0e7, 3.0e7);
@@ -683,6 +691,10 @@ impl ServerLevel {
         if self.is_player(id) { 20 } else { 0 }
     }
 
+    pub fn ignite_for_seconds(&mut self, id: EntityId, number_of_seconds: f32) {
+        self.ignite_for_ticks(id, mth::floor_f(number_of_seconds * 20.0));
+    }
+
     pub fn ignite_for_ticks(&mut self, id: EntityId, ticks: i32) {
         let ticks = if self.is_living(id) { mth::ceil(ticks as f64 * self.attribute_value(id, Attribute::BurningTime)) } else { ticks };
         if self.entity(id).remaining_fire_ticks < ticks {
@@ -743,7 +755,7 @@ impl ServerLevel {
         !self.is_player(id)
     }
 
-    fn sound_source(&self, id: EntityId) -> SoundSource {
+    pub fn sound_source(&self, id: EntityId) -> SoundSource {
         match self.entities.get(&id) {
             None => SoundSource::Players,
             Some(super::LevelEntity::ExperienceOrb(_)) => SoundSource::Ambient,

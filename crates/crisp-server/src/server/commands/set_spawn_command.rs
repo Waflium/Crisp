@@ -1,7 +1,7 @@
 use crisp_core::{BlockPos, mth};
 
 use super::command_response_tracker::CommandResponseTracker;
-use super::teleport_command::is_in_spawnable_bounds;
+use crate::world::level::is_in_spawnable_bounds;
 use crate::commands::arguments::coordinates::{Coordinates, ERROR_OUT_OF_BOUNDS, WorldCoordinate};
 use crate::commands::brigadier::{CommandContext, CommandSyntaxException};
 use crate::commands::source::CommandSourceStack;

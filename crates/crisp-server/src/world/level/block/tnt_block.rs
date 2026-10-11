@@ -88,7 +88,7 @@ impl BlockBehaviour for TntBlock {
             let slot = level.player(player).hand_slot(hand);
             if item.item == items::FLINT_AND_STEEL {
                 let equipment = if hand == InteractionHand::MainHand { crisp_data::EquipmentSlot::Mainhand } else { crisp_data::EquipmentSlot::Offhand };
-                level.hurt_and_break(player, slot, 1, equipment);
+                level.hurt_and_break(player, equipment, 1);
             } else {
                 let p = level.player_mut(player);
                 if !p.abilities.instabuild

@@ -5,7 +5,6 @@ use crisp_data::{Block, BlockState};
 use super::BlockBehaviour;
 use crate::server::level::ServerLevel;
 use crate::world::item::ItemStack;
-use crate::world::item::enchantment::enchantment_helper;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum XpRange {
@@ -35,7 +34,8 @@ impl XpRange {
 impl ServerLevel {
     pub fn try_drop_experience(&mut self, pos: BlockPos, tool: Option<&ItemStack>, xp_range: XpRange) {
         let amount = xp_range.sample(&mut self.random);
-        let experience = enchantment_helper::process_block_experience(&mut self.random, tool, amount);
+        let tool = tool.cloned().unwrap_or_else(ItemStack::empty);
+        let experience = self.process_block_experience(&tool, amount);
         if experience > 0 {
             self.pop_experience(pos, experience);
         }

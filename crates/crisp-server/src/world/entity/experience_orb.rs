@@ -8,8 +8,7 @@ use super::{Entity, EntityDimensions, EntityId, LevelEntity, MoverType};
 use crate::network::connection::encode;
 use crate::server::level::ServerLevel;
 use crate::world::damagesource::DamageSource;
-use crate::world::item::enchantment::enchantment::components;
-use crate::world::item::enchantment::enchantment_helper;
+use crate::world::item::enchantment::enchantment_effect_components::REPAIR_WITH_XP;
 use crate::world::level::BlockGetter;
 
 pub const LIFETIME: i32 = 6000;
@@ -272,15 +271,14 @@ impl ServerLevel {
     }
 
     fn repair_player_items(&mut self, player: EntityId, amount: i32) -> i32 {
-        let Some(slot) = self.random_item_with(components::REPAIR_WITH_XP, player, |s| s.is_damaged()) else { return amount };
-        let index = self.equipment_inventory_slot(player, slot).expect("a player's equipment slot");
-        let mut stack = self.player(player).inventory.slots[index].clone().expect("a damaged item");
-        let to_repair = enchantment_helper::modify_durability_to_repair_from_xp(&mut self.random, &stack, amount);
-        let repair = to_repair.min(stack.damage_value());
-        stack.set_damage_value(stack.damage_value() - repair);
-        let p = self.player_mut(player);
-        p.inventory.slots[index] = Some(stack);
-        p.dirty_slots.push(index);
+        let Some(selected) = self.get_random_item_with(REPAIR_WITH_XP, player, |s| s.is_damaged()) else { return amount };
+        let mut item_stack = selected.item_stack;
+        let to_repair = self.modify_durability_to_repair_from_xp(&item_stack, amount);
+        let repair = to_repair.min(item_stack.damage_value());
+        item_stack.set_damage_value(item_stack.damage_value() - repair);
+        if let Some(slot) = selected.in_slot {
+            self.set_item_slot(player, slot, item_stack);
+        }
         if repair > 0 {
             let remaining = amount - repair.wrapping_mul(amount) / to_repair;
             if remaining > 0 {

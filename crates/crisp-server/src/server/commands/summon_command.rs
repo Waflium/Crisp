@@ -1,7 +1,7 @@
 use crisp_core::{BlockPos, Vec3};
 use crisp_protocol::nbt::Nbt;
 
-use super::teleport_command::is_in_spawnable_bounds;
+use crate::world::level::is_in_spawnable_bounds;
 use crate::commands::brigadier::{CommandContext, CommandSyntaxException, DynamicCommandExceptionType, SimpleCommandExceptionType, tr};
 use crate::commands::source::CommandSourceStack;
 use crate::network::chat::{Arg, Component, HoverEvent};
