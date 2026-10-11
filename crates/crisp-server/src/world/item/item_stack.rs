@@ -6,6 +6,8 @@ use super::component::swing_animation::SwingAnimation;
 use super::component::values::{self, ItemEnchantments, Tool};
 use super::component::{self as dc, DataComponentPatch, DataComponentType, PatchedDataComponentMap, codec, item_components};
 use crate::network::chat::{ChatFormatting, Component, HoverEvent};
+use crate::server::level::ServerLevel;
+use crate::world::entity::EntityId;
 
 #[derive(Clone, Debug)]
 pub struct ItemStack {
@@ -69,6 +71,12 @@ impl ItemStack {
 
     pub fn shrink(&mut self, amount: i32) {
         self.count -= amount;
+    }
+
+    pub fn consume(&mut self, amount: i32, level: &ServerLevel, owner: Option<EntityId>) {
+        if owner.is_none_or(|owner| !level.has_infinite_materials(owner)) {
+            self.shrink(amount);
+        }
     }
 
     pub fn limit_size(&mut self, max: i32) {

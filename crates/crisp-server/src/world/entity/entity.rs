@@ -12,6 +12,7 @@ use super::attributes::Attribute;
 use super::{EntityDimensions, ItemEntity, LevelEntity, data, relative};
 use crate::world::damagesource::DamageSource;
 use crate::world::item::ItemStack;
+use crate::world::{InteractionHand, InteractionResult};
 use super::data::{DataValue, Pose, SynchedEntityData, ids};
 use super::fluid_interaction::{CurrentFluid, EntityFluidInteraction};
 use super::inside_block::{InsideBlockEffectType, InsideBlockEffects, QueuedEffect};
@@ -310,6 +311,10 @@ impl Entity {
             DataValue::OptionalComponent(Some(name)) => Some(crate::network::chat::Component::from_nbt(name)),
             _ => None,
         }
+    }
+
+    pub fn set_custom_name(&mut self, name: Option<Nbt>) {
+        self.data.set(data::ids::CUSTOM_NAME, DataValue::OptionalComponent(name));
     }
 
     pub fn discard(&mut self) {
@@ -1781,6 +1786,29 @@ impl ServerLevel {
             Some(LevelEntity::Item(_)) => self.item_entity_should_play_lava_hurt_sound(id),
             _ => true,
         }
+    }
+
+    pub fn interact(&mut self, id: EntityId, player: EntityId, hand: InteractionHand, location: Vec3) -> InteractionResult {
+        if !self.is_mob(id) {
+            return self.entity_interact(id, player, hand, location);
+        }
+        if !self.is_alive(id) {
+            return InteractionResult::Pass;
+        }
+        let interaction_result = self.check_and_handle_important_interactions(id, player, hand);
+        if interaction_result.consumes_action() {
+            return interaction_result;
+        }
+        let super_reaction = self.entity_interact(id, player, hand, location);
+        if super_reaction != InteractionResult::Pass {
+            return super_reaction;
+        }
+        let interaction_result = self.mob_interact(id, player, hand);
+        if interaction_result.consumes_action() { interaction_result } else { InteractionResult::Pass }
+    }
+
+    pub fn entity_interact(&mut self, _id: EntityId, _player: EntityId, _hand: InteractionHand, _location: Vec3) -> InteractionResult {
+        InteractionResult::Pass
     }
 
     pub fn is_attackable(&self, id: EntityId) -> bool {

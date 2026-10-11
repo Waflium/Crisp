@@ -1,10 +1,10 @@
 use crisp_core::BlockPos;
 use crisp_core::random::RandomSource;
-use crisp_data::EquipmentSlot;
+use crisp_data::{EquipmentSlot, items};
 use crisp_protocol::nbt::Nbt;
 
 use super::animal::chicken::{self, Chicken};
-use super::ageable_mob::AgeableMob;
+use super::ageable_mob::{AgeableMob, BABY_START_AGE};
 use super::ai::MobAi;
 use super::animal::Animal;
 use super::attributes::Attribute;
@@ -12,9 +12,13 @@ use super::data::{DataValue, ids};
 use super::entity_save::uuid_from_nbt;
 use super::living_entity::LivingEntity;
 use super::{Entity, EntityDimensions, EntityId, LevelEntity};
+use crate::core::component::data_component_getter::DataComponentGetter;
 use crate::server::level::ServerLevel;
 use crate::world::effect::MobEffectInstance;
-use crate::world::item::ItemStack;
+use crate::world::item::component::values::ItemStackTemplate;
+use crate::world::item::component::{self as dc, DataComponentType};
+use crate::world::item::{self, ItemStack, spawn_egg_item};
+use crate::world::{InteractionHand, InteractionResult};
 use crate::world::level::block::entity::int_value;
 use crate::world::level::storage::uuid_ints;
 
@@ -173,6 +177,61 @@ impl Mob {
             return true;
         }
         false
+    }
+
+    pub fn set_baby(&mut self, baby: bool) {
+        if self.ageable().is_some() && self.set_age(if baby { BABY_START_AGE } else { 0 }) {
+            self.refresh_dimensions();
+        }
+    }
+
+    pub fn apply_components_from_item_stack(&mut self, stack: &ItemStack) {
+        self.apply_implicit_components(stack);
+    }
+
+    fn apply_implicit_components(&mut self, components: &impl DataComponentGetter) {
+        match self.kind {
+            MobKind::Chicken(_) => {
+                self.apply_implicit_component_if_present(components, dc::CHICKEN_VARIANT);
+                self.apply_implicit_component_if_present(components, dc::CHICKEN_SOUND_VARIANT);
+            }
+        }
+        self.apply_implicit_component_if_present(components, dc::CUSTOM_NAME);
+        self.apply_implicit_component_if_present(components, dc::CUSTOM_DATA);
+    }
+
+    fn apply_implicit_component(&mut self, ty: DataComponentType, value: &Nbt) -> bool {
+        match self.kind {
+            MobKind::Chicken(_) if ty == dc::CHICKEN_VARIANT => {
+                if let Some(variant) = value.as_str().and_then(chicken::variant_id) {
+                    self.entity.data.set(chicken::DATA_VARIANT, DataValue::ChickenVariant(variant));
+                }
+                return true;
+            }
+            MobKind::Chicken(_) if ty == dc::CHICKEN_SOUND_VARIANT => {
+                if let Some(sound_variant) = value.as_str().and_then(chicken::sound_variant_id) {
+                    self.entity.data.set(chicken::DATA_SOUND_VARIANT, DataValue::ChickenSoundVariant(sound_variant));
+                }
+                return true;
+            }
+            MobKind::Chicken(_) => {}
+        }
+        if ty == dc::CUSTOM_NAME {
+            self.entity.set_custom_name(Some(value.clone()));
+            true
+        } else if ty == dc::CUSTOM_DATA {
+            self.entity.custom_data = Some(value.clone());
+            true
+        } else {
+            false
+        }
+    }
+
+    fn apply_implicit_component_if_present(&mut self, components: &impl DataComponentGetter, ty: DataComponentType) -> bool {
+        match components.get(ty) {
+            Some(value) => self.apply_implicit_component(ty, &value),
+            None => false,
+        }
     }
 
     pub fn default_dimensions(&self) -> EntityDimensions {
@@ -443,6 +502,60 @@ impl ServerLevel {
 
     pub fn is_mob(&self, id: EntityId) -> bool {
         self.mob(id).is_some()
+    }
+
+    pub fn check_and_handle_important_interactions(&mut self, id: EntityId, player: EntityId, hand: InteractionHand) -> InteractionResult {
+        let mut item_stack = self.player(player).item_in_hand(hand).unwrap_or_else(ItemStack::empty);
+        if item_stack.is(items::NAME_TAG) {
+            let name_tag_interaction_result = item::interact_living_entity(self, &mut item_stack, player, id, hand);
+            self.player_mut(player).update_item_in_hand(hand, &item_stack);
+            if name_tag_interaction_result.consumes_action() {
+                return name_tag_interaction_result;
+            }
+        }
+        if item_stack.get_item().is_instance_of("SpawnEggItem") {
+            let entity = self.entity(id);
+            let (entity_type, position) = (entity.entity_type, entity.position());
+            let offspring = spawn_egg_item::spawn_offspring_from_spawn_egg(self, player, id, entity_type, position, &mut item_stack);
+            self.player_mut(player).update_item_in_hand(hand, &item_stack);
+            if offspring.is_none() {
+                return InteractionResult::Pass;
+            }
+            InteractionResult::SUCCESS_SERVER
+        } else {
+            InteractionResult::Pass
+        }
+    }
+
+    pub fn mob_interact(&mut self, id: EntityId, player: EntityId, hand: InteractionHand) -> InteractionResult {
+        match self.mob(id).expect("a mob").kind {
+            MobKind::Chicken(_) => self.animal_mob_interact(id, player, hand),
+        }
+    }
+
+    pub fn mob_mob_interact(&mut self, _id: EntityId, _player: EntityId, _hand: InteractionHand) -> InteractionResult {
+        InteractionResult::Pass
+    }
+
+    pub fn use_player_item(&mut self, player: EntityId, hand: InteractionHand, item_stack: &mut ItemStack) {
+        let before_use_count = item_stack.count;
+        let use_remainder = item_stack.get(dc::USE_REMAINDER).map(ItemStackTemplate::from_nbt);
+        item_stack.consume(1, self, Some(player));
+        self.player_mut(player).update_item_in_hand(hand, item_stack);
+        if let Some(use_remainder) = use_remainder {
+            let new_hand_stack = if self.has_infinite_materials(player) || item_stack.count >= before_use_count {
+                item_stack.clone()
+            } else {
+                let remainder_stack = use_remainder.create().unwrap_or_else(ItemStack::empty);
+                if item_stack.is_empty() {
+                    remainder_stack
+                } else {
+                    self.handle_extra_items_created_on_use(player, remainder_stack);
+                    item_stack.clone()
+                }
+            };
+            self.player_mut(player).update_item_in_hand(hand, &new_hand_stack);
+        }
     }
 
     pub fn mob_tick(&mut self, id: EntityId) {

@@ -248,6 +248,16 @@ impl ServerPlayer {
         self.dirty_slots.push(slot);
     }
 
+    pub fn update_item_in_hand(&mut self, hand: InteractionHand, item_stack: &ItemStack) {
+        let changed = match &self.inventory.slots[self.hand_slot(hand)] {
+            Some(current) => !ItemStack::matches(current, item_stack),
+            None => !item_stack.is_empty(),
+        };
+        if changed {
+            self.set_item_in_hand(hand, Some(item_stack.clone()));
+        }
+    }
+
     pub fn to_nbt(&self, dimension: &str) -> Nbt {
         let s = |v: &str| Nbt::String(v.into());
         let mut nbt = Vec::new();
@@ -451,6 +461,13 @@ impl ServerPlayer {
 }
 
 impl ServerLevel {
+    pub fn handle_extra_items_created_on_use(&mut self, id: EntityId, extra_items: ItemStack) {
+        let left = self.player_mut(id).pick_up(extra_items.clone());
+        if left > 0 {
+            self.player_drop(id, extra_items.copy_with_count(left), false, crate::util::Prediction::Predicted);
+        }
+    }
+
     pub fn server_player_do_tick(&mut self, id: EntityId) {
         if !self.is_spectator(id) || !self.touching_unloaded_chunk(id) {
             self.player_tick(id);

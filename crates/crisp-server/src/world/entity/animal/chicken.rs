@@ -3,7 +3,7 @@ use std::sync::OnceLock;
 
 use crisp_core::random::RandomSource;
 use crisp_core::{BlockPos, Vec3};
-use crisp_data::{SyncedRegistry, registry, registry_id};
+use crisp_data::{SyncedRegistry, item_tags, registry, registry_id};
 use serde_json::Value;
 
 use super::Animal;
@@ -14,6 +14,7 @@ use crate::world::entity::living_entity::LivingEntity;
 use crate::world::entity::mob::{Mob, MobKind};
 use crate::world::entity::sound_event;
 use crate::world::entity::{Entity, EntityDimensions, EntityId};
+use crate::world::item::ItemStack;
 
 pub const DATA_VARIANT: usize = 18;
 const CHICKEN_LAY: &str = "minecraft:gameplay/chicken_lay";
@@ -89,6 +90,17 @@ pub fn sound_variant(id: i32) -> &'static ChickenSoundVariant {
     &all[id as usize]
 }
 
+pub fn is_food(item_stack: &ItemStack) -> bool {
+    item_stack.get_item().is(&item_tags::CHICKEN_FOOD)
+}
+
+fn get_variant(entity: &Entity) -> i32 {
+    match entity.data.get(DATA_VARIANT) {
+        DataValue::ChickenVariant(variant) => *variant,
+        _ => 0,
+    }
+}
+
 pub fn variant_id(name: &str) -> Option<i32> {
     variants().id_of(name)
 }
@@ -149,6 +161,15 @@ impl ServerLevel {
             let MobKind::Chicken(chicken) = &mut mob.kind;
             chicken.egg_time = egg_time;
         }
+    }
+
+    pub fn chicken_get_breed_offspring(&mut self, id: EntityId, partner: EntityId) -> Option<Box<Mob>> {
+        let mut baby = Box::new(Chicken::create());
+        if self.mob(partner).is_some_and(|mob| matches!(mob.kind, MobKind::Chicken(_))) {
+            let variant = if self.entity_mut(id).random.next_boolean() { get_variant(self.entity(id)) } else { get_variant(self.entity(partner)) };
+            baby.entity.data.set(DATA_VARIANT, DataValue::ChickenVariant(variant));
+        }
+        Some(baby)
     }
 
     pub fn chicken_get_base_experience_reward(&mut self, id: EntityId) -> i32 {

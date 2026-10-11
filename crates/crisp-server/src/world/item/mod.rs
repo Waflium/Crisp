@@ -9,8 +9,10 @@ pub mod dye_color;
 pub mod enchantment;
 pub mod flint_and_steel_item;
 mod item_stack;
+pub mod name_tag_item;
 pub mod scaffolding_block_item;
 pub mod slot;
+pub mod spawn_egg_item;
 
 use crisp_data::Item;
 
@@ -22,9 +24,15 @@ use crate::world::level::block::BlockHitResult;
 use crate::world::{InteractionHand, InteractionResult};
 use context::BlockPlaceContext;
 
-
 static BLOCK_ITEMS: std::sync::LazyLock<Vec<Option<Box<dyn block_item::BlockItemBehaviour>>>> =
     std::sync::LazyLock::new(|| (0..Item::count()).map(|i| block_item::for_item(Item(i as u16))).collect());
+
+pub fn interact_living_entity(level: &mut ServerLevel, item_stack: &mut ItemStack, player: EntityId, target: EntityId, _hand: InteractionHand) -> InteractionResult {
+    if item_stack.is(crisp_data::items::NAME_TAG) {
+        return name_tag_item::interact_living_entity(level, item_stack, player, target);
+    }
+    InteractionResult::Pass
+}
 
 pub fn use_on(level: &mut ServerLevel, player: EntityId, hand: InteractionHand, hit: BlockHitResult, stack: ItemStack) -> InteractionResult {
     match stack.item.info().classes.first() {

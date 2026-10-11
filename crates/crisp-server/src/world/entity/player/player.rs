@@ -13,6 +13,7 @@ use crate::world::entity::{EntityDimensions, EntityId, RemovalReason, sound_even
 use crate::world::item::ItemStack;
 use crate::world::item::component::{self as dc, codec as component_codec};
 use crate::world::level::BlockGetter;
+use crate::world::{InteractionHand, InteractionResult};
 
 pub fn get_default_dimensions(pose: Pose) -> EntityDimensions {
     match pose {
@@ -78,6 +79,44 @@ impl ServerLevel {
 
     fn reset_only_attack_strength_ticker(&mut self, id: EntityId) {
         self.player_mut(id).attack_strength_ticker = 0;
+    }
+
+    pub fn has_infinite_materials(&self, id: EntityId) -> bool {
+        self.players.get(&id).is_some_and(|p| p.abilities.instabuild)
+    }
+
+    pub fn interact_on(&mut self, id: EntityId, entity: EntityId, hand: InteractionHand, location: Vec3) -> InteractionResult {
+        if self.is_spectator(id) {
+            return InteractionResult::Pass;
+        }
+        let item_stack_clone = self.player(id).item_in_hand(hand).unwrap_or_else(ItemStack::empty);
+        let interact = self.interact(entity, id, hand, location);
+        if interact.consumes_action() {
+            let item_stack = self.player(id).item_in_hand(hand);
+            let count = item_stack.as_ref().map_or(0, |s| s.count);
+            if self.has_infinite_materials(id)
+                && item_stack.is_none_or(|s| ItemStack::is_same_item_same_components(&s, &item_stack_clone))
+                && count < item_stack_clone.count
+            {
+                self.player_mut(id).set_item_in_hand(hand, Some(item_stack_clone));
+            }
+            return interact;
+        }
+        let mut item_stack = self.player(id).item_in_hand(hand).unwrap_or_else(ItemStack::empty);
+        if !item_stack.is_empty() && self.is_living(entity) {
+            let has_infinite_materials = self.has_infinite_materials(id);
+            if has_infinite_materials {
+                item_stack = item_stack_clone;
+            }
+            let interaction_result = crate::world::item::interact_living_entity(self, &mut item_stack, id, entity, hand);
+            if !has_infinite_materials {
+                self.player_mut(id).update_item_in_hand(hand, &item_stack);
+            }
+            if interaction_result.consumes_action() {
+                return interaction_result;
+            }
+        }
+        InteractionResult::Pass
     }
 
     pub fn is_within_attack_range(&self, id: EntityId, weapon_item: &ItemStack, aabb: &AABB, buffer: f64) -> bool {

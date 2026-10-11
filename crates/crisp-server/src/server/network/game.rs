@@ -118,6 +118,13 @@ impl ServerLevel {
                 let entity_id = r.varint()?;
                 self.handle_attack(id, entity_id);
             }
+            serverbound::INTERACT => {
+                let entity_id = r.varint()?;
+                let hand = InteractionHand::from_id(r.varint()?);
+                let (x, y, z) = r.lp_vec3()?;
+                let using_secondary_action = r.bool()?;
+                self.handle_interact(id, entity_id, hand, Vec3::new(x, y, z), using_secondary_action);
+            }
             serverbound::CONTAINER_CLICK => self.handle_container_click(id, &mut r)?,
             serverbound::SET_CREATIVE_MODE_SLOT => {
                 let slot = r.i16()?;
@@ -304,6 +311,30 @@ impl ServerLevel {
             warn!("Player {} tried to attack an invalid entity", self.player(id).profile.name);
         } else if !self.cannot_attack_with_item(id, &main_hand_item, 5) {
             self.player_attack(id, entity_id);
+        }
+    }
+
+    fn handle_interact(&mut self, id: EntityId, entity_id: EntityId, hand: InteractionHand, location: Vec3, using_secondary_action: bool) {
+        if !self.player(id).movement.has_client_loaded() {
+            return;
+        }
+        let target_pos = self.entity_ref(entity_id).map(|target| target.block_position());
+        let p = self.player_mut(id);
+        p.reset_last_action_time();
+        p.entity.set_shift_key_down(using_secondary_action);
+        let Some(target_pos) = target_pos else { return };
+        if !self.world_border.is_within_bounds(target_pos.x as f64, target_pos.z as f64) || !self.is_within_entity_interaction_range(id, entity_id, 3.0) {
+            return;
+        }
+        let used_item_stack = self.player(id).item_in_hand(hand).unwrap_or_else(ItemStack::empty);
+        let result = self.interact_on(id, entity_id, hand, location);
+        if let InteractionResult::Success { swing_source, .. } = result
+            && result.should_swing()
+        {
+            let swing_animation = used_item_stack.interact_animation();
+            if self.swing(id, hand, swing_animation, swing_source != SwingSource::Predicted) {
+                self.reset_attack_strength_ticker(id);
+            }
         }
     }
 

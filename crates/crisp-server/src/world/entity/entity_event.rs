@@ -1,4 +1,5 @@
 pub const DEATH: u8 = 3;
+pub const IN_LOVE_HEARTS: u8 = 18;
 pub const PROTECTED_FROM_DEATH: u8 = 35;
 pub const MAINHAND_BREAK: u8 = 47;
 pub const OFFHAND_BREAK: u8 = 48;
