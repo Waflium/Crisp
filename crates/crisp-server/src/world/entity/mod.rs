@@ -11,6 +11,8 @@ pub mod entity_components;
 mod entity_dimensions;
 pub mod entity_event;
 pub mod entity_save;
+pub mod entity_type;
+pub mod entity_types;
 pub mod experience_orb;
 pub mod fluid_interaction;
 pub mod inside_block;

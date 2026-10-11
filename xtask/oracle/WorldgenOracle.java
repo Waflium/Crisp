@@ -358,7 +358,7 @@ public final class WorldgenOracle {
 
                 @Override
                 public net.minecraft.world.Difficulty getDifficulty() {
-                    return net.minecraft.world.Difficulty.PEACEFUL;
+                    return net.minecraft.world.Difficulty.EASY;
                 }
 
                 @Override
@@ -382,6 +382,28 @@ public final class WorldgenOracle {
             boolean entity = System.getenv("ORACLE_NO_ENTITIES") != null
                 && StackWalker.getInstance().walk(frames -> frames.limit(6).anyMatch(frame -> frame.getClassName().startsWith("net.minecraft.world.entity.")));
             return entity ? FeatureFlagSet.of() : FeatureFlags.DEFAULT_FLAGS;
+        }
+
+        @Override
+        public long getOverworldClockTime() {
+            return 0L;
+        }
+
+        @Override
+        public long getDefaultClockTime() {
+            return 0L;
+        }
+
+        @Override
+        public float getMoonBrightness(final BlockPos pos) {
+            return DimensionType.MOON_BRIGHTNESS_PER_PHASE[0];
+        }
+
+        static StructureManager structureManager;
+
+        @Override
+        public StructureManager structureManager() {
+            return structureManager;
         }
 
         static int nextEntityId;
@@ -679,7 +701,8 @@ public final class WorldgenOracle {
                     }
                     ProtoChunk chunk = terrainChunks.get(center.pack());
                     WorldGenRegion region = region(world, level, center, terrainChunks, startsChunk);
-                    world.generator.applyBiomeDecoration(region, chunk, new StructureManager(region, worldOptions, null));
+                    OracleLevel.structureManager = new StructureManager(region, worldOptions, null);
+                    world.generator.applyBiomeDecoration(region, chunk, OracleLevel.structureManager);
                     chunk.setPersistedStatus(net.minecraft.world.level.chunk.status.ChunkStatus.FEATURES);
                 }
             }

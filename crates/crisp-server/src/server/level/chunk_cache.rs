@@ -17,6 +17,7 @@ use super::chunk_workers::{self, ChunkToSave, IoWorker, WorkResult};
 use super::distance_manager::DistanceManager;
 use super::threaded_level_light_engine::{LightTask, TaskType, ThreadedLevelLightEngine};
 use super::ticket::{Ticket, TicketType};
+use crate::world::difficulty::Difficulty;
 use crate::world::level::BlockGetter;
 use crate::world::level::chunk::serialization::{self, SectionLight};
 use crate::world::level::chunk::storage::RegionStorage;
@@ -51,6 +52,7 @@ pub struct ChunkCache {
     structure_state: Option<Arc<ChunkGeneratorStructureState>>,
     pub generate_structures: bool,
     pub seed: i64,
+    pub difficulty: Difficulty,
     io: Option<IoWorker>,
     pub light_engine: ThreadedLevelLightEngine,
     light_changes: Vec<(LightLayer, i64)>,
@@ -93,6 +95,7 @@ impl ChunkCache {
             structure_state,
             generate_structures: true,
             seed: 0,
+            difficulty: Difficulty::Easy,
             io: storage.map(IoWorker::new),
             light_engine: ThreadedLevelLightEngine::new(dimension.min_y, dimension.height as i32, dimension.has_skylight),
             light_changes: Vec::new(),
@@ -1012,7 +1015,7 @@ impl ChunkCache {
                 gen_depth: (dimension.height as i32).min(generator.gen_depth()),
                 sea_level: generator.sea_level(),
             };
-            let mut region = WorldGenRegion::new(center, cache, writable, lit, &generator.state, dimension.min_y, dimension.height as i32, generation, &self.light_engine.engine);
+            let mut region = WorldGenRegion::new(center, cache, writable, lit, &generator.state, dimension.min_y, dimension.height as i32, generation, &self.light_engine.engine, self.difficulty);
             generator.apply_biome_decoration(&mut region, &structure_starts);
             std::mem::take(&mut region.light_tasks)
         };

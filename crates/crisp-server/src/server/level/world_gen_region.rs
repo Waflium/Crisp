@@ -1,6 +1,7 @@
 use crisp_core::{BlockPos, ChunkPos};
 use crisp_data::{Block, BlockState, Fluid, FluidState, blocks};
 
+use crate::world::difficulty::Difficulty;
 use crate::world::level::biome;
 use crate::world::level::block::entity::BlockEntity;
 use crate::world::level::chunk::{Biome, HeightmapType, LevelChunk};
@@ -29,6 +30,7 @@ pub struct WorldGenRegion<'a> {
     random: AlgorithmRandom,
     write_radius: i32,
     light_engine: &'a LevelLightEngine,
+    difficulty: Difficulty,
     pub light_tasks: Vec<RegionLightTask>,
 }
 
@@ -49,6 +51,7 @@ impl<'a> WorldGenRegion<'a> {
         height: i32,
         generation: WorldGenerationContext,
         light_engine: &'a LevelLightEngine,
+        difficulty: Difficulty,
     ) -> WorldGenRegion<'a> {
         let seed = random_state.seed;
         let random = random_state.random_factory(WORLDGEN_REGION_RANDOM).at(center.min_block_x(), 0, center.min_block_z());
@@ -66,8 +69,13 @@ impl<'a> WorldGenRegion<'a> {
             random,
             write_radius: 1,
             light_engine,
+            difficulty,
             light_tasks: Vec::new(),
         }
+    }
+
+    pub fn get_difficulty(&self) -> Difficulty {
+        self.difficulty
     }
 
     fn index(&self, chunk_x: i32, chunk_z: i32) -> usize {

@@ -426,6 +426,7 @@ impl Server {
         if ignore_lock || !self.difficulty_locked {
             self.difficulty = if self.hardcore { Difficulty::Hard } else { difficulty };
             self.level.difficulty = self.difficulty;
+            self.level.chunks.difficulty = self.difficulty;
             for player in self.level.players.values() {
                 self.send_difficulty_update(&player.connection);
             }

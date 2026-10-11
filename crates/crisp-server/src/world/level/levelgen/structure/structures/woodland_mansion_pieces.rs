@@ -8,6 +8,7 @@ use crisp_protocol::nbt::Nbt;
 
 use crate::server::level::world_gen_region::WorldGenRegion;
 use crate::util::shuffle;
+use crate::world::entity::entity_types;
 use crate::world::level::LevelAccessor;
 use crate::world::level::block::mirror::Mirror;
 use crate::world::level::block::rotation::Rotation;
@@ -1077,14 +1078,18 @@ impl WoodlandMansionPiece {
             }
             piece.create_chest(level, chunk_bb, random, position, WOODLAND_MANSION, Some(chest_state));
         } else {
-            match marker_id {
-                "Mage" | "Warrior" => {}
+            let entity_type = match marker_id {
+                "Mage" => &entity_types::EVOKER,
+                "Warrior" => &entity_types::VINDICATOR,
                 "Group of Allays" => {
                     LevelAccessor::get_random(level).next_int_bounded(3);
+                    &entity_types::ALLAY
                 }
                 _ => return,
+            };
+            if entity_type.can_spawn(level.get_difficulty()) {
+                level.set_block(position, blocks::AIR.default_state(), 2);
             }
-            level.set_block(position, blocks::AIR.default_state(), 2);
         }
     }
 }

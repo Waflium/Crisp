@@ -10,6 +10,7 @@ use super::Piece;
 use super::ocean_ruin_structure::{OceanRuinStructure, Type};
 use crate::server::level::world_gen_region::WorldGenRegion;
 use crate::util::valueproviders::IntProvider;
+use crate::world::entity::entity_types;
 use crate::world::level::block::entity::BlockEntityKind;
 use crate::world::level::block::mirror::Mirror;
 use crate::world::level::block::rotation::Rotation;
@@ -253,7 +254,7 @@ impl OceanRuinPiece {
                 base.loot_table = Some(if is_large { UNDERWATER_RUIN_BIG } else { UNDERWATER_RUIN_SMALL }.to_owned());
                 base.loot_table_seed = random.next_long();
             }
-        } else if marker_id == "drowned" {
+        } else if marker_id == "drowned" && entity_types::DROWNED.can_spawn(level.get_difficulty()) {
             if position.y > level.get_sea_level() {
                 level.set_block(position, blocks::AIR.default_state(), 2);
             } else {

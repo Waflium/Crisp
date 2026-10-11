@@ -190,7 +190,7 @@ pub fn decorate_with(generator: &NoiseBasedChunkGenerator, chunks: &mut HashMap<
             sea_level: generator.sea_level(),
         };
         let light_engine = LevelLightEngine::new(dimension.min_y, dimension.height as i32, true, dimension.has_skylight);
-        let mut region = WorldGenRegion::new(center, cache, [true; 9], [false; 9], &generator.state, dimension.min_y, dimension.height as i32, generation, &light_engine);
+        let mut region = WorldGenRegion::new(center, cache, [true; 9], [false; 9], &generator.state, dimension.min_y, dimension.height as i32, generation, &light_engine, crate::world::difficulty::Difficulty::Easy);
         generator.apply_biome_decoration(&mut region, &structure_starts);
     }
     chunks.extend(taken);
