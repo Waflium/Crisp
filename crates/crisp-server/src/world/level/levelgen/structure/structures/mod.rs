@@ -6,6 +6,10 @@ pub mod igloo_pieces;
 pub mod igloo_structure;
 pub mod jigsaw_structure;
 pub mod jungle_temple_piece;
+pub mod ocean_ruin_pieces;
+pub mod ocean_ruin_structure;
+pub mod shipwreck_pieces;
+pub mod shipwreck_structure;
 pub mod stronghold_pieces;
 pub mod stronghold_structure;
 pub mod swamp_hut_piece;
@@ -20,6 +24,9 @@ use buried_treasure_pieces::BuriedTreasurePiece;
 use desert_pyramid_piece::DesertPyramidPiece;
 use igloo_pieces::IglooPiece;
 use jungle_temple_piece::JungleTemplePiece;
+use ocean_ruin_pieces::OceanRuinPiece;
+use ocean_ruin_structure::OceanRuinStructure;
+use shipwreck_pieces::ShipwreckPiece;
 use stronghold_pieces::StrongholdPieceKind;
 use swamp_hut_piece::SwampHutPiece;
 
@@ -37,6 +44,8 @@ pub enum StructureType {
     Igloo,
     Jigsaw(Box<jigsaw_structure::JigsawStructure>),
     JungleTemple,
+    OceanRuin(OceanRuinStructure),
+    Shipwreck { is_beached: bool },
     Stronghold,
     SwampHut,
     NotImplemented,
@@ -51,6 +60,8 @@ impl StructureType {
             "igloo" => StructureType::Igloo,
             "jigsaw" => StructureType::Jigsaw(Box::new(jigsaw_structure::JigsawStructure::parse(json)?)),
             "jungle_temple" => StructureType::JungleTemple,
+            "ocean_ruin" => StructureType::OceanRuin(OceanRuinStructure::parse(json)?),
+            "shipwreck" => StructureType::Shipwreck { is_beached: json.get("is_beached").and_then(Value::as_bool).ok_or("missing is_beached")? },
             "stronghold" => StructureType::Stronghold,
             "swamp_hut" => StructureType::SwampHut,
             _ => StructureType::NotImplemented,
@@ -68,6 +79,8 @@ impl StructureType {
             StructureType::JungleTemple => {
                 single_piece_structure::find_generation_point(context, |random, x, z| Piece::JungleTemple(JungleTemplePiece::new(random, x, z)), 12, 15)
             }
+            StructureType::OceanRuin(structure) => structure.find_generation_point(context),
+            StructureType::Shipwreck { is_beached } => shipwreck_structure::find_generation_point(context, *is_beached),
             StructureType::Stronghold => stronghold_structure::find_generation_point(context),
             StructureType::SwampHut => swamp_hut_structure::find_generation_point(context),
             StructureType::NotImplemented => None,
@@ -88,6 +101,8 @@ pub enum Piece {
     Igloo(IglooPiece),
     Jigsaw(PoolElementStructurePiece),
     JungleTemple(JungleTemplePiece),
+    OceanRuin(OceanRuinPiece),
+    Shipwreck(ShipwreckPiece),
     Stronghold(StrongholdPieceKind),
     SwampHut(SwampHutPiece),
 }
@@ -100,6 +115,8 @@ impl Piece {
             Piece::Igloo(piece) => &piece.template.piece,
             Piece::Jigsaw(piece) => &piece.piece,
             Piece::JungleTemple(piece) => &piece.scattered.piece,
+            Piece::OceanRuin(piece) => &piece.template.piece,
+            Piece::Shipwreck(piece) => &piece.template.piece,
             Piece::Stronghold(piece) => piece.piece(),
             Piece::SwampHut(piece) => &piece.scattered.piece,
         }
@@ -112,6 +129,8 @@ impl Piece {
             Piece::Igloo(piece) => &mut piece.template.piece,
             Piece::Jigsaw(piece) => &mut piece.piece,
             Piece::JungleTemple(piece) => &mut piece.scattered.piece,
+            Piece::OceanRuin(piece) => &mut piece.template.piece,
+            Piece::Shipwreck(piece) => &mut piece.template.piece,
             Piece::Stronghold(piece) => piece.piece_mut(),
             Piece::SwampHut(piece) => &mut piece.scattered.piece,
         }
@@ -124,6 +143,8 @@ impl Piece {
             igloo_pieces::IGLOO => Piece::Igloo(IglooPiece::load(tag)?),
             pool_element_structure_piece::JIGSAW => Piece::Jigsaw(PoolElementStructurePiece::load(tag)?),
             jungle_temple_piece::JUNGLE_PYRAMID_PIECE => Piece::JungleTemple(JungleTemplePiece::load(tag)?),
+            ocean_ruin_pieces::OCEAN_RUIN => Piece::OceanRuin(OceanRuinPiece::load(tag)?),
+            shipwreck_pieces::SHIPWRECK_PIECE => Piece::Shipwreck(ShipwreckPiece::load(tag)?),
             stronghold_pieces::STRONGHOLD_CHEST_CORRIDOR
             | stronghold_pieces::STRONGHOLD_FILLER_CORRIDOR
             | stronghold_pieces::STRONGHOLD_FIVE_CROSSING
@@ -150,6 +171,8 @@ impl Piece {
             Piece::Igloo(piece) => piece.add_additional_save_data(&mut additional),
             Piece::Jigsaw(piece) => piece.add_additional_save_data(&mut additional),
             Piece::JungleTemple(piece) => piece.add_additional_save_data(&mut additional),
+            Piece::OceanRuin(piece) => piece.add_additional_save_data(&mut additional),
+            Piece::Shipwreck(piece) => piece.add_additional_save_data(&mut additional),
             Piece::Stronghold(piece) => piece.add_additional_save_data(&mut additional),
             Piece::SwampHut(piece) => piece.add_additional_save_data(&mut additional),
         }
@@ -163,6 +186,8 @@ impl Piece {
             Piece::Igloo(piece) => piece.post_process(level, random, chunk_bb, reference_pos),
             Piece::Jigsaw(piece) => piece.post_process(level, random, chunk_bb, reference_pos),
             Piece::JungleTemple(piece) => piece.post_process(level, random, chunk_bb),
+            Piece::OceanRuin(piece) => piece.post_process(level, random, chunk_bb, reference_pos),
+            Piece::Shipwreck(piece) => piece.post_process(level, random, chunk_bb, reference_pos),
             Piece::Stronghold(piece) => piece.post_process(level, random, chunk_bb),
             Piece::SwampHut(piece) => piece.post_process(level, chunk_bb, chunk_pos, reference_pos),
         }

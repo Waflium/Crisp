@@ -38,7 +38,7 @@ pub struct ProcessorRule {
     block_entity_modifier: RuleBlockEntityModifier,
 }
 
-enum RuleBlockEntityModifier {
+pub enum RuleBlockEntityModifier {
     Passthrough,
     Clear,
     AppendLoot(String),
@@ -93,6 +93,10 @@ impl RuleBlockEntityModifier {
 }
 
 impl ProcessorRule {
+    pub fn new(input_predicate: RuleTest, loc_predicate: RuleTest, pos_predicate: PosRuleTest, output_state: BlockState, block_entity_modifier: RuleBlockEntityModifier) -> ProcessorRule {
+        ProcessorRule { input_predicate, loc_predicate, pos_predicate, output_state, block_entity_modifier }
+    }
+
     fn parse(json: &Value) -> Result<ProcessorRule, String> {
         let field = |key: &str| json.get(key).ok_or_else(|| format!("missing {key}"));
         Ok(ProcessorRule {

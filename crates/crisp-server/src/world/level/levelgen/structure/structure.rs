@@ -193,6 +193,11 @@ fn get_corner_heights(context: &GenerationContext, min_x: i32, size_x: i32, min_
     ]
 }
 
+pub fn get_mean_first_occupied_height(context: &GenerationContext, min_x: i32, size_x: i32, min_z: i32, size_z: i32) -> i32 {
+    let corner_heights = get_corner_heights(context, min_x, size_x, min_z, size_z);
+    (corner_heights[0] + corner_heights[1] + corner_heights[2] + corner_heights[3]) / 4
+}
+
 pub fn get_lowest_y(context: &GenerationContext, size_x: i32, size_z: i32) -> i32 {
     get_lowest_y_at(context, context.chunk_pos.min_block_x(), context.chunk_pos.min_block_z(), size_x, size_z)
 }

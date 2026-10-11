@@ -604,6 +604,7 @@ public final class WorldgenOracle {
         }
         OracleLevel.chunkSource = (OracleChunkCache) unsafe().allocateInstance(OracleChunkCache.class);
         ServerLevel level = (ServerLevel) unsafe().allocateInstance(OracleLevel.class);
+        OracleLevel.seed = seed;
         Object server = unsafe().allocateInstance(net.minecraft.server.dedicated.DedicatedServer.class);
         var templates = templateManager();
         setField(server, "structureTemplateManager", templates);
