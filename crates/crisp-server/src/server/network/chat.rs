@@ -21,7 +21,7 @@ use crate::network::chat_type::{ChatType, broadcast_chat_message};
 use crate::network::configuration::ChatVisibility;
 use crate::network::connection::Packet;
 use crate::server::network::game::is_illegal_chat_char;
-use crate::server::level::player::ServerPlayer;
+use crate::server::level::server_player::ServerPlayer;
 use crate::util::tick_throttler::TickThrottler;
 use crate::world::entity::EntityId;
 use crate::world::entity::player::profile_public_key::EXPIRED_PROFILE_PUBLIC_KEY;

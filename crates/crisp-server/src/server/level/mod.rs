@@ -9,7 +9,7 @@ pub mod chunk_workers;
 pub mod distance_manager;
 pub mod events;
 pub mod game_mode;
-pub mod player;
+pub mod server_player;
 pub mod player_spawn_finder;
 pub mod progress;
 mod precipitation;
@@ -47,7 +47,7 @@ use crate::world::scores::scoreboard::Scoreboard;
 use crate::world::ticks::{ScheduledTick, TickPriority};
 use chunk_cache::ChunkCache;
 use chunk_map::{ChunkMap, TrackingConfig};
-use player::ServerPlayer;
+use server_player::ServerPlayer;
 use server_entity::UpdateInterval;
 
 #[derive(Clone, Debug, Default)]
@@ -751,6 +751,41 @@ impl ServerLevel {
         self.send_to_tracking_players_and_self(entity, &packet);
     }
 
+    #[allow(clippy::too_many_arguments)]
+    pub fn send_block_particles(&self, state: BlockState, x: f64, y: f64, z: f64, count: i32, dist: (f64, f64, f64), speed: f64) {
+        self.send_particles("minecraft:block", |p| p.varint(state.id() as i32), x, y, z, count, dist, speed);
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn send_particles(&self, particle: &str, options: impl Fn(&mut crisp_protocol::Writer), x: f64, y: f64, z: f64, count: i32, dist: (f64, f64, f64), speed: f64) {
+        let packet = encode(clientbound::LEVEL_PARTICLES, |p| {
+            p.varint(crisp_data::registry_id(crisp_data::registry::PARTICLE_TYPE, particle));
+            options(p);
+            p.bool(false);
+            p.bool(false);
+            p.f64(x);
+            p.f64(y);
+            p.f64(z);
+            p.f32(dist.0 as f32);
+            p.f32(dist.1 as f32);
+            p.f32(dist.2 as f32);
+            p.f32(speed as f32);
+            p.f32(speed as f32);
+            p.f32(speed as f32);
+            p.varint(count);
+            p.varint(0);
+        });
+        for player in self.players.values() {
+            if player.entity.is_removed() {
+                continue;
+            }
+            let center = Vec3::at_center_of(player.entity.block_position());
+            if center.distance_to_sqr(Vec3::new(x, y, z)) < 32.0 * 32.0 {
+                player.connection.send_raw(packet.clone());
+            }
+        }
+    }
+
     pub fn add_fresh_entity(&mut self, entity: LevelEntity) -> bool {
         if entity.entity().is_removed() {
             let ty = crisp_data::registry::ENTITY_TYPE[entity.entity().entity_type as usize];
@@ -1139,7 +1174,7 @@ impl ServerLevel {
             Some(LevelEntity::LightningBolt(_)) => self.tick_lightning_bolt(id),
             Some(LevelEntity::PrimedTnt(_)) => self.tick_primed_tnt(id),
             Some(LevelEntity::ExperienceOrb(_)) => self.tick_experience_orb(id),
-            Some(LevelEntity::Mob(_)) => self.tick_mob(id),
+            Some(LevelEntity::Mob(_)) => self.mob_tick(id),
             None => return,
         }
         if self.entities.get(&id).is_some_and(|e| e.entity().is_removed()) {
@@ -1312,7 +1347,7 @@ pub mod testing {
 
     use super::ServerLevel;
     use super::chunk_cache::ChunkCache;
-    use super::player::ServerPlayer;
+    use super::server_player::ServerPlayer;
     use crate::network::configuration::ClientInfo;
     use crate::network::connection::Outbound;
     use crate::network::login::Profile;

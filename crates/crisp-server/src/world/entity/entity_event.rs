@@ -1,0 +1,13 @@
+pub const DEATH: u8 = 3;
+pub const PROTECTED_FROM_DEATH: u8 = 35;
+pub const MAINHAND_BREAK: u8 = 47;
+pub const OFFHAND_BREAK: u8 = 48;
+pub const HEAD_BREAK: u8 = 49;
+pub const CHEST_BREAK: u8 = 50;
+pub const LEGS_BREAK: u8 = 51;
+pub const FEET_BREAK: u8 = 52;
+pub const SWAP_HANDS: u8 = 55;
+pub const POOF: u8 = 60;
+pub const BODY_BREAK: u8 = 65;
+pub const DROWN_PARTICLES: u8 = 67;
+pub const SADDLE_BREAK: u8 = 68;

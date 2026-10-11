@@ -73,7 +73,7 @@ use level::ServerLevel;
 use self::network::prepare_spawn_task::PrepareSpawnTask;
 use level::game_mode::GameType;
 use level::chunk_cache::ChunkCache;
-use level::player::ServerPlayer;
+use level::server_player::ServerPlayer;
 use players::respawn::write_death_location;
 use self::packs::PackSource;
 use self::packs::repository::PackRepository;

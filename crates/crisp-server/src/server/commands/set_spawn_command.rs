@@ -7,7 +7,7 @@ use crate::commands::brigadier::{CommandContext, CommandSyntaxException};
 use crate::commands::source::CommandSourceStack;
 use crate::network::chat::{Arg, Component};
 use crate::server::Server;
-use crate::server::level::player::RespawnConfig;
+use crate::server::level::server_player::RespawnConfig;
 use crate::world::entity::EntityId;
 use crate::world::level::storage::RespawnData;
 

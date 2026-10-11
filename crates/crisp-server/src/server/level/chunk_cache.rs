@@ -1199,7 +1199,7 @@ mod tests {
     use crate::network::login::Profile;
     use crate::server::OVERWORLD;
     use crate::server::level::chunk_map::ChunkTrackingView;
-    use crate::server::level::player::ServerPlayer;
+    use crate::server::level::server_player::ServerPlayer;
     use crate::server::level::{ServerLevel, testing};
     use crate::world::level::BlockGetter;
     use crate::world::level::chunk::FlatLevelSource;

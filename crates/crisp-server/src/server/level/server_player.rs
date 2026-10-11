@@ -22,8 +22,14 @@ use crate::server::network::movement::{Input, PlayerMovement};
 use crate::world::effect::MobEffectInstance;
 use crate::world::entity::attributes::{Attribute, AttributeModifier, Operation};
 use crate::world::entity::data::{DataValue, ids, player_defaults};
-use crate::world::entity::living::LivingEntity;
-use crate::world::entity::{Entity, EntityDimensions, EntityId};
+use super::ServerLevel;
+use crate::world::damagesource::DamageSource;
+use crate::world::entity::living_entity::{LivingEntity, remove_mob_effect, update_mob_effect};
+use crate::world::entity::{Entity, EntityDimensions, EntityId, entity_event, flags};
+use crate::world::scores::criteria::ObjectiveCriteria;
+use crate::world::scores::score_holder::ScoreHolder;
+use crate::world::scores::team::Visibility;
+use crisp_data::{MobEffect, game_rule};
 use crate::world::inventory::{Drag, Menu, SLOT_COUNT, Window};
 use crate::world::item::{Inventory, ItemStack, OFFHAND, protocol_slot, storage_slot, write_slot};
 use crate::world::entity::player::abilities::Abilities;
@@ -435,5 +441,194 @@ impl ServerPlayer {
         self.connection.send(clientbound::DISCONNECT, |p| reason.write(p));
         self.disconnected = true;
         self.disconnect_reason = Some(reason.get_string());
+    }
+}
+
+impl ServerLevel {
+    pub fn server_player_do_tick(&mut self, id: EntityId) {
+        if !self.is_spectator(id) || !self.touching_unloaded_chunk(id) {
+            self.player_tick(id);
+            self.tick_food(id);
+        }
+        let p = self.player_mut(id);
+        let food = p.food_data;
+        let saturation_zero = food.saturation_level == 0.0;
+        if p.health != p.last_sent_health || p.last_sent_food != food.food_level || saturation_zero != p.last_food_saturation_zero {
+            let health = p.health;
+            p.connection.send(clientbound::SET_HEALTH, |w| {
+                w.f32(health);
+                w.varint(food.food_level);
+                w.f32(food.saturation_level);
+            });
+            p.last_sent_health = health;
+            p.last_sent_food = food.food_level;
+            p.last_food_saturation_zero = saturation_zero;
+        }
+        let health_and_absorption = self.player(id).health + self.absorption_amount(id);
+        if health_and_absorption != self.player(id).last_recorded.health_and_absorption {
+            self.player_mut(id).last_recorded.health_and_absorption = health_and_absorption;
+            self.update_score_for_criteria(id, &ObjectiveCriteria::HEALTH, mth::ceil(health_and_absorption as f64));
+        }
+        let food = self.player(id).food_data.food_level;
+        if food != self.player(id).last_recorded.food_level {
+            self.player_mut(id).last_recorded.food_level = food;
+            self.update_score_for_criteria(id, &ObjectiveCriteria::FOOD, food);
+        }
+        let air = self.player(id).entity.air_supply();
+        if air != self.player(id).last_recorded.air_level {
+            self.player_mut(id).last_recorded.air_level = air;
+            self.update_score_for_criteria(id, &ObjectiveCriteria::AIR, air);
+        }
+        let armor = self.armor_value(id);
+        if armor != self.player(id).last_recorded.armor {
+            self.player_mut(id).last_recorded.armor = armor;
+            self.update_score_for_criteria(id, &ObjectiveCriteria::ARMOR, armor);
+        }
+        let experience = self.player(id).experience;
+        if experience.total != self.player(id).last_recorded.experience {
+            self.player_mut(id).last_recorded.experience = experience.total;
+            self.update_score_for_criteria(id, &ObjectiveCriteria::EXPERIENCE, experience.total);
+        }
+        if experience.level != self.player(id).last_recorded.level {
+            self.player_mut(id).last_recorded.level = experience.level;
+            self.update_score_for_criteria(id, &ObjectiveCriteria::LEVEL, experience.level);
+        }
+        let p = self.player_mut(id);
+        if p.experience.total != p.last_sent_exp {
+            p.last_sent_exp = p.experience.total;
+            p.send_experience();
+        }
+    }
+
+    pub fn server_player_hurt_server(&mut self, id: EntityId, source: DamageSource, damage: f32) -> bool {
+        if self.is_invulnerable_to(id, &source) {
+            return false;
+        }
+        if let Some(attacker) = source.causing_entity.filter(|&e| self.is_player(e))
+            && !self.can_harm_player(id, attacker)
+        {
+            return false;
+        }
+        self.player_hurt_server(id, source, damage)
+    }
+
+    pub fn server_player_is_invulnerable_to(&self, id: EntityId, source: &DamageSource) -> bool {
+        self.player_is_invulnerable_to(id, source) || !self.player(id).movement.has_client_loaded()
+    }
+
+    pub fn can_harm_player(&self, id: EntityId, target: EntityId) -> bool {
+        self.game_rules.get_bool(game_rule::PVP) && self.do_teams_allow_damage(id, target)
+    }
+
+    pub fn server_player_die(&mut self, id: EntityId, source: DamageSource) {
+        if self.game_rules.get_bool(game_rule::SHOW_DEATH_MESSAGES) {
+            let message = self.death_message(id);
+            self.player(id).connection.send(clientbound::PLAYER_COMBAT_KILL, |p| {
+                p.varint(id);
+                message.write(p);
+            });
+            match self.team_of(id).map(|t| t.death_message_visibility()) {
+                None | Some(Visibility::Always) => self.broadcast_system_message(&message),
+                Some(Visibility::HideForOtherTeams) => self.broadcast_system_to_team(id, &message),
+                Some(Visibility::HideForOwnTeam) => self.broadcast_system_to_all_except_team(id, &message),
+                Some(Visibility::Never) => {}
+            }
+        } else {
+            self.player(id).connection.send(clientbound::PLAYER_COMBAT_KILL, |p| {
+                p.varint(id);
+                crate::network::chat::Component::empty().write(p);
+            });
+        }
+        if !self.is_spectator(id) {
+            self.drop_all_death_loot(id, &source);
+        }
+        let holder = ScoreHolder::for_entity(self, id);
+        self.for_all_objectives(&ObjectiveCriteria::DEATH_COUNT, &holder, |level, score| {
+            let _ = score.increment(level);
+        });
+        if let Some(killer) = self.kill_credit(id) {
+            self.award_kill_score(killer, id);
+        }
+        self.broadcast_entity_event(id, entity_event::DEATH);
+        self.clear_fire(id);
+        self.entity_mut(id).set_ticks_frozen(0);
+        self.entity_mut(id).set_shared_flag(flags::ON_FIRE, false);
+        self.recheck_combat_status(id);
+        let pos = self.entity(id).block_position();
+        let dimension = self.dimension;
+        let p = self.player_mut(id);
+        p.last_death_location = Some((dimension.to_owned(), pos));
+        p.movement.waiting_for_respawn = true;
+    }
+
+    pub fn server_player_award_kill_score(&mut self, id: EntityId, victim: EntityId) {
+        if victim == id {
+            return;
+        }
+        let holder = ScoreHolder::for_entity(self, id);
+        self.for_all_objectives(&ObjectiveCriteria::KILL_COUNT_ALL, &holder, |level, score| {
+            let _ = score.increment(level);
+        });
+        if self.is_player(victim) {
+            self.for_all_objectives(&ObjectiveCriteria::KILL_COUNT_PLAYERS, &holder, |level, score| {
+                let _ = score.increment(level);
+            });
+        }
+    }
+
+    pub fn server_player_indicate_damage(&mut self, id: EntityId, xd: f64, zd: f64) {
+        let p = self.player_mut(id);
+        let hurt_dir = (mth::atan2(zd, xd) * 180.0f32 as f64 / std::f32::consts::PI as f64 - p.entity.y_rot as f64) as f32;
+        p.living.hurt_dir = hurt_dir;
+        p.connection.send(clientbound::HURT_ANIMATION, |w| {
+            w.varint(id);
+            w.f32(hurt_dir);
+        });
+    }
+
+    pub fn server_player_jump_from_ground(&mut self, id: EntityId) {
+        self.living_entity_jump_from_ground(id);
+        let exhaustion = if self.entity(id).is_sprinting() { crate::world::food::constants::EXHAUSTION_SPRINT_JUMP } else { crate::world::food::constants::EXHAUSTION_JUMP };
+        self.cause_food_exhaustion(id, exhaustion);
+    }
+
+    pub fn server_player_on_effect_added(&mut self, id: EntityId, effect: MobEffect, source: Option<EntityId>) {
+        self.living_entity_on_effect_added(id, effect, source);
+        let p = self.player(id);
+        let instance = p.living.effect(effect).expect("added effect");
+        p.connection.send_raw(update_mob_effect(id, instance, true));
+    }
+
+    pub fn server_player_on_effect_updated(&mut self, id: EntityId, effect: MobEffect, refresh_attributes: bool, source: Option<EntityId>) {
+        self.living_entity_on_effect_updated(id, effect, refresh_attributes, source);
+        let p = self.player(id);
+        let instance = p.living.effect(effect).expect("updated effect");
+        p.connection.send_raw(update_mob_effect(id, instance, false));
+    }
+
+    pub fn server_player_on_effects_removed(&mut self, id: EntityId, effects: &[MobEffectInstance]) {
+        self.living_entity_on_effects_removed(id, effects);
+        let p = self.player(id);
+        for effect in effects {
+            p.connection.send_raw(remove_mob_effect(id, effect.effect));
+        }
+    }
+
+    pub fn send_active_player_effects(&self, id: EntityId) {
+        let p = self.player(id);
+        for effect in &p.living.active_effects {
+            p.connection.send_raw(update_mob_effect(id, effect, false));
+        }
+    }
+
+    pub fn send_system_message(&self, id: EntityId, message: &crate::network::chat::Component) {
+        let p = self.player(id);
+        if p.client.chat_visibility == crate::network::configuration::ChatVisibility::Hidden {
+            return;
+        }
+        p.connection.send(clientbound::SYSTEM_CHAT, |w| {
+            message.write(w);
+            w.bool(false);
+        });
     }
 }

@@ -4,7 +4,7 @@ use crisp_protocol::Writer;
 
 use crate::network::connection::Packet;
 use crate::server::level::game_mode::GameType;
-use crate::server::level::player::ServerPlayer;
+use crate::server::level::server_player::ServerPlayer;
 use crate::server::{GAME_EVENT_LEVEL_CHUNKS_LOAD_START, OVERWORLD, Server, hashed_seed};
 use crate::world::entity::attributes::Attribute;
 use crate::world::entity::data::{DataValue, ids};
@@ -80,7 +80,7 @@ impl Server {
 
     pub fn respawn(&mut self, id: EntityId) {
         let transition = self.find_respawn_position(id);
-        self.level.remove_player_from_level(id, RemovalReason::Killed);
+        self.level.player_remove(id, RemovalReason::Killed);
         let old = self.level.players.shift_remove(&id).expect("respawning player");
         let old_score = old.score();
         let mut player = ServerPlayer::new(old.profile.clone(), old.client, old.connection.clone(), BlockPos::ZERO);

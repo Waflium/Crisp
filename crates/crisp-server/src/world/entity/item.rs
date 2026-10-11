@@ -1,10 +1,11 @@
 use crisp_core::random::RandomSource;
 use crisp_core::{AABB, Vec3, mth};
-use crisp_data::{fluid_tags, registry, registry_id};
+use crisp_data::{fluid_tags, game_rule, registry, registry_id};
 
 use super::data::{DataValue, ids};
 use super::{Entity, EntityDimensions, EntityId, LevelEntity, MoverType};
 use crate::server::level::ServerLevel;
+use crate::world::damagesource::DamageSource;
 use crate::world::item::ItemStack;
 
 pub const LIFETIME: i32 = 6000;
@@ -116,6 +117,32 @@ impl ServerLevel {
         match self.entities.get_mut(&id) {
             Some(LevelEntity::Item(item)) => Some(item),
             _ => None,
+        }
+    }
+
+    pub fn item_entity_hurt_server(&mut self, id: EntityId, source: DamageSource, damage: f32) -> bool {
+        if self.is_invulnerable_to_base(id, &source) {
+            return false;
+        }
+        if !self.game_rules.get_bool(game_rule::MOB_GRIEFING) && source.causing_entity.is_some_and(|e| self.is_mob(e)) {
+            return false;
+        }
+        let Some(item) = self.item_entity(id) else { return false };
+        if !item.item.can_be_hurt_by(&source) {
+            return false;
+        }
+        item.entity.sync_velocity = true;
+        item.health = (item.health as f32 - damage) as i32;
+        if item.health <= 0 {
+            item.entity.discard();
+        }
+        true
+    }
+
+    pub fn item_entity_should_play_lava_hurt_sound(&self, id: EntityId) -> bool {
+        match self.entities.get(&id) {
+            Some(LevelEntity::Item(item)) => item.health <= 0 || item.entity.tick_count % 10 == 0,
+            _ => true,
         }
     }
 

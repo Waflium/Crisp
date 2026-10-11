@@ -10,9 +10,9 @@ use super::Animal;
 use crate::server::level::ServerLevel;
 use crate::world::entity::attributes::CHICKEN_ATTRIBUTES;
 use crate::world::entity::data::{DataValue, ageable_mob_defaults};
-use crate::world::entity::living::LivingEntity;
+use crate::world::entity::living_entity::LivingEntity;
 use crate::world::entity::mob::{Mob, MobKind};
-use crate::world::entity::movement::sound_event;
+use crate::world::entity::sound_event;
 use crate::world::entity::{Entity, EntityDimensions, EntityId};
 
 pub const DATA_VARIANT: usize = 18;
@@ -149,6 +149,11 @@ impl ServerLevel {
             let MobKind::Chicken(chicken) = &mut mob.kind;
             chicken.egg_time = egg_time;
         }
+    }
+
+    pub fn chicken_get_base_experience_reward(&mut self, id: EntityId) -> i32 {
+        let MobKind::Chicken(chicken) = &self.mob(id).expect("a chicken").kind;
+        if chicken.is_chicken_jockey { 10 } else { self.animal_get_base_experience_reward(id) }
     }
 
     pub fn select_chicken_variant_to_spawn(&mut self, pos: BlockPos) -> Option<i32> {

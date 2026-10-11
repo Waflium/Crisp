@@ -107,7 +107,7 @@ impl Entity {
         self.set_old_pos();
         self.fall_distance = number(nbt, "fall_distance").unwrap_or(0.0);
         self.remaining_fire_ticks = number(nbt, "Fire").map_or(0, |v| v as i16 as i32);
-        self.set_air_supply(number(nbt, "Air").map_or(super::hurt::MAX_AIR_SUPPLY, |v| v as i32));
+        self.set_air_supply(number(nbt, "Air").map_or(super::TOTAL_AIR_SUPPLY, |v| v as i32));
         self.on_ground = flag(nbt, "OnGround");
         self.invulnerable = flag(nbt, "Invulnerable");
         self.invulnerable_time = number(nbt, "invulnerable_time").map_or(0, |v| v as i32);

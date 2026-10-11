@@ -4,7 +4,7 @@ use crisp_data::packets::play::clientbound;
 
 use crate::server::level::ServerLevel;
 use crate::server::level::game_mode::GameType;
-use crate::server::level::player::ServerPlayer;
+use crate::server::level::server_player::ServerPlayer;
 use crate::world::entity::relative::PositionMoveRotation;
 use crate::world::entity::{EntityId, MoverType};
 
@@ -398,7 +398,7 @@ impl ServerLevel {
         let p = self.player_mut(id);
         p.reset_position();
         p.entity.xo = p.entity.position();
-        self.player_do_tick(id);
+        self.server_player_do_tick(id);
         let p = self.player_mut(id);
         let first_good = p.movement.first_good;
         let (y_rot, x_rot) = (p.entity.y_rot, p.entity.x_rot);

@@ -7,7 +7,7 @@ use crisp_data::{MobEffect, blocks, damage_types, entity_type_tags, game_rule, m
 use crate::server::level::ServerLevel;
 use crate::world::damagesource::DamageSource;
 use crate::world::entity::attributes::{Attribute, AttributeMap, AttributeModifier, Operation};
-use crate::world::entity::movement::sound_event;
+use crate::world::entity::sound_event;
 use crate::world::entity::{EntityId, RemovalReason};
 use crate::world::level::BlockGetter;
 use crate::world::level::update_flags::UPDATE_ALL;

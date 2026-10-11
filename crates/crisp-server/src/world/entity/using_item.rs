@@ -4,7 +4,7 @@ use crisp_data::{ConsumeEffect, Consumable, EquipmentSlot, ItemUseAnimation};
 
 use super::EntityId;
 use super::data::{DataValue, ids};
-use super::movement::sound_event;
+use super::sound_event;
 use crate::server::level::{ServerLevel, SoundSource};
 use crate::util::Prediction;
 use crate::world::effect::MobEffectInstance;
@@ -77,7 +77,7 @@ impl ServerLevel {
         living.use_item = Some(stack.clone());
         living.use_item_remaining = use_duration(&stack);
         let slot = if hand == InteractionHand::MainHand { EquipmentSlot::Mainhand } else { EquipmentSlot::Offhand };
-        let packet = super::hurt::set_equipment(id, &[(slot, Some(stack))]);
+        let packet = super::living_entity::set_equipment(id, &[(slot, Some(stack))]);
         self.send_to_tracking_players(id, &packet);
         self.set_living_entity_flag(id, FLAG_IS_USING, true);
         self.set_living_entity_flag(id, FLAG_OFF_HAND, hand == InteractionHand::OffHand);

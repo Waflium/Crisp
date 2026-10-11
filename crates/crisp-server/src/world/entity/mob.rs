@@ -10,15 +10,12 @@ use super::animal::Animal;
 use super::attributes::Attribute;
 use super::data::{DataValue, ids};
 use super::entity_save::uuid_from_nbt;
-use super::living::LivingEntity;
+use super::living_entity::LivingEntity;
 use super::{Entity, EntityDimensions, EntityId, LevelEntity};
 use crate::server::level::ServerLevel;
-use crate::world::damagesource::DamageSource;
 use crate::world::effect::MobEffectInstance;
 use crate::world::item::ItemStack;
 use crate::world::level::block::entity::int_value;
-use crate::world::level::storage::loot::loot_params::LootParams;
-use crate::world::level::storage::loot::loot_table::LootTable;
 use crate::world::level::storage::uuid_ints;
 
 pub const DEFAULT_EQUIPMENT_DROP_CHANCE: f32 = 0.085;
@@ -448,73 +445,12 @@ impl ServerLevel {
         self.mob(id).is_some()
     }
 
-    pub fn living(&self, id: EntityId) -> &LivingEntity {
-        match self.players.get(&id) {
-            Some(p) => &p.living,
-            None => &self.mob(id).expect("a living entity").living,
-        }
+    pub fn mob_tick(&mut self, id: EntityId) {
+        self.living_entity_tick(id);
     }
 
-    pub fn living_mut(&mut self, id: EntityId) -> &mut LivingEntity {
-        if self.players.contains_key(&id) {
-            return &mut self.player_mut(id).living;
-        }
-        &mut self.mob_mut(id).expect("a living entity").living
-    }
-
-    pub fn entity_and_living(&self, id: EntityId) -> (&Entity, &LivingEntity) {
-        match self.players.get(&id) {
-            Some(p) => (&p.entity, &p.living),
-            None => {
-                let mob = self.mob(id).expect("a living entity");
-                (&mob.entity, &mob.living)
-            }
-        }
-    }
-
-    pub fn entity_and_living_mut(&mut self, id: EntityId) -> (&mut Entity, &mut LivingEntity) {
-        if self.players.contains_key(&id) {
-            let p = self.player_mut(id);
-            return (&mut p.entity, &mut p.living);
-        }
-        let mob = self.mob_mut(id).expect("a living entity");
-        (&mut mob.entity, &mut mob.living)
-    }
-
-    pub fn health(&self, id: EntityId) -> f32 {
-        match self.players.get(&id) {
-            Some(p) => p.health,
-            None => self.mob(id).expect("a living entity").health,
-        }
-    }
-
-    pub fn tick_mob(&mut self, id: EntityId) {
-        self.mob_base_tick(id);
-        self.detect_equipment_updates(id);
-        if self.entity(id).tick_count % 20 == 0 {
-            self.recheck_combat_status(id);
-        }
-        if !self.entity(id).is_removed() {
-            match self.mob(id).map(|m| &m.kind) {
-                Some(MobKind::Chicken(_)) => self.chicken_ai_step(id),
-                None => return,
-            }
-        }
-        if self.mob(id).is_none() {
-            return;
-        }
-        self.body_rotation_control_tick(id);
-        self.refresh_dirty_attributes(id);
-        let living = self.living_mut(id);
-        if living.current_impulse_context_reset_grace_time > 0 {
-            living.current_impulse_context_reset_grace_time -= 1;
-        }
-    }
-
-    fn mob_base_tick(&mut self, id: EntityId) {
-        self.living_mut(id).swing_state.tick();
-        self.entity_base_tick(id);
-        self.living_base_tick(id);
+    pub fn mob_base_tick(&mut self, id: EntityId) {
+        self.living_entity_base_tick(id);
         if self.mob(id).is_none() || !self.is_alive(id) {
             return;
         }
@@ -524,27 +460,27 @@ impl ServerLevel {
         mob.ambient_sound_time += 1;
         if roll < ambient_sound_time {
             mob.ambient_sound_time = -mob.ambient_sound_interval();
-            let sound = super::movement::sound_event(&mob.sound_set().ambient_sound);
+            let sound = super::sound_event(&mob.sound_set().ambient_sound);
             self.make_sound(id, sound);
         }
     }
 
     pub fn mob_ai_step(&mut self, id: EntityId) {
-        self.living_ai_step(id);
+        self.living_entity_ai_step(id);
     }
 
     pub fn mob_server_ai_step(&mut self, id: EntityId) {
-        let mob = self.mob_mut(id).expect("a mob");
-        mob.living.no_action_time += 1;
-        let age = mob.ageable().map_or(0, |a| a.age);
-        if let Some(animal) = mob.animal_mut()
-            && age != 0
-        {
-            animal.in_love = 0;
-        }
+        self.mob_mut(id).expect("a mob").living.no_action_time += 1;
+        self.custom_server_ai_step(id);
         self.move_control_tick(id);
         self.look_control_tick(id);
         self.jump_control_tick(id);
+    }
+
+    fn custom_server_ai_step(&mut self, id: EntityId) {
+        if self.mob(id).is_some_and(|mob| mob.animal().is_some()) {
+            self.animal_custom_server_ai_step(id);
+        }
     }
 
     pub fn check_mob_despawn(&mut self, id: EntityId) {
@@ -558,11 +494,11 @@ impl ServerLevel {
         let dist_sqr = self.entity(player).position().distance_to_sqr(position);
         let (despawn, no_despawn) = (128.0 * 128.0, 32.0 * 32.0);
         if !persistent && dist_sqr > despawn && removes_when_far_away {
-            self.remove_living(id, super::RemovalReason::Discarded);
+            self.remove(id, super::RemovalReason::Discarded);
         }
         let mob = self.mob_mut(id).expect("a mob");
         if !persistent && mob.living.no_action_time > 600 && mob.entity.random.next_int_bounded(800) == 0 && dist_sqr > no_despawn && removes_when_far_away {
-            self.remove_living(id, super::RemovalReason::Discarded);
+            self.remove(id, super::RemovalReason::Discarded);
         } else if dist_sqr < no_despawn {
             mob.living.no_action_time = 0;
         }
@@ -577,135 +513,6 @@ impl ServerLevel {
             }
         }
         best.map(|(id, _)| id)
-    }
-
-    pub fn mob_die(&mut self, id: EntityId, source: crate::world::damagesource::DamageSource) {
-        if self.entity(id).is_removed() || self.living(id).dead {
-            return;
-        }
-        if let Some(killer) = self.kill_credit(id).filter(|&k| self.is_player(k)) {
-            let holder = crate::world::scores::score_holder::ScoreHolder::for_entity(self, killer);
-            self.for_all_objectives(&crate::world::scores::criteria::ObjectiveCriteria::KILL_COUNT_ALL, &holder, |level, score| {
-                let _ = score.increment(level);
-            });
-        }
-        if self.entity(id).custom_name().is_some() {
-            let message = self.death_message(id);
-            info!("Named entity {} died: {}", self.entity_to_string(id), message.get_string());
-        }
-        self.living_mut(id).dead = true;
-        self.drop_all_mob_death_loot(id, &source);
-        self.broadcast_entity_event(id, super::hurt::events::DEATH);
-        self.entity_mut(id).set_pose(super::data::Pose::Dying);
-    }
-
-    fn drop_all_mob_death_loot(&mut self, id: EntityId, source: &crate::world::damagesource::DamageSource) {
-        let player_killed = self.living(id).last_hurt_by_player_memory_time > 0;
-        let mob_drops = self.game_rules.get_bool(crisp_data::game_rule::MOB_DROPS);
-        if !self.mob(id).expect("a mob").is_baby() && mob_drops {
-            self.drop_from_loot_table(id, source, player_killed);
-        }
-        if player_killed && mob_drops {
-            let reward = self.base_experience_reward(id);
-            let reward = self.process_mob_experience(source.causing_entity, reward);
-            let pos = self.entity(id).position();
-            self.award_experience(pos, reward);
-        }
-    }
-
-    fn base_experience_reward(&mut self, id: EntityId) -> i32 {
-        let mob = self.mob_mut(id).expect("a mob");
-        match &mob.kind {
-            MobKind::Chicken(chicken) if chicken.is_chicken_jockey => 10,
-            MobKind::Chicken(_) => 1 + mob.entity.random.next_int_bounded(3),
-        }
-    }
-
-    fn drop_from_loot_table(&mut self, id: EntityId, source: &DamageSource, player_killed: bool) {
-        let Some(loot_table) = self.mob(id).expect("a mob").loot_table_id() else { return };
-        self.drop_from_loot_table_into(id, source, player_killed, &loot_table, &mut |level, item_stack| level.spawn_at_location(id, item_stack, 0.0));
-        self.mob_mut(id).expect("a mob").loot_table = None;
-    }
-
-    pub fn get_last_hurt_by_player(&self, id: EntityId) -> Option<EntityId> {
-        self.living(id).last_hurt_by_player.as_ref().and_then(|&uuid| self.entity_manager.visible_entity_storage.get(uuid)).filter(|&p| self.is_player(p))
-    }
-
-    pub fn get_loot_table_seed(&self, id: EntityId) -> i64 {
-        self.mob(id).map_or(0, |mob| mob.loot_table_seed)
-    }
-
-    pub fn drop_from_loot_table_into(
-        &mut self,
-        id: EntityId,
-        source: &DamageSource,
-        player_killed: bool,
-        loot_table: &str,
-        item_stack_consumer: &mut dyn FnMut(&mut ServerLevel, ItemStack),
-    ) {
-        let table = LootTable::get(loot_table);
-        let position = self.entity(id).position();
-        let killer_player = self.get_last_hurt_by_player(id).filter(|_| player_killed);
-        let luck = killer_player.map(|player| self.attribute_value(player, Attribute::Luck) as f32);
-        let loot_table_seed = self.get_loot_table_seed(id);
-        let mut params = LootParams::new(self);
-        params.this_entity = Some(id);
-        params.origin = Some(position);
-        params.damage_source = Some(*source);
-        params.attacking_entity = source.causing_entity;
-        params.direct_attacking_entity = source.direct_entity;
-        if let (Some(killer_player), Some(luck)) = (killer_player, luck) {
-            params.last_damage_player = Some(killer_player);
-            params.luck = luck;
-        }
-        table.get_random_items_with_seed(params, loot_table_seed, item_stack_consumer);
-    }
-
-    pub fn drop_from_gift_loot_table(&mut self, id: EntityId, key: &str, consumer: impl FnMut(&mut ServerLevel, ItemStack)) -> bool {
-        let position = self.entity(id).position();
-        self.drop_from_loot_table_with_params(
-            key,
-            |params| {
-                params.origin = Some(position);
-                params.this_entity = Some(id);
-            },
-            consumer,
-        )
-    }
-
-    fn drop_from_loot_table_with_params(&mut self, key: &str, params_builder: impl FnOnce(&mut LootParams), mut consumer: impl FnMut(&mut ServerLevel, ItemStack)) -> bool {
-        let loot_table = LootTable::get(key);
-        let mut params = LootParams::new(self);
-        params_builder(&mut params);
-        let drops = loot_table.get_random_items(params);
-        if drops.is_empty() {
-            return false;
-        }
-        for stack in drops {
-            consumer(self, stack);
-        }
-        true
-    }
-
-    pub fn spawn_at_location(&mut self, id: EntityId, stack: ItemStack, offset: f32) {
-        if stack.is_empty() {
-            return;
-        }
-        let e = self.entity(id);
-        let pos = crisp_core::Vec3::new(e.x(), e.y() + offset as f64, e.z());
-        let mut item = super::item::ItemEntity::new(pos, stack);
-        item.set_default_pickup_delay();
-        self.add_fresh_entity(LevelEntity::Item(item));
-    }
-
-    pub fn entity_to_string(&self, id: EntityId) -> String {
-        let e = self.entity(id);
-        let name = self.entities.get(&id).map(|e| e.name().get_string()).unwrap_or_default();
-        let class = match self.mob(id).map(|m| &m.kind) {
-            Some(MobKind::Chicken(_)) => "Chicken",
-            None => "Entity",
-        };
-        format!("{class}['{name}'/{id}, l='ServerLevel[{}]', x={:.2}, y={:.2}, z={:.2}]", self.level_name, e.x(), e.y(), e.z())
     }
 
     pub fn finalize_mob_spawn(&mut self, mob: &mut Mob) {

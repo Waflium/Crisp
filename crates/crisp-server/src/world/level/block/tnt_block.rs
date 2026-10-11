@@ -5,7 +5,7 @@ use crisp_data::{BlockState, blocks, game_rule, items};
 use super::BlockBehaviour;
 use crate::server::level::game_mode::GameType;
 use crate::server::level::{ServerLevel, SoundSource};
-use crate::world::entity::movement::sound_event;
+use crate::world::entity::sound_event;
 use crate::world::entity::primed_tnt::{PrimedTnt, random_short_fuse};
 use crate::world::entity::{EntityId, LevelEntity};
 use crate::world::item::ItemStack;

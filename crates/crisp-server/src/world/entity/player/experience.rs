@@ -2,11 +2,11 @@ use crisp_core::random::RandomSource;
 use crisp_data::packets::play::clientbound;
 use crisp_protocol::nbt::Nbt;
 
-use crate::server::level::player::ServerPlayer;
+use crate::server::level::server_player::ServerPlayer;
 use crate::server::level::{ServerLevel, SoundSource};
 use crate::world::entity::EntityId;
 use crate::world::entity::data::{DataValue, ids};
-use crate::world::entity::movement::sound_event;
+use crate::world::entity::sound_event;
 use crate::world::level::block::entity::{float_value, int_value};
 
 #[derive(Clone, Copy, PartialEq, Debug, Default)]

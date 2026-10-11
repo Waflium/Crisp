@@ -402,7 +402,7 @@ impl ServerLevel {
         let equipment: Vec<_> =
             crisp_data::EquipmentSlot::VALUES.into_iter().filter_map(|slot| self.item_by_slot(tracked, slot).map(|s| (slot, Some(s)))).collect();
         if !equipment.is_empty() {
-            packets.push(crate::world::entity::hurt::set_equipment(tracked, &equipment));
+            packets.push(crate::world::entity::living_entity::set_equipment(tracked, &equipment));
         }
         packets
     }
@@ -628,7 +628,7 @@ mod tests {
     use crate::network::configuration::ClientInfo;
     use crate::network::connection::Outbound;
     use crate::network::login::Profile;
-    use crate::server::level::player::ServerPlayer;
+    use crate::server::level::server_player::ServerPlayer;
     use crate::server::level::testing;
     use crate::world::level::update_flags::UPDATE_ALL;
 

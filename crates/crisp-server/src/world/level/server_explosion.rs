@@ -6,7 +6,7 @@ use crisp_data::{BlockState, Fluid, damage_types, game_rule, registry, registry_
 
 use crate::server::level::ServerLevel;
 use crate::world::damagesource::DamageSource;
-use crate::world::entity::movement::sound_event;
+use crate::world::entity::sound_event;
 use crate::world::entity::{EntityId, LevelEntity};
 use crate::world::item::ItemStack;
 use crate::world::level::BlockGetter;

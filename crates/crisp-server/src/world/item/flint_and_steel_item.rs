@@ -6,7 +6,7 @@ use crisp_data::{BlockState, EquipmentSlot, block_tags};
 use super::context::BlockPlaceContext;
 use crate::server::level::{ServerLevel, SoundSource};
 use crate::world::entity::EntityId;
-use crate::world::entity::movement::sound_event;
+use crate::world::entity::sound_event;
 use crate::world::level::BlockGetter;
 use crate::world::level::block::base_fire_block;
 use crate::world::level::update_flags::{UPDATE_ALL, UPDATE_ALL_IMMEDIATE};

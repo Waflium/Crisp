@@ -175,7 +175,7 @@ impl CommandSourceStack {
         }
     }
 
-    pub fn for_new_player(server: &Server, player: &crate::server::level::player::ServerPlayer) -> CommandSourceStack {
+    pub fn for_new_player(server: &Server, player: &crate::server::level::server_player::ServerPlayer) -> CommandSourceStack {
         CommandSourceStack {
             source: CommandSource::Player(player.entity.id),
             position: player.entity.position(),

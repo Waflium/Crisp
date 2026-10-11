@@ -12,6 +12,7 @@ use crate::network::chat::{Arg, Component};
 use crate::world::level::storage::format_uuid;
 
 pub mod cached_user_name_to_id_resolver;
+pub mod player_list;
 pub mod respawn;
 
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
