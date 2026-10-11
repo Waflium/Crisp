@@ -7,6 +7,28 @@ pub struct BoundingBox {
 }
 
 impl BoundingBox {
+    pub fn new(min_x: i32, min_y: i32, min_z: i32, max_x: i32, max_y: i32, max_z: i32) -> BoundingBox {
+        BoundingBox::from_corners(BlockPos::new(min_x, min_y, min_z), BlockPos::new(max_x, max_y, max_z))
+    }
+
+    pub fn move_by(mut self, amount: BlockPos) -> BoundingBox {
+        self.min = self.min.offset(amount.x, amount.y, amount.z);
+        self.max = self.max.offset(amount.x, amount.y, amount.z);
+        self
+    }
+
+    pub fn for_all_corners(&self, mut consumer: impl FnMut(BlockPos)) {
+        let (min, max) = (self.min, self.max);
+        consumer(BlockPos::new(max.x, max.y, max.z));
+        consumer(BlockPos::new(min.x, max.y, max.z));
+        consumer(BlockPos::new(max.x, min.y, max.z));
+        consumer(BlockPos::new(min.x, min.y, max.z));
+        consumer(BlockPos::new(max.x, max.y, min.z));
+        consumer(BlockPos::new(min.x, max.y, min.z));
+        consumer(BlockPos::new(max.x, min.y, min.z));
+        consumer(BlockPos::new(min.x, min.y, min.z));
+    }
+
     pub fn from_corners(a: BlockPos, b: BlockPos) -> BoundingBox {
         BoundingBox { min: BlockPos::new(a.x.min(b.x), a.y.min(b.y), a.z.min(b.z)), max: BlockPos::new(a.x.max(b.x), a.y.max(b.y), a.z.max(b.z)) }
     }

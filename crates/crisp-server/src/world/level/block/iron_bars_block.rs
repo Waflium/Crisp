@@ -2,7 +2,9 @@ use crisp_core::{BlockPos, Direction};
 use crisp_data::properties::{EAST, NORTH, SOUTH, WATERLOGGED, WEST};
 use crisp_data::{Block, BlockState, SupportType, block_tags};
 
-use super::cross_collision_block::property_by_direction;
+use super::cross_collision_block::{self, property_by_direction};
+use super::mirror::Mirror;
+use super::rotation::Rotation;
 use super::simple_waterlogged_block::{is_water_source, schedule_water_tick};
 use super::{BlockBehaviour, is_exception_for_connection};
 use crate::server::level::ServerLevel;
@@ -16,6 +18,14 @@ fn attaches_to(state: BlockState, face_solid: bool) -> bool {
 }
 
 impl BlockBehaviour for IronBarsBlock {
+    fn rotate(&self, state: BlockState, rotation: Rotation) -> BlockState {
+        cross_collision_block::rotate(state, rotation)
+    }
+
+    fn mirror(&self, state: BlockState, mirror: Mirror) -> BlockState {
+        cross_collision_block::mirror(state, mirror)
+    }
+
     fn get_state_for_placement(&self, block: Block, ctx: &BlockPlaceContext, level: &mut ServerLevel) -> Option<BlockState> {
         let pos = ctx.clicked_pos();
         let water = is_water_source(level, pos);

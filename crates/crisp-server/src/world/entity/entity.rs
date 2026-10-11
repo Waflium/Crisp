@@ -1181,7 +1181,7 @@ impl ServerLevel {
         !self.has_chunks_at(mth::floor(b.min_x), mth::floor(b.min_z), mth::ceil(b.max_x), mth::ceil(b.max_z))
     }
 
-    pub fn cause_fall_damage(&mut self, id: EntityId, fall_distance: f64, damage_modifier: f32) -> bool {
+    pub fn cause_fall_damage(&mut self, id: EntityId, fall_distance: f64, damage_modifier: f32, damage_source: crate::world::damagesource::DamageSource) -> bool {
         if entity_type_tags::FALL_DAMAGE_IMMUNE.contains(self.entity(id).entity_type as usize) {
             return false;
         }
@@ -1212,7 +1212,7 @@ impl ServerLevel {
             };
             self.entity_play_sound(id, sound_event(sound), 1.0, 1.0);
             self.play_block_fall_sound(id);
-            self.hurt(id, crate::world::damagesource::DamageSource::new(crisp_data::damage_types::FALL), damage as f32);
+            self.hurt(id, damage_source, damage as f32);
             return true;
         }
         false

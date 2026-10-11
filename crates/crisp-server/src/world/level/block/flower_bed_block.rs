@@ -1,8 +1,10 @@
 use crisp_core::{BlockPos, Direction};
-use crisp_data::properties::FLOWER_AMOUNT;
+use crisp_data::properties::{FLOWER_AMOUNT, HORIZONTAL_FACING};
 use crisp_data::{Block, BlockState};
 
 use super::BlockBehaviour;
+use super::mirror::Mirror;
+use super::rotation::Rotation;
 use super::segmentable_block;
 use super::vegetation_block::{self, Vegetation};
 use crate::server::level::ServerLevel;
@@ -16,6 +18,14 @@ pub struct FlowerBedBlock;
 impl Vegetation for FlowerBedBlock {}
 
 impl BlockBehaviour for FlowerBedBlock {
+    fn rotate(&self, state: BlockState, rotation: Rotation) -> BlockState {
+        state.set(HORIZONTAL_FACING, rotation.rotate(state.get(HORIZONTAL_FACING)))
+    }
+
+    fn mirror(&self, state: BlockState, mirror: Mirror) -> BlockState {
+        super::rotate(state, mirror.get_rotation(state.get(HORIZONTAL_FACING)))
+    }
+
     fn get_state_for_placement(&self, block: Block, ctx: &BlockPlaceContext, level: &mut ServerLevel) -> Option<BlockState> {
         Some(segmentable_block::get_state_for_placement(ctx, level, block, FLOWER_AMOUNT))
     }

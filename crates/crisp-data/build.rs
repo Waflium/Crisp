@@ -98,6 +98,8 @@ fn main() -> anyhow::Result<()> {
     embed_json(&mut out, &data, "worldgen/feature", "FEATURES")?;
     embed_json(&mut out, &data, "worldgen/placed_feature", "PLACED_FEATURES")?;
     embed_json(&mut out, &data, "worldgen/block_state_provider", "BLOCK_STATE_PROVIDERS")?;
+    embed_json(&mut out, &data, "worldgen/processor_list", "PROCESSOR_LISTS")?;
+    embed_structures(&mut out, &data)?;
     writeln!(out, "pub static BIOME_PARAMETERS: &[(&str, &str)] = &[")?;
     let parameters = reports.join("biome_parameters");
     for ns in namespaces(&parameters)? {
@@ -902,6 +904,35 @@ fn embed_json(out: &mut String, data: &Path, kind: &str, name: &str) -> anyhow::
         for table in list_entries(&ns, &dir)? {
             let path = dir.join(format!("{}.json", table.split_once(':').unwrap().1));
             writeln!(out, "({table:?}, include_str!({:?})),", path.canonicalize()?)?;
+        }
+    }
+    writeln!(out, "];")?;
+    Ok(())
+}
+
+fn embed_structures(out: &mut String, data: &Path) -> anyhow::Result<()> {
+    fn walk(base: &Path, dir: &Path, out: &mut Vec<(String, std::path::PathBuf)>) -> anyhow::Result<()> {
+        for entry in fs::read_dir(dir)? {
+            let path = entry?.path();
+            if path.is_dir() {
+                walk(base, &path, out)?;
+            } else if path.extension().is_some_and(|e| e == "nbt") {
+                let rel = path.strip_prefix(base)?.with_extension("");
+                out.push((rel.to_string_lossy().replace('\\', "/"), path.canonicalize()?));
+            }
+        }
+        Ok(())
+    }
+    writeln!(out, "pub static STRUCTURES: &[(&str, &[u8])] = &[")?;
+    for ns in namespaces(data)? {
+        let dir = data.join(&ns).join("structure");
+        let mut files = Vec::new();
+        if dir.is_dir() {
+            walk(&dir, &dir, &mut files)?;
+        }
+        files.sort();
+        for (name, path) in files {
+            writeln!(out, "(\"{ns}:{name}\", include_bytes!({path:?})),")?;
         }
     }
     writeln!(out, "];")?;

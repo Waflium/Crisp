@@ -4,6 +4,9 @@ use crisp_data::{Block, BlockState, Fluid, FluidState, block_tags, blocks, regis
 
 use super::BlockBehaviour;
 use super::big_dripleaf_stem_block;
+use super::horizontal_directional_block;
+use super::mirror::Mirror;
+use super::rotation::Rotation;
 use super::vegetation_block::schedule_water_tick;
 use crate::server::level::{ServerLevel, SoundSource};
 use crate::world::item::context::BlockPlaceContext;
@@ -80,6 +83,14 @@ fn set_tilt(state: BlockState, level: &mut ServerLevel, pos: BlockPos, tilt: Til
 }
 
 impl BlockBehaviour for BigDripleafBlock {
+    fn rotate(&self, state: BlockState, rotation: Rotation) -> BlockState {
+        horizontal_directional_block::rotate(state, rotation)
+    }
+
+    fn mirror(&self, state: BlockState, mirror: Mirror) -> BlockState {
+        horizontal_directional_block::mirror(state, mirror)
+    }
+
     fn get_state_for_placement(&self, block: Block, ctx: &BlockPlaceContext, level: &mut ServerLevel) -> Option<BlockState> {
         let below_state = level.block_state(ctx.clicked_pos().below());
         let fluid = level.fluid_state(ctx.clicked_pos());

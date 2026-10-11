@@ -4,6 +4,9 @@ use crisp_data::properties::{HORIZONTAL_FACING, IN_WALL, OPEN, POWERED};
 use crisp_data::{Block, BlockState, block_tags};
 
 use super::block_set_type::{WoodType, fields};
+use super::horizontal_directional_block;
+use super::mirror::Mirror;
+use super::rotation::Rotation;
 use super::{BlockBehaviour, BlockHitResult};
 use crate::server::level::{ServerLevel, SoundSource};
 use crate::world::InteractionResult;
@@ -37,6 +40,14 @@ pub fn connects_to_direction(state: BlockState, direction: Direction) -> bool {
 }
 
 impl BlockBehaviour for FenceGateBlock {
+    fn rotate(&self, state: BlockState, rotation: Rotation) -> BlockState {
+        horizontal_directional_block::rotate(state, rotation)
+    }
+
+    fn mirror(&self, state: BlockState, mirror: Mirror) -> BlockState {
+        horizontal_directional_block::mirror(state, mirror)
+    }
+
     fn get_state_for_placement(&self, block: Block, ctx: &BlockPlaceContext, level: &mut ServerLevel) -> Option<BlockState> {
         let pos = ctx.clicked_pos();
         let is_open = level.has_neighbor_signal(pos);

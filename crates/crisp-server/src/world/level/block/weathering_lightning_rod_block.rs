@@ -3,6 +3,8 @@ use crisp_data::{Block, BlockState};
 
 use super::BlockBehaviour;
 use super::lightning_rod_block::LightningRodBlock;
+use super::mirror::Mirror;
+use super::rotation::Rotation;
 use super::weathering_copper::change_over_time;
 use crate::server::level::ServerLevel;
 use crate::world::item::context::BlockPlaceContext;
@@ -11,6 +13,14 @@ use crate::world::level::{LevelAccessor, LevelReader};
 pub struct WeatheringLightningRodBlock;
 
 impl BlockBehaviour for WeatheringLightningRodBlock {
+    fn rotate(&self, state: BlockState, rotation: Rotation) -> BlockState {
+        LightningRodBlock.rotate(state, rotation)
+    }
+
+    fn mirror(&self, state: BlockState, mirror: Mirror) -> BlockState {
+        LightningRodBlock.mirror(state, mirror)
+    }
+
     fn get_state_for_placement(&self, block: Block, ctx: &BlockPlaceContext, level: &mut ServerLevel) -> Option<BlockState> {
         LightningRodBlock.get_state_for_placement(block, ctx, level)
     }

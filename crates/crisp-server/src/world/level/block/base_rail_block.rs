@@ -3,7 +3,9 @@ use crisp_data::properties::{Property, RAIL_SHAPE, RAIL_SHAPE_STRAIGHT, RailShap
 use crisp_data::{Block, BlockState, Fluid, block_tags};
 
 use super::can_support_rigid_block;
+use super::mirror::Mirror;
 use super::rail_state::RailState;
+use super::rotation::Rotation;
 use crate::server::level::ServerLevel;
 use crate::world::item::context::BlockPlaceContext;
 use crate::world::level::{BlockGetter, LevelAccessor, LevelReader};
@@ -23,6 +25,72 @@ pub fn is_straight(block: Block) -> bool {
 
 pub fn shape_property(block: Block) -> Property<RailShape> {
     if block.is_instance_of("RailBlock") { RAIL_SHAPE } else { RAIL_SHAPE_STRAIGHT }
+}
+
+pub fn rotate(shape: RailShape, rotation: Rotation) -> RailShape {
+    match rotation {
+        Rotation::Clockwise180 => match shape {
+            RailShape::AscendingEast => RailShape::AscendingWest,
+            RailShape::AscendingWest => RailShape::AscendingEast,
+            RailShape::AscendingNorth => RailShape::AscendingSouth,
+            RailShape::AscendingSouth => RailShape::AscendingNorth,
+            RailShape::NorthSouth => RailShape::NorthSouth,
+            RailShape::EastWest => RailShape::EastWest,
+            RailShape::SouthEast => RailShape::NorthWest,
+            RailShape::SouthWest => RailShape::NorthEast,
+            RailShape::NorthWest => RailShape::SouthEast,
+            RailShape::NorthEast => RailShape::SouthWest,
+        },
+        Rotation::Counterclockwise90 => match shape {
+            RailShape::AscendingEast => RailShape::AscendingNorth,
+            RailShape::AscendingWest => RailShape::AscendingSouth,
+            RailShape::AscendingNorth => RailShape::AscendingWest,
+            RailShape::AscendingSouth => RailShape::AscendingEast,
+            RailShape::NorthSouth => RailShape::EastWest,
+            RailShape::EastWest => RailShape::NorthSouth,
+            RailShape::SouthEast => RailShape::NorthEast,
+            RailShape::SouthWest => RailShape::SouthEast,
+            RailShape::NorthWest => RailShape::SouthWest,
+            RailShape::NorthEast => RailShape::NorthWest,
+        },
+        Rotation::Clockwise90 => match shape {
+            RailShape::AscendingEast => RailShape::AscendingSouth,
+            RailShape::AscendingWest => RailShape::AscendingNorth,
+            RailShape::AscendingNorth => RailShape::AscendingEast,
+            RailShape::AscendingSouth => RailShape::AscendingWest,
+            RailShape::NorthSouth => RailShape::EastWest,
+            RailShape::EastWest => RailShape::NorthSouth,
+            RailShape::SouthEast => RailShape::SouthWest,
+            RailShape::SouthWest => RailShape::NorthWest,
+            RailShape::NorthWest => RailShape::NorthEast,
+            RailShape::NorthEast => RailShape::SouthEast,
+        },
+        Rotation::None => shape,
+    }
+}
+
+pub fn mirror(shape: RailShape, mirror: Mirror) -> RailShape {
+    match mirror {
+        Mirror::LeftRight => match shape {
+            RailShape::AscendingNorth => RailShape::AscendingSouth,
+            RailShape::AscendingSouth => RailShape::AscendingNorth,
+            RailShape::SouthEast => RailShape::NorthEast,
+            RailShape::SouthWest => RailShape::NorthWest,
+            RailShape::NorthWest => RailShape::SouthWest,
+            RailShape::NorthEast => RailShape::SouthEast,
+            _ => shape,
+        },
+        Mirror::FrontBack => match shape {
+            RailShape::AscendingEast => RailShape::AscendingWest,
+            RailShape::AscendingWest => RailShape::AscendingEast,
+            RailShape::SouthEast => RailShape::SouthWest,
+            RailShape::SouthWest => RailShape::SouthEast,
+            RailShape::NorthWest => RailShape::NorthEast,
+            RailShape::NorthEast => RailShape::NorthWest,
+            _ => shape,
+        },
+        Mirror::None => shape,
+    }
 }
 
 pub fn is_slope(shape: RailShape) -> bool {

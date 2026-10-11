@@ -1,10 +1,11 @@
 use crisp_core::BlockPos;
 use crisp_core::random::RandomSource;
 use crisp_data::properties::LEVEL_CAULDRON;
-use crisp_data::{Block, BlockState, blocks};
+use crisp_data::{Block, BlockState, Fluid, blocks};
 
-use super::{BlockBehaviour, vegetation_block::fields};
+use super::{BlockBehaviour, abstract_cauldron_block, vegetation_block::fields};
 use crate::server::level::ServerLevel;
+use crate::server::level::events::{SOUND_DRIP_LAVA_INTO_CAULDRON, SOUND_DRIP_WATER_INTO_CAULDRON};
 use crate::world::level::biome::Precipitation;
 use crate::world::level::update_flags::UPDATE_ALL;
 
@@ -28,6 +29,26 @@ impl BlockBehaviour for CauldronBlock {
             }
         }
     }
+
+    fn tick(&self, state: BlockState, level: &mut ServerLevel, pos: BlockPos) {
+        abstract_cauldron_block::tick(self, state, level, pos);
+    }
+
+    fn can_receive_stalactite_drip(&self, _fluid: Fluid) -> bool {
+        true
+    }
+
+    fn receive_stalactite_drip(&self, _state: BlockState, level: &mut ServerLevel, pos: BlockPos, fluid: Fluid) {
+        if fluid == Fluid::Water {
+            let new_state = blocks::WATER_CAULDRON.default_state();
+            level.set_block(pos, new_state, UPDATE_ALL);
+            level.level_event(None, SOUND_DRIP_WATER_INTO_CAULDRON, pos, 0);
+        } else if fluid == Fluid::Lava {
+            let new_state = blocks::LAVA_CAULDRON.default_state();
+            level.set_block(pos, new_state, UPDATE_ALL);
+            level.level_event(None, SOUND_DRIP_LAVA_INTO_CAULDRON, pos, 0);
+        }
+    }
 }
 
 pub struct LayeredCauldronBlock {
@@ -49,6 +70,22 @@ impl BlockBehaviour for LayeredCauldronBlock {
     fn handle_precipitation(&self, state: BlockState, level: &mut ServerLevel, pos: BlockPos, precipitation: Precipitation) {
         if should_handle_precipitation(level, precipitation) && state.get(LEVEL_CAULDRON) != 3 && precipitation == self.precipitation_type {
             level.set_block(pos, state.cycle(LEVEL_CAULDRON), UPDATE_ALL);
+        }
+    }
+
+    fn tick(&self, state: BlockState, level: &mut ServerLevel, pos: BlockPos) {
+        abstract_cauldron_block::tick(self, state, level, pos);
+    }
+
+    fn can_receive_stalactite_drip(&self, fluid: Fluid) -> bool {
+        fluid == Fluid::Water && self.precipitation_type == Precipitation::Rain
+    }
+
+    fn receive_stalactite_drip(&self, state: BlockState, level: &mut ServerLevel, pos: BlockPos, _fluid: Fluid) {
+        if state.get(LEVEL_CAULDRON) != 3 {
+            let new_state = state.set(LEVEL_CAULDRON, state.get(LEVEL_CAULDRON) + 1);
+            level.set_block(pos, new_state, UPDATE_ALL);
+            level.level_event(None, SOUND_DRIP_WATER_INTO_CAULDRON, pos, 0);
         }
     }
 }

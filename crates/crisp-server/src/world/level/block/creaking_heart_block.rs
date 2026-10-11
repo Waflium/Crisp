@@ -1,0 +1,13 @@
+use crisp_data::BlockState;
+
+use super::BlockBehaviour;
+use super::rotated_pillar_block;
+use super::rotation::Rotation;
+
+pub struct CreakingHeartBlock;
+
+impl BlockBehaviour for CreakingHeartBlock {
+    fn rotate(&self, state: BlockState, rotation: Rotation) -> BlockState {
+        rotated_pillar_block::rotate_pillar(state, rotation)
+    }
+}

@@ -5,6 +5,8 @@ use crisp_data::properties::{BooleanProperty, EAST, NORTH, SOUTH, UP, WEST};
 use crisp_data::{Block, BlockState, SupportType, blocks};
 
 use super::BlockBehaviour;
+use super::mirror::Mirror;
+use super::rotation::Rotation;
 use super::vegetation_block::at_most_matched;
 use crate::server::level::ServerLevel;
 use crate::world::item::context::BlockPlaceContext;
@@ -96,6 +98,23 @@ fn copy_random_faces(from: BlockState, mut to: BlockState, level: &mut ServerLev
 }
 
 impl BlockBehaviour for VineBlock {
+    fn rotate(&self, state: BlockState, rotation: Rotation) -> BlockState {
+        match rotation {
+            Rotation::Clockwise180 => state.set(NORTH, state.get(SOUTH)).set(EAST, state.get(WEST)).set(SOUTH, state.get(NORTH)).set(WEST, state.get(EAST)),
+            Rotation::Counterclockwise90 => state.set(NORTH, state.get(EAST)).set(EAST, state.get(SOUTH)).set(SOUTH, state.get(WEST)).set(WEST, state.get(NORTH)),
+            Rotation::Clockwise90 => state.set(NORTH, state.get(WEST)).set(EAST, state.get(NORTH)).set(SOUTH, state.get(EAST)).set(WEST, state.get(SOUTH)),
+            Rotation::None => state,
+        }
+    }
+
+    fn mirror(&self, state: BlockState, mirror: Mirror) -> BlockState {
+        match mirror {
+            Mirror::LeftRight => state.set(NORTH, state.get(SOUTH)).set(SOUTH, state.get(NORTH)),
+            Mirror::FrontBack => state.set(EAST, state.get(WEST)).set(WEST, state.get(EAST)),
+            Mirror::None => state,
+        }
+    }
+
     fn get_state_for_placement(&self, block: Block, ctx: &BlockPlaceContext, level: &mut ServerLevel) -> Option<BlockState> {
         let clicked_state = level.block_state(ctx.clicked_pos());
         let clicked_vine = clicked_state.is_block(block);

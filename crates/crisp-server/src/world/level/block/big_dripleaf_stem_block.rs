@@ -4,6 +4,9 @@ use crisp_data::{BlockState, Fluid, FluidState, block_tags, blocks};
 
 use super::BlockBehaviour;
 use super::big_dripleaf_block;
+use super::horizontal_directional_block;
+use super::mirror::Mirror;
+use super::rotation::Rotation;
 use super::vegetation_block::schedule_water_tick;
 use crate::server::level::ServerLevel;
 use crate::world::level::{BlockGetter, LevelAccessor, LevelReader};
@@ -29,6 +32,14 @@ fn leaf_pos(level: &mut ServerLevel, pos: BlockPos, stem: crisp_data::Block) -> 
 }
 
 impl BlockBehaviour for BigDripleafStemBlock {
+    fn rotate(&self, state: BlockState, rotation: Rotation) -> BlockState {
+        horizontal_directional_block::rotate(state, rotation)
+    }
+
+    fn mirror(&self, state: BlockState, mirror: Mirror) -> BlockState {
+        horizontal_directional_block::mirror(state, mirror)
+    }
+
     fn get_clone_item_stack(&self, _level: &ServerLevel, _pos: BlockPos, _state: BlockState, _include_data: bool) -> crate::world::item::ItemStack {
         crate::world::item::ItemStack::new(blocks::BIG_DRIPLEAF.item(), 1)
     }

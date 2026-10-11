@@ -3,6 +3,8 @@ use crisp_data::properties::{DOUBLE_BLOCK_HALF, DoubleBlockHalf};
 use crisp_data::{Block, BlockState};
 
 use super::door_block::DoorBlock;
+use super::mirror::Mirror;
+use super::rotation::Rotation;
 use super::weathering_copper::change_over_time;
 use super::{BlockBehaviour, BlockHitResult};
 use crate::server::level::ServerLevel;
@@ -23,6 +25,14 @@ impl WeatheringCopperDoorBlock {
 }
 
 impl BlockBehaviour for WeatheringCopperDoorBlock {
+    fn rotate(&self, state: BlockState, rotation: Rotation) -> BlockState {
+        self.door.rotate(state, rotation)
+    }
+
+    fn mirror(&self, state: BlockState, mirror: Mirror) -> BlockState {
+        self.door.mirror(state, mirror)
+    }
+
     fn get_state_for_placement(&self, block: Block, ctx: &BlockPlaceContext, level: &mut ServerLevel) -> Option<BlockState> {
         self.door.get_state_for_placement(block, ctx, level)
     }

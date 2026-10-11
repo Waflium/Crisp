@@ -4,6 +4,9 @@ use crisp_data::properties::{HALF, HORIZONTAL_FACING, Half, OPEN, POWERED, WATER
 use crisp_data::{Block, BlockState};
 
 use super::block_set_type::{BlockSetType, fields};
+use super::horizontal_directional_block;
+use super::mirror::Mirror;
+use super::rotation::Rotation;
 use super::simple_waterlogged_block::{is_water_source, schedule_water_tick};
 use super::{BlockBehaviour, BlockHitResult};
 use crate::server::level::{ServerLevel, SoundSource};
@@ -37,6 +40,14 @@ impl TrapDoorBlock {
 }
 
 impl BlockBehaviour for TrapDoorBlock {
+    fn rotate(&self, state: BlockState, rotation: Rotation) -> BlockState {
+        horizontal_directional_block::rotate(state, rotation)
+    }
+
+    fn mirror(&self, state: BlockState, mirror: Mirror) -> BlockState {
+        horizontal_directional_block::mirror(state, mirror)
+    }
+
     fn get_state_for_placement(&self, block: Block, ctx: &BlockPlaceContext, level: &mut ServerLevel) -> Option<BlockState> {
         let mut state = block.default_state();
         let water = is_water_source(level, ctx.clicked_pos());

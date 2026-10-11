@@ -5,6 +5,8 @@ use crisp_data::{Block, BlockState, Fluid, block_tags};
 use super::BlockBehaviour;
 use super::big_dripleaf_block;
 use super::double_plant_block;
+use super::mirror::Mirror;
+use super::rotation::Rotation;
 use super::vegetation_block::{self, Vegetation, schedule_water_tick};
 use crate::server::level::{ServerLevel, legacy_block};
 use crate::world::entity::EntityId;
@@ -22,6 +24,14 @@ impl Vegetation for SmallDripleafBlock {
 }
 
 impl BlockBehaviour for SmallDripleafBlock {
+    fn rotate(&self, state: BlockState, rotation: Rotation) -> BlockState {
+        state.set(HORIZONTAL_FACING, rotation.rotate(state.get(HORIZONTAL_FACING)))
+    }
+
+    fn mirror(&self, state: BlockState, mirror: Mirror) -> BlockState {
+        super::rotate(state, mirror.get_rotation(state.get(HORIZONTAL_FACING)))
+    }
+
     fn get_state_for_placement(&self, block: Block, ctx: &BlockPlaceContext, level: &mut ServerLevel) -> Option<BlockState> {
         let state = double_plant_block::get_state_for_placement(block, ctx, level)?;
         let facing = ctx.horizontal_direction().opposite();

@@ -3,6 +3,8 @@ use crisp_data::properties::HORIZONTAL_FACING;
 use crisp_data::{Block, BlockState, blocks};
 
 use super::BlockBehaviour;
+use super::mirror::Mirror;
+use super::rotation::Rotation;
 use crate::server::level::ServerLevel;
 use crate::world::item::context::BlockPlaceContext;
 use crate::world::level::{LevelAccessor, LevelReader};
@@ -19,6 +21,14 @@ pub fn update_shape(state: BlockState, level: &mut dyn LevelAccessor, pos: Block
 }
 
 impl BlockBehaviour for WallTorchBlock {
+    fn rotate(&self, state: BlockState, rotation: Rotation) -> BlockState {
+        state.set(HORIZONTAL_FACING, rotation.rotate(state.get(HORIZONTAL_FACING)))
+    }
+
+    fn mirror(&self, state: BlockState, mirror: Mirror) -> BlockState {
+        super::rotate(state, mirror.get_rotation(state.get(HORIZONTAL_FACING)))
+    }
+
     fn get_state_for_placement(&self, block: Block, ctx: &BlockPlaceContext, level: &mut ServerLevel) -> Option<BlockState> {
         let mut state = block.default_state();
         let pos = ctx.clicked_pos();

@@ -3,6 +3,9 @@ use crisp_data::properties::POWERED;
 use crisp_data::{Block, BlockState, registry, registry_id};
 
 use super::face_attached_horizontal_directional_block as face_attached;
+use super::horizontal_directional_block;
+use super::mirror::Mirror;
+use super::rotation::Rotation;
 use super::{BlockBehaviour, BlockHitResult};
 use crate::server::level::{ServerLevel, SoundSource};
 use crate::world::InteractionResult;
@@ -59,6 +62,14 @@ impl ButtonBlock {
 }
 
 impl BlockBehaviour for ButtonBlock {
+    fn rotate(&self, state: BlockState, rotation: Rotation) -> BlockState {
+        horizontal_directional_block::rotate(state, rotation)
+    }
+
+    fn mirror(&self, state: BlockState, mirror: Mirror) -> BlockState {
+        horizontal_directional_block::mirror(state, mirror)
+    }
+
     fn get_state_for_placement(&self, block: Block, ctx: &BlockPlaceContext, level: &mut ServerLevel) -> Option<BlockState> {
         face_attached::get_state_for_placement(block, ctx, level)
     }

@@ -3,7 +3,9 @@ use crisp_core::{BlockPos, Direction};
 use crisp_data::{Block, BlockState};
 
 use super::BlockBehaviour;
+use super::mirror::Mirror;
 use super::multiface_block::MultifaceBlock;
+use super::rotation::Rotation;
 use super::multiface_spreader::{MultifaceSpreader, SpreadConfig, SpreadRandom};
 use crate::server::level::ServerLevel;
 use crate::world::item::context::BlockPlaceContext;
@@ -20,6 +22,14 @@ impl GlowLichenBlock {
 }
 
 impl BlockBehaviour for GlowLichenBlock {
+    fn rotate(&self, state: BlockState, rotation: Rotation) -> BlockState {
+        MultifaceBlock.rotate(state, rotation)
+    }
+
+    fn mirror(&self, state: BlockState, mirror: Mirror) -> BlockState {
+        MultifaceBlock.mirror(state, mirror)
+    }
+
     fn get_state_for_placement(&self, block: Block, ctx: &BlockPlaceContext, level: &mut ServerLevel) -> Option<BlockState> {
         MultifaceBlock.get_state_for_placement(block, ctx, level)
     }

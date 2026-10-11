@@ -2,6 +2,9 @@ use crisp_data::properties::FACING;
 use crisp_data::{Block, BlockState};
 
 use super::BlockBehaviour;
+use super::mirror::Mirror;
+use super::rod_block;
+use super::rotation::Rotation;
 use crate::server::level::ServerLevel;
 use crate::world::item::context::BlockPlaceContext;
 use crate::world::level::BlockGetter;
@@ -9,6 +12,14 @@ use crate::world::level::BlockGetter;
 pub struct EndRodBlock;
 
 impl BlockBehaviour for EndRodBlock {
+    fn rotate(&self, state: BlockState, rotation: Rotation) -> BlockState {
+        rod_block::rotate(state, rotation)
+    }
+
+    fn mirror(&self, state: BlockState, mirror: Mirror) -> BlockState {
+        rod_block::mirror(state, mirror)
+    }
+
     fn get_state_for_placement(&self, block: Block, ctx: &BlockPlaceContext, level: &mut ServerLevel) -> Option<BlockState> {
         let clicked_face = ctx.clicked_face();
         let state = level.block_state(ctx.clicked_pos().relative(clicked_face.opposite()));

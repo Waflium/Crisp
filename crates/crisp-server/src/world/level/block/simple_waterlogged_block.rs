@@ -13,10 +13,11 @@ pub fn can_place_liquid(fluid: Fluid) -> bool {
     fluid == Fluid::Water
 }
 
-pub fn place_liquid(level: &mut ServerLevel, pos: BlockPos, state: BlockState, fluid: FluidState) -> bool {
+pub fn place_liquid(level: &mut dyn LevelAccessor, pos: BlockPos, state: BlockState, fluid: FluidState) -> bool {
     if !state.get(WATERLOGGED) && fluid.fluid == Fluid::Water {
         level.set_block(pos, state.set(WATERLOGGED, true), UPDATE_ALL);
-        level.schedule_fluid_tick(pos, fluid.fluid, tick_delay(level, fluid.fluid));
+        let delay = tick_delay(level, fluid.fluid);
+        level.schedule_fluid_tick(pos, fluid.fluid, delay);
         true
     } else {
         false

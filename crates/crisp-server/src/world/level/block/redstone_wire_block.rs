@@ -4,6 +4,8 @@ use crisp_core::{BlockPos, Direction};
 use crisp_data::properties::{EAST_REDSTONE, NORTH_REDSTONE, POWER, Property, RedstoneSide, SOUTH_REDSTONE, WEST_REDSTONE};
 use crisp_data::{Block, BlockState, blocks};
 
+use super::mirror::Mirror;
+use super::rotation::Rotation;
 use super::{BlockBehaviour, BlockHitResult};
 use crate::server::level::ServerLevel;
 use crate::world::InteractionResult;
@@ -183,6 +185,35 @@ impl RedstoneWireBlock {
 }
 
 impl BlockBehaviour for RedstoneWireBlock {
+    fn rotate(&self, state: BlockState, rotation: Rotation) -> BlockState {
+        match rotation {
+            Rotation::Clockwise180 => state
+                .set(NORTH_REDSTONE, state.get(SOUTH_REDSTONE))
+                .set(EAST_REDSTONE, state.get(WEST_REDSTONE))
+                .set(SOUTH_REDSTONE, state.get(NORTH_REDSTONE))
+                .set(WEST_REDSTONE, state.get(EAST_REDSTONE)),
+            Rotation::Counterclockwise90 => state
+                .set(NORTH_REDSTONE, state.get(EAST_REDSTONE))
+                .set(EAST_REDSTONE, state.get(SOUTH_REDSTONE))
+                .set(SOUTH_REDSTONE, state.get(WEST_REDSTONE))
+                .set(WEST_REDSTONE, state.get(NORTH_REDSTONE)),
+            Rotation::Clockwise90 => state
+                .set(NORTH_REDSTONE, state.get(WEST_REDSTONE))
+                .set(EAST_REDSTONE, state.get(NORTH_REDSTONE))
+                .set(SOUTH_REDSTONE, state.get(EAST_REDSTONE))
+                .set(WEST_REDSTONE, state.get(SOUTH_REDSTONE)),
+            Rotation::None => state,
+        }
+    }
+
+    fn mirror(&self, state: BlockState, mirror: Mirror) -> BlockState {
+        match mirror {
+            Mirror::LeftRight => state.set(NORTH_REDSTONE, state.get(SOUTH_REDSTONE)).set(SOUTH_REDSTONE, state.get(NORTH_REDSTONE)),
+            Mirror::FrontBack => state.set(EAST_REDSTONE, state.get(WEST_REDSTONE)).set(WEST_REDSTONE, state.get(EAST_REDSTONE)),
+            Mirror::None => state,
+        }
+    }
+
     fn get_state_for_placement(&self, _block: Block, ctx: &BlockPlaceContext, level: &mut ServerLevel) -> Option<BlockState> {
         Some(self.get_connection_state(level, self.cross_state, ctx.clicked_pos()))
     }

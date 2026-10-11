@@ -1,8 +1,10 @@
-use crisp_core::{BlockPos, Direction};
+use crisp_core::{Axis, BlockPos, Direction};
 use crisp_data::properties::{HALF, HORIZONTAL_FACING, Half, STAIRS_SHAPE, StairsShape, WATERLOGGED};
 use crisp_data::{Block, BlockState};
 
 use super::BlockBehaviour;
+use super::mirror::Mirror;
+use super::rotation::Rotation;
 use super::simple_waterlogged_block::{is_water_source, schedule_water_tick};
 use crate::server::level::ServerLevel;
 use crate::world::item::context::BlockPlaceContext;
@@ -11,6 +13,32 @@ use crate::world::level::{LevelAccessor, LevelReader};
 pub struct StairBlock;
 
 impl BlockBehaviour for StairBlock {
+    fn rotate(&self, state: BlockState, rotation: Rotation) -> BlockState {
+        state.set(HORIZONTAL_FACING, rotation.rotate(state.get(HORIZONTAL_FACING)))
+    }
+
+    fn mirror(&self, state: BlockState, mirror: Mirror) -> BlockState {
+        let direction = state.get(HORIZONTAL_FACING);
+        let shape = state.get(STAIRS_SHAPE);
+        match mirror {
+            Mirror::LeftRight if direction.axis() == Axis::Z => match shape {
+                StairsShape::OuterLeft => super::rotate(state, Rotation::Clockwise180).set(STAIRS_SHAPE, StairsShape::OuterRight),
+                StairsShape::InnerRight => super::rotate(state, Rotation::Clockwise180).set(STAIRS_SHAPE, StairsShape::InnerLeft),
+                StairsShape::InnerLeft => super::rotate(state, Rotation::Clockwise180).set(STAIRS_SHAPE, StairsShape::InnerRight),
+                StairsShape::OuterRight => super::rotate(state, Rotation::Clockwise180).set(STAIRS_SHAPE, StairsShape::OuterLeft),
+                StairsShape::Straight => super::rotate(state, Rotation::Clockwise180),
+            },
+            Mirror::FrontBack if direction.axis() == Axis::X => match shape {
+                StairsShape::Straight => super::rotate(state, Rotation::Clockwise180),
+                StairsShape::OuterLeft => super::rotate(state, Rotation::Clockwise180).set(STAIRS_SHAPE, StairsShape::OuterRight),
+                StairsShape::InnerRight => super::rotate(state, Rotation::Clockwise180).set(STAIRS_SHAPE, StairsShape::InnerRight),
+                StairsShape::InnerLeft => super::rotate(state, Rotation::Clockwise180).set(STAIRS_SHAPE, StairsShape::InnerLeft),
+                StairsShape::OuterRight => super::rotate(state, Rotation::Clockwise180).set(STAIRS_SHAPE, StairsShape::OuterLeft),
+            },
+            _ => state,
+        }
+    }
+
     fn get_state_for_placement(&self, block: Block, ctx: &BlockPlaceContext, level: &mut ServerLevel) -> Option<BlockState> {
         let clicked_face = ctx.clicked_face();
         let pos = ctx.clicked_pos();

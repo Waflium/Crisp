@@ -3,6 +3,9 @@ use crisp_data::properties::{FACING, POWERED, WATERLOGGED};
 use crisp_data::{Block, BlockState};
 
 use super::BlockBehaviour;
+use super::mirror::Mirror;
+use super::rod_block;
+use super::rotation::Rotation;
 use super::simple_waterlogged_block::{is_water_source, schedule_water_tick};
 use crate::server::level::ServerLevel;
 use crate::world::item::context::BlockPlaceContext;
@@ -19,6 +22,14 @@ fn update_neighbours(state: BlockState, level: &mut ServerLevel, pos: BlockPos) 
 }
 
 impl BlockBehaviour for LightningRodBlock {
+    fn rotate(&self, state: BlockState, rotation: Rotation) -> BlockState {
+        rod_block::rotate(state, rotation)
+    }
+
+    fn mirror(&self, state: BlockState, mirror: Mirror) -> BlockState {
+        rod_block::mirror(state, mirror)
+    }
+
     fn get_state_for_placement(&self, block: Block, ctx: &BlockPlaceContext, level: &mut ServerLevel) -> Option<BlockState> {
         let water = is_water_source(level, ctx.clicked_pos());
         Some(block.default_state().set(FACING, ctx.clicked_face()).set(WATERLOGGED, water))

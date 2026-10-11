@@ -1,8 +1,10 @@
 use crisp_core::{BlockPos, Direction};
-use crisp_data::properties::SEGMENT_AMOUNT;
+use crisp_data::properties::{HORIZONTAL_FACING, SEGMENT_AMOUNT};
 use crisp_data::{Block, BlockState, SupportType};
 
 use super::BlockBehaviour;
+use super::mirror::Mirror;
+use super::rotation::Rotation;
 use super::segmentable_block;
 use super::vegetation_block;
 use crate::server::level::ServerLevel;
@@ -12,6 +14,14 @@ use crate::world::level::{LevelAccessor, LevelReader};
 pub struct LeafLitterBlock;
 
 impl BlockBehaviour for LeafLitterBlock {
+    fn rotate(&self, state: BlockState, rotation: Rotation) -> BlockState {
+        state.set(HORIZONTAL_FACING, rotation.rotate(state.get(HORIZONTAL_FACING)))
+    }
+
+    fn mirror(&self, state: BlockState, mirror: Mirror) -> BlockState {
+        super::rotate(state, mirror.get_rotation(state.get(HORIZONTAL_FACING)))
+    }
+
     fn get_state_for_placement(&self, block: Block, ctx: &BlockPlaceContext, level: &mut ServerLevel) -> Option<BlockState> {
         Some(segmentable_block::get_state_for_placement(ctx, level, block, SEGMENT_AMOUNT))
     }

@@ -1,9 +1,12 @@
 use crisp_core::{BlockPos, Direction};
+use crisp_data::properties::RAIL_SHAPE;
 use crisp_data::{Block, BlockState};
 
 use super::BlockBehaviour;
 use super::base_rail_block::{self as base, BaseRailBlock};
+use super::mirror::Mirror;
 use super::rail_state::RailState;
+use super::rotation::Rotation;
 use crate::server::level::ServerLevel;
 use crate::world::item::context::BlockPlaceContext;
 use crate::world::level::{LevelAccessor, LevelReader};
@@ -25,6 +28,18 @@ impl BaseRailBlock for RailBlock {
 }
 
 impl BlockBehaviour for RailBlock {
+    fn rotate(&self, state: BlockState, rotation: Rotation) -> BlockState {
+        let current_shape = state.get(RAIL_SHAPE);
+        let new_shape = base::rotate(current_shape, rotation);
+        state.set(RAIL_SHAPE, new_shape)
+    }
+
+    fn mirror(&self, state: BlockState, mirror: Mirror) -> BlockState {
+        let current_shape = state.get(RAIL_SHAPE);
+        let new_shape = base::mirror(current_shape, mirror);
+        state.set(RAIL_SHAPE, new_shape)
+    }
+
     fn get_state_for_placement(&self, block: Block, ctx: &BlockPlaceContext, level: &mut ServerLevel) -> Option<BlockState> {
         Some(base::get_state_for_placement(block, ctx, level))
     }

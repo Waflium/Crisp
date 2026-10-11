@@ -4,6 +4,8 @@ use crisp_data::properties::{ATTACHED, DISARMED, HORIZONTAL_FACING, POWERED};
 use crisp_data::{Block, BlockState, blocks, registry, registry_id};
 
 use super::BlockBehaviour;
+use super::mirror::Mirror;
+use super::rotation::Rotation;
 use crate::server::level::{ServerLevel, SoundSource};
 use crate::world::entity::EntityId;
 use crate::world::item::ItemStack;
@@ -128,6 +130,14 @@ fn on_removed(state: BlockState, level: &mut ServerLevel, pos: BlockPos) {
 }
 
 impl BlockBehaviour for TripWireHookBlock {
+    fn rotate(&self, state: BlockState, rotation: Rotation) -> BlockState {
+        state.set(HORIZONTAL_FACING, rotation.rotate(state.get(HORIZONTAL_FACING)))
+    }
+
+    fn mirror(&self, state: BlockState, mirror: Mirror) -> BlockState {
+        super::rotate(state, mirror.get_rotation(state.get(HORIZONTAL_FACING)))
+    }
+
     fn can_survive(&self, state: BlockState, level: &mut dyn LevelReader, pos: BlockPos) -> bool {
         let direction = state.get(HORIZONTAL_FACING);
         let relative = pos.relative(direction.opposite());

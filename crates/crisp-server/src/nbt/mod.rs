@@ -190,6 +190,23 @@ fn java_decimal(nan: bool, infinite: bool, negative: bool, zero: bool, plain: bo
     format!("{sign}{whole}.{fraction}")
 }
 
+pub fn read_block_state(tag: &Nbt) -> crisp_data::BlockState {
+    let Some(block) = tag.get("id").and_then(Nbt::as_str).and_then(crisp_data::Block::by_name) else {
+        return crisp_data::blocks::AIR.default_state();
+    };
+    let mut result = block.default_state();
+    if let Some(Nbt::Compound(properties)) = tag.get("properties") {
+        for (key, value) in properties {
+            if let Some(value) = value.as_str()
+                && let Some(state) = result.with_property_by_name(key, value)
+            {
+                result = state;
+            }
+        }
+    }
+    result
+}
+
 pub fn from_json(value: &serde_json::Value) -> Option<Nbt> {
     Some(match value {
         serde_json::Value::Null => return None,

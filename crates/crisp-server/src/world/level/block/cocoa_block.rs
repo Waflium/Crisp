@@ -4,6 +4,9 @@ use crisp_data::properties::{AGE_2, HORIZONTAL_FACING};
 use crisp_data::{Block, BlockState, block_tags, blocks};
 
 use super::BlockBehaviour;
+use super::horizontal_directional_block;
+use super::mirror::Mirror;
+use super::rotation::Rotation;
 use crate::server::level::ServerLevel;
 use crate::world::item::context::BlockPlaceContext;
 use crate::world::level::{LevelAccessor, LevelReader};
@@ -12,6 +15,14 @@ use crate::world::level::update_flags::UPDATE_CLIENTS;
 pub struct CocoaBlock;
 
 impl BlockBehaviour for CocoaBlock {
+    fn rotate(&self, state: BlockState, rotation: Rotation) -> BlockState {
+        horizontal_directional_block::rotate(state, rotation)
+    }
+
+    fn mirror(&self, state: BlockState, mirror: Mirror) -> BlockState {
+        horizontal_directional_block::mirror(state, mirror)
+    }
+
     fn get_state_for_placement(&self, block: Block, ctx: &BlockPlaceContext, level: &mut ServerLevel) -> Option<BlockState> {
         let mut state = block.default_state();
         for direction in ctx.nearest_looking_directions() {

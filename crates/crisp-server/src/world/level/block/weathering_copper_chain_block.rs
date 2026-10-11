@@ -3,6 +3,7 @@ use crisp_data::{Block, BlockState};
 
 use super::BlockBehaviour;
 use super::chain_block::ChainBlock;
+use super::rotation::Rotation;
 use super::weathering_copper::change_over_time;
 use crate::server::level::ServerLevel;
 use crate::world::item::context::BlockPlaceContext;
@@ -11,6 +12,10 @@ use crate::world::level::LevelAccessor;
 pub struct WeatheringCopperChainBlock;
 
 impl BlockBehaviour for WeatheringCopperChainBlock {
+    fn rotate(&self, state: BlockState, rotation: Rotation) -> BlockState {
+        ChainBlock.rotate(state, rotation)
+    }
+
     fn get_state_for_placement(&self, block: Block, ctx: &BlockPlaceContext, level: &mut ServerLevel) -> Option<BlockState> {
         ChainBlock.get_state_for_placement(block, ctx, level)
     }

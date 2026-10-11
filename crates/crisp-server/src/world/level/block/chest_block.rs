@@ -4,6 +4,8 @@ use crisp_core::{BlockPos, Direction};
 use crisp_data::properties::{CHEST_TYPE, ChestType, HORIZONTAL_FACING, WATERLOGGED};
 use crisp_data::{Block, BlockState, block_tags, registry, registry_id};
 
+use super::mirror::Mirror;
+use super::rotation::Rotation;
 use super::simple_waterlogged_block::{is_water_source, schedule_water_tick};
 use super::weathering_copper;
 use super::{BlockBehaviour, BlockHitResult};
@@ -222,6 +224,14 @@ fn least_oxidized_chest_of_connected_blocks(state: BlockState, level: &mut Serve
 }
 
 impl BlockBehaviour for ChestBlock {
+    fn rotate(&self, state: BlockState, rotation: Rotation) -> BlockState {
+        state.set(HORIZONTAL_FACING, rotation.rotate(state.get(HORIZONTAL_FACING)))
+    }
+
+    fn mirror(&self, state: BlockState, mirror: Mirror) -> BlockState {
+        super::rotate(state, mirror.get_rotation(state.get(HORIZONTAL_FACING)))
+    }
+
     fn get_state_for_placement(&self, block: Block, ctx: &BlockPlaceContext, level: &mut ServerLevel) -> Option<BlockState> {
         let mut ty = ChestType::Single;
         let mut facing = ctx.horizontal_direction().opposite();

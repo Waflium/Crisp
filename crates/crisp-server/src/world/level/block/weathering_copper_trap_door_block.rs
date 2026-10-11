@@ -1,6 +1,8 @@
 use crisp_core::{BlockPos, Direction};
 use crisp_data::{Block, BlockState};
 
+use super::mirror::Mirror;
+use super::rotation::Rotation;
 use super::trap_door_block::TrapDoorBlock;
 use super::weathering_copper::change_over_time;
 use super::{BlockBehaviour, BlockHitResult};
@@ -21,6 +23,14 @@ impl WeatheringCopperTrapDoorBlock {
 }
 
 impl BlockBehaviour for WeatheringCopperTrapDoorBlock {
+    fn rotate(&self, state: BlockState, rotation: Rotation) -> BlockState {
+        self.trap_door.rotate(state, rotation)
+    }
+
+    fn mirror(&self, state: BlockState, mirror: Mirror) -> BlockState {
+        self.trap_door.mirror(state, mirror)
+    }
+
     fn get_state_for_placement(&self, block: Block, ctx: &BlockPlaceContext, level: &mut ServerLevel) -> Option<BlockState> {
         self.trap_door.get_state_for_placement(block, ctx, level)
     }

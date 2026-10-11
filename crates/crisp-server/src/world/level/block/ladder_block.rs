@@ -3,6 +3,8 @@ use crisp_data::properties::{HORIZONTAL_FACING, WATERLOGGED};
 use crisp_data::{Block, BlockState, SupportType, blocks};
 
 use super::BlockBehaviour;
+use super::mirror::Mirror;
+use super::rotation::Rotation;
 use super::simple_waterlogged_block::{is_water_source, schedule_water_tick};
 use crate::server::level::ServerLevel;
 use crate::world::item::context::BlockPlaceContext;
@@ -12,6 +14,14 @@ use crate::world::level::block;
 pub struct LadderBlock;
 
 impl BlockBehaviour for LadderBlock {
+    fn rotate(&self, state: BlockState, rotation: Rotation) -> BlockState {
+        state.set(HORIZONTAL_FACING, rotation.rotate(state.get(HORIZONTAL_FACING)))
+    }
+
+    fn mirror(&self, state: BlockState, mirror: Mirror) -> BlockState {
+        super::rotate(state, mirror.get_rotation(state.get(HORIZONTAL_FACING)))
+    }
+
     fn get_state_for_placement(&self, block: Block, ctx: &BlockPlaceContext, level: &mut ServerLevel) -> Option<BlockState> {
         if !ctx.replacing_clicked_on_block() {
             let state = level.block_state(ctx.clicked_pos().relative(ctx.clicked_face().opposite()));

@@ -2,6 +2,8 @@ use crisp_core::{AABB, BlockPos, Direction, Vec3};
 use crisp_data::properties::FACING;
 use crisp_data::{Block, BlockState};
 
+use super::mirror::Mirror;
+use super::rotation::Rotation;
 use super::{BlockBehaviour, BlockHitResult};
 use crate::server::level::ServerLevel;
 use crate::world::InteractionResult;
@@ -31,6 +33,14 @@ fn can_open(state: BlockState, level: &mut ServerLevel, pos: BlockPos, status: A
 }
 
 impl BlockBehaviour for ShulkerBoxBlock {
+    fn rotate(&self, state: BlockState, rotation: Rotation) -> BlockState {
+        state.set(FACING, rotation.rotate(state.get(FACING)))
+    }
+
+    fn mirror(&self, state: BlockState, mirror: Mirror) -> BlockState {
+        super::rotate(state, mirror.get_rotation(state.get(FACING)))
+    }
+
     fn use_without_item(&self, state: BlockState, level: &mut ServerLevel, pos: BlockPos, player: EntityId, _hit: &BlockHitResult) -> InteractionResult {
         let status = match level.get_block_entity(pos).map(|e| &e.kind) {
             Some(BlockEntityKind::ShulkerBox(shulker)) => Some(shulker.animation_status),

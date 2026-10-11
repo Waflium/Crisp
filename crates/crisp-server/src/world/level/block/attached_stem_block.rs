@@ -3,6 +3,8 @@ use crisp_data::properties::{AGE_7, HORIZONTAL_FACING};
 use crisp_data::{Block, BlockState};
 
 use super::BlockBehaviour;
+use super::mirror::Mirror;
+use super::rotation::Rotation;
 use super::vegetation_block::{self, Vegetation, block_field, fields, is_in, tag_field};
 use crate::server::level::ServerLevel;
 use crate::world::level::{LevelAccessor, LevelReader};
@@ -27,6 +29,14 @@ impl Vegetation for AttachedStemBlock {
 }
 
 impl BlockBehaviour for AttachedStemBlock {
+    fn rotate(&self, state: BlockState, rotation: Rotation) -> BlockState {
+        state.set(HORIZONTAL_FACING, rotation.rotate(state.get(HORIZONTAL_FACING)))
+    }
+
+    fn mirror(&self, state: BlockState, mirror: Mirror) -> BlockState {
+        super::rotate(state, mirror.get_rotation(state.get(HORIZONTAL_FACING)))
+    }
+
     fn get_clone_item_stack(&self, _level: &ServerLevel, _pos: BlockPos, _state: BlockState, _include_data: bool) -> crate::world::item::ItemStack {
         crate::world::item::ItemStack::new(self.stem.item(), 1)
     }

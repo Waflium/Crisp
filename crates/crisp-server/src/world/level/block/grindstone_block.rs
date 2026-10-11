@@ -1,7 +1,10 @@
 use crisp_core::{BlockPos, Direction};
+use crisp_data::properties::HORIZONTAL_FACING;
 use crisp_data::{Block, BlockState};
 
 use super::face_attached_horizontal_directional_block::FaceAttachedHorizontalDirectionalBlock;
+use super::mirror::Mirror;
+use super::rotation::Rotation;
 use super::{BlockBehaviour, BlockHitResult};
 use crate::server::level::ServerLevel;
 use crate::world::InteractionResult;
@@ -12,6 +15,14 @@ use crate::world::level::{LevelAccessor, LevelReader};
 pub struct GrindstoneBlock;
 
 impl BlockBehaviour for GrindstoneBlock {
+    fn rotate(&self, state: BlockState, rotation: Rotation) -> BlockState {
+        state.set(HORIZONTAL_FACING, rotation.rotate(state.get(HORIZONTAL_FACING)))
+    }
+
+    fn mirror(&self, state: BlockState, mirror: Mirror) -> BlockState {
+        super::rotate(state, mirror.get_rotation(state.get(HORIZONTAL_FACING)))
+    }
+
     fn get_state_for_placement(&self, block: Block, ctx: &BlockPlaceContext, level: &mut ServerLevel) -> Option<BlockState> {
         FaceAttachedHorizontalDirectionalBlock.get_state_for_placement(block, ctx, level)
     }

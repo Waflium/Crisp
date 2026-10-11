@@ -3,6 +3,8 @@ use crisp_data::properties::{BOTTOM, EAST_WALL, EnumProperty, NORTH_WALL, SOUTH_
 use crisp_data::{Block, BlockState, blocks};
 
 use super::BlockBehaviour;
+use super::mirror::Mirror;
+use super::rotation::Rotation;
 use super::vine_block::can_attach_to;
 use crate::server::level::ServerLevel;
 use crate::world::entity::EntityId;
@@ -98,6 +100,35 @@ fn create_topper_with_side_chance(level: &mut dyn LevelAccessor, pos: BlockPos, 
 }
 
 impl BlockBehaviour for MossyCarpetBlock {
+    fn rotate(&self, state: BlockState, rotation: Rotation) -> BlockState {
+        match rotation {
+            Rotation::Clockwise180 => state
+                .set(NORTH_WALL, state.get(SOUTH_WALL))
+                .set(EAST_WALL, state.get(WEST_WALL))
+                .set(SOUTH_WALL, state.get(NORTH_WALL))
+                .set(WEST_WALL, state.get(EAST_WALL)),
+            Rotation::Counterclockwise90 => state
+                .set(NORTH_WALL, state.get(EAST_WALL))
+                .set(EAST_WALL, state.get(SOUTH_WALL))
+                .set(SOUTH_WALL, state.get(WEST_WALL))
+                .set(WEST_WALL, state.get(NORTH_WALL)),
+            Rotation::Clockwise90 => state
+                .set(NORTH_WALL, state.get(WEST_WALL))
+                .set(EAST_WALL, state.get(NORTH_WALL))
+                .set(SOUTH_WALL, state.get(EAST_WALL))
+                .set(WEST_WALL, state.get(SOUTH_WALL)),
+            Rotation::None => state,
+        }
+    }
+
+    fn mirror(&self, state: BlockState, mirror: Mirror) -> BlockState {
+        match mirror {
+            Mirror::LeftRight => state.set(NORTH_WALL, state.get(SOUTH_WALL)).set(SOUTH_WALL, state.get(NORTH_WALL)),
+            Mirror::FrontBack => state.set(EAST_WALL, state.get(WEST_WALL)).set(WEST_WALL, state.get(EAST_WALL)),
+            Mirror::None => state,
+        }
+    }
+
     fn get_state_for_placement(&self, block: Block, ctx: &BlockPlaceContext, level: &mut ServerLevel) -> Option<BlockState> {
         Some(updated_state(block.default_state(), level, ctx.clicked_pos(), true))
     }

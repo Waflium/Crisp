@@ -2,6 +2,8 @@ use crisp_core::{AABB, BlockPos, Direction};
 use crisp_data::properties::{DISARMED, EAST, HORIZONTAL_FACING, NORTH, POWERED, Property, SOUTH, WEST};
 use crisp_data::{Block, BlockState, items};
 
+use super::mirror::Mirror;
+use super::rotation::Rotation;
 use super::{BlockBehaviour, trip_wire_hook_block};
 use crate::server::level::ServerLevel;
 use crate::server::level::events::PARTICLES_AND_SOUND_DESTROY_BLOCK;
@@ -88,6 +90,23 @@ impl TripWireBlock {
 }
 
 impl BlockBehaviour for TripWireBlock {
+    fn rotate(&self, state: BlockState, rotation: Rotation) -> BlockState {
+        match rotation {
+            Rotation::Clockwise180 => state.set(NORTH, state.get(SOUTH)).set(EAST, state.get(WEST)).set(SOUTH, state.get(NORTH)).set(WEST, state.get(EAST)),
+            Rotation::Counterclockwise90 => state.set(NORTH, state.get(EAST)).set(EAST, state.get(SOUTH)).set(SOUTH, state.get(WEST)).set(WEST, state.get(NORTH)),
+            Rotation::Clockwise90 => state.set(NORTH, state.get(WEST)).set(EAST, state.get(NORTH)).set(SOUTH, state.get(EAST)).set(WEST, state.get(SOUTH)),
+            Rotation::None => state,
+        }
+    }
+
+    fn mirror(&self, state: BlockState, mirror: Mirror) -> BlockState {
+        match mirror {
+            Mirror::LeftRight => state.set(NORTH, state.get(SOUTH)).set(SOUTH, state.get(NORTH)),
+            Mirror::FrontBack => state.set(EAST, state.get(WEST)).set(WEST, state.get(EAST)),
+            Mirror::None => state,
+        }
+    }
+
     fn get_state_for_placement(&self, block: Block, ctx: &BlockPlaceContext, level: &mut ServerLevel) -> Option<BlockState> {
         let pos = ctx.clicked_pos();
         let north = self.should_connect_to(level.block_state(pos.north()), Direction::North);

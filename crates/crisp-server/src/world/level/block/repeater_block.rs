@@ -3,6 +3,9 @@ use crisp_data::properties::{DELAY, HORIZONTAL_FACING, LOCKED};
 use crisp_data::{Block, BlockState, blocks};
 
 use super::diode_block::{self, DiodeBlock};
+use super::horizontal_directional_block;
+use super::mirror::Mirror;
+use super::rotation::Rotation;
 use super::{BlockBehaviour, BlockHitResult};
 use crate::server::level::ServerLevel;
 use crate::world::InteractionResult;
@@ -34,6 +37,14 @@ impl DiodeBlock for RepeaterBlock {
 }
 
 impl BlockBehaviour for RepeaterBlock {
+    fn rotate(&self, state: BlockState, rotation: Rotation) -> BlockState {
+        horizontal_directional_block::rotate(state, rotation)
+    }
+
+    fn mirror(&self, state: BlockState, mirror: Mirror) -> BlockState {
+        horizontal_directional_block::mirror(state, mirror)
+    }
+
     fn use_without_item(&self, state: BlockState, level: &mut ServerLevel, pos: BlockPos, player: EntityId, _hit: &BlockHitResult) -> InteractionResult {
         if !level.may_build(player) {
             return InteractionResult::Pass;

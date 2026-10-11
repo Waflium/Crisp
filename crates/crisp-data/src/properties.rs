@@ -1,6 +1,7 @@
 use std::marker::PhantomData;
 
 pub use crisp_core::{Axis, Direction};
+use crisp_core::math::OctahedralGroup;
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub struct PropertyId(pub u16);
@@ -78,6 +79,51 @@ impl PropertyValue for Axis {
     }
     fn ordinal(self) -> u8 {
         self as u8
+    }
+}
+
+impl FrontAndTop {
+    pub const fn from_front_and_top(front: Direction, top: Direction) -> FrontAndTop {
+        match (front, top) {
+            (Direction::Down, Direction::East) => FrontAndTop::DownEast,
+            (Direction::Down, Direction::North) => FrontAndTop::DownNorth,
+            (Direction::Down, Direction::South) => FrontAndTop::DownSouth,
+            (Direction::Down, Direction::West) => FrontAndTop::DownWest,
+            (Direction::Up, Direction::East) => FrontAndTop::UpEast,
+            (Direction::Up, Direction::North) => FrontAndTop::UpNorth,
+            (Direction::Up, Direction::South) => FrontAndTop::UpSouth,
+            (Direction::Up, Direction::West) => FrontAndTop::UpWest,
+            (Direction::West, Direction::Up) => FrontAndTop::WestUp,
+            (Direction::East, Direction::Up) => FrontAndTop::EastUp,
+            (Direction::North, Direction::Up) => FrontAndTop::NorthUp,
+            (Direction::South, Direction::Up) => FrontAndTop::SouthUp,
+            _ => panic!("no FrontAndTop for this front and top"),
+        }
+    }
+
+    pub const fn front(self) -> Direction {
+        match self {
+            FrontAndTop::DownEast | FrontAndTop::DownNorth | FrontAndTop::DownSouth | FrontAndTop::DownWest => Direction::Down,
+            FrontAndTop::UpEast | FrontAndTop::UpNorth | FrontAndTop::UpSouth | FrontAndTop::UpWest => Direction::Up,
+            FrontAndTop::WestUp => Direction::West,
+            FrontAndTop::EastUp => Direction::East,
+            FrontAndTop::NorthUp => Direction::North,
+            FrontAndTop::SouthUp => Direction::South,
+        }
+    }
+
+    pub const fn top(self) -> Direction {
+        match self {
+            FrontAndTop::DownEast | FrontAndTop::UpEast => Direction::East,
+            FrontAndTop::DownNorth | FrontAndTop::UpNorth => Direction::North,
+            FrontAndTop::DownSouth | FrontAndTop::UpSouth => Direction::South,
+            FrontAndTop::DownWest | FrontAndTop::UpWest => Direction::West,
+            FrontAndTop::WestUp | FrontAndTop::EastUp | FrontAndTop::NorthUp | FrontAndTop::SouthUp => Direction::Up,
+        }
+    }
+
+    pub const fn rotate(self, group: OctahedralGroup) -> FrontAndTop {
+        FrontAndTop::from_front_and_top(group.rotate(self.front()), group.rotate(self.top()))
     }
 }
 

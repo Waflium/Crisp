@@ -3,6 +3,7 @@ pub mod fastutil;
 pub mod hash_map;
 mod interval;
 mod direction;
+pub mod math;
 pub mod mth;
 mod phys;
 mod pos;

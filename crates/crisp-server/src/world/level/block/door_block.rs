@@ -4,6 +4,8 @@ use crisp_data::properties::{DOOR_HINGE, DOUBLE_BLOCK_HALF, DoorHingeSide, Doubl
 use crisp_data::{Block, BlockState, Fluid, SupportType, blocks};
 
 use super::block_set_type::{BlockSetType, fields};
+use super::mirror::Mirror;
+use super::rotation::Rotation;
 use super::{BlockBehaviour, BlockHitResult, block_player_will_destroy};
 use crate::server::level::events::PARTICLES_AND_SOUND_DESTROY_BLOCK;
 use crate::server::level::game_mode::GameType;
@@ -97,6 +99,14 @@ fn prevent_drop_from_bottom_part(level: &mut ServerLevel, pos: BlockPos, state: 
 }
 
 impl BlockBehaviour for DoorBlock {
+    fn rotate(&self, state: BlockState, rotation: Rotation) -> BlockState {
+        state.set(HORIZONTAL_FACING, rotation.rotate(state.get(HORIZONTAL_FACING)))
+    }
+
+    fn mirror(&self, state: BlockState, mirror: Mirror) -> BlockState {
+        if mirror == Mirror::None { state } else { super::rotate(state, mirror.get_rotation(state.get(HORIZONTAL_FACING))).cycle(DOOR_HINGE) }
+    }
+
     fn get_state_for_placement(&self, block: Block, ctx: &BlockPlaceContext, level: &mut ServerLevel) -> Option<BlockState> {
         let pos = ctx.clicked_pos();
         if pos.y >= level.chunks.max_y() {

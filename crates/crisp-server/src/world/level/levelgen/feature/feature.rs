@@ -12,7 +12,9 @@ use super::coral_tree_feature::CoralTreeFeature;
 use super::disk_feature::DiskFeature;
 use super::lake_feature::LakeFeature;
 use super::monster_room_feature;
+use super::fossil_feature::FossilFeature;
 use super::overlay_feature::OverlayFeature;
+use super::template_feature::TemplateFeature;
 use super::root_system_feature::RootSystemFeature;
 use super::sculk_patch_feature::SculkPatchFeature;
 use super::sequence_feature::SequenceFeature;
@@ -69,6 +71,8 @@ pub enum Feature {
     Sequence(SequenceFeature),
     Overlay(OverlayFeature),
     RootSystem(Box<RootSystemFeature>),
+    Template(TemplateFeature),
+    Fossil(Box<FossilFeature>),
     NoOp,
     SculkPatch(SculkPatchFeature),
     MultifaceGrowth(MultifaceGrowthFeature),
@@ -129,6 +133,8 @@ impl Feature {
             "sequence" => Feature::Sequence(SequenceFeature::parse(json)?),
             "overlay" => Feature::Overlay(OverlayFeature::parse(json)?),
             "root_system" => Feature::RootSystem(Box::new(RootSystemFeature::parse(json)?)),
+            "template" => Feature::Template(TemplateFeature::parse(json)?),
+            "fossil" => Feature::Fossil(Box::new(FossilFeature::parse(json)?)),
             "no_op" => Feature::NoOp,
             "sculk_patch" => Feature::SculkPatch(SculkPatchFeature::parse(json)?),
             "multiface_growth" => Feature::MultifaceGrowth(MultifaceGrowthFeature::parse(json)?),
@@ -173,6 +179,8 @@ impl Feature {
             Feature::Sequence(feature) => feature.place(level, random, origin),
             Feature::Overlay(feature) => feature.place(level, random, origin),
             Feature::RootSystem(feature) => feature.place(level, random, origin),
+            Feature::Template(feature) => feature.place(level, random, origin),
+            Feature::Fossil(feature) => feature.place(level, random, origin),
             Feature::NoOp => true,
             Feature::SculkPatch(feature) => feature.place(level, random, origin),
             Feature::MultifaceGrowth(feature) => feature.place(level, random, origin),

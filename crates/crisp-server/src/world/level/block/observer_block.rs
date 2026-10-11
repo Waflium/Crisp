@@ -3,6 +3,8 @@ use crisp_data::properties::{FACING, POWERED};
 use crisp_data::{Block, BlockState};
 
 use super::BlockBehaviour;
+use super::mirror::Mirror;
+use super::rotation::Rotation;
 use crate::server::level::ServerLevel;
 use crate::world::item::context::BlockPlaceContext;
 use crate::world::level::{LevelAccessor, LevelReader};
@@ -28,6 +30,14 @@ impl ObserverBlock {
 }
 
 impl BlockBehaviour for ObserverBlock {
+    fn rotate(&self, state: BlockState, rotation: Rotation) -> BlockState {
+        state.set(FACING, rotation.rotate(state.get(FACING)))
+    }
+
+    fn mirror(&self, state: BlockState, mirror: Mirror) -> BlockState {
+        super::rotate(state, mirror.get_rotation(state.get(FACING)))
+    }
+
     fn tick(&self, state: BlockState, level: &mut ServerLevel, pos: BlockPos) {
         if state.get(POWERED) {
             level.set_block(pos, state.set(POWERED, false), UPDATE_CLIENTS);

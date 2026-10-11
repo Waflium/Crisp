@@ -1,3 +1,4 @@
+mod abstract_cauldron_block;
 mod abstract_furnace_block;
 mod anvil_block;
 mod bamboo_sapling_block;
@@ -56,6 +57,8 @@ mod red_stone_ore_block;
 mod redstone_lamp_block;
 #[cfg(test)]
 mod redstone_tests;
+#[cfg(test)]
+mod rotation_tests;
 mod redstone_torch_block;
 mod redstone_wall_torch_block;
 pub mod redstone_wire_block;
@@ -128,7 +131,9 @@ pub mod leaves_block;
 mod lily_pad_block;
 mod mangrove_leaves_block;
 mod mangrove_propagule_block;
+pub mod mirror;
 pub mod mossy_carpet_block;
+pub mod rotation;
 pub mod multiface_block;
 pub mod multiface_spreader;
 mod mushroom_block;
@@ -166,11 +171,49 @@ pub mod vine_block;
 mod weeping_vines_block;
 mod weeping_vines_plant_block;
 mod wither_rose_block;
+mod amethyst_cluster_block;
+mod banner_block;
+mod base_coral_wall_fan_block;
+mod bell_block;
+mod calibrated_sculk_sensor_block;
+mod ceiling_hanging_sign_block;
+mod chiseled_book_shelf_block;
+mod command_block;
+mod copper_golem_statue_block;
+mod crafter_block;
+mod creaking_heart_block;
+mod decorated_pot_block;
+mod end_portal_frame_block;
+mod ender_chest_block;
+mod horizontal_directional_block;
+mod huge_mushroom_block;
+mod infested_rotated_pillar_block;
+mod jigsaw_block;
+mod lectern_block;
+mod moving_piston_block;
+mod nether_portal_block;
+mod piston_base_block;
+mod pointed_dripstone_block;
+mod rod_block;
+mod shelf_block;
+mod speleothem_block;
+#[cfg(test)]
+mod speleothem_tests;
+mod sulfur_spike_block;
+mod skull_block;
+mod standing_sign_block;
+mod vault_block;
+mod wall_banner_block;
+mod wall_hanging_sign_block;
+mod wall_sign_block;
+mod wall_skull_block;
 
 use std::sync::LazyLock;
 
 use growing_plant_body_block::GrowingPlantBodyBlock;
 use growing_plant_head_block::GrowingPlantHeadBlock;
+use mirror::Mirror;
+use rotation::Rotation;
 
 use crisp_core::{AABB, BlockPos, Direction, Vec3};
 use crisp_data::properties::WATERLOGGED;
@@ -220,6 +263,14 @@ pub trait BlockBehaviour: Send + Sync {
         neighbour_pos: BlockPos,
         neighbour_state: BlockState,
     ) -> BlockState {
+        state
+    }
+
+    fn rotate(&self, state: BlockState, rotation: Rotation) -> BlockState {
+        state
+    }
+
+    fn mirror(&self, state: BlockState, mirror: Mirror) -> BlockState {
         state
     }
 
@@ -339,7 +390,7 @@ pub trait BlockBehaviour: Send + Sync {
         simple_waterlogged_block::can_place_liquid(fluid)
     }
 
-    fn place_liquid(&self, level: &mut ServerLevel, pos: BlockPos, state: BlockState, fluid: FluidState) -> bool {
+    fn place_liquid(&self, level: &mut dyn LevelAccessor, pos: BlockPos, state: BlockState, fluid: FluidState) -> bool {
         simple_waterlogged_block::place_liquid(level, pos, state, fluid)
     }
 
@@ -366,8 +417,7 @@ pub trait BlockBehaviour: Send + Sync {
     fn perform_bonemeal(&self, level: &mut ServerLevel, pos: BlockPos, state: BlockState) {}
 
     fn fall_on(&self, level: &mut ServerLevel, state: BlockState, pos: BlockPos, entity: EntityId, fall_distance: f64) {
-        let reduced = fall_distance * (1.0f32 - state.block().info().fall_distance_reduction) as f64;
-        level.cause_fall_damage(entity, reduced, 1.0);
+        block_fall_on(level, state, pos, entity, fall_distance);
     }
 
     fn bounce_on(&self, level: &mut ServerLevel, state: BlockState, pos: BlockPos, entity: EntityId, fall_distance: f64) {}
@@ -375,6 +425,17 @@ pub trait BlockBehaviour: Send + Sync {
     fn entity_inside_collision_shape(&self, state: BlockState, level: &mut ServerLevel, pos: BlockPos, entity: EntityId) -> Option<Vec<AABB>> {
         None
     }
+
+    fn can_receive_stalactite_drip(&self, fluid: Fluid) -> bool {
+        false
+    }
+
+    fn receive_stalactite_drip(&self, state: BlockState, level: &mut ServerLevel, pos: BlockPos, fluid: Fluid) {}
+}
+
+pub fn block_fall_on(level: &mut ServerLevel, state: BlockState, _pos: BlockPos, entity: EntityId, fall_distance: f64) {
+    let reduced = fall_distance * (1.0f32 - state.block().info().fall_distance_reduction) as f64;
+    level.cause_fall_damage(entity, reduced, 1.0, crate::world::damagesource::DamageSource::new(crisp_data::damage_types::FALL));
 }
 
 pub fn block_player_will_destroy(level: &mut ServerLevel, pos: BlockPos, state: BlockState, player: EntityId) -> BlockState {
@@ -621,6 +682,39 @@ fn for_class(class: &str, block: Block) -> Option<Box<dyn BlockBehaviour>> {
         "GlowLichenBlock" => Box::new(glow_lichen_block::GlowLichenBlock::new(block)),
         "SculkVeinBlock" => Box::new(sculk_vein_block::SculkVeinBlock),
         "MultifaceBlock" => Box::new(multiface_block::MultifaceBlock),
+        "AmethystClusterBlock" => Box::new(amethyst_cluster_block::AmethystClusterBlock),
+        "BannerBlock" => Box::new(banner_block::BannerBlock),
+        "BaseCoralWallFanBlock" => Box::new(base_coral_wall_fan_block::BaseCoralWallFanBlock),
+        "BellBlock" => Box::new(bell_block::BellBlock),
+        "CalibratedSculkSensorBlock" => Box::new(calibrated_sculk_sensor_block::CalibratedSculkSensorBlock),
+        "CampfireBlock" => Box::new(campfire_block::CampfireBlock),
+        "CeilingHangingSignBlock" => Box::new(ceiling_hanging_sign_block::CeilingHangingSignBlock),
+        "ChiseledBookShelfBlock" => Box::new(chiseled_book_shelf_block::ChiseledBookShelfBlock),
+        "CommandBlock" => Box::new(command_block::CommandBlock),
+        "CopperGolemStatueBlock" => Box::new(copper_golem_statue_block::CopperGolemStatueBlock),
+        "CrafterBlock" => Box::new(crafter_block::CrafterBlock),
+        "CreakingHeartBlock" => Box::new(creaking_heart_block::CreakingHeartBlock),
+        "DecoratedPotBlock" => Box::new(decorated_pot_block::DecoratedPotBlock),
+        "EndPortalFrameBlock" => Box::new(end_portal_frame_block::EndPortalFrameBlock),
+        "EnderChestBlock" => Box::new(ender_chest_block::EnderChestBlock),
+        "HorizontalDirectionalBlock" => Box::new(horizontal_directional_block::HorizontalDirectionalBlock),
+        "HugeMushroomBlock" => Box::new(huge_mushroom_block::HugeMushroomBlock),
+        "InfestedRotatedPillarBlock" => Box::new(infested_rotated_pillar_block::InfestedRotatedPillarBlock),
+        "JigsawBlock" => Box::new(jigsaw_block::JigsawBlock),
+        "LecternBlock" => Box::new(lectern_block::LecternBlock),
+        "MovingPistonBlock" => Box::new(moving_piston_block::MovingPistonBlock),
+        "NetherPortalBlock" => Box::new(nether_portal_block::NetherPortalBlock),
+        "PistonBaseBlock" => Box::new(piston_base_block::PistonBaseBlock),
+        "ShelfBlock" => Box::new(shelf_block::ShelfBlock),
+        "PointedDripstoneBlock" => Box::new(pointed_dripstone_block::PointedDripstoneBlock::new(block)),
+        "SulfurSpikeBlock" => Box::new(sulfur_spike_block::SulfurSpikeBlock::new(block)),
+        "SkullBlock" => Box::new(skull_block::SkullBlock),
+        "StandingSignBlock" => Box::new(standing_sign_block::StandingSignBlock),
+        "VaultBlock" => Box::new(vault_block::VaultBlock),
+        "WallBannerBlock" => Box::new(wall_banner_block::WallBannerBlock),
+        "WallHangingSignBlock" => Box::new(wall_hanging_sign_block::WallHangingSignBlock),
+        "WallSignBlock" => Box::new(wall_sign_block::WallSignBlock),
+        "WallSkullBlock" => Box::new(wall_skull_block::WallSkullBlock),
         _ => return None,
     })
 }
@@ -640,6 +734,14 @@ pub fn behaviour(block: Block) -> &'static dyn BlockBehaviour {
 
 pub fn of(state: BlockState) -> &'static dyn BlockBehaviour {
     behaviour(state.block())
+}
+
+pub fn rotate(state: BlockState, rotation: Rotation) -> BlockState {
+    of(state).rotate(state, rotation)
+}
+
+pub fn mirror(state: BlockState, mirror: Mirror) -> BlockState {
+    of(state).mirror(state, mirror)
 }
 
 #[cfg(test)]

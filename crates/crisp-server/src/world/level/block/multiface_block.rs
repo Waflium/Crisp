@@ -3,6 +3,8 @@ use crisp_data::properties::{BooleanProperty, DOWN, EAST, NORTH, SOUTH, UP, WATE
 use crisp_data::{Block, BlockState, Fluid, blocks};
 
 use super::BlockBehaviour;
+use super::mirror::Mirror;
+use super::rotation::Rotation;
 use super::simple_waterlogged_block::schedule_water_tick;
 use super::vine_block;
 use crate::server::level::ServerLevel;
@@ -72,7 +74,23 @@ pub fn get_state_for_placement(block: Block, old_state: BlockState, level: &mut 
     Some(new_state.set(get_face_property(placement_direction), true))
 }
 
+fn map_directions(state: BlockState, mapping: impl Fn(Direction) -> Direction) -> BlockState {
+    let mut new_state = state;
+    for direction in Direction::VALUES {
+        new_state = new_state.set(get_face_property(mapping(direction)), state.get(get_face_property(direction)));
+    }
+    new_state
+}
+
 impl BlockBehaviour for MultifaceBlock {
+    fn rotate(&self, state: BlockState, rotation: Rotation) -> BlockState {
+        map_directions(state, |direction| rotation.rotate(direction))
+    }
+
+    fn mirror(&self, state: BlockState, mirror: Mirror) -> BlockState {
+        map_directions(state, |direction| mirror.mirror(direction))
+    }
+
     fn get_state_for_placement(&self, block: Block, ctx: &BlockPlaceContext, level: &mut ServerLevel) -> Option<BlockState> {
         let place_pos = ctx.clicked_pos();
         let old_state = level.block_state(place_pos);

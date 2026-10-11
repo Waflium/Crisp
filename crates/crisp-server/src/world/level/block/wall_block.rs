@@ -6,6 +6,8 @@ use crisp_data::properties::{EAST_WALL, EnumProperty, NORTH_WALL, SOUTH_WALL, UP
 use crisp_data::{Block, BlockState, SupportType, block_tags};
 
 use super::fence_gate_block::connects_to_direction;
+use super::mirror::Mirror;
+use super::rotation::Rotation;
 use super::simple_waterlogged_block::{is_water_source, schedule_water_tick};
 use super::{BlockBehaviour, is_exception_for_connection};
 use crate::server::level::ServerLevel;
@@ -109,6 +111,35 @@ impl WallBlock {
 }
 
 impl BlockBehaviour for WallBlock {
+    fn rotate(&self, state: BlockState, rotation: Rotation) -> BlockState {
+        match rotation {
+            Rotation::Clockwise180 => state
+                .set(NORTH_WALL, state.get(SOUTH_WALL))
+                .set(EAST_WALL, state.get(WEST_WALL))
+                .set(SOUTH_WALL, state.get(NORTH_WALL))
+                .set(WEST_WALL, state.get(EAST_WALL)),
+            Rotation::Counterclockwise90 => state
+                .set(NORTH_WALL, state.get(EAST_WALL))
+                .set(EAST_WALL, state.get(SOUTH_WALL))
+                .set(SOUTH_WALL, state.get(WEST_WALL))
+                .set(WEST_WALL, state.get(NORTH_WALL)),
+            Rotation::Clockwise90 => state
+                .set(NORTH_WALL, state.get(WEST_WALL))
+                .set(EAST_WALL, state.get(NORTH_WALL))
+                .set(SOUTH_WALL, state.get(EAST_WALL))
+                .set(WEST_WALL, state.get(SOUTH_WALL)),
+            Rotation::None => state,
+        }
+    }
+
+    fn mirror(&self, state: BlockState, mirror: Mirror) -> BlockState {
+        match mirror {
+            Mirror::LeftRight => state.set(NORTH_WALL, state.get(SOUTH_WALL)).set(SOUTH_WALL, state.get(NORTH_WALL)),
+            Mirror::FrontBack => state.set(EAST_WALL, state.get(WEST_WALL)).set(WEST_WALL, state.get(EAST_WALL)),
+            Mirror::None => state,
+        }
+    }
+
     fn get_state_for_placement(&self, block: Block, ctx: &BlockPlaceContext, level: &mut ServerLevel) -> Option<BlockState> {
         let pos = ctx.clicked_pos();
         let water = is_water_source(level, pos);

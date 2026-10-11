@@ -3,6 +3,8 @@ use crisp_core::{BlockPos, Direction, Vec3};
 use crisp_data::properties::{FACING, TRIGGERED};
 use crisp_data::{Block, BlockState, block_entity_types};
 
+use super::mirror::Mirror;
+use super::rotation::Rotation;
 use super::{BlockBehaviour, BlockHitResult};
 use crate::server::level::ServerLevel;
 use crate::world::InteractionResult;
@@ -104,6 +106,14 @@ pub fn spawn_item(level: &mut ServerLevel, stack: ItemStack, accuracy: i32, dire
 }
 
 impl BlockBehaviour for DispenserBlock {
+    fn rotate(&self, state: BlockState, rotation: Rotation) -> BlockState {
+        state.set(FACING, rotation.rotate(state.get(FACING)))
+    }
+
+    fn mirror(&self, state: BlockState, mirror: Mirror) -> BlockState {
+        super::rotate(state, mirror.get_rotation(state.get(FACING)))
+    }
+
     fn use_without_item(&self, _state: BlockState, level: &mut ServerLevel, pos: BlockPos, player: EntityId, _hit: &BlockHitResult) -> InteractionResult {
         if matches!(level.get_block_entity(pos).map(|e| &e.kind), Some(BlockEntityKind::Dispenser(_))) {
             level.open_menu(player, MenuProvider::BlockEntity(pos));

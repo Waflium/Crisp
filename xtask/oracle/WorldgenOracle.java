@@ -88,6 +88,7 @@ public final class WorldgenOracle {
 
     private static RegistryAccess.Frozen registries;
     private static PalettedContainerFactory containers;
+    private static CloseableResourceManager resources;
 
     public static void main(String[] args) throws Exception {
         SharedConstants.tryDetectVersion();
@@ -107,7 +108,7 @@ public final class WorldgenOracle {
         PackRepository packs = ServerPacksSource.createVanillaTrustedRepository();
         packs.reload();
         packs.setSelected(List.of("vanilla"));
-        CloseableResourceManager resources = new MultiPackResourceManager(PackType.SERVER_DATA, packs.openAllSelected());
+        resources = new MultiPackResourceManager(PackType.SERVER_DATA, packs.openAllSelected());
         LayeredRegistryAccess<RegistryLayer> layers = RegistryLayer.createRegistryAccess();
         List<Registry.PendingTags<?>> staticTags = TagLoader.loadTagsForExistingRegistries(resources, layers.getLayer(RegistryLayer.STATIC));
         RegistryAccess.Frozen context = layers.getAccessForLoading(RegistryLayer.WORLD);
@@ -512,6 +513,20 @@ public final class WorldgenOracle {
         }
         OracleLevel.chunkSource = (OracleChunkCache) unsafe().allocateInstance(OracleChunkCache.class);
         ServerLevel level = (ServerLevel) unsafe().allocateInstance(OracleLevel.class);
+        net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplateManager templates =
+            (net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplateManager) unsafe().allocateInstance(
+                net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplateManager.class
+            );
+        setField(templates, "structureRepository", new java.util.concurrent.ConcurrentHashMap<>());
+        setField(templates, "sources", List.of(new net.minecraft.world.level.levelgen.structure.templatesystem.loader.ResourceManagerTemplateSource(
+            net.minecraft.util.datafix.DataFixers.getDataFixer(),
+            net.minecraft.core.registries.BuiltInRegistries.BLOCK,
+            resources,
+            new net.minecraft.resources.FileToIdConverter("structure", ".nbt")
+        )));
+        Object server = unsafe().allocateInstance(net.minecraft.server.dedicated.DedicatedServer.class);
+        setField(server, "structureTemplateManager", templates);
+        setField(level, "server", server);
         StructureManager structures = new StructureManager(null, new WorldOptions(seed, false, false), null);
         Map<Long, ProtoChunk> biomeChunks = new LinkedHashMap<>();
         Map<Long, ProtoChunk> terrainChunks = new LinkedHashMap<>();
