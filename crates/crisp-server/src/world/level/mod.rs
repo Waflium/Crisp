@@ -67,7 +67,11 @@ pub trait ScheduledTickAccess {
     }
 }
 
-pub trait LevelAccessor: LevelReader + ScheduledTickAccess {
+pub trait LevelWriter {
+    fn set_block(&mut self, pos: BlockPos, state: BlockState, flags: i32) -> bool;
+}
+
+pub trait LevelAccessor: LevelReader + ScheduledTickAccess + LevelWriter {
     fn get_random(&mut self) -> &mut dyn RandomSource;
 }
 

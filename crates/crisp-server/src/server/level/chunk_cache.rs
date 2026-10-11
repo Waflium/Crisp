@@ -900,7 +900,7 @@ impl ChunkCache {
                 gen_depth: (dimension.height as i32).min(generator.gen_depth()),
                 sea_level: generator.sea_level(),
             };
-            let mut region = WorldGenRegion::new(center, cache, writable, lit, &generator.state, dimension.min_y, dimension.height as i32, generation);
+            let mut region = WorldGenRegion::new(center, cache, writable, lit, &generator.state, dimension.min_y, dimension.height as i32, generation, &self.light_engine.engine);
             generator.apply_biome_decoration(&mut region);
             std::mem::take(&mut region.light_tasks)
         };

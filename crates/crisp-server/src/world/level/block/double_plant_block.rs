@@ -52,7 +52,7 @@ pub fn can_survive<V: Vegetation + ?Sized>(vegetation: &V, state: BlockState, le
     below.is_block(state.block()) && below.get(DOUBLE_BLOCK_HALF) == DoubleBlockHalf::Lower
 }
 
-pub fn place_at(level: &mut ServerLevel, state: BlockState, lower_pos: BlockPos, flags: i32) {
+pub fn place_at(level: &mut dyn LevelAccessor, state: BlockState, lower_pos: BlockPos, flags: i32) {
     let upper_pos = lower_pos.above();
     let lower = copy_waterlogged_from(level, lower_pos, state.set(DOUBLE_BLOCK_HALF, DoubleBlockHalf::Lower));
     level.set_block(lower_pos, lower, flags);
@@ -60,7 +60,7 @@ pub fn place_at(level: &mut ServerLevel, state: BlockState, lower_pos: BlockPos,
     level.set_block(upper_pos, upper, flags);
 }
 
-pub fn copy_waterlogged_from(level: &mut ServerLevel, pos: BlockPos, state: BlockState) -> BlockState {
+pub fn copy_waterlogged_from(level: &mut dyn LevelReader, pos: BlockPos, state: BlockState) -> BlockState {
     if state.has(WATERLOGGED) { state.set(WATERLOGGED, level.is_water_at(pos)) } else { state }
 }
 

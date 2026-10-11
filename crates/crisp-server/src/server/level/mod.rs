@@ -1328,6 +1328,12 @@ impl crate::world::level::ScheduledTickAccess for ServerLevel {
     }
 }
 
+impl crate::world::level::LevelWriter for ServerLevel {
+    fn set_block(&mut self, pos: BlockPos, state: BlockState, flags: i32) -> bool {
+        ServerLevel::set_block(self, pos, state, flags)
+    }
+}
+
 impl crate::world::level::LevelAccessor for ServerLevel {
     fn get_random(&mut self) -> &mut dyn crisp_core::random::RandomSource {
         &mut self.random

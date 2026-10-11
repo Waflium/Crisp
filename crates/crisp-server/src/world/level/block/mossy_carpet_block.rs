@@ -1,4 +1,3 @@
-use crisp_core::random::RandomSource;
 use crisp_core::{BlockPos, Direction};
 use crisp_data::properties::{BOTTOM, EAST_WALL, EnumProperty, NORTH_WALL, SOUTH_WALL, WEST_WALL, WallSide};
 use crisp_data::{Block, BlockState, blocks};
@@ -9,7 +8,7 @@ use crate::server::level::ServerLevel;
 use crate::world::entity::EntityId;
 use crate::world::item::ItemStack;
 use crate::world::item::context::BlockPlaceContext;
-use crate::world::level::{BlockGetter, LevelAccessor, LevelReader};
+use crate::world::level::{LevelAccessor, LevelReader};
 use crate::world::level::update_flags::UPDATE_ALL;
 
 pub struct MossyCarpetBlock;
@@ -66,7 +65,19 @@ fn updated_state(mut state: BlockState, level: &mut dyn LevelReader, pos: BlockP
     state
 }
 
-fn create_topper_with_side_chance(level: &mut ServerLevel, pos: BlockPos, mut side_survival_test: impl FnMut(&mut ServerLevel) -> bool) -> BlockState {
+pub fn place_at(level: &mut dyn LevelAccessor, pos: BlockPos, flags: i32) {
+    let simple_carpet_layer = blocks::PALE_MOSS_CARPET.default_state();
+    let adjusted_carpet_layer = updated_state(simple_carpet_layer, level, pos, true);
+    level.set_block(pos, adjusted_carpet_layer, flags);
+    let state = create_topper_with_side_chance(level, pos, |level| level.get_random().next_boolean());
+    if !state.is_air() {
+        level.set_block(pos.above(), state, flags);
+        let update_bottom_carpet = updated_state(adjusted_carpet_layer, level, pos, true);
+        level.set_block(pos, update_bottom_carpet, flags);
+    }
+}
+
+fn create_topper_with_side_chance(level: &mut dyn LevelAccessor, pos: BlockPos, mut side_survival_test: impl FnMut(&mut dyn LevelAccessor) -> bool) -> BlockState {
     let above = pos.above();
     let above_previous_state = level.block_state(above);
     let is_mossy_carpet_above = above_previous_state.is_block(blocks::PALE_MOSS_CARPET);
@@ -92,7 +103,7 @@ impl BlockBehaviour for MossyCarpetBlock {
     }
 
     fn set_placed_by(&self, level: &mut ServerLevel, pos: BlockPos, _state: BlockState, _placer: Option<EntityId>, _item: ItemStack) {
-        let topper = create_topper_with_side_chance(level, pos, |level| level.random.next_boolean());
+        let topper = create_topper_with_side_chance(level, pos, |level| level.get_random().next_boolean());
         if !topper.is_air() {
             level.set_block(pos.above(), topper, UPDATE_ALL);
         }

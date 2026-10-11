@@ -1,5 +1,5 @@
 mod block_light_engine;
-mod level_light_engine;
+pub mod level_light_engine;
 mod light_engine;
 mod section_storage;
 pub mod sky_light_sources;

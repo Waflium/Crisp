@@ -8,6 +8,7 @@ pub mod random_boolean_selector_feature;
 pub mod random_selector_feature;
 pub mod rootplacers;
 pub mod scattered_ore_feature;
+pub mod simple_block_feature;
 pub mod simple_random_selector_feature;
 pub mod stateproviders;
 pub mod tree_feature;

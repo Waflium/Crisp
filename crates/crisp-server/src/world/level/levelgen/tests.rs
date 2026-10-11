@@ -8,6 +8,7 @@ use super::material::WorldGenerationContext;
 use crate::server::level::world_gen_region::WorldGenRegion;
 use crate::world::level::chunk::{HeightmapType, LevelChunk};
 use crate::world::level::chunk::proto_chunk::ProtoChunk;
+use crate::world::level::lighting::level_light_engine::LevelLightEngine;
 
 const FNV_OFFSET: u64 = 0xcbf29ce484222325;
 const FNV_PRIME: u64 = 0x100000001b3;
@@ -104,7 +105,8 @@ pub fn decorate(generator: &NoiseBasedChunkGenerator, chunks: &mut HashMap<Chunk
             gen_depth: (dimension.height as i32).min(generator.gen_depth()),
             sea_level: generator.sea_level(),
         };
-        let mut region = WorldGenRegion::new(center, cache, [true; 9], [false; 9], &generator.state, dimension.min_y, dimension.height as i32, generation);
+        let light_engine = LevelLightEngine::new(dimension.min_y, dimension.height as i32, true, dimension.has_skylight);
+        let mut region = WorldGenRegion::new(center, cache, [true; 9], [false; 9], &generator.state, dimension.min_y, dimension.height as i32, generation, &light_engine);
         generator.apply_biome_decoration(&mut region);
     }
     chunks.extend(taken);

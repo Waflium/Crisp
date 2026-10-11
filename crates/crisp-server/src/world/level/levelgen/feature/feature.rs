@@ -8,6 +8,7 @@ use super::ore_feature::OreFeature;
 use super::random_boolean_selector_feature::RandomBooleanSelectorFeature;
 use super::random_selector_feature::RandomSelectorFeature;
 use super::scattered_ore_feature::ScatteredOreFeature;
+use super::simple_block_feature::SimpleBlockFeature;
 use super::simple_random_selector_feature::SimpleRandomSelectorFeature;
 use super::tree_feature::TreeFeature;
 use super::weighted_random_selector_feature::WeightedRandomSelectorFeature;
@@ -16,6 +17,7 @@ use crate::world::level::levelgen::blockpredicates::block_predicate::resource;
 
 pub enum Feature {
     Tree(Box<TreeFeature>),
+    SimpleBlock(SimpleBlockFeature),
     Ore(OreFeature),
     ScatteredOre(ScatteredOreFeature),
     RandomSelector(RandomSelectorFeature),
@@ -45,6 +47,7 @@ impl Feature {
         let ty = json.get("type").and_then(Value::as_str).ok_or("feature without type")?;
         Ok(match ty.strip_prefix("minecraft:").unwrap_or(ty) {
             "tree" => Feature::Tree(Box::new(TreeFeature::parse(json)?)),
+            "simple_block" => Feature::SimpleBlock(SimpleBlockFeature::parse(json)?),
             "ore" => Feature::Ore(OreFeature::parse(json)?),
             "scattered_ore" => Feature::ScatteredOre(ScatteredOreFeature::parse(json)?),
             "random_selector" => Feature::RandomSelector(RandomSelectorFeature::parse(json)?),
@@ -58,6 +61,7 @@ impl Feature {
     pub fn place<R: RandomSource>(&self, level: &mut WorldGenRegion, random: &mut R, origin: BlockPos) -> bool {
         match self {
             Feature::Tree(feature) => feature.place(level, random, origin),
+            Feature::SimpleBlock(feature) => feature.place(level, random, origin),
             Feature::Ore(feature) => feature.place(level, random, origin),
             Feature::ScatteredOre(feature) => feature.place(level, random, origin),
             Feature::RandomSelector(feature) => feature.place(level, random, origin),

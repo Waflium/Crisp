@@ -8,8 +8,9 @@ use crate::world::level::levelgen::AlgorithmRandom;
 use crate::world::level::levelgen::material::WorldGenerationContext;
 use crate::world::level::levelgen::random_state::RandomState;
 use crate::world::level::lighting::has_different_light_properties;
+use crate::world::level::lighting::level_light_engine::LevelLightEngine;
 use crate::world::level::update_flags::UPDATE_KNOWN_SHAPE;
-use crate::world::level::{BlockGetter, LevelAccessor, LevelReader, ScheduledTickAccess};
+use crate::world::level::{BlockGetter, LevelAccessor, LevelReader, LevelWriter, ScheduledTickAccess};
 use crate::world::ticks::TickPriority;
 
 const WORLDGEN_REGION_RANDOM: &str = "minecraft:worldgen_region_random";
@@ -27,6 +28,7 @@ pub struct WorldGenRegion<'a> {
     generation: WorldGenerationContext,
     random: AlgorithmRandom,
     write_radius: i32,
+    light_engine: &'a LevelLightEngine,
     pub light_tasks: Vec<RegionLightTask>,
 }
 
@@ -46,6 +48,7 @@ impl<'a> WorldGenRegion<'a> {
         min_y: i32,
         height: i32,
         generation: WorldGenerationContext,
+        light_engine: &'a LevelLightEngine,
     ) -> WorldGenRegion<'a> {
         let seed = random_state.seed;
         let random = random_state.random_factory(WORLDGEN_REGION_RANDOM).at(center.min_block_x(), 0, center.min_block_z());
@@ -62,6 +65,7 @@ impl<'a> WorldGenRegion<'a> {
             generation,
             random,
             write_radius: 1,
+            light_engine,
             light_tasks: Vec::new(),
         }
     }
@@ -247,8 +251,8 @@ impl BlockGetter for WorldGenRegion<'_> {
 }
 
 impl LevelReader for WorldGenRegion<'_> {
-    fn raw_brightness(&mut self, _pos: BlockPos, _darkening: i32) -> i32 {
-        0
+    fn raw_brightness(&mut self, pos: BlockPos, darkening: i32) -> i32 {
+        self.light_engine.raw_brightness(pos, darkening)
     }
 
     fn is_fast_lava(&self) -> bool {
@@ -279,6 +283,12 @@ impl ScheduledTickAccess for WorldGenRegion<'_> {
 
     fn has_scheduled_tick(&self, pos: BlockPos, block: Block) -> bool {
         self.chunk(pos.x >> 4, pos.z >> 4).proto.as_deref().is_some_and(|proto| proto.block_ticks.has_scheduled_tick(pos, block))
+    }
+}
+
+impl LevelWriter for WorldGenRegion<'_> {
+    fn set_block(&mut self, pos: BlockPos, state: BlockState, flags: i32) -> bool {
+        WorldGenRegion::set_block(self, pos, state, flags)
     }
 }
 
