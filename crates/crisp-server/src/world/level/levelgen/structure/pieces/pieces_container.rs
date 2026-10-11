@@ -29,6 +29,10 @@ impl PiecesContainer {
         PiecesContainer { pieces }
     }
 
+    pub fn is_inside_piece(&self, start_pos: crisp_core::BlockPos) -> bool {
+        self.pieces.iter().any(|piece| piece.piece().get_bounding_box().is_inside(start_pos))
+    }
+
     pub fn calculate_bounding_box(&self) -> BoundingBox {
         BoundingBox::encapsulating_boxes(self.pieces.iter().map(|piece| &piece.piece().bounding_box)).expect("Unable to calculate boundingbox without pieces")
     }

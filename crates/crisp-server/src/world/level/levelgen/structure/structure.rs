@@ -9,6 +9,7 @@ use super::structure_start::StructureStart;
 use super::structures::StructureType;
 use super::terrain_adjustment::TerrainAdjustment;
 use crate::core::holder_set::HolderSet;
+use crate::world::level::block::rotation::Rotation;
 use crate::world::level::chunk::{Biome, HeightmapType};
 use crate::world::level::levelgen::blockpredicates::block_predicate::resource;
 use crate::world::level::levelgen::density_function::SamplerContext;
@@ -205,6 +206,16 @@ pub fn get_lowest_y(context: &GenerationContext, size_x: i32, size_z: i32) -> i3
 pub fn get_lowest_y_at(context: &GenerationContext, min_x: i32, min_z: i32, size_x: i32, size_z: i32) -> i32 {
     let corner_heights = get_corner_heights(context, min_x, size_x, min_z, size_z);
     corner_heights[0].min(corner_heights[1]).min(corner_heights[2].min(corner_heights[3]))
+}
+
+pub fn get_lowest_y_in_5_by_5_box(context: &GenerationContext, block_x: i32, block_z: i32, rotation: Rotation) -> BlockPos {
+    let (offset_x, offset_z) = match rotation {
+        Rotation::Clockwise90 => (-5, 5),
+        Rotation::Clockwise180 => (-5, -5),
+        Rotation::Counterclockwise90 => (5, -5),
+        Rotation::None => (5, 5),
+    };
+    BlockPos::new(block_x, get_lowest_y_at(context, block_x, block_z, offset_x, offset_z), block_z)
 }
 
 impl Structure {

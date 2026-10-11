@@ -36,6 +36,10 @@ impl Rotation {
         Rotation::VALUES.into_iter().find(|rotation| rotation.legacy_name() == name)
     }
 
+    pub fn get_rotated(self, rotation: Rotation) -> Rotation {
+        Rotation::VALUES[(self as usize + rotation as usize) % 4]
+    }
+
     pub fn rotation(self) -> OctahedralGroup {
         match self {
             Rotation::None => OctahedralGroup::Identity,

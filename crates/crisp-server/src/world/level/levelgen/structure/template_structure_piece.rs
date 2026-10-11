@@ -72,6 +72,23 @@ impl TemplateStructurePiece {
         Some(TemplateStructurePiece { piece, template_name, template, place_settings, template_position })
     }
 
+    pub fn load_with_template_location(
+        piece_type: &'static str,
+        tag: &Nbt,
+        make_template_location: impl FnOnce(&str) -> String,
+        place_settings: impl FnOnce(&str) -> TemplatePlaceSettings,
+    ) -> Option<TemplateStructurePiece> {
+        let mut piece = StructurePiece::load(piece_type, tag)?;
+        piece.set_orientation(Some(Direction::North));
+        let template_name = tag.get("Template").and_then(Nbt::as_str).unwrap_or("").to_owned();
+        let template_position = BlockPos::new(int(tag, "TPX"), int(tag, "TPY"), int(tag, "TPZ"));
+        let template_location = make_template_location(&template_name);
+        let template = structure_template_manager::get_or_create(&template_location);
+        let place_settings = place_settings(&template_location);
+        piece.bounding_box = template.get_bounding_box(&place_settings.settings(None), template_position);
+        Some(TemplateStructurePiece { piece, template_name, template, place_settings, template_position })
+    }
+
     pub fn add_additional_save_data(&self, tag: &mut Vec<(String, Nbt)>) {
         tag.push(("TPX".into(), Nbt::Int(self.template_position.x)));
         tag.push(("TPY".into(), Nbt::Int(self.template_position.y)));

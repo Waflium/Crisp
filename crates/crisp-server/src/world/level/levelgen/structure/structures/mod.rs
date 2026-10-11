@@ -20,6 +20,8 @@ pub mod ocean_monument_pieces;
 pub mod ocean_monument_structure;
 pub mod swamp_hut_piece;
 pub mod swamp_hut_structure;
+pub mod woodland_mansion_pieces;
+pub mod woodland_mansion_structure;
 
 use crisp_core::random::RandomSource;
 use crisp_core::{BlockPos, ChunkPos};
@@ -40,6 +42,7 @@ use ruined_portal_piece::RuinedPortalPiece;
 use ruined_portal_structure::RuinedPortalStructure;
 use ocean_monument_pieces::MonumentBuilding;
 use swamp_hut_piece::SwampHutPiece;
+use woodland_mansion_pieces::WoodlandMansionPiece;
 
 use super::BoundingBox;
 use super::pieces::pieces_container::PiecesContainer;
@@ -62,6 +65,7 @@ pub enum StructureType {
     RuinedPortal(RuinedPortalStructure),
     OceanMonument,
     SwampHut,
+    WoodlandMansion,
     NotImplemented,
 }
 
@@ -81,6 +85,7 @@ impl StructureType {
             "ruined_portal" => StructureType::RuinedPortal(RuinedPortalStructure::parse(json)?),
             "ocean_monument" => StructureType::OceanMonument,
             "swamp_hut" => StructureType::SwampHut,
+            "woodland_mansion" => StructureType::WoodlandMansion,
             _ => StructureType::NotImplemented,
         })
     }
@@ -103,6 +108,7 @@ impl StructureType {
             StructureType::RuinedPortal(structure) => structure.find_generation_point(context),
             StructureType::OceanMonument => ocean_monument_structure::find_generation_point(context),
             StructureType::SwampHut => swamp_hut_structure::find_generation_point(context),
+            StructureType::WoodlandMansion => woodland_mansion_structure::find_generation_point(context),
             StructureType::NotImplemented => None,
         }
     }
@@ -110,6 +116,9 @@ impl StructureType {
     pub fn after_place(&self, level: &mut WorldGenRegion, _random: &mut impl RandomSource, chunk_bb: &BoundingBox, _chunk_pos: ChunkPos, pieces: &PiecesContainer) {
         if let StructureType::DesertPyramid = self {
             desert_pyramid_structure::after_place(level, chunk_bb, pieces);
+        }
+        if let StructureType::WoodlandMansion = self {
+            woodland_mansion_structure::after_place(level, chunk_bb, pieces);
         }
     }
 }
@@ -131,6 +140,7 @@ pub enum Piece {
     RuinedPortal(RuinedPortalPiece),
     OceanMonumentBuilding(MonumentBuilding),
     SwampHut(SwampHutPiece),
+    WoodlandMansion(WoodlandMansionPiece),
 }
 
 impl Piece {
@@ -151,6 +161,7 @@ impl Piece {
             Piece::RuinedPortal(piece) => &piece.template.piece,
             Piece::OceanMonumentBuilding(piece) => &piece.monument.piece,
             Piece::SwampHut(piece) => &piece.scattered.piece,
+            Piece::WoodlandMansion(piece) => &piece.template.piece,
         }
     }
 
@@ -171,6 +182,7 @@ impl Piece {
             Piece::Shipwreck(piece) => &mut piece.template.piece,
             Piece::Stronghold(piece) => piece.piece_mut(),
             Piece::SwampHut(piece) => &mut piece.scattered.piece,
+            Piece::WoodlandMansion(piece) => &mut piece.template.piece,
         }
     }
 
@@ -191,6 +203,7 @@ impl Piece {
             Piece::Shipwreck(piece) => piece.template.move_by(dx, dy, dz),
             Piece::Stronghold(piece) => piece.piece_mut().move_by(dx, dy, dz),
             Piece::SwampHut(piece) => piece.scattered.piece.move_by(dx, dy, dz),
+            Piece::WoodlandMansion(piece) => piece.template.move_by(dx, dy, dz),
         }
     }
 
@@ -223,6 +236,7 @@ impl Piece {
             ruined_portal_piece::RUINED_PORTAL => Piece::RuinedPortal(RuinedPortalPiece::load(tag)?),
             ocean_monument_pieces::OCEAN_MONUMENT_BUILDING => Piece::OceanMonumentBuilding(MonumentBuilding::load(tag)?),
             swamp_hut_piece::SWAMPLAND_HUT => Piece::SwampHut(SwampHutPiece::load(tag)?),
+            woodland_mansion_pieces::WOODLAND_MANSION_PIECE => Piece::WoodlandMansion(WoodlandMansionPiece::load(tag)?),
             _ => return None,
         })
     }
@@ -244,6 +258,7 @@ impl Piece {
             Piece::Stronghold(piece) => piece.add_additional_save_data(&mut additional),
             Piece::RuinedPortal(piece) => piece.add_additional_save_data(&mut additional),
             Piece::SwampHut(piece) => piece.add_additional_save_data(&mut additional),
+            Piece::WoodlandMansion(piece) => piece.add_additional_save_data(&mut additional),
         }
         self.piece().create_tag(additional)
     }
@@ -265,6 +280,7 @@ impl Piece {
             Piece::RuinedPortal(piece) => piece.post_process(level, random, chunk_bb, reference_pos),
             Piece::OceanMonumentBuilding(piece) => piece.post_process(level, random, chunk_bb),
             Piece::SwampHut(piece) => piece.post_process(level, chunk_bb, chunk_pos, reference_pos),
+            Piece::WoodlandMansion(piece) => piece.post_process(level, random, chunk_bb, reference_pos),
         }
     }
 }
