@@ -7,7 +7,7 @@ use crate::world::level::levelgen::structure::structures::Piece;
 
 #[derive(Default)]
 pub struct StructurePiecesBuilder {
-    pieces: Vec<Piece>,
+    pub pieces: Vec<Piece>,
 }
 
 impl StructurePiecesBuilder {
@@ -21,7 +21,7 @@ impl StructurePiecesBuilder {
 
     pub fn offset_pieces_vertically(&mut self, dy: i32) {
         for piece in &mut self.pieces {
-            piece.piece_mut().move_by(0, dy, 0);
+            piece.move_by(0, dy, 0);
         }
     }
 

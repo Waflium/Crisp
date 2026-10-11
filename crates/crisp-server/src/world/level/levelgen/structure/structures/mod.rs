@@ -6,6 +6,8 @@ pub mod igloo_pieces;
 pub mod igloo_structure;
 pub mod jigsaw_structure;
 pub mod jungle_temple_piece;
+pub mod mineshaft_pieces;
+pub mod mineshaft_structure;
 pub mod ocean_ruin_pieces;
 pub mod ocean_ruin_structure;
 pub mod shipwreck_pieces;
@@ -24,6 +26,8 @@ use buried_treasure_pieces::BuriedTreasurePiece;
 use desert_pyramid_piece::DesertPyramidPiece;
 use igloo_pieces::IglooPiece;
 use jungle_temple_piece::JungleTemplePiece;
+use mineshaft_pieces::{MineShaftCorridor, MineShaftCrossing, MineShaftRoom, MineShaftStairs};
+use mineshaft_structure::MineshaftStructure;
 use ocean_ruin_pieces::OceanRuinPiece;
 use ocean_ruin_structure::OceanRuinStructure;
 use shipwreck_pieces::ShipwreckPiece;
@@ -44,6 +48,7 @@ pub enum StructureType {
     Igloo,
     Jigsaw(Box<jigsaw_structure::JigsawStructure>),
     JungleTemple,
+    Mineshaft(MineshaftStructure),
     OceanRuin(OceanRuinStructure),
     Shipwreck { is_beached: bool },
     Stronghold,
@@ -60,6 +65,7 @@ impl StructureType {
             "igloo" => StructureType::Igloo,
             "jigsaw" => StructureType::Jigsaw(Box::new(jigsaw_structure::JigsawStructure::parse(json)?)),
             "jungle_temple" => StructureType::JungleTemple,
+            "mineshaft" => StructureType::Mineshaft(MineshaftStructure::parse(json)?),
             "ocean_ruin" => StructureType::OceanRuin(OceanRuinStructure::parse(json)?),
             "shipwreck" => StructureType::Shipwreck { is_beached: json.get("is_beached").and_then(Value::as_bool).ok_or("missing is_beached")? },
             "stronghold" => StructureType::Stronghold,
@@ -79,6 +85,7 @@ impl StructureType {
             StructureType::JungleTemple => {
                 single_piece_structure::find_generation_point(context, |random, x, z| Piece::JungleTemple(JungleTemplePiece::new(random, x, z)), 12, 15)
             }
+            StructureType::Mineshaft(structure) => structure.find_generation_point(context),
             StructureType::OceanRuin(structure) => structure.find_generation_point(context),
             StructureType::Shipwreck { is_beached } => shipwreck_structure::find_generation_point(context, *is_beached),
             StructureType::Stronghold => stronghold_structure::find_generation_point(context),
@@ -101,6 +108,10 @@ pub enum Piece {
     Igloo(IglooPiece),
     Jigsaw(PoolElementStructurePiece),
     JungleTemple(JungleTemplePiece),
+    MineShaftCorridor(MineShaftCorridor),
+    MineShaftCrossing(MineShaftCrossing),
+    MineShaftRoom(MineShaftRoom),
+    MineShaftStairs(MineShaftStairs),
     OceanRuin(OceanRuinPiece),
     Shipwreck(ShipwreckPiece),
     Stronghold(StrongholdPieceKind),
@@ -115,6 +126,10 @@ impl Piece {
             Piece::Igloo(piece) => &piece.template.piece,
             Piece::Jigsaw(piece) => &piece.piece,
             Piece::JungleTemple(piece) => &piece.scattered.piece,
+            Piece::MineShaftCorridor(piece) => &piece.mine_shaft.piece,
+            Piece::MineShaftCrossing(piece) => &piece.mine_shaft.piece,
+            Piece::MineShaftRoom(piece) => &piece.mine_shaft.piece,
+            Piece::MineShaftStairs(piece) => &piece.mine_shaft.piece,
             Piece::OceanRuin(piece) => &piece.template.piece,
             Piece::Shipwreck(piece) => &piece.template.piece,
             Piece::Stronghold(piece) => piece.piece(),
@@ -129,10 +144,32 @@ impl Piece {
             Piece::Igloo(piece) => &mut piece.template.piece,
             Piece::Jigsaw(piece) => &mut piece.piece,
             Piece::JungleTemple(piece) => &mut piece.scattered.piece,
+            Piece::MineShaftCorridor(piece) => &mut piece.mine_shaft.piece,
+            Piece::MineShaftCrossing(piece) => &mut piece.mine_shaft.piece,
+            Piece::MineShaftRoom(piece) => &mut piece.mine_shaft.piece,
+            Piece::MineShaftStairs(piece) => &mut piece.mine_shaft.piece,
             Piece::OceanRuin(piece) => &mut piece.template.piece,
             Piece::Shipwreck(piece) => &mut piece.template.piece,
             Piece::Stronghold(piece) => piece.piece_mut(),
             Piece::SwampHut(piece) => &mut piece.scattered.piece,
+        }
+    }
+
+    pub fn move_by(&mut self, dx: i32, dy: i32, dz: i32) {
+        match self {
+            Piece::BuriedTreasure(piece) => piece.piece.move_by(dx, dy, dz),
+            Piece::DesertPyramid(piece) => piece.scattered.piece.move_by(dx, dy, dz),
+            Piece::Igloo(piece) => piece.template.move_by(dx, dy, dz),
+            Piece::Jigsaw(piece) => piece.move_by(dx, dy, dz),
+            Piece::JungleTemple(piece) => piece.scattered.piece.move_by(dx, dy, dz),
+            Piece::MineShaftCorridor(piece) => piece.mine_shaft.piece.move_by(dx, dy, dz),
+            Piece::MineShaftCrossing(piece) => piece.mine_shaft.piece.move_by(dx, dy, dz),
+            Piece::MineShaftRoom(piece) => piece.move_by(dx, dy, dz),
+            Piece::MineShaftStairs(piece) => piece.mine_shaft.piece.move_by(dx, dy, dz),
+            Piece::OceanRuin(piece) => piece.template.move_by(dx, dy, dz),
+            Piece::Shipwreck(piece) => piece.template.move_by(dx, dy, dz),
+            Piece::Stronghold(piece) => piece.piece_mut().move_by(dx, dy, dz),
+            Piece::SwampHut(piece) => piece.scattered.piece.move_by(dx, dy, dz),
         }
     }
 
@@ -143,6 +180,10 @@ impl Piece {
             igloo_pieces::IGLOO => Piece::Igloo(IglooPiece::load(tag)?),
             pool_element_structure_piece::JIGSAW => Piece::Jigsaw(PoolElementStructurePiece::load(tag)?),
             jungle_temple_piece::JUNGLE_PYRAMID_PIECE => Piece::JungleTemple(JungleTemplePiece::load(tag)?),
+            mineshaft_pieces::MINE_SHAFT_CORRIDOR => Piece::MineShaftCorridor(MineShaftCorridor::load(tag)?),
+            mineshaft_pieces::MINE_SHAFT_CROSSING => Piece::MineShaftCrossing(MineShaftCrossing::load(tag)?),
+            mineshaft_pieces::MINE_SHAFT_ROOM => Piece::MineShaftRoom(MineShaftRoom::load(tag)?),
+            mineshaft_pieces::MINE_SHAFT_STAIRS => Piece::MineShaftStairs(MineShaftStairs::load(tag)?),
             ocean_ruin_pieces::OCEAN_RUIN => Piece::OceanRuin(OceanRuinPiece::load(tag)?),
             shipwreck_pieces::SHIPWRECK_PIECE => Piece::Shipwreck(ShipwreckPiece::load(tag)?),
             stronghold_pieces::STRONGHOLD_CHEST_CORRIDOR
@@ -171,6 +212,10 @@ impl Piece {
             Piece::Igloo(piece) => piece.add_additional_save_data(&mut additional),
             Piece::Jigsaw(piece) => piece.add_additional_save_data(&mut additional),
             Piece::JungleTemple(piece) => piece.add_additional_save_data(&mut additional),
+            Piece::MineShaftCorridor(piece) => piece.add_additional_save_data(&mut additional),
+            Piece::MineShaftCrossing(piece) => piece.add_additional_save_data(&mut additional),
+            Piece::MineShaftRoom(piece) => piece.add_additional_save_data(&mut additional),
+            Piece::MineShaftStairs(piece) => piece.mine_shaft.add_additional_save_data(&mut additional),
             Piece::OceanRuin(piece) => piece.add_additional_save_data(&mut additional),
             Piece::Shipwreck(piece) => piece.add_additional_save_data(&mut additional),
             Piece::Stronghold(piece) => piece.add_additional_save_data(&mut additional),
@@ -186,6 +231,10 @@ impl Piece {
             Piece::Igloo(piece) => piece.post_process(level, random, chunk_bb, reference_pos),
             Piece::Jigsaw(piece) => piece.post_process(level, random, chunk_bb, reference_pos),
             Piece::JungleTemple(piece) => piece.post_process(level, random, chunk_bb),
+            Piece::MineShaftCorridor(piece) => piece.post_process(level, random, chunk_bb),
+            Piece::MineShaftCrossing(piece) => piece.post_process(level, chunk_bb),
+            Piece::MineShaftRoom(piece) => piece.post_process(level, chunk_bb),
+            Piece::MineShaftStairs(piece) => piece.post_process(level, chunk_bb),
             Piece::OceanRuin(piece) => piece.post_process(level, random, chunk_bb, reference_pos),
             Piece::Shipwreck(piece) => piece.post_process(level, random, chunk_bb, reference_pos),
             Piece::Stronghold(piece) => piece.post_process(level, random, chunk_bb),
