@@ -1,6 +1,6 @@
 use crisp_core::hash_map::java_hash_map_order;
 use crisp_core::random::{RandomSource, java_string_hash};
-use crisp_core::{BlockPos, Vec3, mth};
+use crisp_core::{AABB, Axis, BlockPos, Vec3, mth};
 use crisp_protocol::nbt::Nbt;
 
 use super::data::{DataValue, ids};
@@ -11,6 +11,7 @@ use crate::server::level::ServerLevel;
 use crate::world::item::ItemStack;
 use crate::world::level::block::entity::int_value;
 use crate::world::level::chunk::serialization::{state_from_nbt, state_to_nbt};
+use crate::world::level::collision::{Collider, shapes_collide};
 use crate::world::level::storage::uuid_ints;
 
 pub fn uuid_from_nbt(nbt: &Nbt) -> Option<u128> {
@@ -228,6 +229,30 @@ impl LevelEntity {
     }
 }
 
+fn only_op_can_set_nbt(entity_type: &str) -> bool {
+    matches!(entity_type, "minecraft:falling_block" | "minecraft:command_block_minecart" | "minecraft:spawner_minecart")
+}
+
+fn update_custom_entity_tag(entity: &mut LevelEntity, entity_data: &Nbt) {
+    let Nbt::Compound(fields) = entity_data else { return };
+    let entity_type = crisp_data::registry::ENTITY_TYPE[entity.entity().entity_type as usize];
+    if fields.iter().find(|(k, _)| k == "id").and_then(|(_, v)| v.as_str()) != Some(entity_type) {
+        return;
+    }
+    if only_op_can_set_nbt(entity_type) {
+        return;
+    }
+    let unsafe_data: Vec<(String, Nbt)> = fields.iter().filter(|(k, _)| k != "id").cloned().collect();
+    let mut tag = Vec::new();
+    entity.save_without_id(&mut tag);
+    let uuid = entity.entity().uuid;
+    crate::nbt::merge(&mut tag, &unsafe_data);
+    if let Err(e) = entity.load(&Nbt::Compound(tag)) {
+        error!("{e}");
+    }
+    entity.entity_mut().uuid = uuid;
+}
+
 impl ServerLevel {
     pub fn create_entity(entity_type: &str) -> Option<LevelEntity> {
         Some(match entity_type {
@@ -240,14 +265,42 @@ impl ServerLevel {
         })
     }
 
+    fn get_y_offset(&self, spawn_pos: BlockPos, moved_up: bool, entity_box: &AABB) -> f64 {
+        let mut aabb = AABB::of_block(spawn_pos);
+        if moved_up {
+            aabb = aabb.expand_towards(0.0, -1.0, 0.0);
+        }
+        let shapes: Vec<Collider> = self.block_collisions(&aabb, false).into_iter().map(|(_, collider)| collider).collect();
+        1.0 + shapes_collide(Axis::Y, entity_box, &shapes, if moved_up { -2.0 } else { -1.0 })
+    }
+
     pub fn spawn_entity_type(&mut self, entity_type: &str, spawn_pos: BlockPos) -> Option<EntityId> {
+        self.spawn_entity_type_from_stack(entity_type, None, spawn_pos, false, false)
+    }
+
+    pub fn spawn_entity_type_from_stack(&mut self, entity_type: &str, item_stack: Option<&ItemStack>, spawn_pos: BlockPos, try_move_down: bool, moved_up: bool) -> Option<EntityId> {
         let mut entity = ServerLevel::create_entity(entity_type)?;
+        let y_off = if try_move_down {
+            entity.entity_mut().set_pos(Vec3::new(spawn_pos.x as f64 + 0.5, (spawn_pos.y + 1) as f64, spawn_pos.z as f64 + 0.5));
+            self.get_y_offset(spawn_pos, moved_up, &entity.entity().bounding_box())
+        } else {
+            0.0
+        };
         let y_rot = mth::wrap_degrees(self.random.next_float() * 360.0);
-        entity.entity_mut().snap_to(spawn_pos.x as f64 + 0.5, spawn_pos.y as f64, spawn_pos.z as f64 + 0.5, y_rot, 0.0);
+        entity.entity_mut().snap_to(spawn_pos.x as f64 + 0.5, spawn_pos.y as f64 + y_off, spawn_pos.z as f64 + 0.5, y_rot, 0.0);
         if let LevelEntity::Mob(mob) = &mut entity {
             mob.entity.y_head_rot = mob.entity.y_rot;
             mob.living.y_body_rot = mob.entity.y_rot;
             self.finalize_mob_spawn(mob);
+        }
+        if let Some(item_stack) = item_stack {
+            match &mut entity {
+                LevelEntity::Mob(mob) => mob.apply_components_from_item_stack(item_stack),
+                other => other.entity_mut().apply_components_from_item_stack(item_stack),
+            }
+            if let Some(entity_data) = item_stack.get(crate::world::item::component::ENTITY_DATA) {
+                update_custom_entity_tag(&mut entity, entity_data);
+            }
         }
         let id = entity.entity().id;
         let is_mob = matches!(entity, LevelEntity::Mob(_));

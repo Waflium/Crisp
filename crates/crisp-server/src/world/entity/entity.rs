@@ -12,6 +12,7 @@ use super::attributes::Attribute;
 use super::{EntityDimensions, ItemEntity, LevelEntity, data, relative};
 use crate::world::damagesource::DamageSource;
 use crate::world::item::ItemStack;
+use crate::world::item::component as dc;
 use crate::world::{InteractionHand, InteractionResult};
 use super::data::{DataValue, Pose, SynchedEntityData, ids};
 use super::fluid_interaction::{CurrentFluid, EntityFluidInteraction};
@@ -315,6 +316,26 @@ impl Entity {
 
     pub fn set_custom_name(&mut self, name: Option<Nbt>) {
         self.data.set(data::ids::CUSTOM_NAME, DataValue::OptionalComponent(name));
+    }
+
+    pub fn apply_components_from_item_stack(&mut self, stack: &ItemStack) {
+        for ty in [dc::CUSTOM_NAME, dc::CUSTOM_DATA] {
+            if let Some(value) = stack.get(ty) {
+                self.apply_implicit_component(ty, value);
+            }
+        }
+    }
+
+    pub fn apply_implicit_component(&mut self, ty: dc::DataComponentType, value: &Nbt) -> bool {
+        if ty == dc::CUSTOM_NAME {
+            self.set_custom_name(Some(value.clone()));
+            true
+        } else if ty == dc::CUSTOM_DATA {
+            self.custom_data = Some(value.clone());
+            true
+        } else {
+            false
+        }
     }
 
     pub fn discard(&mut self) {

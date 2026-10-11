@@ -121,7 +121,7 @@ fn calculate_view_vector(x_rot: f32, y_rot: f32) -> Vec3 {
     Vec3::new((y_sin * x_cos) as f64, -x_sin as f64, (y_cos * x_cos) as f64)
 }
 
-fn player_pov_hit_result(level: &mut ServerLevel, player: EntityId, fluid: ClipFluid) -> Option<BlockHitResult> {
+pub fn player_pov_hit_result(level: &mut ServerLevel, player: EntityId, fluid: ClipFluid) -> Option<BlockHitResult> {
     let p = level.player(player);
     let from = p.entity.eye_position();
     let range = DEFAULT_BLOCK_INTERACTION_RANGE + if p.game_mode.game_type == GameType::Creative { CREATIVE_BLOCK_INTERACTION_RANGE_BONUS } else { 0.0 };
@@ -130,7 +130,7 @@ fn player_pov_hit_result(level: &mut ServerLevel, player: EntityId, fluid: ClipF
     (!result.miss).then_some(result.hit)
 }
 
-fn may_use_item_at(level: &ServerLevel, player: EntityId) -> bool {
+pub fn may_use_item_at(level: &ServerLevel, player: EntityId) -> bool {
     !matches!(level.player(player).game_mode.game_type, GameType::Adventure | GameType::Spectator)
 }
 

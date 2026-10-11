@@ -45,6 +45,7 @@ pub fn use_on(level: &mut ServerLevel, player: EntityId, hand: InteractionHand, 
             let ctx = BlockPlaceContext::new(level, Some(player), hand, stack, hit);
             return flint_and_steel_item::fire_charge_use_on(level, player, hand, &ctx);
         }
+        Some(&"SpawnEggItem") => return spawn_egg_item::use_on(level, player, hand, hit, stack),
         _ => {}
     }
     match &BLOCK_ITEMS[stack.item.0 as usize] {
@@ -57,6 +58,9 @@ pub fn use_on(level: &mut ServerLevel, player: EntityId, hand: InteractionHand, 
 }
 
 pub fn use_item(level: &mut ServerLevel, player: EntityId, hand: InteractionHand, stack: ItemStack) -> (InteractionResult, Option<ItemStack>) {
+    if stack.item.is_instance_of("SpawnEggItem") {
+        return spawn_egg_item::use_item(level, player, hand);
+    }
     match bucket_item::BucketItem::for_item(stack.item) {
         Some(bucket) => bucket.use_item(level, player, hand),
         None => match &stack.item.info().consumable {

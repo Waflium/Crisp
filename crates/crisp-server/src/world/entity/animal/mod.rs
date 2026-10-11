@@ -337,6 +337,22 @@ mod tests {
     }
 
     #[test]
+    fn spawn_eggs_spawn_chickens_on_the_clicked_face() {
+        let mut level = testing::level();
+        let player = testing::player(&mut level, Vec3::new(0.5, -60.0, 0.5), 0.0, 0.0);
+        let mut egg = ItemStack::new(items::CHICKEN_SPAWN_EGG, 2);
+        egg.set(dc::CUSTOM_NAME, Some(Nbt::String("Eggbert".into())));
+        level.player_mut(player).set_item_in_hand(InteractionHand::MainHand, Some(egg));
+        let block_pos = crisp_core::BlockPos::new(3, -61, 3);
+        let hit = crate::world::level::block::BlockHitResult { location: Vec3::new(3.5, -60.0, 3.5), direction: crisp_core::Direction::Up, block_pos, inside: false, world_border_hit: false };
+        assert_eq!(level.use_item_on(player, InteractionHand::MainHand, hit), InteractionResult::SUCCESS);
+        let chicken = level.entities.keys().copied().find(|&id| level.is_mob(id)).unwrap();
+        assert_eq!(level.entity(chicken).position(), Vec3::new(3.5, -60.0, 3.5));
+        assert!(matches!(level.entity(chicken).data.get(crate::world::entity::data::ids::CUSTOM_NAME), DataValue::OptionalComponent(Some(Nbt::String(name))) if name == "Eggbert"));
+        assert_eq!(held_count(&level, player), 1);
+    }
+
+    #[test]
     fn golden_dandelions_lock_a_babys_age() {
         let (mut level, player, chicken) = setup(-100, ItemStack::new(items::GOLDEN_DANDELION, 1));
         assert_eq!(interact(&mut level, player, chicken), InteractionResult::SUCCESS);

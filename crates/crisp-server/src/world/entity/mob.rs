@@ -270,15 +270,7 @@ impl Mob {
             }
             MobKind::Chicken(_) => {}
         }
-        if ty == dc::CUSTOM_NAME {
-            self.entity.set_custom_name(Some(value.clone()));
-            true
-        } else if ty == dc::CUSTOM_DATA {
-            self.entity.custom_data = Some(value.clone());
-            true
-        } else {
-            false
-        }
+        self.entity.apply_implicit_component(ty, value)
     }
 
     fn apply_implicit_component_if_present(&mut self, components: &impl DataComponentGetter, ty: DataComponentType) -> bool {
