@@ -296,4 +296,8 @@ impl LevelAccessor for WorldGenRegion<'_> {
     fn get_random(&mut self) -> &mut dyn crisp_core::random::RandomSource {
         &mut self.random
     }
+
+    fn mark_pos_for_post_processing(&mut self, pos: BlockPos) {
+        WorldGenRegion::mark_pos_for_post_processing(self, pos);
+    }
 }

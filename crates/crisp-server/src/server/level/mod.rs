@@ -1338,6 +1338,10 @@ impl crate::world::level::LevelAccessor for ServerLevel {
     fn get_random(&mut self) -> &mut dyn crisp_core::random::RandomSource {
         &mut self.random
     }
+
+    fn mark_pos_for_post_processing(&mut self, pos: BlockPos) {
+        self.chunks.chunk(ChunkPos::new(pos.x >> 4, pos.z >> 4)).mark_pos_for_post_processing(pos);
+    }
 }
 
 pub fn legacy_block(fluid: crisp_data::FluidState) -> BlockState {

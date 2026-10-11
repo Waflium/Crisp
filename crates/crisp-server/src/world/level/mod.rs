@@ -73,6 +73,8 @@ pub trait LevelWriter {
 
 pub trait LevelAccessor: LevelReader + ScheduledTickAccess + LevelWriter {
     fn get_random(&mut self) -> &mut dyn RandomSource;
+
+    fn mark_pos_for_post_processing(&mut self, pos: BlockPos);
 }
 
 pub mod update_flags {

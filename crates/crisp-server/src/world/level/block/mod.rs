@@ -118,6 +118,7 @@ mod flower_pot_block;
 mod growing_plant_block;
 mod growing_plant_body_block;
 mod growing_plant_head_block;
+mod glow_lichen_block;
 mod hanging_moss_block;
 mod hanging_roots_block;
 mod kelp_block;
@@ -128,6 +129,8 @@ mod lily_pad_block;
 mod mangrove_leaves_block;
 mod mangrove_propagule_block;
 pub mod mossy_carpet_block;
+pub mod multiface_block;
+pub mod multiface_spreader;
 mod mushroom_block;
 mod nether_fungus_block;
 mod nether_roots_block;
@@ -137,6 +140,7 @@ mod nether_wart_block;
 mod nylium_block;
 mod pitcher_crop_block;
 mod sapling_block;
+mod sculk_vein_block;
 mod sea_pickle_block;
 mod seagrass_block;
 mod segmentable_block;
@@ -612,6 +616,9 @@ fn for_class(class: &str, block: Block) -> Option<Box<dyn BlockBehaviour>> {
         "SmallDripleafBlock" => Box::new(small_dripleaf_block::SmallDripleafBlock),
         "MossyCarpetBlock" => Box::new(mossy_carpet_block::MossyCarpetBlock),
         "HangingMossBlock" => Box::new(hanging_moss_block::HangingMossBlock),
+        "GlowLichenBlock" => Box::new(glow_lichen_block::GlowLichenBlock::new(block)),
+        "SculkVeinBlock" => Box::new(sculk_vein_block::SculkVeinBlock),
+        "MultifaceBlock" => Box::new(multiface_block::MultifaceBlock),
         _ => return None,
     })
 }

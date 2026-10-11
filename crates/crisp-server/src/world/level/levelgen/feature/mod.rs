@@ -10,6 +10,7 @@ pub mod featuresize;
 pub mod foliageplacers;
 pub mod huge_brown_mushroom_feature;
 pub mod huge_red_mushroom_feature;
+pub mod multiface_growth_feature;
 pub mod ore_feature;
 pub mod random_boolean_selector_feature;
 pub mod random_selector_feature;

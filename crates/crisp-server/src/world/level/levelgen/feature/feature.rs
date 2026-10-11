@@ -9,6 +9,7 @@ use super::bamboo_feature::BambooFeature;
 use super::block_column_feature::BlockColumnFeature;
 use super::block_pile_feature::BlockPileFeature;
 use super::fallen_tree_feature::FallenTreeFeature;
+use super::multiface_growth_feature::MultifaceGrowthFeature;
 use super::ore_feature::OreFeature;
 use super::random_boolean_selector_feature::RandomBooleanSelectorFeature;
 use super::random_selector_feature::RandomSelectorFeature;
@@ -30,6 +31,7 @@ pub enum Feature {
     BlockPile(BlockPileFeature),
     VegetationPatch(Box<VegetationPatchFeature>),
     Vines,
+    MultifaceGrowth(MultifaceGrowthFeature),
     Bamboo(BambooFeature),
     HugeMushroom(Box<AbstractHugeMushroomFeature>),
     Ore(OreFeature),
@@ -68,6 +70,7 @@ impl Feature {
             "vegetation_patch" => Feature::VegetationPatch(Box::new(VegetationPatchFeature::parse(json, false)?)),
             "waterlogged_vegetation_patch" => Feature::VegetationPatch(Box::new(VegetationPatchFeature::parse(json, true)?)),
             "vines" => Feature::Vines,
+            "multiface_growth" => Feature::MultifaceGrowth(MultifaceGrowthFeature::parse(json)?),
             "bamboo" => Feature::Bamboo(BambooFeature::parse(json)?),
             "huge_brown_mushroom" => Feature::HugeMushroom(Box::new(AbstractHugeMushroomFeature::parse(json, HugeMushroomType::Brown)?)),
             "huge_red_mushroom" => Feature::HugeMushroom(Box::new(AbstractHugeMushroomFeature::parse(json, HugeMushroomType::Red)?)),
@@ -90,6 +93,7 @@ impl Feature {
             Feature::BlockPile(feature) => feature.place(level, random, origin),
             Feature::VegetationPatch(feature) => feature.place(level, random, origin),
             Feature::Vines => vines_feature::place(level, origin),
+            Feature::MultifaceGrowth(feature) => feature.place(level, random, origin),
             Feature::Bamboo(feature) => feature.place(level, random, origin),
             Feature::HugeMushroom(feature) => feature.place(level, random, origin),
             Feature::Ore(feature) => feature.place(level, random, origin),
