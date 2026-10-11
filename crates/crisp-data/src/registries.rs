@@ -53,6 +53,7 @@ pub struct DimensionType {
     pub has_skylight: bool,
     pub has_ceiling: bool,
     pub has_fixed_time: bool,
+    pub ambient_light: f32,
     pub infiniburn: &'static crate::Tag,
     pub default_clock: Option<&'static str>,
     pub attributes: &'static str,

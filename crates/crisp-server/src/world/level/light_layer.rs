@@ -34,6 +34,16 @@ impl ServerLevel {
         !self.dimension_type().has_fixed_time && !self.is_bright_outside()
     }
 
+    pub fn get_pathfinding_cost_from_light_levels(&self, pos: BlockPos) -> f32 {
+        self.get_light_level_dependent_magic_value(pos) - 0.5
+    }
+
+    pub fn get_light_level_dependent_magic_value(&self, pos: BlockPos) -> f32 {
+        let v = self.max_local_raw_brightness(pos, self.sky_darken) as f32 / 15.0;
+        let curved_v = v / (4.0 - 3.0 * v);
+        crisp_core::mth::lerp_f(self.dimension_type().ambient_light, curved_v, 1.0)
+    }
+
     pub fn max_local_raw_brightness(&self, pos: BlockPos, darkening: i32) -> i32 {
         if pos.x >= -30_000_000 && pos.z >= -30_000_000 && pos.x < 30_000_000 && pos.z < 30_000_000 { self.raw_brightness(pos, darkening) } else { 15 }
     }

@@ -433,6 +433,21 @@ impl Entity {
         self.is_shift_key_down()
     }
 
+    pub fn is_discrete(&self) -> bool {
+        self.is_shift_key_down()
+    }
+
+    pub fn distance_to_sqr_xyz(&self, x: f64, y: f64, z: f64) -> f64 {
+        let xd = self.x() - x;
+        let yd = self.y() - y;
+        let zd = self.z() - z;
+        xd * xd + yd * yd + zd * zd
+    }
+
+    pub fn distance_to_sqr(&self, entity: &Entity) -> f64 {
+        self.position().distance_to_sqr(entity.position())
+    }
+
     pub fn is_sprinting(&self) -> bool {
         self.shared_flag(flags::SPRINTING)
     }

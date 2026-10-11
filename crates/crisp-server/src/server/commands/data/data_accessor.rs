@@ -65,7 +65,8 @@ impl DataAccessor {
                 let Some(entity) = level.get_block_entity(*pos) else { return Err(ERROR_NOT_A_BLOCK_ENTITY.create()) };
                 entity.load_with_components(&tag);
                 level.block_entity_set_changed(*pos);
-                level.send_block_updated(*pos);
+                let state = crate::world::level::BlockGetter::block_state(level, *pos);
+                level.send_block_updated(*pos, state, state);
             }
         }
         Ok(())

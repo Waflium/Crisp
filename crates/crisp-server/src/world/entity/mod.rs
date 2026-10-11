@@ -18,6 +18,7 @@ pub mod item;
 pub mod lightning_bolt;
 pub mod living_entity;
 pub mod mob;
+pub mod pathfinder_mob;
 pub mod primed_tnt;
 pub mod projectile;
 pub mod raid;

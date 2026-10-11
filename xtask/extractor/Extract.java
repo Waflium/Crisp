@@ -38,6 +38,7 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.Property;
 import net.minecraft.world.level.material.Fluid;
 import net.minecraft.world.level.material.FluidState;
+import net.minecraft.world.level.pathfinder.PathComputationType;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.phys.shapes.CollisionContext;
@@ -310,6 +311,7 @@ public final class Extract {
         st.addProperty("large_collision", state.hasLargeCollisionShape());
         st.addProperty("collision_full_block", state.isCollisionShapeFullBlock(EMPTY, ORIGIN));
         st.addProperty("offset", state.hasOffsetFunction());
+        st.addProperty("pathfindable_land", state.isPathfindable(PathComputationType.LAND));
         st.addProperty("push_reaction", state.getPistonPushReaction().name());
         st.addProperty("map_color", state.getMapColor(EMPTY, ORIGIN).id);
         st.addProperty("instrument", state.instrument().getSerializedName());

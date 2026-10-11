@@ -14,7 +14,18 @@ use crate::world::entity::living_entity::LivingEntity;
 use crate::world::entity::mob::{Mob, MobKind};
 use crate::world::entity::sound_event;
 use crate::world::entity::{Entity, EntityDimensions, EntityId};
+use crate::world::entity::ai::MobAi;
+use crate::world::entity::ai::goal::breed_goal::BreedGoal;
+use crate::world::entity::ai::goal::float_goal::FloatGoal;
+use crate::world::entity::ai::goal::follow_parent_goal::FollowParentGoal;
+use crate::world::entity::ai::goal::goal::Goal;
+use crate::world::entity::ai::goal::look_at_player_goal::LookAtPlayerGoal;
+use crate::world::entity::ai::goal::panic_goal::PanicGoal;
+use crate::world::entity::ai::goal::random_look_around_goal::RandomLookAroundGoal;
+use crate::world::entity::ai::goal::tempt_goal::TemptGoal;
+use crate::world::entity::ai::goal::water_avoiding_random_stroll_goal::WaterAvoidingRandomStrollGoal;
 use crate::world::item::ItemStack;
+use crate::world::level::pathfinder::path_type::PathType;
 
 pub const DATA_VARIANT: usize = 18;
 const CHICKEN_LAY: &str = "minecraft:gameplay/chicken_lay";
@@ -125,10 +136,25 @@ impl Chicken {
         data.extend([DataValue::ChickenVariant(temperate), DataValue::ChickenSoundVariant(classic)]);
         let entity = Entity::new(registry_id(registry::ENTITY_TYPE, "minecraft:chicken"), DIMENSIONS, data);
         let mut mob = Mob::new(entity, LivingEntity::new(&CHICKEN_ATTRIBUTES), MobKind::Chicken(Chicken::default()));
+        Animal::init(&mut mob);
         let egg_time = mob.entity.random.next_int_bounded(6000) + 6000;
         let MobKind::Chicken(chicken) = &mut mob.kind;
         chicken.egg_time = egg_time;
+        mob.set_pathfinding_malus(PathType::Water, 0.0);
         mob
+    }
+
+    pub fn register_goals(ai: &mut MobAi) {
+        let float_goal = FloatGoal::new(&mut ai.navigation);
+        let goal_selector = &mut ai.goal_selector;
+        goal_selector.add_goal(0, Goal::Float(float_goal));
+        goal_selector.add_goal(1, Goal::Panic(PanicGoal::new(1.4)));
+        goal_selector.add_goal(2, Goal::Breed(BreedGoal::new(1.0)));
+        goal_selector.add_goal(3, Goal::Tempt(TemptGoal::new(1.0, &item_tags::CHICKEN_FOOD, false)));
+        goal_selector.add_goal(4, Goal::FollowParent(FollowParentGoal::new(1.1)));
+        goal_selector.add_goal(5, Goal::WaterAvoidingRandomStroll(WaterAvoidingRandomStrollGoal::new(1.0)));
+        goal_selector.add_goal(6, Goal::LookAtPlayer(LookAtPlayerGoal::new(6.0)));
+        goal_selector.add_goal(7, Goal::RandomLookAround(RandomLookAroundGoal::default()));
     }
 }
 

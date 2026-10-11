@@ -26,7 +26,7 @@ mod concrete_powder_block;
 mod cross_collision_block;
 mod detector_rail_block;
 mod diode_block;
-mod door_block;
+pub mod door_block;
 mod drop_experience_block;
 mod end_rod_block;
 mod face_attached_horizontal_directional_block;

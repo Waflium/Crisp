@@ -9,8 +9,11 @@ use super::attributes::{Attribute, AttributeMap, AttributeModifier, AttributeSup
 use super::data::{DataValue, Pose, ids};
 use super::mob::MobKind;
 use super::{Entity, EntityId, MoverType, RemovalReason, TOTAL_AIR_SUPPLY, compute_modified_friction, entity_event, flags, sound_event};
+use crate::core::holder_set::HolderSet;
 use crate::network::connection::encode;
 use crate::server::level::ServerLevel;
+use crate::world::difficulty::Difficulty;
+use crate::world::item::component::codec as component_codec;
 use crate::world::InteractionHand;
 use crate::world::damagesource::DamageSource;
 use crate::world::damagesource::combat_rules;
@@ -196,6 +199,10 @@ impl SwingState {
             None => self.animation = 0.0,
         }
     }
+}
+
+pub fn get_comfortable_fall_distance(allowed_damage: f32) -> i32 {
+    mth::floor_f(allowed_damage + 3.0)
 }
 
 pub fn entity_event_for_equipment_break(slot: EquipmentSlot) -> u8 {
@@ -447,6 +454,77 @@ impl ServerLevel {
         }
         let ctx = ClipContext { from, to, block: ClipBlock::Collider, fluid: ClipFluid::None, is_player: self.is_player(id) };
         self.clip(&ctx).miss
+    }
+
+    pub fn get_visibility_percent(&self, id: EntityId, targeting_entity: Option<EntityId>) -> f64 {
+        let mut visibility_percent = 1.0;
+        let e = self.entity(id);
+        if e.is_discrete() {
+            visibility_percent *= 0.8;
+        }
+        if e.shared_flag(flags::INVISIBLE) {
+            let mut cover_percentage = self.get_armor_cover_percentage(id);
+            if cover_percentage < 0.1 {
+                cover_percentage = 0.1;
+            }
+            visibility_percent *= 0.7 * cover_percentage as f64;
+        }
+        if let Some(targeting_entity) = targeting_entity {
+            let targeting_type = self.entity(targeting_entity).entity_type;
+            for slot in EquipmentSlot::VALUES {
+                let Some(item) = self.item_by_slot_ref(id, slot) else { continue };
+                let Some(mob_visibility) = item.get(dc::MOB_VISIBILITY) else { continue };
+                let equippable_slot = item.get(dc::EQUIPPABLE).and_then(|equippable| equippable.get("slot")).and_then(Nbt::as_str).and_then(EquipmentSlot::by_name);
+                let targets = mob_visibility
+                    .get("targeting_entity_types")
+                    .and_then(|types| HolderSet::decode("minecraft:entity_type", types).ok())
+                    .is_some_and(|types| types.contains(targeting_type));
+                if equippable_slot == Some(slot) && targets {
+                    visibility_percent *= mob_visibility.get("visibility").map_or(0.0, component_codec::as_f32) as f64;
+                }
+            }
+        }
+        visibility_percent.clamp(0.0, 10.0)
+    }
+
+    pub fn get_armor_cover_percentage(&self, id: EntityId) -> f32 {
+        let mut total = 0;
+        let mut count = 0;
+        for slot in [EquipmentSlot::Feet, EquipmentSlot::Legs, EquipmentSlot::Chest, EquipmentSlot::Head] {
+            if self.item_by_slot_ref(id, slot).is_some() {
+                count += 1;
+            }
+            total += 1;
+        }
+        if total > 0 { count as f32 / total as f32 } else { 0.0 }
+    }
+
+    pub fn can_attack(&self, _id: EntityId, target: EntityId) -> bool {
+        if self.is_player(target) && self.difficulty == Difficulty::Peaceful { false } else { self.can_be_seen_as_enemy(target) }
+    }
+
+    pub fn can_be_seen_as_enemy(&self, id: EntityId) -> bool {
+        if self.is_player(id) && self.player(id).abilities.invulnerable {
+            return false;
+        }
+        !self.entity(id).invulnerable && self.can_be_seen_by_anyone(id)
+    }
+
+    pub fn can_be_seen_by_anyone(&self, id: EntityId) -> bool {
+        !self.is_spectator(id) && self.is_alive(id)
+    }
+
+    pub fn get_last_damage_source(&self, id: EntityId) -> Option<&DamageSource> {
+        let living = self.living(id);
+        if self.game_time - living.last_damage_stamp > 40 { None } else { living.last_damage_source.as_ref() }
+    }
+
+    pub fn item_by_slot_ref(&self, id: EntityId, slot: EquipmentSlot) -> Option<&ItemStack> {
+        if let Some(mob) = self.mob(id) {
+            return mob.item_by_slot(slot);
+        }
+        let index = self.equipment_inventory_slot(id, slot)?;
+        self.player(id).inventory.slots[index].as_ref().filter(|s| !s.is_empty())
     }
 
     pub fn swing(&mut self, id: EntityId, hand: InteractionHand, animation: SwingAnimation, send_to_swinging_entity: bool) -> bool {

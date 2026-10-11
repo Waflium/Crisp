@@ -15,12 +15,14 @@ pub mod progress;
 mod precipitation;
 pub mod server_boss_event;
 pub mod server_entity;
+pub mod server_entity_getter;
 pub mod threaded_level_light_engine;
 pub mod ticket;
 
 use crate::util::FastIndexMap;
 
 use crisp_core::random::{LegacyRandomSource, RandomSource};
+use crisp_core::shapes::{BooleanOp, join_is_not_empty};
 use crisp_core::{AABB, BlockPos, ChunkPos, Direction, Vec3, mth};
 use crisp_data::packets::play::clientbound;
 use crisp_data::{Block, BlockState, DimensionType, Fluid, blocks};
@@ -40,6 +42,7 @@ use crate::world::level::chunk::storage::RegionStorage;
 use crate::world::level::entity::PersistentEntitySectionManager;
 use crate::world::level::entity::entity_tick_list::EntityTickList;
 use crate::world::level::gamerules::GameRules;
+use crate::world::level::pathfinder::path_type_cache::PathTypeCache;
 use crate::world::level::saveddata::weather_data::WeatherData;
 use crate::world::tick_rate_manager::TickRateManager;
 use crate::world::level::update_flags::*;
@@ -135,6 +138,7 @@ pub struct ServerLevel {
     environment_attributes: EnvironmentAttributeSystem,
     pub clock_ticks: Vec<i64>,
     pub(crate) sky_darken: i32,
+    pub path_types_by_pos_cache: std::cell::RefCell<PathTypeCache>,
 }
 
 impl EnvironmentAccess for ServerLevel {
@@ -214,6 +218,7 @@ impl ServerLevel {
             environment_attributes: EnvironmentAttributeSystem::default(),
             clock_ticks: ServerClockManager::new().clocks.iter().map(|c| c.total_ticks).collect(),
             sky_darken: 0,
+            path_types_by_pos_cache: std::cell::RefCell::default(),
         };
         level.environment_attributes = EnvironmentAttributeSystem::builder().add_default_layers(level.dimension_type(), level.can_have_weather()).build();
         level.update_sky_brightness();
@@ -465,7 +470,7 @@ impl ServerLevel {
         }
         if self.block_state(pos) == state {
             if flags & UPDATE_CLIENTS != 0 {
-                self.send_block_updated(pos);
+                self.send_block_updated(pos, old, state);
             }
             if flags & UPDATE_NEIGHBORS != 0 {
                 self.update_neighbors_at(pos, old.block());
@@ -483,9 +488,23 @@ impl ServerLevel {
         true
     }
 
-    pub fn send_block_updated(&mut self, pos: BlockPos) {
+    pub fn send_block_updated(&mut self, pos: BlockPos, old: BlockState, current: BlockState) {
         if self.chunks.is_ticking(pos.chunk()) {
             self.chunk_map.block_changed(pos);
+        }
+        self.path_types_by_pos_cache.get_mut().invalidate(pos);
+        if join_is_not_empty(old.collision_voxel_shape(), current.collision_voxel_shape(), BooleanOp::NotSame) {
+            let navigations_to_update: Vec<EntityId> = self
+                .entities
+                .iter()
+                .filter_map(|(&id, entity)| match entity {
+                    LevelEntity::Mob(mob) if mob.ai.navigation.should_recompute_path(self, id, pos) => Some(id),
+                    _ => None,
+                })
+                .collect();
+            for id in navigations_to_update {
+                self.get_navigation(id, |navigation, level| navigation.recompute_path(level, id));
+            }
         }
     }
 

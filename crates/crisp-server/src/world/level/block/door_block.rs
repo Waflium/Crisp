@@ -71,6 +71,18 @@ fn is_door(state: BlockState) -> bool {
     state.block().is_instance_of("DoorBlock")
 }
 
+pub fn type_can_open_by_hand(door: Block) -> bool {
+    static CAN_OPEN_BY_HAND: std::sync::LazyLock<Vec<bool>> = std::sync::LazyLock::new(|| {
+        (0..Block::count())
+            .map(|i| {
+                let block = Block(i as u16);
+                block.is_instance_of("DoorBlock") && BlockSetType::from_json(&fields(block)["type"]).can_open_by_hand
+            })
+            .collect()
+    });
+    CAN_OPEN_BY_HAND[door.0 as usize]
+}
+
 fn prevent_drop_from_bottom_part(level: &mut ServerLevel, pos: BlockPos, state: BlockState, player: EntityId) {
     if state.get(DOUBLE_BLOCK_HALF) != DoubleBlockHalf::Upper {
         return;

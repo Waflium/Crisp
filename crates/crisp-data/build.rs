@@ -448,6 +448,9 @@ fn blocks(
             if state["suffocating_by_tag"] == true {
                 flags |= 1 << 20;
             }
+            if state["pathfindable_land"] == true {
+                flags |= 1 << 21;
+            }
             let mut sturdy = 0u32;
             for (bit, v) in state["face_sturdy"].as_array().unwrap().iter().enumerate() {
                 if v == true {
@@ -959,12 +962,13 @@ fn dimension_types(out: &mut String, data: &Path, entries: &[String]) -> anyhow:
         let attributes = v.get("attributes").map_or("{}".to_owned(), Value::to_string);
         writeln!(
             out,
-            "DimensionType {{ name: {id:?}, min_y: {}, height: {}, has_skylight: {}, has_ceiling: {}, has_fixed_time: {}, infiniburn: &block_tags::{}, default_clock: {:?}, attributes: {attributes:?}, timelines: {:?} }},",
+            "DimensionType {{ name: {id:?}, min_y: {}, height: {}, has_skylight: {}, has_ceiling: {}, has_fixed_time: {}, ambient_light: {}, infiniburn: &block_tags::{}, default_clock: {:?}, attributes: {attributes:?}, timelines: {:?} }},",
             v["min_y"],
             v["height"],
             v["has_skylight"],
             v["has_ceiling"],
             v["has_fixed_time"].as_bool().unwrap_or(false),
+            f32_literal(&v["ambient_light"]),
             const_name(v["infiniburn"].as_str().unwrap().trim_start_matches('#')),
             v["default_clock"].as_str(),
             v["timelines"].to_string()

@@ -6,11 +6,15 @@ use crisp_protocol::nbt::Nbt;
 use super::animal::chicken::{self, Chicken};
 use super::ageable_mob::{AgeableMob, BABY_START_AGE};
 use super::ai::MobAi;
+use super::ai::goal::goal::Flag;
+use super::ai::navigation::path_navigation::PathNavigation;
+use crate::world::level::pathfinder::path_type::PathType;
 use super::animal::Animal;
 use super::attributes::Attribute;
 use super::data::{DataValue, ids};
 use super::entity_save::uuid_from_nbt;
-use super::living_entity::LivingEntity;
+use super::ai::goal::goal_selector::GoalSelector;
+use super::living_entity::{LivingEntity, get_comfortable_fall_distance};
 use super::{Entity, EntityDimensions, EntityId, LevelEntity};
 use crate::core::component::data_component_getter::DataComponentGetter;
 use crate::server::level::ServerLevel;
@@ -47,6 +51,7 @@ pub struct Mob {
     pub home_radius: i32,
     pub target: Option<EntityId>,
     pub ai: MobAi,
+    pathfinding_malus: [Option<f32>; PathType::COUNT],
     pub kind: MobKind,
 }
 
@@ -69,6 +74,7 @@ impl Mob {
             home_radius: -1,
             target: None,
             ai: MobAi::default(),
+            pathfinding_malus: [None; PathType::COUNT],
             kind,
         };
         let max_health = mob.living.attributes.value(Attribute::MaxHealth) as f32;
@@ -78,7 +84,55 @@ impl Mob {
         let y_rot = e.random.next_float() * std::f32::consts::TAU;
         e.set_y_rot(y_rot);
         e.y_head_rot = e.y_rot;
+        mob.ai.navigation = mob.create_navigation();
+        mob.register_goals();
         mob
+    }
+
+    fn register_goals(&mut self) {
+        match self.kind {
+            MobKind::Chicken(_) => Chicken::register_goals(&mut self.ai),
+        }
+    }
+
+    fn create_navigation(&self) -> PathNavigation {
+        PathNavigation::new(self.living.attributes.base_value(Attribute::FollowRange))
+    }
+
+    pub fn get_pathfinding_malus(&self, path_type: PathType) -> f32 {
+        self.pathfinding_malus[path_type as usize].unwrap_or_else(|| path_type.get_malus())
+    }
+
+    pub fn set_pathfinding_malus(&mut self, path_type: PathType, cost: f32) {
+        self.pathfinding_malus[path_type as usize] = Some(cost);
+    }
+
+    pub fn set_speed(&mut self, speed: f32) {
+        self.living.speed = speed;
+        self.living.zza = speed;
+    }
+
+    pub fn get_max_head_x_rot(&self) -> i32 {
+        40
+    }
+
+    fn update_control_flags(&mut self) {
+        let goal_selector = &mut self.ai.goal_selector;
+        goal_selector.set_control_flag(Flag::Move, true);
+        goal_selector.set_control_flag(Flag::Jump, true);
+        goal_selector.set_control_flag(Flag::Look, true);
+    }
+
+    pub fn get_head_rot_speed(&self) -> i32 {
+        10
+    }
+
+    pub fn has_home(&self) -> bool {
+        self.home_radius != -1
+    }
+
+    pub fn is_within_home(&self, pos: BlockPos) -> bool {
+        self.home_radius == -1 || self.home_position.dist_sqr(pos) < (self.home_radius * self.home_radius) as f64
     }
 
     pub fn set_health(&mut self, health: f32) {
@@ -560,6 +614,11 @@ impl ServerLevel {
 
     pub fn mob_tick(&mut self, id: EntityId) {
         self.living_entity_tick(id);
+        if let Some(mob) = self.mob_mut(id)
+            && mob.entity.tick_count % 5 == 0
+        {
+            mob.update_control_flags();
+        }
     }
 
     pub fn mob_base_tick(&mut self, id: EntityId) {
@@ -587,11 +646,66 @@ impl ServerLevel {
     }
 
     pub fn mob_server_ai_step(&mut self, id: EntityId) {
-        self.mob_mut(id).expect("a mob").living.no_action_time += 1;
+        let mob = self.mob_mut(id).expect("a mob");
+        mob.living.no_action_time += 1;
+        mob.ai.sensing.tick();
+        let id_based_tick_count = mob.entity.tick_count.wrapping_add(id);
+        if id_based_tick_count % 2 != 0 && mob.entity.tick_count > 1 {
+            self.with_target_selector(id, |selector, level| selector.tick_running_goals(level, id, false));
+            self.with_goal_selector(id, |selector, level| selector.tick_running_goals(level, id, false));
+        } else {
+            self.with_target_selector(id, |selector, level| selector.tick(level, id));
+            self.with_goal_selector(id, |selector, level| selector.tick(level, id));
+        }
+        if self.mob(id).is_none() {
+            return;
+        }
+        self.get_navigation(id, |navigation, level| navigation.tick(level, id));
         self.custom_server_ai_step(id);
         self.move_control_tick(id);
         self.look_control_tick(id);
         self.jump_control_tick(id);
+    }
+
+    fn with_goal_selector(&mut self, id: EntityId, f: impl FnOnce(&mut GoalSelector, &mut ServerLevel)) {
+        let Some(mob) = self.mob_mut(id) else { return };
+        let mut selector = std::mem::take(&mut mob.ai.goal_selector);
+        f(&mut selector, self);
+        if let Some(mob) = self.mob_mut(id) {
+            mob.ai.goal_selector = selector;
+        }
+    }
+
+    fn with_target_selector(&mut self, id: EntityId, f: impl FnOnce(&mut GoalSelector, &mut ServerLevel)) {
+        let Some(mob) = self.mob_mut(id) else { return };
+        let mut selector = std::mem::take(&mut mob.ai.target_selector);
+        f(&mut selector, self);
+        if let Some(mob) = self.mob_mut(id) {
+            mob.ai.target_selector = selector;
+        }
+    }
+
+    pub fn get_navigation<R>(&mut self, id: EntityId, f: impl FnOnce(&mut PathNavigation, &mut ServerLevel) -> R) -> R {
+        let mut navigation = std::mem::take(&mut self.mob_mut(id).expect("a mob").ai.navigation);
+        let result = f(&mut navigation, self);
+        if let Some(mob) = self.mob_mut(id) {
+            mob.ai.navigation = navigation;
+        }
+        result
+    }
+
+    pub fn get_max_fall_distance(&self, id: EntityId) -> i32 {
+        let mob = self.mob(id).expect("a mob");
+        if mob.target.is_none() {
+            return get_comfortable_fall_distance(0.0);
+        }
+        let max_health = mob.living.attributes.value(Attribute::MaxHealth) as f32;
+        let mut sacrifice = (mob.health - max_health * 0.33) as i32;
+        sacrifice -= (3 - self.difficulty as i32) * 4;
+        if sacrifice < 0 {
+            sacrifice = 0;
+        }
+        get_comfortable_fall_distance(sacrifice as f32)
     }
 
     fn custom_server_ai_step(&mut self, id: EntityId) {

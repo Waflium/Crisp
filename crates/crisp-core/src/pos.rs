@@ -121,6 +121,29 @@ impl BlockPos {
     pub fn center(self) -> Vec3 {
         Vec3::at_center_of(self)
     }
+
+    pub fn within_manhattan(origin: BlockPos, reach: i32) -> impl Iterator<Item = BlockPos> {
+        BlockPos::manhattan_ordered(origin, reach, reach, reach, reach)
+    }
+
+    pub fn within_box_by_manhattan_distance(origin: BlockPos, reach_x: i32, reach_y: i32, reach_z: i32) -> impl Iterator<Item = BlockPos> {
+        BlockPos::manhattan_ordered(origin, reach_x, reach_y, reach_z, reach_x + reach_y + reach_z)
+    }
+
+    fn manhattan_ordered(origin: BlockPos, reach_x: i32, reach_y: i32, reach_z: i32, max_depth: i32) -> impl Iterator<Item = BlockPos> {
+        (0..=max_depth).flat_map(move |depth| {
+            let max_x = reach_x.min(depth);
+            (-max_x..=max_x).flat_map(move |x| {
+                let max_y = reach_y.min(depth - x.abs());
+                (-max_y..=max_y).flat_map(move |y| {
+                    let z = depth - x.abs() - y.abs();
+                    let found = (z <= reach_z).then(|| BlockPos::new(origin.x + x, origin.y + y, origin.z + z));
+                    let mirrored = (z <= reach_z && z != 0).then(|| BlockPos::new(origin.x + x, origin.y + y, origin.z - z));
+                    found.into_iter().chain(mirrored)
+                })
+            })
+        })
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Default, PartialOrd, Ord)]

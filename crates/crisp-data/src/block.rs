@@ -106,6 +106,7 @@ pub(crate) mod flags {
     pub const HAS_OFFSET: u32 = 1 << 18;
     pub const FLUID_FALLING: u32 = 1 << 19;
     pub const SUFFOCATING_BY_TAG: u32 = 1 << 20;
+    pub const PATHFINDABLE_LAND: u32 = 1 << 21;
 }
 
 impl Block {
@@ -252,6 +253,9 @@ impl BlockState {
     }
     pub fn has_offset_function(self) -> bool {
         self.flag(flags::HAS_OFFSET)
+    }
+    pub fn is_pathfindable_land(self) -> bool {
+        self.flag(flags::PATHFINDABLE_LAND)
     }
 
     pub fn light_emission(self) -> u8 {

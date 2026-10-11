@@ -1,11 +1,15 @@
 use crisp_core::random::RandomSource;
+use crisp_core::{BlockPos, Vec3};
+use crisp_data::{blocks, game_rule};
 
 use super::ageable_mob::{AgeableMob, get_speed_up_seconds_when_feeding};
-use super::mob::MobKind;
-use super::{EntityId, entity_event};
+use super::mob::{Mob, MobKind};
+use crate::world::level::pathfinder::path_type::PathType;
+use super::{EntityId, LevelEntity, entity_event};
 use crate::server::level::ServerLevel;
 use crate::world::damagesource::DamageSource;
 use crate::world::item::ItemStack;
+use crate::world::level::path_navigation_region::PathNavigationRegion;
 use crate::world::{InteractionHand, InteractionResult};
 
 pub mod chicken;
@@ -15,6 +19,13 @@ pub struct Animal {
     pub ageable: AgeableMob,
     pub in_love: i32,
     pub love_cause: Option<u128>,
+}
+
+impl Animal {
+    pub fn init(mob: &mut Mob) {
+        mob.set_pathfinding_malus(PathType::FireInNeighbor, 16.0);
+        mob.set_pathfinding_malus(PathType::Fire, -1.0);
+    }
 }
 
 impl ServerLevel {
@@ -67,6 +78,50 @@ impl ServerLevel {
             animal.love_cause = love_cause;
         }
         self.broadcast_entity_event(id, entity_event::IN_LOVE_HEARTS);
+    }
+
+    pub fn animal_get_walk_target_value(&self, pos: BlockPos) -> f32 {
+        if PathNavigationRegion::new(self).get_block_state(pos.below()).is_block(blocks::GRASS_BLOCK) { 10.0 } else { self.get_pathfinding_cost_from_light_levels(pos) }
+    }
+
+    pub fn is_in_love(&self, id: EntityId) -> bool {
+        self.mob(id).and_then(|mob| mob.animal()).is_some_and(|animal| animal.in_love > 0)
+    }
+
+    pub fn reset_love(&mut self, id: EntityId) {
+        self.mob_mut(id).expect("an animal").animal_mut().expect("an animal").in_love = 0;
+    }
+
+    pub fn can_mate(&self, id: EntityId, partner: EntityId) -> bool {
+        if partner == id {
+            return false;
+        }
+        let same_class = matches!((&self.mob(id).expect("an animal").kind, self.mob(partner).map(|mob| &mob.kind)), (MobKind::Chicken(_), Some(MobKind::Chicken(_))));
+        same_class && self.is_in_love(id) && self.is_in_love(partner)
+    }
+
+    pub fn spawn_child_from_breeding(&mut self, id: EntityId, partner: EntityId) {
+        let Some(mut offspring) = self.get_breed_offspring(id, partner) else { return };
+        offspring.set_baby(true);
+        let e = self.entity(id);
+        offspring.entity.snap_to(e.x(), e.y(), e.z(), 0.0, 0.0);
+        self.finalize_spawn_child_from_breeding(id, partner);
+        self.add_fresh_entity(LevelEntity::Mob(offspring));
+    }
+
+    pub fn finalize_spawn_child_from_breeding(&mut self, id: EntityId, partner: EntityId) {
+        self.set_age(id, 6000);
+        self.set_age(partner, 6000);
+        self.reset_love(id);
+        self.reset_love(partner);
+        self.broadcast_entity_event(id, entity_event::IN_LOVE_HEARTS);
+        if self.game_rules.get_bool(game_rule::MOB_DROPS) {
+            let e = self.entity_mut(id);
+            let value = e.random.next_int_bounded(7) + 1;
+            let pos = e.position();
+            let orb = self.new_experience_orb(pos, Vec3::ZERO, value);
+            self.add_fresh_entity(LevelEntity::ExperienceOrb(orb));
+        }
     }
 
     pub fn animal_get_base_experience_reward(&mut self, id: EntityId) -> i32 {
@@ -197,6 +252,88 @@ mod tests {
         assert_eq!(mob.entity.position(), level.entity(chicken).position());
         assert!(matches!(mob.entity.data.get(chicken::DATA_VARIANT), DataValue::ChickenVariant(v) if *v == cold));
         assert_eq!(held_count(&level, player), 1);
+    }
+
+    #[test]
+    fn chickens_follow_players_holding_seeds() {
+        let (mut level, player, chicken) = setup(0, ItemStack::new(items::WHEAT_SEEDS, 1));
+        level.entity_mut(chicken).set_pos(Vec3::new(7.5, -60.0, 0.5));
+        for _ in 0..100 {
+            level.tick();
+        }
+        let distance = level.entity(chicken).distance_to_sqr(level.entity(player));
+        assert!(distance < 2.5 * 2.5 + 1.0, "chicken stayed {distance} away");
+    }
+
+    #[test]
+    fn tempted_chickens_walk_vanillas_path() {
+        use crate::world::level::update_flags::UPDATE_CLIENTS;
+        let expected: Vec<Vec3> = include_str!("tempt_oracle.txt")
+            .lines()
+            .map(|line| {
+                let v: Vec<f64> = line.split(' ').map(|n| n.parse().unwrap()).collect();
+                Vec3::new(v[0], v[1], v[2])
+            })
+            .collect();
+        let mut level = crate::server::level::testing::level();
+        let mut fill = |level: &mut ServerLevel, from: (i32, i32, i32), to: (i32, i32, i32), block: crisp_data::Block| {
+            for x in from.0..=to.0 {
+                for y in from.1..=to.1 {
+                    for z in from.2..=to.2 {
+                        level.set_block(crisp_core::BlockPos::new(x, y, z), block.default_state(), UPDATE_CLIENTS);
+                    }
+                }
+            }
+        };
+        fill(&mut level, (-2, 149, -6), (16, 149, 6), crisp_data::blocks::STONE);
+        fill(&mut level, (7, 150, -2), (7, 151, 2), crisp_data::blocks::STONE);
+        fill(&mut level, (9, 150, -6), (10, 150, 6), crisp_data::blocks::STONE);
+        fill(&mut level, (5, 150, -4), (5, 150, -1), crisp_data::blocks::OAK_FENCE);
+        let player = testing::player(&mut level, Vec3::new(12.5, 150.0, 0.5), 0.0, 0.0);
+        level.player_mut(player).set_item_in_hand(InteractionHand::MainHand, Some(ItemStack::new(items::WHEAT_SEEDS, 1)));
+        let mut mob = Chicken::create();
+        mob.entity.snap_to(3.5, 150.0, 0.5, 0.0, 0.0);
+        mob.entity.y_head_rot = 0.0;
+        mob.living.y_body_rot = 0.0;
+        let chicken = mob.entity.id;
+        level.add_fresh_entity(LevelEntity::Mob(Box::new(mob)));
+        let mut actual = vec![level.entity(chicken).position()];
+        for _ in 0..expected.len() {
+            level.tick();
+            actual.push(level.entity(chicken).position());
+        }
+        let n = expected.len() - 4;
+        let aligned = (0..4).any(|skip| actual[skip..skip + n] == expected[..n] || actual[..n] == expected[skip..skip + n]);
+        assert!(aligned, "the chicken left vanilla's path: {:?}", &actual[..12]);
+    }
+
+    #[test]
+    fn chickens_ignore_players_without_seeds() {
+        let (mut level, _player, chicken) = setup(0, ItemStack::new(items::STICK, 1));
+        level.entity_mut(chicken).set_pos(Vec3::new(7.5, -60.0, 0.5));
+        level.tick();
+        assert!(!level.mob(chicken).unwrap().ai.goal_selector.get_available_goals().iter().any(|g| g.is_running() && matches!(g.get_goal(), crate::world::entity::ai::goal::goal::Goal::Tempt(_))));
+    }
+
+    #[test]
+    fn chickens_in_love_breed() {
+        let (mut level, _player, chicken) = setup(0, ItemStack::new(items::STICK, 1));
+        let mut other = Chicken::create();
+        other.entity.set_pos(Vec3::new(2.5, -60.0, 2.0));
+        let partner = other.entity.id;
+        level.add_fresh_entity(LevelEntity::Mob(Box::new(other)));
+        level.set_in_love(chicken, None);
+        level.set_in_love(partner, None);
+        for _ in 0..200 {
+            level.tick();
+        }
+        let babies = level.entities.values().filter(|e| matches!(e, LevelEntity::Mob(mob) if mob.is_baby())).count();
+        assert_eq!(babies, 1);
+        for parent in [chicken, partner] {
+            let animal = level.mob(parent).unwrap().animal().unwrap();
+            assert!(animal.ageable.age > 5800 && animal.ageable.age < 6000);
+            assert_eq!(animal.in_love, 0);
+        }
     }
 
     #[test]

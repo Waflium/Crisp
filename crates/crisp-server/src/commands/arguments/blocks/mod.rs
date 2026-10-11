@@ -38,7 +38,8 @@ impl BlockInput {
             if entity.save_without_metadata() != before {
                 affected = true;
                 level.block_entity_set_changed(pos);
-                level.send_block_updated(pos);
+                let state = level.block_state(pos);
+                level.send_block_updated(pos, state, state);
             }
         }
         affected

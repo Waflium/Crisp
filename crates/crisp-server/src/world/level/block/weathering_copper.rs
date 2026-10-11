@@ -81,7 +81,7 @@ fn next_state(state: BlockState, level: &mut ServerLevel, pos: BlockPos) -> Opti
     let own_age = age(state.block())?;
     let mut same_age_count = 0;
     let mut older_count = 0;
-    for neighbour in within_manhattan(pos, 4) {
+    for neighbour in BlockPos::within_manhattan(pos, 4) {
         if neighbour == pos {
             continue;
         }
@@ -99,20 +99,6 @@ fn next_state(state: BlockState, level: &mut ServerLevel, pos: BlockPos) -> Opti
     let chance_modifier = if own_age == WeatherState::Unaffected { 0.75 } else { 1.0 };
     let actual_chance = chance * chance * chance_modifier;
     if level.random.next_float() < actual_chance { next_block(state.block()).map(|next| with_properties_of(next, state)) } else { None }
-}
-
-fn within_manhattan(origin: BlockPos, reach: i32) -> impl Iterator<Item = BlockPos> {
-    (0..=reach).flat_map(move |depth| {
-        (-depth..=depth).flat_map(move |x| {
-            let max_y = depth - x.abs();
-            (-max_y..=max_y).flat_map(move |y| {
-                let z = depth - x.abs() - y.abs();
-                let first = BlockPos::new(origin.x + x, origin.y + y, origin.z + z);
-                let mirrored = (z != 0).then(|| BlockPos::new(origin.x + x, origin.y + y, origin.z - z));
-                std::iter::once(first).chain(mirrored)
-            })
-        })
-    })
 }
 
 #[cfg(test)]
@@ -137,7 +123,7 @@ mod tests {
 
     #[test]
     fn manhattan_order_and_count() {
-        let all: Vec<BlockPos> = within_manhattan(BlockPos::ZERO, 4).collect();
+        let all: Vec<BlockPos> = BlockPos::within_manhattan(BlockPos::ZERO, 4).collect();
         assert_eq!(all.len(), 129);
         assert_eq!(&all[..3], &[BlockPos::new(0, 0, 0), BlockPos::new(-1, 0, 0), BlockPos::new(0, -1, 0)]);
         assert_eq!(&all[3..5], &[BlockPos::new(0, 0, 1), BlockPos::new(0, 0, -1)]);
