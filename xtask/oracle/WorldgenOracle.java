@@ -379,9 +379,16 @@ public final class WorldgenOracle {
 
         @Override
         public FeatureFlagSet enabledFeatures() {
-            boolean entity = System.getenv("ORACLE_STRUCTURES") != null
+            boolean entity = System.getenv("ORACLE_NO_ENTITIES") != null
                 && StackWalker.getInstance().walk(frames -> frames.limit(6).anyMatch(frame -> frame.getClassName().startsWith("net.minecraft.world.entity.")));
             return entity ? FeatureFlagSet.of() : FeatureFlags.DEFAULT_FLAGS;
+        }
+
+        static int nextEntityId;
+
+        @Override
+        public int getNextEntityId() {
+            return ++nextEntityId;
         }
 
         static net.minecraft.server.level.ServerChunkCache chunkSource;
