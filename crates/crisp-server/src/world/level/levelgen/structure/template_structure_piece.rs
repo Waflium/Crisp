@@ -30,7 +30,7 @@ impl TemplatePlaceSettings {
             rotation_pivot: self.rotation_pivot,
             bounding_box,
             apply_waterlogging: self.apply_waterlogging,
-            processors: self.processors,
+            processors: self.processors.iter().collect(),
             ..StructurePlaceSettings::default()
         }
     }

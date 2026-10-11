@@ -14,7 +14,7 @@ pub struct StructurePlaceSettings<'p> {
     pub bounding_box: Option<BoundingBox>,
     pub apply_waterlogging: bool,
     pub random: bool,
-    pub processors: &'p [StructureProcessor],
+    pub processors: Vec<&'p StructureProcessor>,
     pub known_shape: bool,
 }
 
@@ -27,7 +27,7 @@ impl Default for StructurePlaceSettings<'_> {
             bounding_box: None,
             apply_waterlogging: true,
             random: false,
-            processors: &[],
+            processors: Vec::new(),
             known_shape: false,
         }
     }

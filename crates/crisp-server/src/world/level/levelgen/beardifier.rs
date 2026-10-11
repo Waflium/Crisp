@@ -4,7 +4,10 @@ use crisp_core::{ChunkPos, mth};
 
 use super::density_function::DensityVolume;
 use super::structure::BoundingBox;
+use super::structure::pools::jigsaw_junction::JigsawJunction;
+use super::structure::pools::structure_template_pool::Projection;
 use super::structure::structure_start::StructureStart;
+use super::structure::structures::Piece;
 use super::structure::terrain_adjustment::TerrainAdjustment;
 
 const BEARD_KERNEL_SIZE: i32 = 24;
@@ -27,12 +30,6 @@ pub struct Rigid {
     pub ground_level_delta: i32,
 }
 
-pub struct JigsawJunction {
-    pub source_x: i32,
-    pub source_ground_y: i32,
-    pub source_z: i32,
-}
-
 pub struct Beardifier {
     pieces: Vec<Rigid>,
     junctions: Vec<JigsawJunction>,
@@ -51,17 +48,46 @@ impl Beardifier {
         if structure_starts.is_empty() {
             return None;
         }
+        let chunk_start_block_x = chunk_pos.min_block_x();
+        let chunk_start_block_z = chunk_pos.min_block_z();
         let mut rigids = Vec::new();
-        let junctions = Vec::new();
+        let mut junctions = Vec::new();
         let mut any_piece_bounding_box = None;
         for start in structure_starts {
             let terrain_adjustment = start.structure.value().terrain_adaptation();
             let container = start.piece_container.lock().unwrap();
             for piece in &container.pieces {
-                let piece = piece.piece();
-                if piece.is_close_to_chunk(chunk_pos, 12) {
-                    rigids.push(Rigid { bounding_box: piece.bounding_box, terrain_adjustment, ground_level_delta: 0 });
-                    any_piece_bounding_box = include_bounding_box(any_piece_bounding_box, &piece.bounding_box);
+                if !piece.piece().is_close_to_chunk(chunk_pos, 12) {
+                    continue;
+                }
+                match piece {
+                    Piece::Jigsaw(pool_piece) => {
+                        if pool_piece.element.get_projection() == Projection::Rigid {
+                            rigids.push(Rigid {
+                                bounding_box: pool_piece.piece.bounding_box,
+                                terrain_adjustment,
+                                ground_level_delta: pool_piece.get_ground_level_delta(),
+                            });
+                            any_piece_bounding_box = include_bounding_box(any_piece_bounding_box, &pool_piece.piece.bounding_box);
+                        }
+                        for junction in &pool_piece.junctions {
+                            let (junction_x, junction_z) = (junction.source_x, junction.source_z);
+                            if junction_x > chunk_start_block_x - 12
+                                && junction_z > chunk_start_block_z - 12
+                                && junction_x < chunk_start_block_x + 15 + 12
+                                && junction_z < chunk_start_block_z + 15 + 12
+                            {
+                                junctions.push(junction.clone());
+                                let junction_box = BoundingBox::of(crisp_core::BlockPos::new(junction_x, junction.source_ground_y, junction_z));
+                                any_piece_bounding_box = include_bounding_box(any_piece_bounding_box, &junction_box);
+                            }
+                        }
+                    }
+                    other => {
+                        let piece = other.piece();
+                        rigids.push(Rigid { bounding_box: piece.bounding_box, terrain_adjustment, ground_level_delta: 0 });
+                        any_piece_bounding_box = include_bounding_box(any_piece_bounding_box, &piece.bounding_box);
+                    }
                 }
             }
         }

@@ -53,7 +53,7 @@ impl TemplateFeature {
         let settings = StructurePlaceSettings {
             rotation,
             random: true,
-            processors: self.processors.as_ref().map_or(&[], |processors| &processors.value().list),
+            processors: self.processors.as_ref().map_or_else(Vec::new, |processors| processors.value().list.iter().collect()),
             ..StructurePlaceSettings::default()
         };
         template.place_in_world(level, pos, pos, &settings, random, 3)

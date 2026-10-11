@@ -2,6 +2,7 @@ mod abstract_cauldron_block;
 mod abstract_furnace_block;
 mod anvil_block;
 mod bamboo_sapling_block;
+mod bamboo_stalk_block;
 mod barrel_block;
 mod beehive_block;
 pub mod chest_block;
@@ -537,6 +538,7 @@ fn for_class(class: &str, block: Block) -> Option<Box<dyn BlockBehaviour>> {
     Some(match class {
         "CraftingTableBlock" => Box::new(CraftingTableBlock),
         "BambooSaplingBlock" => Box::new(bamboo_sapling_block::BambooSaplingBlock),
+        "BambooStalkBlock" => Box::new(bamboo_stalk_block::BambooStalkBlock),
         "CandleCakeBlock" => Box::new(candle_cake_block::CandleCakeBlock),
         "PistonHeadBlock" => Box::new(piston_head_block::PistonHeadBlock),
         "LightBlock" => Box::new(light_block::LightBlock),

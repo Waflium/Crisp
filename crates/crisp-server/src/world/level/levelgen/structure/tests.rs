@@ -39,6 +39,9 @@ fn structure_starts_match_vanilla_dump() {
             }
         }
     }
+    if let Ok(out) = std::env::var("CRISP_STARTS_OUT") {
+        std::fs::write(out, actual.iter().map(|line| format!("{line}\n")).collect::<String>()).unwrap();
+    }
     let missing: Vec<_> = expected.difference(&actual).collect();
     let extra: Vec<_> = actual.difference(&expected).collect();
     eprintln!("{} expected, {} actual, {} missing, {} extra", expected.len(), actual.len(), missing.len(), extra.len());

@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use crisp_core::random::RandomSource;
 use crisp_core::shapes::BitSetDiscreteVoxelShape;
 use crisp_core::{BlockPos, Direction};
@@ -19,15 +21,83 @@ pub struct StructureTemplate {
 
 pub struct Palette {
     blocks: Vec<StructureBlockInfo>,
+    cached_jigsaws: std::sync::OnceLock<Vec<JigsawBlockInfo>>,
 }
 
 impl Palette {
     pub fn blocks(&self) -> &[StructureBlockInfo] {
         &self.blocks
     }
+
+    pub fn jigsaws(&self) -> &[JigsawBlockInfo] {
+        self.cached_jigsaws.get_or_init(|| self.blocks.iter().filter(|info| info.state.is_block(blocks::JIGSAW)).map(JigsawBlockInfo::parse).collect())
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum JointType {
+    Rollable,
+    Aligned,
 }
 
 #[derive(Clone)]
+pub struct JigsawBlockInfo {
+    pub pos: BlockPos,
+    pub state: BlockState,
+    pub joint_type: JointType,
+    pub name: Option<Arc<str>>,
+    pub pool: Arc<str>,
+    pub target: Arc<str>,
+    pub placement_priority: i32,
+    pub selection_priority: i32,
+}
+
+pub fn get_front_facing(state: BlockState) -> Direction {
+    state.get(crisp_data::properties::ORIENTATION).front()
+}
+
+pub fn get_top_facing(state: BlockState) -> Direction {
+    state.get(crisp_data::properties::ORIENTATION).top()
+}
+
+pub fn can_attach(source: &JigsawBlockInfo, target: &JigsawBlockInfo) -> bool {
+    let source_front = get_front_facing(source.state);
+    let target_front = get_front_facing(target.state);
+    let source_top = get_top_facing(source.state);
+    let target_top = get_top_facing(target.state);
+    let rollable = source.joint_type == JointType::Rollable;
+    source_front == target_front.opposite() && (rollable || source_top == target_top) && target.name.as_ref().is_none_or(|name| source.target == *name)
+}
+
+impl JigsawBlockInfo {
+    fn parse(info: &StructureBlockInfo) -> JigsawBlockInfo {
+        let nbt = info.nbt.as_ref().expect("jigsaw nbt");
+        let string = |key: &str| nbt.get(key).and_then(Nbt::as_str).map(crate::world::level::levelgen::blockpredicates::block_predicate::resource);
+        let int = |key: &str| match nbt.get(key) {
+            Some(Nbt::Int(v)) => *v,
+            _ => 0,
+        };
+        let joint_type = match nbt.get("joint").and_then(Nbt::as_str) {
+            Some("rollable") => JointType::Rollable,
+            Some("aligned") => JointType::Aligned,
+            _ => {
+                if get_front_facing(info.state).axis().is_horizontal() { JointType::Aligned } else { JointType::Rollable }
+            }
+        };
+        JigsawBlockInfo {
+            pos: info.pos,
+            state: info.state,
+            joint_type,
+            name: Some(string("name").unwrap_or_else(|| "minecraft:empty".to_owned()).into()),
+            pool: string("pool").unwrap_or_else(|| "minecraft:empty".to_owned()).into(),
+            target: string("target").unwrap_or_else(|| "minecraft:empty".to_owned()).into(),
+            placement_priority: int("placement_priority"),
+            selection_priority: int("selection_priority"),
+        }
+    }
+}
+
+#[derive(Clone, PartialEq)]
 pub struct StructureBlockInfo {
     pub pos: BlockPos,
     pub state: BlockState,
@@ -192,6 +262,22 @@ impl StructureTemplate {
         true
     }
 
+    pub fn get_jigsaws(&self, position: BlockPos, rotation: Rotation) -> Vec<JigsawBlockInfo> {
+        if self.palettes.is_empty() {
+            return Vec::new();
+        }
+        let settings = StructurePlaceSettings { rotation, ..StructurePlaceSettings::default() };
+        let palette = settings.get_random_palette(&self.palettes, position, &mut crisp_core::random::LegacyRandomSource::new(0));
+        palette
+            .jigsaws()
+            .iter()
+            .map(|jigsaw| {
+                let pos = StructureTemplate::calculate_relative_position(&settings, jigsaw.pos).offset(position.x, position.y, position.z);
+                JigsawBlockInfo { pos, state: block::rotate(jigsaw.state, rotation), ..jigsaw.clone() }
+            })
+            .collect()
+    }
+
     pub fn filter_blocks<R: RandomSource>(&self, position: BlockPos, settings: &StructurePlaceSettings, block: crisp_data::Block, random: &mut R) -> Vec<StructureBlockInfo> {
         if self.palettes.is_empty() {
             return Vec::new();
@@ -246,7 +332,7 @@ fn load_palette(palette_list: &[Nbt], block_list: &[Nbt]) -> Palette {
         let nbt = block_tag.get("nbt").filter(|nbt| matches!(nbt, Nbt::Compound(_))).cloned();
         add_to_lists(StructureBlockInfo { pos: BlockPos::new(x, y, z), state, nbt }, &mut full_block_list, &mut block_entities_list, &mut other_blocks_list);
     }
-    Palette { blocks: build_info_list(full_block_list, block_entities_list, other_blocks_list) }
+    Palette { blocks: build_info_list(full_block_list, block_entities_list, other_blocks_list), cached_jigsaws: std::sync::OnceLock::new() }
 }
 
 pub fn update_shape_at_edge(level: &mut WorldGenRegion, update_mode: i32, shape: &BitSetDiscreteVoxelShape, start_x: i32, start_y: i32, start_z: i32) {
@@ -284,22 +370,28 @@ pub fn process_block_infos<R: RandomSource>(
     block_info_list: &[StructureBlockInfo],
     random: &mut R,
 ) -> Vec<StructureBlockInfo> {
+    let mut original_block_info_list: Vec<&StructureBlockInfo> = Vec::new();
     let mut processed_block_info_list = Vec::with_capacity(block_info_list.len());
+    let process_only_in_current_chunk = !settings.processors.iter().any(|processor| processor.evaluates_entire_piece_state());
     let chunk_bb = settings.bounding_box;
     for block_info in block_info_list {
         let block_pos = StructureTemplate::calculate_relative_position(settings, block_info.pos);
         let block_pos = block_pos.offset(position.x, position.y, position.z);
-        if chunk_bb.is_some_and(|chunk_bb| !chunk_bb.is_inside(block_pos)) {
+        if process_only_in_current_chunk && chunk_bb.is_some_and(|chunk_bb| !chunk_bb.is_inside(block_pos)) {
             continue;
         }
         let mut processed_block_info = Some(StructureBlockInfo { pos: block_pos, state: block_info.state, nbt: block_info.nbt.clone() });
-        for processor in settings.processors {
+        for processor in &settings.processors {
             let Some(info) = processed_block_info else { break };
             processed_block_info = processor.process_block(level, position, reference_pos, block_info.pos, info, settings, random);
         }
         if let Some(processed_block_info) = processed_block_info {
             processed_block_info_list.push(processed_block_info);
+            original_block_info_list.push(block_info);
         }
+    }
+    for processor in &settings.processors {
+        processor.finalize_processing(level, position, reference_pos, &original_block_info_list, &mut processed_block_info_list, settings, random);
     }
     processed_block_info_list
 }

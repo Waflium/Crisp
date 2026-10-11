@@ -118,6 +118,8 @@ impl BoundingBox {
 
 pub mod pieces;
 pub mod placement;
+pub mod pool_element_structure_piece;
+pub mod pools;
 pub mod scattered_feature_piece;
 pub mod single_piece_structure;
 pub mod structure;

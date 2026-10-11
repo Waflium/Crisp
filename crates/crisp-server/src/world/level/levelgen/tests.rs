@@ -150,10 +150,20 @@ impl StructureHarness {
 
 fn generate_chunk(generator: &NoiseBasedChunkGenerator, pos: ChunkPos, structures: &mut Option<&mut StructureHarness>) -> LevelChunk {
     let dimension = overworld();
-    let mut chunk = generator.generate(pos, dimension).into_level_chunk(dimension);
-    if let Some(harness) = structures {
-        chunk.structures = harness.terrain_structures(generator, pos);
-    }
+    let Some(harness) = structures else {
+        return generator.generate(pos, dimension).into_level_chunk(dimension);
+    };
+    let chunk_structures = harness.terrain_structures(generator, pos);
+    let adapted: Vec<Arc<StructureStart>> = harness
+        .starts_for_center(generator, &chunk_structures)
+        .into_iter()
+        .enumerate()
+        .filter(|(structure, _)| super::structure::structure::StructureHolder(*structure as u16).value().terrain_adaptation() != super::structure::terrain_adjustment::TerrainAdjustment::None)
+        .flat_map(|(_, starts)| starts)
+        .collect();
+    let beardifier = super::beardifier::Beardifier::for_structures_in_chunk(&adapted, pos).map(Arc::new);
+    let mut chunk = generator.generate_with_beardifier(pos, dimension, beardifier).into_level_chunk(dimension);
+    chunk.structures = chunk_structures;
     chunk
 }
 
@@ -233,8 +243,7 @@ fn features_match_vanilla_dump() {
                     i += 1;
                     let actual = chunk.block_state(crisp_core::BlockPos::new(pos.min_block_x() + x, y, pos.min_block_z() + z));
                     if actual.id() != expected {
-                        let expected = crisp_data::BlockState::by_id(expected).map_or("?".into(), |s| s.block().name().to_string());
-                        *mismatches.entry((expected, actual.block().name().to_string())).or_default() += 1;
+                        let expected = crisp_data::BlockState::by_id(expected).map_or("?".into(), |s| s.block().name().to_string());                        *mismatches.entry((expected, actual.block().name().to_string())).or_default() += 1;
                     }
                 }
             }

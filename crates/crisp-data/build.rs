@@ -96,6 +96,7 @@ fn main() -> anyhow::Result<()> {
     embed_json(&mut out, &data, "worldgen/carver", "CARVERS")?;
     embed_json(&mut out, &data, "worldgen/structure", "STRUCTURES")?;
     embed_json(&mut out, &data, "worldgen/structure_set", "STRUCTURE_SETS")?;
+    embed_json(&mut out, &data, "worldgen/template_pool", "TEMPLATE_POOLS")?;
     embed_json(&mut out, &data, "worldgen/feature", "FEATURES")?;
     embed_json(&mut out, &data, "worldgen/placed_feature", "PLACED_FEATURES")?;
     embed_json(&mut out, &data, "worldgen/block_state_provider", "BLOCK_STATE_PROVIDERS")?;

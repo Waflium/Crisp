@@ -11,15 +11,22 @@ use super::rule_test::RuleTest;
 use super::structure_place_settings::StructurePlaceSettings;
 use super::structure_template::StructureBlockInfo;
 use crate::server::level::world_gen_region::WorldGenRegion;
-use crate::util::valueproviders::float;
+use crate::util::valueproviders::{IntProvider, float};
+use crate::world::level::chunk::HeightmapType;
+use crate::world::level::levelgen::placement::placement_modifier::parse_heightmap;
+use crisp_data::blocks;
 use crate::world::level::levelgen::blockpredicates::block_predicate::{BlockSet, resource};
 use crate::world::level::levelgen::parse_block_state;
 
 pub enum StructureProcessor {
     BlockIgnore(Vec<crisp_data::Block>),
     BlockRot { rottable_blocks: Option<BlockSet>, integrity: f32 },
+    Gravity { heightmap: HeightmapType, offset: i32 },
+    JigsawReplacement,
     ProtectedBlocks(BlockSet),
     Rule(Vec<ProcessorRule>),
+    Capped { delegate: Box<StructureProcessor>, limit: IntProvider },
+    Nop,
     NotImplemented,
 }
 
@@ -124,6 +131,16 @@ impl StructureProcessor {
                     .map(|state| parse_block_state(state).map(|state| state.block()))
                     .collect::<Result<_, _>>()?,
             ),
+            "gravity" => StructureProcessor::Gravity {
+                heightmap: parse_heightmap(json.get("heightmap").and_then(Value::as_str).unwrap_or("WORLD_SURFACE_WG"))?,
+                offset: json.get("offset").and_then(Value::as_i64).unwrap_or(0) as i32,
+            },
+            "jigsaw_replacement" => StructureProcessor::JigsawReplacement,
+            "capped" => StructureProcessor::Capped {
+                delegate: Box::new(StructureProcessor::parse(json.get("delegate").ok_or("missing delegate")?)?),
+                limit: IntProvider::parse(json.get("limit").ok_or("missing limit")?)?,
+            },
+            "nop" => StructureProcessor::Nop,
             "block_rot" => StructureProcessor::BlockRot {
                 rottable_blocks: json.get("rottable_blocks").map(BlockSet::parse).transpose()?,
                 integrity: float(json.get("integrity").ok_or("missing integrity")?)?,
@@ -168,9 +185,89 @@ impl StructureProcessor {
                 }
                 Some(processed_block_info)
             }
-            StructureProcessor::NotImplemented => Some(processed_block_info),
+            StructureProcessor::Gravity { heightmap, offset } => {
+                let pos = processed_block_info.pos;
+                let height = level.get_height(*heightmap, pos.x, pos.z) + offset;
+                let delta = template_relative_pos.y;
+                Some(StructureBlockInfo { pos: BlockPos::new(pos.x, height + delta, pos.z), state: processed_block_info.state, nbt: processed_block_info.nbt })
+            }
+            StructureProcessor::JigsawReplacement => {
+                if !processed_block_info.state.is_block(blocks::JIGSAW) {
+                    return Some(processed_block_info);
+                }
+                let Some(nbt) = &processed_block_info.nbt else {
+                    warn!("Jigsaw block at {:?} is missing nbt, will not replace", _target_position);
+                    return Some(processed_block_info);
+                };
+                let state_string = nbt.get("final_state").and_then(Nbt::as_str).unwrap_or("minecraft:air");
+                let Some(block_state) = parse_block_state_string(state_string) else {
+                    error!("Failed to parse jigsaw replacement state '{state_string}' at {:?}", _target_position);
+                    return None;
+                };
+                if block_state.is_block(blocks::STRUCTURE_VOID) {
+                    None
+                } else {
+                    Some(StructureBlockInfo { pos: processed_block_info.pos, state: block_state, nbt: None })
+                }
+            }
+            StructureProcessor::Capped { .. } | StructureProcessor::Nop | StructureProcessor::NotImplemented => Some(processed_block_info),
         }
     }
+
+    pub fn evaluates_entire_piece_state(&self) -> bool {
+        matches!(self, StructureProcessor::Capped { .. })
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn finalize_processing<R: RandomSource>(
+        &self,
+        level: &mut WorldGenRegion,
+        position: BlockPos,
+        reference_pos: BlockPos,
+        original_block_info_list: &[&StructureBlockInfo],
+        processed_block_info_list: &mut [StructureBlockInfo],
+        settings: &StructurePlaceSettings,
+        random: &mut R,
+    ) {
+        let StructureProcessor::Capped { delegate, limit } = self else { return };
+        if limit.max_inclusive() == 0 || processed_block_info_list.is_empty() {
+            return;
+        }
+        if original_block_info_list.len() != processed_block_info_list.len() {
+            return;
+        }
+        let mut positional = LegacyRandomSource::new(level.get_seed()).fork_positional().at(position.x, position.y, position.z);
+        let max_to_replace = limit.sample(&mut positional).min(processed_block_info_list.len() as i32);
+        if max_to_replace < 1 {
+            return;
+        }
+        let mut indices: Vec<usize> = (0..processed_block_info_list.len()).collect();
+        for i in (2..=indices.len()).rev() {
+            let swap_to = positional.next_int_bounded(i as i32) as usize;
+            indices.swap(i - 1, swap_to);
+        }
+        let mut replaced = 0;
+        for index in indices {
+            if replaced >= max_to_replace {
+                break;
+            }
+            let original_block_info = original_block_info_list[index];
+            let processed_block_info = processed_block_info_list[index].clone();
+            let maybe_altered = delegate.process_block(level, position, reference_pos, original_block_info.pos, processed_block_info.clone(), settings, random);
+            if let Some(maybe_altered) = maybe_altered
+                && maybe_altered != processed_block_info
+            {
+                replaced += 1;
+                processed_block_info_list[index] = maybe_altered;
+            }
+        }
+    }
+}
+
+pub fn parse_block_state_string(state_string: &str) -> Option<BlockState> {
+    let utf16: Vec<u16> = state_string.encode_utf16().collect();
+    let mut reader = crate::commands::brigadier::StringReader::new(&utf16);
+    crate::commands::arguments::blocks::block_state_parser::parse_for_block(&mut reader, true).ok().map(|result| result.state)
 }
 
 pub struct StructureProcessorList {
@@ -204,6 +301,13 @@ impl StructureProcessorListHolder {
             }
             Value::Array(list) => Ok(StructureProcessorListHolder::Direct(StructureProcessorList { list: list.iter().map(StructureProcessor::parse).collect::<Result<_, _>>()? })),
             other => Ok(StructureProcessorListHolder::Direct(StructureProcessorList::parse(other)?)),
+        }
+    }
+
+    pub fn to_nbt(&self) -> Nbt {
+        match self {
+            StructureProcessorListHolder::Reference(index) => Nbt::String(crisp_data::PROCESSOR_LISTS[*index].0.to_owned()),
+            StructureProcessorListHolder::Direct(_) => Nbt::Compound(vec![("processors".to_owned(), Nbt::List(Vec::new()))]),
         }
     }
 

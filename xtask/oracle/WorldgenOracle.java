@@ -70,6 +70,7 @@ import net.minecraft.world.ticks.TickContainerAccess;
 import net.minecraft.world.ticks.WorldGenTickAccess;
 import sun.misc.Unsafe;
 import net.minecraft.world.level.levelgen.Aquifer;
+import net.minecraft.world.level.levelgen.Beardifier;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.level.levelgen.NoiseBasedChunkGenerator;
 import net.minecraft.world.level.levelgen.NoiseChunk;
@@ -118,6 +119,8 @@ public final class WorldgenOracle {
         registries = RegistryDataLoader.load(resources, lookups, RegistryDataLoader.WORLD_REGISTRIES, Runnable::run).join();
         staticTags.forEach(Registry.PendingTags::apply);
         fullRegistries = layers.replaceFrom(RegistryLayer.WORLD, registries).compositeAccess();
+        net.minecraft.core.registries.BuiltInRegistries.DATA_COMPONENT_INITIALIZERS.build(fullRegistries)
+            .forEach(net.minecraft.core.component.DataComponentInitializers.PendingComponents::apply);
         containers = PalettedContainerFactory.create(registries);
     }
 
@@ -153,6 +156,10 @@ public final class WorldgenOracle {
     }
 
     private static ProtoChunk terrain(World world, ChunkPos pos, Map<Long, ProtoChunk> biomeChunks, boolean carvers) throws Exception {
+        return terrain(world, pos, biomeChunks, carvers, null);
+    }
+
+    private static ProtoChunk terrain(World world, ChunkPos pos, Map<Long, ProtoChunk> biomeChunks, boolean carvers, Beardifier beardifier) throws Exception {
         ProtoChunk[] region = new ProtoChunk[9];
         for (int dz = -1; dz <= 1; dz++) {
             for (int dx = -1; dx <= 1; dx++) {
@@ -183,7 +190,7 @@ public final class WorldgenOracle {
         @SuppressWarnings("unchecked")
         Aquifer.FluidPicker picker = ((Supplier<Aquifer.FluidPicker>) pickerField.get(world.generator)).get();
         DensityVolume volume = new DensityVolume(16, noiseSettings.height(), 16, pos.getMinBlockX(), noiseSettings.minY(), pos.getMinBlockZ());
-        try (NoiseChunk noiseChunk = new NoiseChunk(world.randomState, null, settings, picker, Blender.empty(), volume)) {
+        try (NoiseChunk noiseChunk = new NoiseChunk(world.randomState, beardifier, settings, picker, Blender.empty(), volume)) {
             call(NoiseBasedChunkGenerator.class, "doFill", world.generator, new Class<?>[]{NoiseChunk.class, ChunkAccess.class}, noiseChunk, chunk);
             call(NoiseBasedChunkGenerator.class, "buildSurface", world.generator,
                 new Class<?>[]{ChunkAccess.class, NoiseChunk.class, RandomState.class, BiomeManager.class, Set.class,
@@ -305,9 +312,15 @@ public final class WorldgenOracle {
         static RegistryAccess registryAccess;
         static DimensionType dimensionType;
         static LevelLightEngine lightEngine;
+        static long seed;
 
         OracleLevel() {
             super(null, null, null, null, null, null, false, 0L, null, false);
+        }
+
+        @Override
+        public long getSeed() {
+            return seed;
         }
 
         @Override
@@ -366,7 +379,9 @@ public final class WorldgenOracle {
 
         @Override
         public FeatureFlagSet enabledFeatures() {
-            return System.getenv("ORACLE_STRUCTURES") != null ? FeatureFlagSet.of() : FeatureFlags.DEFAULT_FLAGS;
+            boolean entity = System.getenv("ORACLE_STRUCTURES") != null
+                && StackWalker.getInstance().walk(frames -> frames.limit(6).anyMatch(frame -> frame.getClassName().startsWith("net.minecraft.world.entity.")));
+            return entity ? FeatureFlagSet.of() : FeatureFlags.DEFAULT_FLAGS;
         }
 
         static net.minecraft.server.level.ServerChunkCache chunkSource;
@@ -521,7 +536,7 @@ public final class WorldgenOracle {
             return chunk != null ? chunk : outer.apply(ChunkPos.pack(x, z));
         });
         setField(region, "cache", cache);
-        setField(region, "center", chunks.get(center.pack()));
+        setField(region, "center", cache.get(center.x(), center.z()));
         setField(region, "level", level);
         setField(region, "seed", world.seed);
         setField(region, "levelData", new net.minecraft.world.level.storage.LevelData() {
@@ -573,6 +588,7 @@ public final class WorldgenOracle {
         OracleLevel.registryAccess = fullRegistries;
         OracleLevel.dimensionType = registries.lookupOrThrow(Registries.DIMENSION_TYPE).getOrThrow(BuiltinDimensionTypes.OVERWORLD).value();
         OracleLevel.lightEngine = new UnlitLightEngine();
+        OracleLevel.seed = seed;
         OracleChunkCache.generator = world.generator;
         String skip = System.getenv("ORACLE_SKIP_FEATURE_TYPES");
         if (skip != null) {
@@ -614,6 +630,7 @@ public final class WorldgenOracle {
         Map<Long, ProtoChunk> biomeChunks = new LinkedHashMap<>();
         Map<Long, ProtoChunk> terrainChunks = new LinkedHashMap<>();
         Set<Long> decorated = new HashSet<>();
+        Set<Long> referenced = new HashSet<>();
         for (int i = 3; i + 1 < args.length; i += 2) {
             ChunkPos pos = new ChunkPos(Integer.parseInt(args[i]), Integer.parseInt(args[i + 1]));
             for (int dz = -1; dz <= 1; dz++) {
@@ -626,19 +643,27 @@ public final class WorldgenOracle {
                         for (int nx = -1; nx <= 1; nx++) {
                             ChunkPos p = new ChunkPos(center.x() + nx, center.z() + nz);
                             if (!terrainChunks.containsKey(p.pack())) {
-                                ProtoChunk chunk = terrain(world, p, biomeChunks, true);
-                                chunk.setPersistedStatus(net.minecraft.world.level.chunk.status.ChunkStatus.TERRAIN);
-                                chunk.setAllStarts(startsChunk.apply(p.pack()).getAllStarts());
-                                for (int sx = p.x() - 8; sx <= p.x() + 8; sx++) {
-                                    for (int sz = p.z() - 8; sz <= p.z() + 8; sz++) {
-                                        long sourceKey = ChunkPos.pack(sx, sz);
-                                        for (var start : startsChunk.apply(sourceKey).getAllStarts().values()) {
-                                            if (start.isValid() && start.getBoundingBox().intersects(p.getMinBlockX(), p.getMinBlockZ(), p.getMaxBlockX(), p.getMaxBlockZ())) {
-                                                chunk.addReferenceForStructure(start.getStructure(), sourceKey);
+                                ProtoChunk startsOnly = startsChunk.apply(p.pack());
+                                if (referenced.add(p.pack())) {
+                                    for (int sx = p.x() - 8; sx <= p.x() + 8; sx++) {
+                                        for (int sz = p.z() - 8; sz <= p.z() + 8; sz++) {
+                                            long sourceKey = ChunkPos.pack(sx, sz);
+                                            for (var start : startsChunk.apply(sourceKey).getAllStarts().values()) {
+                                                if (start.isValid() && start.getBoundingBox().intersects(p.getMinBlockX(), p.getMinBlockZ(), p.getMaxBlockX(), p.getMaxBlockZ())) {
+                                                    startsOnly.addReferenceForStructure(start.getStructure(), sourceKey);
+                                                }
                                             }
                                         }
                                     }
                                 }
+                                WorldGenRegion beardRegion = region(world, level, p, Map.of(), startsChunk);
+                                Beardifier beardifier = withStructures
+                                    ? Beardifier.forStructuresInChunk(new StructureManager(beardRegion, worldOptions, null), p)
+                                    : null;
+                                ProtoChunk chunk = terrain(world, p, biomeChunks, true, beardifier);
+                                chunk.setPersistedStatus(net.minecraft.world.level.chunk.status.ChunkStatus.TERRAIN);
+                                chunk.setAllStarts(startsOnly.getAllStarts());
+                                chunk.setAllReferences(startsOnly.getAllReferences());
                                 terrainChunks.put(p.pack(), chunk);
                             }
                         }

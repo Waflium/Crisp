@@ -74,10 +74,11 @@ impl FossilFeature {
         if count_empty_corners(level, fossil_base.get_bounding_box(&settings, target_pos)) > self.max_empty_corners_allowed {
             return false;
         }
-        settings.processors = &self.fossil_processors.value().list;
+        settings.processors = self.fossil_processors.value().list.iter().collect();
         fossil_base.place_in_world(level, target_pos, target_pos, &settings, random, 260);
-        settings.processors = &self.overlay_processors.value().list;
-        fossil_overlay.place_in_world(level, target_pos, target_pos, &settings, random, 260);        true
+        settings.processors = self.overlay_processors.value().list.iter().collect();
+        fossil_overlay.place_in_world(level, target_pos, target_pos, &settings, random, 260);
+        true
     }
 }
 
