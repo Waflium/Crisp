@@ -11,6 +11,7 @@ mod oracle_data;
 #[cfg(test)]
 mod oracle_tests;
 pub mod shulker_box_block_entity;
+pub mod spawner_block_entity;
 #[cfg(test)]
 mod tests;
 
@@ -55,6 +56,7 @@ pub enum BlockEntityKind {
     Hopper(HopperBlockEntity),
     Dispenser(DispenserBlockEntity),
     Beehive(BeehiveBlockEntity),
+    Spawner(spawner_block_entity::SpawnerBlockEntity),
     Other(Vec<(String, Nbt)>),
 }
 
@@ -86,6 +88,7 @@ impl BlockEntity {
             types::HOPPER => BlockEntityKind::Hopper(HopperBlockEntity::new(state)),
             types::DISPENSER | types::DROPPER => BlockEntityKind::Dispenser(DispenserBlockEntity::default()),
             types::BEEHIVE => BlockEntityKind::Beehive(BeehiveBlockEntity::default()),
+            types::MOB_SPAWNER => BlockEntityKind::Spawner(spawner_block_entity::SpawnerBlockEntity::default()),
             _ => BlockEntityKind::Other(Vec::new()),
         };
         Some(BlockEntity { ty, pos, block_state: state, remove: false, components: DataComponentMap::EMPTY, id: NEXT_ID.fetch_add(1, Ordering::Relaxed), kind })
@@ -169,6 +172,7 @@ impl BlockEntity {
             BlockEntityKind::Hopper(hopper) => hopper.load_additional(input),
             BlockEntityKind::Dispenser(dispenser) => dispenser.load_additional(input),
             BlockEntityKind::Beehive(beehive) => beehive.load_additional(input),
+            BlockEntityKind::Spawner(spawner) => spawner.load_additional(input),
             BlockEntityKind::Other(data) => {
                 let _ = state;
                 *data = match input {
@@ -190,6 +194,7 @@ impl BlockEntity {
             BlockEntityKind::Hopper(hopper) => hopper.save_additional(output),
             BlockEntityKind::Dispenser(dispenser) => dispenser.save_additional(output),
             BlockEntityKind::Beehive(beehive) => beehive.save_additional(output),
+            BlockEntityKind::Spawner(spawner) => spawner.save_additional(output),
             BlockEntityKind::Other(data) => output.extend(data.iter().cloned()),
         }
     }
@@ -240,6 +245,13 @@ impl BlockEntity {
     }
 
     pub fn get_update_tag(&self) -> Nbt {
+        if let BlockEntityKind::Spawner(_) = self.kind {
+            let mut tag = self.save_custom_only();
+            if let Nbt::Compound(fields) = &mut tag {
+                fields.retain(|(key, _)| key != "SpawnPotentials");
+            }
+            return tag;
+        }
         match self.update_tag_kind() {
             UpdateTag::CustomOnly => self.save_custom_only(),
             UpdateTag::WithoutMetadata => self.save_without_metadata(),
@@ -248,7 +260,7 @@ impl BlockEntity {
     }
 
     pub fn has_update_packet(&self) -> bool {
-        !matches!(self.update_tag_kind(), UpdateTag::None)
+        matches!(self.kind, BlockEntityKind::Spawner(_)) || !matches!(self.update_tag_kind(), UpdateTag::None)
     }
 
     fn update_tag_kind(&self) -> UpdateTag {
@@ -321,7 +333,7 @@ impl BlockEntity {
             BlockEntityKind::Furnace(f) => &f.base,
             BlockEntityKind::Hopper(h) => &h.base,
             BlockEntityKind::Dispenser(d) => &d.base,
-            BlockEntityKind::Beehive(_) | BlockEntityKind::Other(_) => return None,
+            BlockEntityKind::Beehive(_) | BlockEntityKind::Spawner(_) | BlockEntityKind::Other(_) => return None,
         })
     }
 
@@ -333,12 +345,12 @@ impl BlockEntity {
             BlockEntityKind::Furnace(f) => &mut f.base,
             BlockEntityKind::Hopper(h) => &mut h.base,
             BlockEntityKind::Dispenser(d) => &mut d.base,
-            BlockEntityKind::Beehive(_) | BlockEntityKind::Other(_) => return None,
+            BlockEntityKind::Beehive(_) | BlockEntityKind::Spawner(_) | BlockEntityKind::Other(_) => return None,
         })
     }
 
     pub fn is_randomizable(&self) -> bool {
-        !matches!(self.kind, BlockEntityKind::Furnace(_) | BlockEntityKind::Beehive(_) | BlockEntityKind::Other(_))
+        !matches!(self.kind, BlockEntityKind::Furnace(_) | BlockEntityKind::Beehive(_) | BlockEntityKind::Spawner(_) | BlockEntityKind::Other(_))
     }
 
     pub fn default_name(&self) -> &'static str {

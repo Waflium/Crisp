@@ -6,7 +6,17 @@ use serde_json::Value;
 
 use super::abstract_huge_mushroom_feature::{AbstractHugeMushroomFeature, HugeMushroomType};
 use super::bamboo_feature::BambooFeature;
+use super::block_blob_feature::BlockBlobFeature;
+use super::coral_claw_feature::CoralClawFeature;
+use super::coral_tree_feature::CoralTreeFeature;
 use super::disk_feature::DiskFeature;
+use super::lake_feature::LakeFeature;
+use super::monster_room_feature;
+use super::overlay_feature::OverlayFeature;
+use super::root_system_feature::RootSystemFeature;
+use super::sculk_patch_feature::SculkPatchFeature;
+use super::sequence_feature::SequenceFeature;
+use super::underwater_magma_feature::UnderwaterMagmaFeature;
 use super::geode_feature::GeodeFeature;
 use super::large_dripstone_feature::LargeDripstoneFeature;
 use super::speleothem_cluster_feature::SpeleothemClusterFeature;
@@ -50,6 +60,17 @@ pub enum Feature {
     SpeleothemCluster(Box<SpeleothemClusterFeature>),
     LargeDripstone(Box<LargeDripstoneFeature>),
     Geode(Box<GeodeFeature>),
+    Lake(Box<LakeFeature>),
+    MonsterRoom,
+    UnderwaterMagma(UnderwaterMagmaFeature),
+    BlockBlob(Box<BlockBlobFeature>),
+    CoralTree(CoralTreeFeature),
+    CoralClaw(CoralClawFeature),
+    Sequence(SequenceFeature),
+    Overlay(OverlayFeature),
+    RootSystem(Box<RootSystemFeature>),
+    NoOp,
+    SculkPatch(SculkPatchFeature),
     MultifaceGrowth(MultifaceGrowthFeature),
     Bamboo(BambooFeature),
     HugeMushroom(Box<AbstractHugeMushroomFeature>),
@@ -99,6 +120,17 @@ impl Feature {
             "speleothem_cluster" => Feature::SpeleothemCluster(Box::new(SpeleothemClusterFeature::parse(json)?)),
             "large_dripstone" => Feature::LargeDripstone(Box::new(LargeDripstoneFeature::parse(json)?)),
             "geode" => Feature::Geode(Box::new(GeodeFeature::parse(json)?)),
+            "lake" => Feature::Lake(Box::new(LakeFeature::parse(json)?)),
+            "monster_room" => Feature::MonsterRoom,
+            "underwater_magma" => Feature::UnderwaterMagma(UnderwaterMagmaFeature::parse(json)?),
+            "block_blob" => Feature::BlockBlob(Box::new(BlockBlobFeature::parse(json)?)),
+            "coral_tree" => Feature::CoralTree(CoralTreeFeature::parse(json)?),
+            "coral_claw" => Feature::CoralClaw(CoralClawFeature::parse(json)?),
+            "sequence" => Feature::Sequence(SequenceFeature::parse(json)?),
+            "overlay" => Feature::Overlay(OverlayFeature::parse(json)?),
+            "root_system" => Feature::RootSystem(Box::new(RootSystemFeature::parse(json)?)),
+            "no_op" => Feature::NoOp,
+            "sculk_patch" => Feature::SculkPatch(SculkPatchFeature::parse(json)?),
             "multiface_growth" => Feature::MultifaceGrowth(MultifaceGrowthFeature::parse(json)?),
             "bamboo" => Feature::Bamboo(BambooFeature::parse(json)?),
             "huge_brown_mushroom" => Feature::HugeMushroom(Box::new(AbstractHugeMushroomFeature::parse(json, HugeMushroomType::Brown)?)),
@@ -132,6 +164,17 @@ impl Feature {
             Feature::SpeleothemCluster(feature) => feature.place(level, random, origin),
             Feature::LargeDripstone(feature) => feature.place(level, random, origin),
             Feature::Geode(feature) => feature.place(level, random, origin),
+            Feature::Lake(feature) => feature.place(level, random, origin),
+            Feature::MonsterRoom => monster_room_feature::place(level, random, origin),
+            Feature::UnderwaterMagma(feature) => feature.place(level, random, origin),
+            Feature::BlockBlob(feature) => feature.place(level, random, origin),
+            Feature::CoralTree(feature) => feature.place(level, random, origin),
+            Feature::CoralClaw(feature) => feature.place(level, random, origin),
+            Feature::Sequence(feature) => feature.place(level, random, origin),
+            Feature::Overlay(feature) => feature.place(level, random, origin),
+            Feature::RootSystem(feature) => feature.place(level, random, origin),
+            Feature::NoOp => true,
+            Feature::SculkPatch(feature) => feature.place(level, random, origin),
             Feature::MultifaceGrowth(feature) => feature.place(level, random, origin),
             Feature::Bamboo(feature) => feature.place(level, random, origin),
             Feature::HugeMushroom(feature) => feature.place(level, random, origin),

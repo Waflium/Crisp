@@ -3,7 +3,7 @@ use crisp_core::random::RandomSource;
 use serde_json::Value;
 
 use crate::server::level::world_gen_region::WorldGenRegion;
-use crate::world::level::levelgen::placement::placed_feature::PlacedFeatureHolder;
+use crate::world::level::levelgen::placement::placed_feature::{PlacedFeatureHolder, parse_placed_feature_set};
 
 pub struct SimpleRandomSelectorFeature {
     features: Vec<PlacedFeatureHolder>,
@@ -11,14 +11,7 @@ pub struct SimpleRandomSelectorFeature {
 
 impl SimpleRandomSelectorFeature {
     pub fn parse(json: &Value) -> Result<SimpleRandomSelectorFeature, String> {
-        let features = match json.get("features").ok_or("missing features")? {
-            Value::Array(list) => list.iter().map(PlacedFeatureHolder::parse).collect::<Result<Vec<_>, _>>()?,
-            other => vec![PlacedFeatureHolder::parse(other)?],
-        };
-        if features.is_empty() {
-            return Err("features must not be empty".into());
-        }
-        Ok(SimpleRandomSelectorFeature { features })
+        Ok(SimpleRandomSelectorFeature { features: parse_placed_feature_set(json.get("features").ok_or("missing features")?)? })
     }
 
     pub fn place<R: RandomSource>(&self, level: &mut WorldGenRegion, random: &mut R, origin: BlockPos) -> bool {

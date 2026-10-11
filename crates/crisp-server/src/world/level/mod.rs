@@ -1,3 +1,4 @@
+pub mod base_spawner;
 pub mod biome;
 pub mod block;
 pub mod border;

@@ -188,6 +188,20 @@ impl MultifaceSpreader {
         None
     }
 
+    pub fn spread_all(&self, state: BlockState, level: &mut dyn LevelAccessor, pos: BlockPos, post_process: bool) -> i64 {
+        let mut total = 0;
+        for face_direction in Direction::VALUES {
+            if self.can_spread_from(state, face_direction) {
+                total += self.spread_from_face_toward_all_directions(state, level, pos, face_direction, post_process);
+            }
+        }
+        total
+    }
+
+    fn spread_from_face_toward_all_directions(&self, state: BlockState, level: &mut dyn LevelAccessor, pos: BlockPos, starting_face: Direction, post_process: bool) -> i64 {
+        Direction::VALUES.into_iter().filter(|&spread_direction| self.spread_from_face_toward_direction(state, level, pos, starting_face, spread_direction, post_process).is_some()).count() as i64
+    }
+
     pub fn spread_from_face_toward_random_direction<R: RandomSource>(
         &self,
         state: BlockState,

@@ -140,6 +140,8 @@ mod nether_wart_block;
 mod nylium_block;
 mod pitcher_crop_block;
 mod sapling_block;
+pub mod sculk_behaviour;
+pub mod sculk_spreader;
 mod sculk_vein_block;
 mod sea_pickle_block;
 mod seagrass_block;

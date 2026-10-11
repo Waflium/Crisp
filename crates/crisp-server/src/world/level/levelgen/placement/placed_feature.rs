@@ -44,6 +44,17 @@ pub enum PlacedFeatureHolder {
     Direct(Box<PlacedFeature>),
 }
 
+pub fn parse_placed_feature_set(json: &Value) -> Result<Vec<PlacedFeatureHolder>, String> {
+    let features = match json {
+        Value::Array(list) => list.iter().map(PlacedFeatureHolder::parse).collect::<Result<Vec<_>, _>>()?,
+        other => vec![PlacedFeatureHolder::parse(other)?],
+    };
+    if features.is_empty() {
+        return Err("features must not be empty".into());
+    }
+    Ok(features)
+}
+
 impl PlacedFeatureHolder {
     pub fn parse(json: &Value) -> Result<PlacedFeatureHolder, String> {
         match json {
