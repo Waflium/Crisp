@@ -574,6 +574,7 @@ public final class WorldgenOracle {
         });
         setField(region, "random", world.randomState.getOrCreateRandomFactory(Identifier.withDefaultNamespace("worldgen_region_random")).at(center.getWorldPosition()));
         setField(region, "dimensionType", OracleLevel.dimensionType);
+        setField(region, "environmentAttributes", net.minecraft.world.attribute.EnvironmentAttributeSystem.builder().addConstantLayer(OracleLevel.dimensionType.attributes()).build());
         Function<net.minecraft.core.BlockPos, TickContainerAccess<Block>> blockTicks = pos -> region.getChunk(pos).getBlockTicks();
         Function<net.minecraft.core.BlockPos, TickContainerAccess<Fluid>> fluidTicks = pos -> region.getChunk(pos).getFluidTicks();
         setField(region, "blockTicks", new WorldGenTickAccess<>(blockTicks));
