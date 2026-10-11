@@ -204,7 +204,7 @@ fn pack_structure_data(pos: ChunkPos, structures: &ChunkStructures) -> Nbt {
     Nbt::Compound(vec![("References".into(), Nbt::Compound(references)), ("starts".into(), Nbt::Compound(starts))])
 }
 
-fn unpack_structure_data(pos: ChunkPos, tag: Option<&Nbt>) -> ChunkStructures {
+fn unpack_structure_data(pos: ChunkPos, tag: Option<&Nbt>, seed: i64) -> ChunkStructures {
     let mut structures = ChunkStructures::default();
     let Some(tag) = tag else { return structures };
     if let Some(Nbt::Compound(starts)) = tag.get("starts") {
@@ -212,7 +212,7 @@ fn unpack_structure_data(pos: ChunkPos, tag: Option<&Nbt>) -> ChunkStructures {
             match StructureHolder::by_name(key) {
                 None => error!("Unknown structure start: {key}"),
                 Some(structure) => {
-                    if let Some(Some(start)) = StructureStart::load_static_start(start_tag) {
+                    if let Some(Some(start)) = StructureStart::load_static_start(start_tag, seed) {
                         structures.starts.insert(structure, std::sync::Arc::new(start));
                     }
                 }
@@ -241,7 +241,7 @@ fn unpack_structure_data(pos: ChunkPos, tag: Option<&Nbt>) -> ChunkStructures {
     structures
 }
 
-pub fn read(nbt: &Nbt, dimension: &DimensionType) -> io::Result<ReadChunk> {
+pub fn read(nbt: &Nbt, dimension: &DimensionType, seed: i64) -> io::Result<ReadChunk> {
     let version = nbt.get("DataVersion").and_then(Nbt::as_i64).unwrap_or(0);
     if version != WORLD_VERSION as i64 {
         return Err(invalid(&format!("chunk data version {version} is not {WORLD_VERSION}")));
@@ -273,7 +273,7 @@ pub fn read(nbt: &Nbt, dimension: &DimensionType) -> io::Result<ReadChunk> {
     chunk.inhabited_time = nbt.get("InhabitedTime").and_then(Nbt::as_i64).unwrap_or(0);
     chunk.light_correct = nbt.get("isLightOn").and_then(Nbt::as_i64).is_some_and(|b| b != 0);
     chunk.load_block_entities(nbt.get("block_entities").map(Nbt::as_list).unwrap_or(&[]));
-    chunk.structures = unpack_structure_data(chunk.pos, nbt.get("structures"));
+    chunk.structures = unpack_structure_data(chunk.pos, nbt.get("structures"), seed);
     let mut missing = false;
     for kind in HeightmapType::LIVE {
         let i = HeightmapType::LIVE.iter().position(|&t| t == kind).unwrap();
@@ -309,7 +309,7 @@ mod tests {
         let stairs = blocks::OAK_STAIRS.default_state().set(HORIZONTAL_FACING, Direction::East);
         chunk.set_block_state(BlockPos::new(49, -60, -110), stairs);
         chunk.set_block_state(BlockPos::new(53, 100, -103), blocks::GLOWSTONE.default_state());
-        let read = read(&write(&chunk, 0, &[], &[], &[]), overworld()).unwrap().chunk;
+        let read = read(&write(&chunk, 0, &[], &[], &[]), overworld(), 0).unwrap().chunk;
         assert_eq!(read.pos, ChunkPos::new(3, -7));
         assert_eq!(read.block_state(BlockPos::new(49, -60, -110)), stairs);
         assert_eq!(read.block_state(BlockPos::new(53, 100, -103)), blocks::GLOWSTONE.default_state());

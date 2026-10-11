@@ -69,7 +69,7 @@ fn block_entities_are_saved_with_their_chunk() {
     assert_eq!(list.len(), 1);
     assert_eq!(list[0].get("id"), Some(&Nbt::String("minecraft:furnace".into())));
     assert_eq!(list[0].get("keepPacked"), Some(&Nbt::Byte(0)));
-    let mut read = crate::world::level::chunk::serialization::read(&saved, dimension).unwrap().chunk;
+    let mut read = crate::world::level::chunk::serialization::read(&saved, dimension, 0).unwrap().chunk;
     let entity = read.block_entities.map.get(&pos).unwrap();
     assert_eq!(entity.container_base().unwrap().items[0], ItemStack::new(items::RAW_IRON, 3));
     let mut packed = list[0].clone();

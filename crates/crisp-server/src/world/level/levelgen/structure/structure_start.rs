@@ -8,6 +8,7 @@ use crisp_protocol::nbt::Nbt;
 use super::BoundingBox;
 use super::pieces::pieces_container::PiecesContainer;
 use super::structure::StructureHolder;
+use super::structures::{StructureType, ocean_monument_structure};
 use crate::server::level::world_gen_region::WorldGenRegion;
 
 pub struct StructureStart {
@@ -30,7 +31,7 @@ impl StructureStart {
         StructureStart { structure, chunk_pos, references: AtomicI32::new(references), piece_container: Mutex::new(piece_container), cached_bounding_box: OnceLock::new() }
     }
 
-    pub fn load_static_start(tag: &Nbt) -> Option<Option<StructureStart>> {
+    pub fn load_static_start(tag: &Nbt, seed: i64) -> Option<Option<StructureStart>> {
         let id = tag.get("id").and_then(Nbt::as_str).unwrap_or("");
         if id == "INVALID" {
             return Some(None);
@@ -42,7 +43,11 @@ impl StructureStart {
         let chunk_pos = ChunkPos::new(int(tag, "ChunkX"), int(tag, "ChunkZ"));
         let references = int(tag, "references");
         let children = tag.get("Children").map(Nbt::as_list).unwrap_or(&[]);
-        Some(Some(StructureStart::new(structure, chunk_pos, references, PiecesContainer::load(children))))
+        let mut pieces = PiecesContainer::load(children);
+        if let StructureType::OceanMonument = structure.value().structure_type {
+            pieces = ocean_monument_structure::regenerate_pieces_after_load(chunk_pos, seed, pieces);
+        }
+        Some(Some(StructureStart::new(structure, chunk_pos, references, pieces)))
     }
 
     pub fn get_bounding_box(&self) -> BoundingBox {

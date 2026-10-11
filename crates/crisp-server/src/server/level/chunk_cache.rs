@@ -50,6 +50,7 @@ pub struct ChunkCache {
     structure_chunks: FastMap<ChunkPos, ChunkStructures>,
     structure_state: Option<Arc<ChunkGeneratorStructureState>>,
     pub generate_structures: bool,
+    pub seed: i64,
     io: Option<IoWorker>,
     pub light_engine: ThreadedLevelLightEngine,
     light_changes: Vec<(LightLayer, i64)>,
@@ -91,6 +92,7 @@ impl ChunkCache {
             structure_chunks: FastMap::default(),
             structure_state,
             generate_structures: true,
+            seed: 0,
             io: storage.map(IoWorker::new),
             light_engine: ThreadedLevelLightEngine::new(dimension.min_y, dimension.height as i32, dimension.has_skylight),
             light_changes: Vec::new(),
@@ -1046,11 +1048,11 @@ impl ChunkCache {
             return;
         }
         let token = self.new_token(job);
-        let (dimension, results) = (self.dimension, self.results.0.clone());
+        let (dimension, seed, results) = (self.dimension, self.seed, self.results.0.clone());
         self.in_flight += 1;
         self.io.as_ref().unwrap().read(pos, move |read| {
             chunk_workers::execute(move || {
-                let result = read.and_then(|nbt| nbt.map(|nbt| serialization::read(&nbt, dimension)).transpose());
+                let result = read.and_then(|nbt| nbt.map(|nbt| serialization::read(&nbt, dimension, seed)).transpose());
                 let _ = results.send(WorkResult::Loaded { pos, token, result });
             });
         });
