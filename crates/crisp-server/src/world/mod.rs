@@ -15,6 +15,7 @@ pub mod level;
 pub mod phys;
 pub mod random_sequences;
 pub mod scores;
+pub mod simple_container;
 pub mod stopwatches;
 pub mod timeline;
 pub mod tick_rate_manager;

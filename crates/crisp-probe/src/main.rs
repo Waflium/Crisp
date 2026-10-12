@@ -272,6 +272,31 @@ async fn main() -> anyhow::Result<()> {
                             })
                             .await?;
                         }
+                        ["beacon", primary, secondary] => {
+                            let (primary, secondary): (i32, i32) = (primary.parse()?, secondary.parse()?);
+                            send(&mut wr, codec, play::serverbound::SET_BEACON, |w| {
+                                for effect in [primary, secondary] {
+                                    w.bool(effect >= 0);
+                                    if effect >= 0 {
+                                        w.varint(effect);
+                                    }
+                                }
+                            })
+                            .await?;
+                        }
+                        ["quick", slot] => {
+                            let slot: i16 = slot.parse()?;
+                            send(&mut wr, codec, play::serverbound::CONTAINER_CLICK, |w| {
+                                w.varint(open_container);
+                                w.varint(0);
+                                w.i16(slot);
+                                w.u8(0);
+                                w.varint(1);
+                                w.varint(0);
+                                w.bool(false);
+                            })
+                            .await?;
+                        }
                         ["use", x, y, z, face] => {
                             let (x, y, z, face): (i32, i32, i32, i32) = (x.parse()?, y.parse()?, z.parse()?, face.parse()?);
                             sequence += 1;

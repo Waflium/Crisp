@@ -1,6 +1,9 @@
 use crisp_data::packets::play::clientbound;
 use crisp_data::{registry, registry_id};
 
+use crisp_core::BlockPos;
+
+use super::beacon_menu::PAYMENT_SLOT;
 use super::slot::{Slot, SlotContainer, SlotKind, brewing_stand_fuel_may_place_item, is_fuel};
 use crate::network::hashed_stack::HashedStack;
 use crate::server::level::ServerLevel;
@@ -29,6 +32,7 @@ pub enum MenuKind {
     Dispenser,
     BrewingStand,
     Lectern,
+    Beacon,
 }
 
 impl MenuKind {
@@ -46,6 +50,7 @@ impl MenuKind {
             MenuKind::Dispenser => "minecraft:generic_3x3",
             MenuKind::BrewingStand => "minecraft:brewing_stand",
             MenuKind::Lectern => "minecraft:lectern",
+            MenuKind::Beacon => "minecraft:beacon",
         }
     }
 }
@@ -96,6 +101,7 @@ pub struct AbstractContainerMenu {
     pub container_id: i32,
     pub kind: MenuKind,
     pub container: ContainerRef,
+    pub access: Option<BlockPos>,
     pub slots: Vec<Slot>,
     last_slots: Vec<ItemStack>,
     remote_slots: Vec<RemoteSlot>,
@@ -116,6 +122,7 @@ impl AbstractContainerMenu {
             container_id,
             kind,
             container,
+            access: None,
             slots: Vec::new(),
             last_slots: Vec::new(),
             remote_slots: Vec::new(),
@@ -150,6 +157,11 @@ impl AbstractContainerMenu {
                 menu.data_prev = vec![0; 1];
                 menu.remote_data_slots = vec![0; 1];
                 return menu;
+            }
+            MenuKind::Beacon => {
+                menu.add_slot(Slot::new(c, PAYMENT_SLOT, SlotKind::BeaconPayment));
+                menu.data_prev = vec![0; 3];
+                menu.remote_data_slots = vec![0; 3];
             }
         }
         for i in 9..36 {
@@ -252,7 +264,10 @@ impl ServerLevel {
         }
     }
 
-    fn menu_data(&mut self, menu: &AbstractContainerMenu, id: usize) -> i32 {
+    pub(super) fn menu_data(&mut self, menu: &AbstractContainerMenu, id: usize) -> i32 {
+        if menu.kind == MenuKind::Beacon {
+            return menu.access.map_or(0, |pos| self.beacon_data_get(pos, id));
+        }
         if let ContainerRef::Lectern { pos, .. } = menu.container {
             return if id == crate::world::level::block::entity::lectern_block_entity::DATA_PAGE { self.lectern(pos).map_or(0, |lectern| lectern.get_page()) } else { 0 };
         }
@@ -620,6 +635,24 @@ impl ServerLevel {
                 }
             }
             MenuKind::Lectern => false,
+            MenuKind::Beacon => {
+                let payment_slot = menu.slots[PAYMENT_SLOT].clone();
+                if index == PAYMENT_SLOT {
+                    let moved = self.move_item_stack_to(menu, player, &mut stack, 1, 37, true);
+                    if moved {
+                        self.slot_on_quick_craft(player, &mut slot, &stack, &clicked);
+                    }
+                    moved
+                } else if !self.slot_has_item(player, &payment_slot) && self.slot_may_place(&payment_slot, &stack) && stack.count == 1 {
+                    self.move_item_stack_to(menu, player, &mut stack, 0, 1, false)
+                } else if (1..28).contains(&index) {
+                    self.move_item_stack_to(menu, player, &mut stack, 28, 37, false)
+                } else if (28..37).contains(&index) {
+                    self.move_item_stack_to(menu, player, &mut stack, 1, 28, false)
+                } else {
+                    self.move_item_stack_to(menu, player, &mut stack, 1, 37, false)
+                }
+            }
         };
         if !moved {
             menu.slots[index] = slot;
@@ -631,7 +664,7 @@ impl ServerLevel {
         } else {
             self.slot_set_changed(&slot);
         }
-        if matches!(menu.kind, MenuKind::Furnace(_) | MenuKind::Dispenser | MenuKind::BrewingStand) {
+        if matches!(menu.kind, MenuKind::Furnace(_) | MenuKind::Dispenser | MenuKind::BrewingStand | MenuKind::Beacon) {
             if stack.count == clicked.count {
                 menu.slots[index] = slot;
                 return ItemStack::empty();
@@ -738,7 +771,15 @@ impl ServerLevel {
     }
 
     pub fn menu_still_valid(&mut self, menu: &AbstractContainerMenu, player: EntityId) -> bool {
+        if menu.kind == MenuKind::Beacon {
+            return self.still_valid_access(menu.access, player, crisp_data::blocks::BEACON);
+        }
         self.container_still_valid(menu.container, player)
+    }
+
+    fn still_valid_access(&mut self, access: Option<BlockPos>, player: EntityId, block: crisp_data::Block) -> bool {
+        let Some(pos) = access else { return true };
+        crate::world::level::BlockGetter::block_state(self, pos).is_block(block) && self.is_within_block_interaction_range(player, pos, 4.0)
     }
 
     pub fn menu_removed(&mut self, menu: &mut AbstractContainerMenu, player: EntityId) {
@@ -752,6 +793,9 @@ impl ServerLevel {
             self.set_carried(player, ItemStack::empty());
         }
         self.container_stop_open(menu.container, player);
+        if menu.kind == MenuKind::Beacon {
+            self.beacon_menu_removed(menu, player);
+        }
     }
 
     pub fn place_item_back_in_inventory(&mut self, player: EntityId, mut stack: ItemStack) {

@@ -23,6 +23,7 @@ pub enum SlotKind {
     BrewingStandPotion,
     BrewingStandIngredients,
     BrewingStandFuel,
+    BeaconPayment,
 }
 
 #[derive(Clone, Debug)]
@@ -92,7 +93,7 @@ impl ServerLevel {
         if slot.kind == SlotKind::FurnaceFuel && is_bucket(stack) {
             return 1;
         }
-        if slot.kind == SlotKind::BrewingStandPotion {
+        if let SlotKind::BrewingStandPotion | SlotKind::BeaconPayment = slot.kind {
             return stack.max_stack_size().min(1);
         }
         stack.max_stack_size().min(99)
@@ -107,6 +108,7 @@ impl ServerLevel {
             SlotKind::BrewingStandPotion => PotionIngredient::is_potion_input(stack),
             SlotKind::BrewingStandIngredients => RecipePropertySet::get(BREWING_REAGENTS).test(stack),
             SlotKind::BrewingStandFuel => brewing_stand_fuel_may_place_item(stack),
+            SlotKind::BeaconPayment => stack.get_item().is(&crisp_data::item_tags::BEACON_PAYMENT_ITEMS),
         }
     }
 

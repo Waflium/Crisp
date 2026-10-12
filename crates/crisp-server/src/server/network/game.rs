@@ -135,6 +135,18 @@ impl ServerLevel {
                 let slot = SignTextSlot::by_id(r.varint()?);
                 self.handle_sign_update(id, BlockPos::new(pos.0, pos.1, pos.2), lines, slot);
             }
+            serverbound::SET_BEACON => {
+                let mut read_effect = || -> anyhow::Result<Option<crisp_data::MobEffect>> {
+                    if !r.bool()? {
+                        return Ok(None);
+                    }
+                    let id = r.varint()?;
+                    usize::try_from(id).ok().filter(|&i| i < crisp_data::MOB_EFFECTS.len()).map(|i| Some(crisp_data::MobEffect(i as u8))).ok_or_else(|| anyhow::anyhow!("Unknown mob effect id {id}"))
+                };
+                let primary = read_effect()?;
+                let secondary = read_effect()?;
+                self.handle_set_beacon_packet(id, primary, secondary);
+            }
             serverbound::CONTAINER_BUTTON_CLICK => {
                 let container_id = r.varint()?;
                 let button_id = r.varint()?;
@@ -617,6 +629,20 @@ fn was_block_placement_attempt(stack: &ItemStack) -> bool {
 }
 
 impl ServerLevel {
+    fn handle_set_beacon_packet(&mut self, id: EntityId, primary: Option<crisp_data::MobEffect>, secondary: Option<crisp_data::MobEffect>) {
+        if self.player(id).container_menu.as_ref().is_none_or(|menu| menu.kind != crate::world::inventory::abstract_container_menu::MenuKind::Beacon) {
+            return;
+        }
+        let Some(mut menu) = self.player_mut(id).container_menu.take() else { return };
+        if self.menu_still_valid(&menu, id) && !self.beacon_menu_update_effects(&mut menu, id, primary, secondary) {
+            self.player_mut(id).disconnect("multiplayer.disconnect.generic");
+            warn!("Player {} tried to set invalid beacon effects", self.entity_to_string(id));
+        }
+        if self.players.contains_key(&id) && self.player(id).container_menu.is_none() {
+            self.player_mut(id).container_menu = Some(menu);
+        }
+    }
+
     fn handle_sign_update(&mut self, id: EntityId, pos: BlockPos, lines: Vec<String>, slot: SignTextSlot) {
         let lines: Vec<FilteredText> = lines.iter().map(|line| FilteredText::pass_through(crate::util::string_util::strip_color(line))).collect();
         self.update_sign_text(id, pos, slot, &lines);

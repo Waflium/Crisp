@@ -1970,10 +1970,15 @@ impl ServerLevel {
 
     pub fn entity_to_string(&self, id: EntityId) -> String {
         let e = self.entity(id);
-        let name = self.entities.get(&id).map(|e| e.name().get_string()).unwrap_or_default();
-        let class = match self.mob(id).map(|m| &m.kind) {
-            Some(super::mob::MobKind::Chicken(_)) => "Chicken",
-            None => "Entity",
+        let (class, name) = if let Some(player) = self.players.get(&id) {
+            ("ServerPlayer", player.profile.name.clone())
+        } else {
+            let name = self.entities.get(&id).map(|e| e.name().get_string()).unwrap_or_default();
+            let class = match self.mob(id).map(|m| &m.kind) {
+                Some(super::mob::MobKind::Chicken(_)) => "Chicken",
+                None => "Entity",
+            };
+            (class, name)
         };
         format!("{class}['{name}'/{id}, l='ServerLevel[{}]', x={:.2}, y={:.2}, z={:.2}]", self.level_name, e.x(), e.y(), e.z())
     }

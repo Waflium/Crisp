@@ -6,6 +6,7 @@ use super::BlockEntityKind;
 use crate::server::level::{ServerLevel, SoundSource};
 use crate::util::argb;
 use crate::world::effect::MobEffectInstance;
+use crate::world::inventory::beacon_menu;
 use crate::world::item::component::{self as dc, DataComponentType};
 use crate::world::item::dye_color::DyeColor;
 use crate::world::level::BlockGetter;
@@ -20,8 +21,38 @@ const BLOCKS_CHECK_PER_TICK: i32 = 10;
 const TAG_PRIMARY: &str = "primary_effect";
 const TAG_SECONDARY: &str = "secondary_effect";
 
+pub const DATA_LEVELS: usize = 0;
+pub const DATA_PRIMARY: usize = 1;
+pub const DATA_SECONDARY: usize = 2;
+
 fn is_valid_effect(effect: MobEffect) -> bool {
     BEACON_EFFECTS.iter().any(|effects| effects.contains(&effect))
+}
+
+fn filter_effect(effect: Option<MobEffect>) -> Option<MobEffect> {
+    effect.filter(|&effect| is_valid_effect(effect))
+}
+
+pub fn validate_effects(primary: Option<MobEffect>, secondary: Option<MobEffect>, levels: i32) -> bool {
+    if secondary.is_some() && levels < 4 {
+        return false;
+    }
+    let primary_level = get_required_levels_for(primary);
+    let secondary_level = get_required_levels_for(secondary);
+    if primary_level > levels || secondary_level > levels {
+        return false;
+    }
+    if primary_level >= 4 { false } else { secondary_level == 0 || secondary_level >= 4 || primary.is_some() && primary == secondary }
+}
+
+fn get_required_levels_for(effect: Option<MobEffect>) -> i32 {
+    let Some(effect) = effect else { return 0 };
+    for (i, effects_for_level) in BEACON_EFFECTS.iter().enumerate() {
+        if effects_for_level.contains(&effect) {
+            return i as i32 + 1;
+        }
+    }
+    i32::MAX
 }
 
 #[derive(Clone)]
@@ -108,6 +139,10 @@ impl BeaconBlockEntity {
 
     fn is_locked(&self) -> bool {
         self.lock_key.as_ref().is_some_and(|lock| !matches!(lock, Nbt::Compound(fields) if fields.is_empty()))
+    }
+
+    pub fn get_lock_key(&self) -> Option<&Nbt> {
+        self.lock_key.as_ref()
     }
 
     pub fn get_beam_sections(&self) -> &[Section] {
@@ -286,6 +321,33 @@ impl ServerLevel {
             for &player in &players {
                 self.add_effect(player, MobEffectInstance::with(secondary_power, duration_ticks, 0, true, true, true), None);
             }
+        }
+    }
+
+    pub fn beacon_data_get(&mut self, pos: BlockPos, data_id: usize) -> i32 {
+        let Some(entity) = self.beacon(pos) else { return 0 };
+        match data_id {
+            DATA_LEVELS => entity.levels,
+            DATA_PRIMARY => beacon_menu::encode_effect(entity.primary_power),
+            DATA_SECONDARY => beacon_menu::encode_effect(entity.secondary_power),
+            _ => 0,
+        }
+    }
+
+    pub fn beacon_data_set(&mut self, pos: BlockPos, data_id: usize, value: i32) {
+        let Some(entity) = self.beacon(pos) else { return };
+        match data_id {
+            DATA_LEVELS => entity.levels = value,
+            DATA_PRIMARY => {
+                if !entity.beam_sections.is_empty() {
+                    self.beacon_play_sound(pos, "minecraft:block.beacon.power_select");
+                }
+                if let Some(entity) = self.beacon(pos) {
+                    entity.primary_power = filter_effect(beacon_menu::decode_effect(value));
+                }
+            }
+            DATA_SECONDARY => entity.secondary_power = filter_effect(beacon_menu::decode_effect(value)),
+            _ => {}
         }
     }
 

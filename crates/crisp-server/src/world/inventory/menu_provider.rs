@@ -10,7 +10,7 @@ use crate::world::container::ContainerRef;
 use crate::world::entity::EntityId;
 use crate::world::item::crafting::CookingRecipeType;
 use crate::world::level::block::chest_block;
-use crate::world::level::block::entity::BlockEntity;
+use crate::world::level::block::entity::{BlockEntity, BlockEntityKind};
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum MenuProvider {
@@ -74,6 +74,18 @@ impl ServerLevel {
         match provider {
             MenuProvider::BlockEntity(pos) => {
                 let entity = self.get_block_entity(pos)?;
+                if let BlockEntityKind::Beacon(beacon) = &entity.kind {
+                    let lock_key = beacon.get_lock_key().cloned();
+                    let display_name = entity.name();
+                    let held = self.player(player).inventory.held().cloned().unwrap_or_else(crate::world::item::ItemStack::empty);
+                    let can_unlock = spectator || lock_key.as_ref().is_none_or(|lock| ItemPredicate::decode(lock).map_or(true, |predicate| predicate.test(&held)));
+                    if can_unlock {
+                        self.beacon_menu_create_container(player);
+                        return Some((AbstractContainerMenu::beacon(container_id, player, pos), display_name));
+                    }
+                    self.send_chest_locked_notifications(Vec3::at_center_of(pos), player, display_name);
+                    return None;
+                }
                 let kind = menu_kind(entity)?;
                 if kind == MenuKind::Lectern {
                     let container = ContainerRef::lectern_book_access(self, pos);
