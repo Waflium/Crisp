@@ -163,11 +163,16 @@ impl ServerStatsCounter {
         }
     }
 
-    pub fn send_stats(&mut self, connection: &Outbound) {
+    fn stats_to_send(&mut self) -> Object2ObjectOpenHashMap<(Stat, i32)> {
         let mut stats_to_send = Object2ObjectOpenHashMap::new(DEFAULT_TABLE_SIZE, 0.75);
         for stat in self.get_dirty() {
             stats_to_send.insert(stat.get_name().to_string(), (stat, self.get_value(stat)));
         }
+        stats_to_send
+    }
+
+    pub fn send_stats(&mut self, connection: &Outbound) {
+        let stats_to_send = self.stats_to_send();
         connection.send(clientbound::AWARD_STATS, |w| {
             w.varint(stats_to_send.len() as i32);
             for (_, &(stat, value)) in stats_to_send.iter() {
@@ -238,4 +243,83 @@ fn parsed_stats_order(grouped: &[Vec<(Stat, i32)>]) -> Vec<(Stat, i32)> {
     let mut order: Vec<(Stat, i32)> = grouped.iter().flatten().copied().collect();
     order.sort_by_key(|&(stat, _)| hash_bucket(stat, table_size.max(1)));
     order
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    struct Lcg(i64);
+
+    impl Lcg {
+        fn next(&mut self, bound: i32) -> i32 {
+            self.0 = self.0.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            (((self.0 as u64) >> 33) % bound as u64) as i32
+        }
+
+        fn stat(&mut self) -> Stat {
+            let stat_type = StatType::VALUES[self.next(9) as usize];
+            let spread = stat_type.get_registry().len().min(60) as i32;
+            stat_type.get(self.next(spread) as u16)
+        }
+    }
+
+    fn send(counter: &mut ServerStatsCounter, out: &mut String) {
+        out.push_str(" S");
+        for (_, &(stat, value)) in counter.stats_to_send().iter() {
+            out.push_str(&format!(" {}={value}", stat.get_name()));
+        }
+    }
+
+    fn json(counter: &ServerStatsCounter, out: &mut String) -> Value {
+        let json = counter.to_json();
+        for (key, inner) in json["stats"].as_object().unwrap() {
+            out.push_str(&format!(" J {key}"));
+            for (stat, value) in inner.as_object().unwrap() {
+                out.push_str(&format!(" {stat}={value}"));
+            }
+        }
+        json
+    }
+
+    #[test]
+    #[ignore]
+    fn matches_vanilla_order_oracle() {
+        let expected = std::fs::read_to_string(std::env::var("STATS_ORACLE").expect("STATS_ORACLE")).unwrap();
+        for (trial, line) in expected.lines().enumerate() {
+            let mut random = Lcg(trial as i64);
+            let mut out = format!("T{trial}");
+            let mut counter = ServerStatsCounter::default();
+            let ops = 1 + random.next(150);
+            for _ in 0..ops {
+                match random.next(12) {
+                    0 => send(&mut counter, &mut out),
+                    1 => {
+                        counter.mark_all_dirty();
+                        out.push_str(" M");
+                    }
+                    _ => {
+                        let stat = random.stat();
+                        let count = 1 + random.next(5);
+                        counter.increment(stat, count);
+                    }
+                }
+            }
+            send(&mut counter, &mut out);
+            let saved = json(&counter, &mut out);
+            let mut reloaded = ServerStatsCounter::default();
+            reloaded.parse(&saved);
+            out.push_str(" R");
+            reloaded.mark_all_dirty();
+            send(&mut reloaded, &mut out);
+            for _ in 0..random.next(20) {
+                let stat = random.stat();
+                let count = 1 + random.next(5);
+                reloaded.increment(stat, count);
+            }
+            send(&mut reloaded, &mut out);
+            json(&reloaded, &mut out);
+            assert_eq!(out, line, "trial {trial}");
+        }
+    }
 }
