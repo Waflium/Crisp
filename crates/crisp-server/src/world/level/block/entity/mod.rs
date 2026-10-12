@@ -4,6 +4,7 @@ pub mod banner_block_entity;
 pub mod base_container_block_entity;
 pub mod beacon_block_entity;
 pub mod beehive_block_entity;
+pub mod bell_block_entity;
 pub mod brewing_stand_block_entity;
 pub mod brushable_block_entity;
 pub mod campfire_block_entity;
@@ -61,6 +62,7 @@ pub enum BlockEntityTicker {
     BrewingStand,
     CampfireCook,
     CampfireCooldown,
+    Bell,
 }
 
 enum UpdateTag {
@@ -92,6 +94,7 @@ pub enum BlockEntityKind {
     DecoratedPot(decorated_pot_block_entity::DecoratedPotBlockEntity),
     Banner(banner_block_entity::BannerBlockEntity),
     Skull(skull_block_entity::SkullBlockEntity),
+    Bell(bell_block_entity::BellBlockEntity),
     BrewingStand(brewing_stand_block_entity::BrewingStandBlockEntity),
     Other(Vec<(String, Nbt)>),
 }
@@ -138,6 +141,7 @@ impl BlockEntity {
             types::DECORATED_POT => BlockEntityKind::DecoratedPot(decorated_pot_block_entity::DecoratedPotBlockEntity::default()),
             types::BANNER => BlockEntityKind::Banner(banner_block_entity::BannerBlockEntity::default()),
             types::SKULL => BlockEntityKind::Skull(skull_block_entity::SkullBlockEntity::default()),
+            types::BELL => BlockEntityKind::Bell(bell_block_entity::BellBlockEntity::default()),
             types::BREWING_STAND => BlockEntityKind::BrewingStand(brewing_stand_block_entity::BrewingStandBlockEntity::default()),
             _ => BlockEntityKind::Other(Vec::new()),
         };
@@ -242,6 +246,7 @@ impl BlockEntity {
             BlockEntityKind::DecoratedPot(pot) => pot.load_additional(input),
             BlockEntityKind::Banner(banner) => banner.load_additional(input),
             BlockEntityKind::Skull(skull) => skull.load_additional(input),
+            BlockEntityKind::Bell(_) => {}
             BlockEntityKind::BrewingStand(brewing_stand) => brewing_stand.load_additional(input),
             BlockEntityKind::Other(data) => {
                 let _ = state;
@@ -278,6 +283,7 @@ impl BlockEntity {
             BlockEntityKind::DecoratedPot(pot) => pot.save_additional(output),
             BlockEntityKind::Banner(banner) => banner.save_additional(output),
             BlockEntityKind::Skull(skull) => skull.save_additional(output),
+            BlockEntityKind::Bell(_) => {}
             BlockEntityKind::BrewingStand(brewing_stand) => brewing_stand.save_additional(output),
             BlockEntityKind::Other(data) => output.extend(data.iter().cloned()),
         }
@@ -551,6 +557,7 @@ impl BlockEntity {
             types::CONDUIT if block.is_instance_of("ConduitBlock") => Some(BlockEntityTicker::Conduit),
             types::BEACON if block.is_instance_of("BeaconBlock") => Some(BlockEntityTicker::Beacon),
             types::BREWING_STAND if block.is_instance_of("BrewingStandBlock") => Some(BlockEntityTicker::BrewingStand),
+            types::BELL if block.is_instance_of("BellBlock") => Some(BlockEntityTicker::Bell),
             types::CAMPFIRE if block.is_instance_of("CampfireBlock") => {
                 Some(if state.get(crisp_data::properties::LIT) { BlockEntityTicker::CampfireCook } else { BlockEntityTicker::CampfireCooldown })
             }
