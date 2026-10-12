@@ -192,6 +192,7 @@ pub struct WorldData {
     pub weather: WeatherData,
     pub generator: ChunkGenerator,
     pub generate_structures: bool,
+    pub bonus_chest: bool,
     pub initialized: bool,
     pub server_brands: Vec<String>,
     pub was_modded: bool,
@@ -221,6 +222,7 @@ impl WorldData {
             weather: WeatherData::default(),
             generator,
             generate_structures,
+            bonus_chest: false,
             initialized: false,
             server_brands: Vec::new(),
             was_modded: false,
@@ -291,6 +293,7 @@ impl WorldData {
             weather,
             generator,
             generate_structures: worldgen.get("generate_structures").and_then(Nbt::as_i64).is_none_or(|v| v != 0),
+            bonus_chest: worldgen.get("bonus_chest").and_then(Nbt::as_i64).is_some_and(|v| v != 0),
             initialized: level.get("initialized").and_then(Nbt::as_i64).is_none_or(|v| v != 0),
             server_brands: level.get("ServerBrands").map(Nbt::as_list).unwrap_or(&[]).iter().filter_map(Nbt::as_str).fold(Vec::new(), |mut brands, brand| {
                 if !brands.iter().any(|b| b == brand) {
@@ -384,7 +387,7 @@ impl WorldData {
             ),
         };
         let generation = compound(vec![
-            ("bonus_chest", Nbt::Byte(0)),
+            ("bonus_chest", Nbt::Byte(self.bonus_chest as i8)),
             ("seed", Nbt::Long(self.seed)),
             ("generate_structures", Nbt::Byte(generate_structures)),
             (

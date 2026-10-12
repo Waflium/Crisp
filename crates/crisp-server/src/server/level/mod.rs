@@ -975,6 +975,14 @@ impl ServerLevel {
         }
     }
 
+    pub fn add_world_gen_chunk_entities(&mut self, entities: &[Nbt]) {
+        for nbt in entities {
+            if let Some(entity) = self.load_entity(nbt) {
+                self.add_entity(entity);
+            }
+        }
+    }
+
     pub fn add_fresh_entity(&mut self, entity: LevelEntity) -> bool {
         if entity.entity().is_removed() {
             let ty = crisp_data::registry::ENTITY_TYPE[entity.entity().entity_type as usize];
@@ -1461,6 +1469,7 @@ impl ServerLevel {
             Some(LevelEntity::Item(_)) => self.tick_item(id),
             Some(LevelEntity::LightningBolt(_)) => self.tick_lightning_bolt(id),
             Some(LevelEntity::EyeOfEnder(_)) => self.tick_eye_of_ender(id),
+            Some(LevelEntity::EndCrystal(_)) => self.tick_end_crystal(id),
             Some(LevelEntity::PrimedTnt(_)) => self.tick_primed_tnt(id),
             Some(LevelEntity::FallingBlock(_)) => self.tick_falling_block(id),
             Some(LevelEntity::ExperienceOrb(_)) => self.tick_experience_orb(id),
@@ -1696,6 +1705,14 @@ impl crate::world::level::world_gen_level::WorldGenLevel for ServerLevel {
         let chunk = self.chunks.chunk(ChunkPos::new(pos.x >> 4, pos.z >> 4));
         let index = ((pos.y - chunk.min_y()) >> 4) as usize;
         chunk.sections[index].set_block_state((pos.x & 15) as usize, (pos.y & 15) as usize, (pos.z & 15) as usize, state);
+    }
+
+    fn destroy_block(&mut self, pos: BlockPos, drop_resources: bool) -> bool {
+        ServerLevel::destroy_block(self, pos, drop_resources, None, 512)
+    }
+
+    fn add_fresh_entity(&mut self, entity: LevelEntity) -> bool {
+        ServerLevel::add_fresh_entity(self, entity)
     }
 }
 

@@ -28,6 +28,7 @@ mod oracle_tests;
 pub mod shelf_block_entity;
 pub mod sign_block_entity;
 pub mod sign_text;
+pub mod the_end_gateway_block_entity;
 pub mod shulker_box_block_entity;
 pub mod skull_block_entity;
 pub mod spawner_block_entity;
@@ -110,6 +111,7 @@ pub enum BlockEntityKind {
     Vault(vault::vault_block_entity::VaultBlockEntity),
     Empty,
     BrewingStand(brewing_stand_block_entity::BrewingStandBlockEntity),
+    EndGateway(the_end_gateway_block_entity::TheEndGatewayBlockEntity),
     Other(Vec<(String, Nbt)>),
 }
 
@@ -162,6 +164,7 @@ impl BlockEntity {
             types::VAULT => BlockEntityKind::Vault(vault::vault_block_entity::VaultBlockEntity::default()),
             types::COPPER_GOLEM_STATUE | types::DAYLIGHT_DETECTOR | types::END_PORTAL => BlockEntityKind::Empty,
             types::BREWING_STAND => BlockEntityKind::BrewingStand(brewing_stand_block_entity::BrewingStandBlockEntity::default()),
+            types::END_GATEWAY => BlockEntityKind::EndGateway(the_end_gateway_block_entity::TheEndGatewayBlockEntity::default()),
             _ => BlockEntityKind::Other(Vec::new()),
         };
         Some(BlockEntity { ty, pos, block_state: state, remove: false, components: DataComponentMap::EMPTY, id: NEXT_ID.fetch_add(1, Ordering::Relaxed), kind })
@@ -270,6 +273,7 @@ impl BlockEntity {
             BlockEntityKind::Sign(sign) => sign.load_additional(input),
             BlockEntityKind::Vault(vault) => vault.load_additional(input),
             BlockEntityKind::BrewingStand(brewing_stand) => brewing_stand.load_additional(input),
+            BlockEntityKind::EndGateway(gateway) => gateway.load_additional(input),
             BlockEntityKind::Other(data) => {
                 let _ = state;
                 *data = match input {
@@ -310,6 +314,7 @@ impl BlockEntity {
             BlockEntityKind::Sign(sign) => sign.save_additional(output),
             BlockEntityKind::Vault(vault) => vault.save_additional(output),
             BlockEntityKind::BrewingStand(brewing_stand) => brewing_stand.save_additional(output),
+            BlockEntityKind::EndGateway(gateway) => gateway.save_additional(output),
             BlockEntityKind::Other(data) => output.extend(data.iter().cloned()),
         }
     }

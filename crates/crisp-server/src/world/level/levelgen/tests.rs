@@ -37,6 +37,26 @@ fn overworld() -> &'static DimensionType {
     &crisp_data::DIMENSION_TYPES[crisp_data::SyncedRegistry::get("minecraft:dimension_type").id_of("minecraft:overworld").unwrap() as usize]
 }
 
+fn oracle_dimension() -> &'static str {
+    match std::env::var("ORACLE_DIMENSION").as_deref() {
+        Ok("nether") => "minecraft:the_nether",
+        Ok("end") => "minecraft:the_end",
+        _ => "minecraft:overworld",
+    }
+}
+
+fn oracle_dimension_type() -> &'static DimensionType {
+    &crisp_data::DIMENSION_TYPES[crisp_data::SyncedRegistry::get("minecraft:dimension_type").id_of(oracle_dimension()).unwrap() as usize]
+}
+
+fn oracle_generator(seed: i64) -> NoiseBasedChunkGenerator {
+    match oracle_dimension() {
+        "minecraft:the_nether" => NoiseBasedChunkGenerator::nether(seed),
+        "minecraft:the_end" => NoiseBasedChunkGenerator::end(seed),
+        _ => NoiseBasedChunkGenerator::overworld(seed),
+    }
+}
+
 pub struct Hashes {
     pub blocks: u64,
     pub biomes: u64,
@@ -150,7 +170,7 @@ impl StructureHarness {
 }
 
 fn generate_chunk(generator: &ChunkGenerator, pos: ChunkPos, structures: &mut Option<&mut StructureHarness>) -> LevelChunk {
-    let dimension = overworld();
+    let dimension = oracle_dimension_type();
     let Some(harness) = structures else {
         return generator.generate(pos, dimension);
     };
@@ -169,7 +189,7 @@ fn generate_chunk(generator: &ChunkGenerator, pos: ChunkPos, structures: &mut Op
 }
 
 pub fn decorate_with(generator: &ChunkGenerator, chunks: &mut HashMap<ChunkPos, LevelChunk>, center: ChunkPos, structures: &mut Option<&mut StructureHarness>) {
-    let dimension = overworld();
+    let dimension = oracle_dimension_type();
     let mut taken: Vec<(ChunkPos, LevelChunk)> = Vec::new();
     for dz in -1..=1 {
         for dx in -1..=1 {
@@ -233,7 +253,7 @@ fn features_match_vanilla_dump() {
         let stem = path.file_stem().unwrap().to_str().unwrap().to_owned();
         let f: Vec<i64> = stem.split('_').map(|s| s.parse().unwrap()).collect();
         let (seed, pos) = (f[0], ChunkPos::new(f[1] as i32, f[2] as i32));
-        let generator = ChunkGenerator::Noise(Arc::new(NoiseBasedChunkGenerator::overworld(seed)));
+        let generator = ChunkGenerator::Noise(Arc::new(oracle_generator(seed)));
         let chunk = decorate_like_oracle(&generator, pos);
         let bytes = std::fs::read(&path).unwrap();
         let mut mismatches: HashMap<(String, String), usize> = HashMap::new();
@@ -245,7 +265,11 @@ fn features_match_vanilla_dump() {
                     i += 1;
                     let actual = chunk.block_state(crisp_core::BlockPos::new(pos.min_block_x() + x, y, pos.min_block_z() + z));
                     if actual.id() != expected {
-                        let expected = crisp_data::BlockState::by_id(expected).map_or("?".into(), |s| s.block().name().to_string());                        *mismatches.entry((expected, actual.block().name().to_string())).or_default() += 1;
+                        let expected = crisp_data::BlockState::by_id(expected).map_or("?".into(), |s| s.block().name().to_string());
+                        if std::env::var("CRISP_FEATURE_POSITIONS").is_ok() {
+                            eprintln!("{} {y} {} expected {expected} got {}", pos.min_block_x() + x, pos.min_block_z() + z, actual.block().name());
+                        }
+                        *mismatches.entry((expected, actual.block().name().to_string())).or_default() += 1;
                     }
                 }
             }

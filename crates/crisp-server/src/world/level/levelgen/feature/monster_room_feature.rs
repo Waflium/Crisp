@@ -99,7 +99,7 @@ pub fn place<R: RandomSource>(level: &mut impl WorldGenLevel, random: &mut R, or
     true
 }
 
-fn set_block_entity_loot_table(level: &mut impl WorldGenLevel, random: &mut impl RandomSource, pos: BlockPos, loot_table: &str) {
+pub fn set_block_entity_loot_table(level: &mut impl WorldGenLevel, random: &mut impl RandomSource, pos: BlockPos, loot_table: &str) {
     if let Some(entity) = level.get_block_entity(pos)
         && entity.is_randomizable()
         && let Some(base) = entity.container_base_mut()

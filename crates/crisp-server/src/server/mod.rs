@@ -206,6 +206,7 @@ pub struct Server {
     pub difficulty_locked: bool,
     pub hardcore: bool,
     generate_structures: bool,
+    bonus_chest: bool,
     server_brands: Vec<String>,
     was_modded: bool,
     pub scheduled_events: TimerQueue,
@@ -274,6 +275,7 @@ impl Server {
         }
         let weather = data.weather;
         let generate_structures = data.generate_structures;
+        let bonus_chest = data.bonus_chest;
         let (mut server_brands, was_modded) = (data.server_brands, data.was_modded);
         if !server_brands.iter().any(|b| b == "vanilla") {
             server_brands.push("vanilla".into());
@@ -288,7 +290,15 @@ impl Server {
         }
         let spawn = match spawn {
             Some(spawn) => spawn,
-            None => RespawnData::of(OVERWORLD, level::player_spawn_finder::initial_spawn(&mut overworld.chunks), 0.0, 0.0),
+            None => {
+                let spawn = RespawnData::of(OVERWORLD, level::player_spawn_finder::initial_spawn(&mut overworld.chunks), 0.0, 0.0);
+                if bonus_chest && let Some(feature) = crate::world::level::levelgen::feature::feature::feature("minecraft:bonus_chest") {
+                    let mut random = std::mem::replace(&mut overworld.random, crisp_core::random::LegacyRandomSource::new(0));
+                    feature.place(&mut overworld, &mut random, spawn.pos);
+                    overworld.random = random;
+                }
+                spawn
+            }
         };
         if new_world {
             load_listener.finish(level::progress::Stage::PrepareGlobalSpawn);
@@ -371,6 +381,7 @@ impl Server {
             difficulty_locked,
             hardcore,
             generate_structures,
+            bonus_chest,
             server_brands,
             was_modded,
             scheduled_events: TimerQueue::load(world_dir.as_ref().map(WorldDir::data_folder)),
@@ -617,6 +628,7 @@ impl Server {
             weather: self.weather.get(),
             generator: self.overworld().chunks.generator.clone(),
             generate_structures: self.generate_structures,
+            bonus_chest: self.bonus_chest,
             initialized: true,
             server_brands: self.server_brands.clone(),
             was_modded: self.was_modded,

@@ -2,6 +2,7 @@ pub mod ageable_mob;
 pub mod ai;
 pub mod animal;
 pub mod attributes;
+pub mod boss;
 pub mod data;
 #[cfg(test)]
 mod effect_tests;
@@ -45,6 +46,7 @@ pub enum LevelEntity {
     ExperienceOrb(experience_orb::ExperienceOrb),
     LightningBolt(lightning_bolt::LightningBolt),
     EyeOfEnder(projectile::eye_of_ender::EyeOfEnder),
+    EndCrystal(boss::enderdragon::end_crystal::EndCrystal),
     PrimedTnt(primed_tnt::PrimedTnt),
     FallingBlock(item::falling_block_entity::FallingBlockEntity),
     Mob(Box<mob::Mob>),
@@ -60,6 +62,7 @@ impl LevelEntity {
             LevelEntity::Item(item) => crate::network::chat::Component::translatable(item.item.item.info().description_id),
             LevelEntity::LightningBolt(_) => crate::network::chat::Component::translatable("entity.minecraft.lightning_bolt"),
             LevelEntity::EyeOfEnder(_) => crate::network::chat::Component::translatable("entity.minecraft.eye_of_ender"),
+            LevelEntity::EndCrystal(_) => crate::network::chat::Component::translatable("entity.minecraft.end_crystal"),
             LevelEntity::PrimedTnt(_) => crate::network::chat::Component::translatable("entity.minecraft.tnt"),
             LevelEntity::FallingBlock(falling) => crate::network::chat::Component::translatable_with(
                 "entity.minecraft.falling_block_type",
@@ -87,6 +90,7 @@ impl LevelEntity {
             LevelEntity::FallingBlock(_) => TrackingConfig { range: 10 * 16, update_interval: UpdateInterval::Periodic(20), track_deltas: true, stepped: false, is_item: false },
             LevelEntity::LightningBolt(_) => TrackingConfig { range: 16 * 16, update_interval: UpdateInterval::Never, track_deltas: true, stepped: false, is_item: false },
             LevelEntity::EyeOfEnder(_) => TrackingConfig { range: 4 * 16, update_interval: UpdateInterval::Periodic(4), track_deltas: true, stepped: false, is_item: false },
+            LevelEntity::EndCrystal(_) => TrackingConfig { range: 16 * 16, update_interval: UpdateInterval::Never, track_deltas: false, stepped: false, is_item: false },
             LevelEntity::ExperienceOrb(_) => TrackingConfig { range: 6 * 16, update_interval: UpdateInterval::Periodic(20), track_deltas: true, stepped: false, is_item: false },
             LevelEntity::Mob(_) => TrackingConfig { range: 10 * 16, update_interval: UpdateInterval::Periodic(3), track_deltas: true, stepped: false, is_item: false },
         }
@@ -104,6 +108,7 @@ impl LevelEntity {
             LevelEntity::Item(item) => &item.entity,
             LevelEntity::LightningBolt(bolt) => &bolt.entity,
             LevelEntity::EyeOfEnder(eye) => &eye.entity,
+            LevelEntity::EndCrystal(crystal) => &crystal.entity,
             LevelEntity::PrimedTnt(tnt) => &tnt.entity,
             LevelEntity::FallingBlock(falling) => &falling.entity,
             LevelEntity::ExperienceOrb(orb) => &orb.entity,
@@ -116,6 +121,7 @@ impl LevelEntity {
             LevelEntity::Item(item) => &mut item.entity,
             LevelEntity::LightningBolt(bolt) => &mut bolt.entity,
             LevelEntity::EyeOfEnder(eye) => &mut eye.entity,
+            LevelEntity::EndCrystal(crystal) => &mut crystal.entity,
             LevelEntity::PrimedTnt(tnt) => &mut tnt.entity,
             LevelEntity::FallingBlock(falling) => &mut falling.entity,
             LevelEntity::ExperienceOrb(orb) => &mut orb.entity,

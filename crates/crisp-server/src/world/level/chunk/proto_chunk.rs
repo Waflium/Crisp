@@ -28,11 +28,12 @@ pub struct ProtoChunkData {
     pub heightmaps: [Option<Heightmap>; 2],
     pub block_ticks: ProtoChunkTicks<Block>,
     pub fluid_ticks: ProtoChunkTicks<Fluid>,
+    pub entities: Vec<crisp_protocol::nbt::Nbt>,
 }
 
 impl Default for ProtoChunkData {
     fn default() -> ProtoChunkData {
-        ProtoChunkData { heightmaps: [None, None], block_ticks: ProtoChunkTicks::default(), fluid_ticks: ProtoChunkTicks::default() }
+        ProtoChunkData { heightmaps: [None, None], block_ticks: ProtoChunkTicks::default(), fluid_ticks: ProtoChunkTicks::default(), entities: Vec::new() }
     }
 }
 

@@ -308,6 +308,24 @@ impl crate::world::level::world_gen_level::WorldGenLevel for WorldGenRegion<'_> 
     fn set_section_block_state(&mut self, pos: BlockPos, state: BlockState) {
         WorldGenRegion::set_section_block_state(self, pos, state);
     }
+
+    fn add_fresh_entity(&mut self, entity: crate::world::entity::LevelEntity) -> bool {
+        let block_pos = entity.entity().block_position();
+        let chunk = self.get_chunk(block_pos.x >> 4, block_pos.z >> 4);
+        if let Some(proto) = chunk.proto.as_mut()
+            && let Some(tag) = entity.save()
+        {
+            proto.entities.push(tag);
+        }
+        true
+    }
+
+    fn destroy_block(&mut self, pos: BlockPos, _drop_resources: bool) -> bool {
+        if self.get_block_state(pos).is_air() {
+            return false;
+        }
+        self.set_block(pos, blocks::AIR.default_state(), crate::world::level::update_flags::UPDATE_ALL)
+    }
 }
 
 impl BlockGetter for WorldGenRegion<'_> {

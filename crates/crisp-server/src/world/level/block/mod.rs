@@ -220,7 +220,7 @@ mod coral_block;
 mod frogspawn_block;
 mod sniffer_egg_block;
 mod turtle_egg_block;
-mod chorus_flower_block;
+pub mod chorus_flower_block;
 mod chorus_plant_block;
 mod pipe_block;
 mod coral_fan_block;

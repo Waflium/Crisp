@@ -77,6 +77,7 @@ pub struct ChunkCache {
     ready_to_send: Vec<ChunkPos>,
     ticking_ready: Vec<ChunkPos>,
     structure_starts_available: Vec<(ChunkPos, FastMap<StructureHolder, i32>)>,
+    world_gen_chunk_entities: Vec<Vec<crisp_protocol::nbt::Nbt>>,
     full_status_changes: VecDeque<(ChunkPos, FullChunkStatus)>,
     last_chunk_pos: [Option<ChunkPos>; 4],
     server_view_distance: i32,
@@ -126,6 +127,7 @@ impl ChunkCache {
             ready_to_send: Vec::new(),
             ticking_ready: Vec::new(),
             structure_starts_available: Vec::new(),
+            world_gen_chunk_entities: Vec::new(),
             full_status_changes: VecDeque::new(),
             last_chunk_pos: [None; 4],
             server_view_distance: 0,
@@ -295,6 +297,10 @@ impl ChunkCache {
 
     pub fn chunk_scan_access(&self) -> Option<IoWorker> {
         self.io.clone()
+    }
+
+    pub fn take_world_gen_chunk_entities(&mut self) -> Vec<Vec<crisp_protocol::nbt::Nbt>> {
+        std::mem::take(&mut self.world_gen_chunk_entities)
     }
 
     pub fn take_structure_starts_available(&mut self) -> Vec<(ChunkPos, FastMap<StructureHolder, i32>)> {
@@ -1001,6 +1007,9 @@ impl ChunkCache {
                     if let Some(proto) = chunk.proto.take() {
                         let proto = *proto;
                         proto_ticks = Some((LevelChunkTicks::with_pending(proto.block_ticks.scheduled_ticks()), LevelChunkTicks::with_pending(proto.fluid_ticks.scheduled_ticks())));
+                        if !proto.entities.is_empty() {
+                            self.world_gen_chunk_entities.push(proto.entities);
+                        }
                     }
                     chunk.loaded = true;
                     chunk.register_all_block_entities_after_level_load(&mut self.block_entity_tickers);

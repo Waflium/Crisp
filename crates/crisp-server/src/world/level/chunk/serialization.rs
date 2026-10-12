@@ -203,7 +203,8 @@ pub fn write(chunk: &LevelChunk, status: ChunkStatus, block_entities: Vec<Nbt>, 
     }
     tag.push(("block_entities".into(), Nbt::List(block_entities)));
     if status != ChunkStatus::Full {
-        tag.push(("entities".into(), Nbt::List(Vec::new())));
+        let entities = chunk.proto.as_ref().map(|proto| proto.entities.clone()).unwrap_or_default();
+        tag.push(("entities".into(), Nbt::List(entities)));
     }
     let (block_ticks, fluid_ticks) = match &chunk.proto {
         Some(proto) => (proto.block_ticks.pack(), proto.fluid_ticks.pack()),
@@ -342,6 +343,7 @@ pub fn read(nbt: &Nbt, dimension: &DimensionType, seed: i64) -> io::Result<ReadC
     }
     proto.block_ticks = ProtoChunkTicks::load(block_ticks);
     proto.fluid_ticks = ProtoChunkTicks::load(fluid_ticks);
+    proto.entities = nbt.get("entities").map(Nbt::as_list).unwrap_or(&[]).to_vec();
     chunk.proto = Some(Box::new(proto));
     Ok(ReadChunk { chunk, status, block_ticks: LevelChunkTicks::default(), fluid_ticks: LevelChunkTicks::default(), light })
 }

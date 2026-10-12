@@ -228,6 +228,7 @@ pub fn main(args: Vec<String>) {
     let resource_manager = MultiPackResourceManager::new(pack_repository.open_all_selected());
     let worker_properties = properties.clone();
     let worker_data_configuration = data_configuration.clone();
+    let bonus_chest = options.has("bonusChest");
     let (postponed_tags, mut world_data) = std::thread::scope(|scope| {
         std::thread::Builder::new()
             .name("Worker-Main-1".into())
@@ -235,7 +236,7 @@ pub fn main(args: Vec<String>) {
                 let postponed_tags = load_tags_for_existing_registries(&resource_manager);
                 let world_data = level_data.unwrap_or_else(|| {
                     info!("No existing world data, creating new world");
-                    create_new_world_data(&worker_properties, worker_data_configuration)
+                    create_new_world_data(&worker_properties, worker_data_configuration, bonus_chest)
                 });
                 (postponed_tags, world_data)
             })
@@ -295,10 +296,10 @@ fn load_or_create_config(properties: &DedicatedServerProperties, level_data: Opt
     }
 }
 
-fn create_new_world_data(properties: &DedicatedServerProperties, data_configuration: WorldDataConfiguration) -> WorldData {
+fn create_new_world_data(properties: &DedicatedServerProperties, data_configuration: WorldDataConfiguration, bonus_chest: bool) -> WorldData {
     let seed = properties.seed.unwrap_or_else(rand::random);
     let generator = create_dimensions(properties, seed);
-    WorldData::new_world(
+    let mut world_data = WorldData::new_world(
         seed,
         generator,
         properties.generate_structures,
@@ -306,7 +307,9 @@ fn create_new_world_data(properties: &DedicatedServerProperties, data_configurat
         properties.difficulty,
         properties.hardcore,
         data_configuration,
-    )
+    );
+    world_data.bonus_chest = bonus_chest;
+    world_data
 }
 
 fn create_dimensions(properties: &DedicatedServerProperties, seed: i64) -> ChunkGenerator {

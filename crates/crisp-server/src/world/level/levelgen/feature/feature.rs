@@ -42,6 +42,18 @@ use super::tree_feature::TreeFeature;
 use super::vegetation_patch_feature::VegetationPatchFeature;
 use super::vines_feature;
 use super::weighted_random_selector_feature::WeightedRandomSelectorFeature;
+use super::delta_feature::DeltaFeature;
+use super::end_gateway_feature::EndGatewayFeature;
+use super::end_podium_feature::EndPodiumFeature;
+use super::end_spike_feature::EndSpikeFeature;
+use super::huge_fungus_feature::HugeFungusFeature;
+use super::projected_random_patchy_square::ProjectedRandomPatchySquare;
+use super::random_neighbor_spread_feature::RandomNeighborSpreadFeature;
+use super::replace_blobs_feature::ReplaceBlobsFeature;
+use super::replace_block_feature::ReplaceBlockFeature;
+use super::single_block_pillar_feature::SingleBlockPillarFeature;
+use super::stepped_column_cluster_feature::SteppedColumnClusterFeature;
+use super::{bonus_chest_feature, chorus_plant_feature, end_island_feature, end_platform_feature, void_start_platform_feature};
 use crate::world::level::world_gen_level::WorldGenLevel;
 use crate::world::level::levelgen::blockpredicates::block_predicate::resource;
 
@@ -86,6 +98,22 @@ pub enum Feature {
     SimpleRandomSelector(SimpleRandomSelectorFeature),
     RandomBooleanSelector(Box<RandomBooleanSelectorFeature>),
     WeightedRandomSelector(WeightedRandomSelectorFeature),
+    BonusChest,
+    ChorusPlant,
+    Delta(DeltaFeature),
+    EndGateway(EndGatewayFeature),
+    EndIsland,
+    EndPlatform,
+    EndPodium(EndPodiumFeature),
+    EndSpike(Box<EndSpikeFeature>),
+    HugeFungus(Box<HugeFungusFeature>),
+    ReplaceBlobs(ReplaceBlobsFeature),
+    ProjectedRandomPatchySquare(ProjectedRandomPatchySquare),
+    RandomNeighborSpread(Box<RandomNeighborSpreadFeature>),
+    ReplaceBlock(ReplaceBlockFeature),
+    SingleBlockPillar(Box<SingleBlockPillarFeature>),
+    SteppedColumnCluster(Box<SteppedColumnClusterFeature>),
+    VoidStartPlatform,
     NotImplemented,
 }
 
@@ -154,6 +182,22 @@ impl Feature {
             "simple_random_selector" => Feature::SimpleRandomSelector(SimpleRandomSelectorFeature::parse(json)?),
             "random_boolean_selector" => Feature::RandomBooleanSelector(Box::new(RandomBooleanSelectorFeature::parse(json)?)),
             "weighted_random_selector" => Feature::WeightedRandomSelector(WeightedRandomSelectorFeature::parse(json)?),
+            "bonus_chest" => Feature::BonusChest,
+            "chorus_plant" => Feature::ChorusPlant,
+            "delta_feature" => Feature::Delta(DeltaFeature::parse(json)?),
+            "end_gateway" => Feature::EndGateway(EndGatewayFeature::parse(json)?),
+            "end_island" => Feature::EndIsland,
+            "end_platform" => Feature::EndPlatform,
+            "end_podium" => Feature::EndPodium(EndPodiumFeature::parse(json)?),
+            "end_spike" => Feature::EndSpike(Box::new(EndSpikeFeature::parse(json)?)),
+            "huge_fungus" => Feature::HugeFungus(Box::new(HugeFungusFeature::parse(json)?)),
+            "netherrack_replace_blobs" => Feature::ReplaceBlobs(ReplaceBlobsFeature::parse(json)?),
+            "projected_random_patchy_square" => Feature::ProjectedRandomPatchySquare(ProjectedRandomPatchySquare::parse(json)?),
+            "random_neighbor_spread" => Feature::RandomNeighborSpread(Box::new(RandomNeighborSpreadFeature::parse(json)?)),
+            "replace_single_block" => Feature::ReplaceBlock(ReplaceBlockFeature::parse(json)?),
+            "single_block_pillar" => Feature::SingleBlockPillar(Box::new(SingleBlockPillarFeature::parse(json)?)),
+            "stepped_column_cluster" => Feature::SteppedColumnCluster(Box::new(SteppedColumnClusterFeature::parse(json)?)),
+            "void_start_platform" => Feature::VoidStartPlatform,
             _ => Feature::NotImplemented,
         })
     }
@@ -212,6 +256,22 @@ impl Feature {
             Feature::SimpleRandomSelector(feature) => feature.place(level, random, origin),
             Feature::RandomBooleanSelector(feature) => feature.place(level, random, origin),
             Feature::WeightedRandomSelector(feature) => feature.place(level, random, origin),
+            Feature::BonusChest => bonus_chest_feature::place(level, random, origin),
+            Feature::ChorusPlant => chorus_plant_feature::place(level, random, origin),
+            Feature::Delta(feature) => feature.place(level, random, origin),
+            Feature::EndGateway(feature) => feature.place(level, origin),
+            Feature::EndIsland => end_island_feature::place(level, random, origin),
+            Feature::EndPlatform => end_platform_feature::place(level, origin),
+            Feature::EndPodium(feature) => feature.place(level, origin),
+            Feature::EndSpike(feature) => feature.place(level, random, origin),
+            Feature::HugeFungus(feature) => feature.place(level, random, origin),
+            Feature::ReplaceBlobs(feature) => feature.place(level, random, origin),
+            Feature::ProjectedRandomPatchySquare(feature) => feature.place(level, random, origin),
+            Feature::RandomNeighborSpread(feature) => feature.place(level, random, origin),
+            Feature::ReplaceBlock(feature) => feature.place(level, random, origin),
+            Feature::SingleBlockPillar(feature) => feature.place(level, random, origin),
+            Feature::SteppedColumnCluster(feature) => feature.place(level, random, origin),
+            Feature::VoidStartPlatform => void_start_platform_feature::place(level, origin),
             Feature::NotImplemented => false,
         }
     }

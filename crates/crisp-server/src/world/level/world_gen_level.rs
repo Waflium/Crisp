@@ -41,4 +41,8 @@ pub trait WorldGenLevel: LevelAccessor {
     }
 
     fn set_section_block_state(&mut self, pos: BlockPos, state: BlockState);
+
+    fn destroy_block(&mut self, pos: BlockPos, drop_resources: bool) -> bool;
+
+    fn add_fresh_entity(&mut self, entity: crate::world::entity::LevelEntity) -> bool;
 }

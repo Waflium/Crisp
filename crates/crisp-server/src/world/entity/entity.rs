@@ -732,8 +732,7 @@ impl ServerLevel {
     pub fn fire_immune(&self, id: EntityId) -> bool {
         match self.entities.get(&id) {
             Some(super::LevelEntity::Item(item)) => !item.item.can_be_hurt_by(&crate::world::damagesource::DamageSource::new(crisp_data::damage_types::IN_FIRE)),
-            Some(super::LevelEntity::PrimedTnt(_)) => true,
-            _ => false,
+            _ => self.entity_ref(id).is_some_and(|e| super::entity_type::fire_immune(e.entity_type)),
         }
     }
 
@@ -1834,6 +1833,7 @@ impl ServerLevel {
             Some(LevelEntity::ExperienceOrb(_)) => self.experience_orb_hurt_server(id, &source, damage),
             Some(LevelEntity::Item(_)) => self.item_entity_hurt_server(id, source, damage),
             Some(LevelEntity::FallingBlock(_)) => self.falling_block_hurt_server(id, source),
+            Some(LevelEntity::EndCrystal(_)) => self.end_crystal_hurt_server(id, source),
             _ => false,
         }
     }

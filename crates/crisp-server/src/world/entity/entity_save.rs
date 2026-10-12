@@ -144,6 +144,7 @@ impl LevelEntity {
             LevelEntity::ExperienceOrb(_) => Some("minecraft:experience_orb"),
             LevelEntity::LightningBolt(_) => None,
             LevelEntity::EyeOfEnder(_) => Some("minecraft:eye_of_ender"),
+            LevelEntity::EndCrystal(_) => Some("minecraft:end_crystal"),
             LevelEntity::Mob(mob) => Some(crisp_data::registry::ENTITY_TYPE[mob.entity.entity_type as usize]),
         }
     }
@@ -194,6 +195,12 @@ impl LevelEntity {
             LevelEntity::FallingBlock(falling) => falling.add_additional_save_data(out),
             LevelEntity::LightningBolt(_) => {}
             LevelEntity::EyeOfEnder(eye) => out.push(("Item".into(), eye.get_item().to_nbt())),
+            LevelEntity::EndCrystal(crystal) => {
+                if let Some(target) = crystal.get_beam_target() {
+                    out.push(("beam_target".into(), Nbt::IntArray(vec![target.x, target.y, target.z])));
+                }
+                out.push(("ShowBottom".into(), Nbt::Byte(crystal.shows_bottom() as i8)));
+            }
             LevelEntity::Mob(mob) => mob.save(out),
         }
     }
@@ -231,6 +238,14 @@ impl LevelEntity {
             LevelEntity::EyeOfEnder(eye) => {
                 let item = nbt.get("Item").and_then(|i| ItemStack::from_nbt(i).ok()).unwrap_or_else(ItemStack::empty);
                 eye.set_item(&item);
+            }
+            LevelEntity::EndCrystal(crystal) => {
+                let target = match nbt.get("beam_target") {
+                    Some(Nbt::IntArray(v)) if v.len() == 3 => Some(BlockPos::new(v[0], v[1], v[2])),
+                    _ => None,
+                };
+                crystal.set_beam_target(target);
+                crystal.set_show_bottom(nbt.get("ShowBottom").and_then(int_value).map_or(true, |v| v != 0));
             }
             LevelEntity::Mob(mob) => mob.load(nbt),
         }
@@ -271,6 +286,7 @@ impl ServerLevel {
             "minecraft:experience_orb" => LevelEntity::ExperienceOrb(super::experience_orb::ExperienceOrb::of_type()),
             "minecraft:lightning_bolt" => LevelEntity::LightningBolt(super::lightning_bolt::LightningBolt::new(Vec3::ZERO)),
             "minecraft:eye_of_ender" => LevelEntity::EyeOfEnder(super::projectile::eye_of_ender::EyeOfEnder::of_type()),
+            "minecraft:end_crystal" => LevelEntity::EndCrystal(super::boss::enderdragon::end_crystal::EndCrystal::of_type()),
             "minecraft:chicken" => LevelEntity::Mob(Box::new(super::animal::chicken::Chicken::create())),
             _ => return None,
         })

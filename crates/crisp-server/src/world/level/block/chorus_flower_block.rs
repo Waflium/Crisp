@@ -1,7 +1,7 @@
 use crisp_core::random::RandomSource;
 use crisp_core::{BlockPos, Direction};
 use crisp_data::properties::AGE_5;
-use crisp_data::{Block, BlockState, block_tags};
+use crisp_data::{Block, BlockState, block_tags, blocks};
 
 use super::BlockBehaviour;
 use super::chorus_plant_block::get_state_with_connections;
@@ -15,6 +15,58 @@ pub const DEAD_AGE: i32 = 5;
 
 fn all_neighbors_empty(level: &mut dyn LevelReader, pos: BlockPos, ignore: Option<Direction>) -> bool {
     Direction::PLANE_HORIZONTAL.into_iter().all(|direction| Some(direction) == ignore || level.block_state(pos.relative(direction)).is_air())
+}
+
+pub fn generate_plant(level: &mut dyn LevelAccessor, target: BlockPos, random: &mut impl RandomSource, max_horizontal_spread: i32) {
+    let state = get_state_with_connections(level, target, blocks::CHORUS_PLANT.default_state());
+    level.set_block(target, state, UPDATE_CLIENTS);
+    grow_tree_recursive(level, target, random, target, max_horizontal_spread, 0);
+}
+
+fn grow_tree_recursive(level: &mut dyn LevelAccessor, current: BlockPos, random: &mut impl RandomSource, start_pos: BlockPos, max_horizontal_spread: i32, depth: i32) {
+    let chorus = blocks::CHORUS_PLANT;
+    let mut height = random.next_int_bounded(4) + 1;
+    if depth == 0 {
+        height += 1;
+    }
+    for i in 0..height {
+        let target = current.offset(0, i + 1, 0);
+        if !all_neighbors_empty(level, target, None) {
+            return;
+        }
+        let state = get_state_with_connections(level, target, chorus.default_state());
+        level.set_block(target, state, UPDATE_CLIENTS);
+        let state = get_state_with_connections(level, target.below(), chorus.default_state());
+        level.set_block(target.below(), state, UPDATE_CLIENTS);
+    }
+    let mut placed_stem = false;
+    if depth < 4 {
+        let mut stems = random.next_int_bounded(4);
+        if depth == 0 {
+            stems += 1;
+        }
+        for _ in 0..stems {
+            let direction = Direction::PLANE_HORIZONTAL[random.next_int_bounded(4) as usize];
+            let target = current.offset(0, height, 0).relative(direction);
+            if (target.x - start_pos.x).abs() < max_horizontal_spread
+                && (target.z - start_pos.z).abs() < max_horizontal_spread
+                && level.block_state(target).is_air()
+                && level.block_state(target.below()).is_air()
+                && all_neighbors_empty(level, target, Some(direction.opposite()))
+            {
+                placed_stem = true;
+                let state = get_state_with_connections(level, target, chorus.default_state());
+                level.set_block(target, state, UPDATE_CLIENTS);
+                let behind = target.relative(direction.opposite());
+                let state = get_state_with_connections(level, behind, chorus.default_state());
+                level.set_block(behind, state, UPDATE_CLIENTS);
+                grow_tree_recursive(level, target, random, start_pos, max_horizontal_spread, depth + 1);
+            }
+        }
+    }
+    if !placed_stem {
+        level.set_block(current.offset(0, height, 0), blocks::CHORUS_FLOWER.default_state().set(AGE_5, DEAD_AGE), UPDATE_CLIENTS);
+    }
 }
 
 pub struct ChorusFlowerBlock {

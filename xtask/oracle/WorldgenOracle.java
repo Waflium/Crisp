@@ -627,10 +627,53 @@ public final class WorldgenOracle {
         long seed = Long.parseLong(args[2]);
         World world = world(seed);
         OracleLevel.registryAccess = fullRegistries;
-        OracleLevel.dimensionType = registries.lookupOrThrow(Registries.DIMENSION_TYPE).getOrThrow(BuiltinDimensionTypes.OVERWORLD).value();
+        var dimensionTypeKey = switch (DIMENSION) {
+            case "nether" -> BuiltinDimensionTypes.NETHER;
+            case "end" -> BuiltinDimensionTypes.END;
+            default -> BuiltinDimensionTypes.OVERWORLD;
+        };
+        OracleLevel.dimensionType = registries.lookupOrThrow(Registries.DIMENSION_TYPE).getOrThrow(dimensionTypeKey).value();
         OracleLevel.lightEngine = new UnlitLightEngine();
         OracleLevel.seed = seed;
         OracleChunkCache.generator = world.generator;
+        String trace = System.getenv("ORACLE_TRACE_FEATURE_TYPES");
+        if (trace != null) {
+            Set<String> traced = Set.of(trace.split(","));
+            Field value = Holder.Reference.class.getDeclaredField("value");
+            value.setAccessible(true);
+            for (Holder.Reference<net.minecraft.world.level.levelgen.feature.Feature> holder : registries.lookupOrThrow(Registries.FEATURE).listElements().toList()) {
+                net.minecraft.world.level.levelgen.feature.Feature original = holder.value();
+                String type = net.minecraft.core.registries.BuiltInRegistries.FEATURE_TYPE.getKey(original.codec()).toString();
+                if (traced.contains(type)) {
+                    value.set(holder, new net.minecraft.world.level.levelgen.feature.Feature() {
+                        @Override
+                        public com.mojang.serialization.MapCodec<? extends net.minecraft.world.level.levelgen.feature.Feature> codec() {
+                            return original.codec();
+                        }
+
+                        @Override
+                        public boolean place(net.minecraft.world.level.WorldGenLevel level, net.minecraft.world.level.chunk.ChunkGenerator generator, net.minecraft.util.RandomSource random, net.minecraft.core.BlockPos origin) {
+                            boolean placed = original.place(level, generator, random, origin);
+                            StringBuilder column = new StringBuilder();
+                            String watch = System.getenv("ORACLE_TRACE_COLUMN");
+                            if (watch != null) {
+                                String[] w = watch.split(",");
+                                int wx = Integer.parseInt(w[0]), wz = Integer.parseInt(w[1]);
+                                for (int y = Integer.parseInt(w[2]); y <= Integer.parseInt(w[3]); y++) {
+                                    try {
+                                        column.append(' ').append(net.minecraft.core.registries.BuiltInRegistries.BLOCK.getKey(level.getBlockState(new net.minecraft.core.BlockPos(wx, y, wz)).getBlock()).getPath());
+                                    } catch (Throwable t) {
+                                        column.append(" ?");
+                                    }
+                                }
+                            }
+                            System.err.println("trace " + holder.key().identifier() + " " + origin.getX() + " " + origin.getY() + " " + origin.getZ() + " " + placed + column);
+                            return placed;
+                        }
+                    });
+                }
+            }
+        }
         String skip = System.getenv("ORACLE_SKIP_FEATURE_TYPES");
         if (skip != null) {
             Set<String> skipped = Set.of(skip.split(","));
