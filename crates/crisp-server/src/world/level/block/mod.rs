@@ -4,8 +4,14 @@ pub mod anvil_block;
 mod bonemealable_feature_placer_block;
 mod dragon_egg_block;
 mod grass_block;
+mod hay_block;
+mod honey_block;
+mod magma_block;
 mod netherrack_block;
+mod powder_snow_block;
 mod rooted_dirt_block;
+mod slime_block;
+mod web_block;
 pub mod falling_block;
 mod bamboo_sapling_block;
 mod bamboo_stalk_block;
@@ -590,6 +596,12 @@ fn for_class(class: &str, block: Block) -> Option<Box<dyn BlockBehaviour>> {
         "BonemealableFeaturePlacerBlock" => Box::new(bonemealable_feature_placer_block::BonemealableFeaturePlacerBlock::new(block)),
         "RootedDirtBlock" => Box::new(rooted_dirt_block::RootedDirtBlock),
         "NetherrackBlock" => Box::new(netherrack_block::NetherrackBlock),
+        "MagmaBlock" => Box::new(magma_block::MagmaBlock),
+        "SlimeBlock" => Box::new(slime_block::SlimeBlock),
+        "HoneyBlock" => Box::new(honey_block::HoneyBlock),
+        "WebBlock" => Box::new(web_block::WebBlock),
+        "PowderSnowBlock" => Box::new(powder_snow_block::PowderSnowBlock),
+        "HayBlock" => Box::new(hay_block::HayBlock),
         "CarpetBlock" => Box::new(carpet_block::CarpetBlock),
         "CartographyTableBlock" => Box::new(cartography_table_block::CartographyTableBlock),
         "CarvedPumpkinBlock" => Box::new(carved_pumpkin_block::CarvedPumpkinBlock),

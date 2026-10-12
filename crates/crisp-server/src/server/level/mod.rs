@@ -813,6 +813,22 @@ impl ServerLevel {
 
     #[allow(clippy::too_many_arguments)]
     pub fn send_particles(&self, particle: &str, options: impl Fn(&mut crisp_protocol::Writer), x: f64, y: f64, z: f64, count: i32, dist: (f64, f64, f64), speed: f64) {
+        self.send_particles_with_speeds(particle, options, x, y, z, count, dist, (speed, speed, speed), 0);
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn send_particles_with_speeds(
+        &self,
+        particle: &str,
+        options: impl Fn(&mut crisp_protocol::Writer),
+        x: f64,
+        y: f64,
+        z: f64,
+        count: i32,
+        dist: (f64, f64, f64),
+        speed: (f64, f64, f64),
+        randomization_type: i32,
+    ) {
         let packet = encode(clientbound::LEVEL_PARTICLES, |p| {
             p.varint(crisp_data::registry_id(crisp_data::registry::PARTICLE_TYPE, particle));
             options(p);
@@ -824,11 +840,11 @@ impl ServerLevel {
             p.f32(dist.0 as f32);
             p.f32(dist.1 as f32);
             p.f32(dist.2 as f32);
-            p.f32(speed as f32);
-            p.f32(speed as f32);
-            p.f32(speed as f32);
+            p.f32(speed.0 as f32);
+            p.f32(speed.1 as f32);
+            p.f32(speed.2 as f32);
             p.varint(count);
-            p.varint(0);
+            p.varint(randomization_type);
         });
         for player in self.players.values() {
             if player.entity.is_removed() {

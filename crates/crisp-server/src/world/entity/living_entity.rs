@@ -1591,15 +1591,15 @@ impl ServerLevel {
         let e = self.entity(id);
         let mut movement = e.delta_movement;
         let jumping = self.living(id).jumping;
-        if (e.horizontal_collision || jumping) && (self.on_climbable(id) || self.entity(id).was_in_powder_snow && self.can_walk_on_powder_snow(id)) {
+        if (e.horizontal_collision || jumping) && (self.on_climbable(id) || self.entity(id).was_in_powder_snow && self.can_entity_walk_on_powder_snow(id)) {
             movement = Vec3::new(movement.x, 0.2, movement.z);
         }
         movement
     }
 
-    fn can_walk_on_powder_snow(&self, id: EntityId) -> bool {
+    pub fn can_entity_walk_on_powder_snow(&self, id: EntityId) -> bool {
         entity_type_tags::POWDER_SNOW_WALKABLE_MOBS.contains(self.entity(id).entity_type as usize)
-            || self.item_by_slot(id, EquipmentSlot::Feet).is_some_and(|s| s.item == items::LEATHER_BOOTS)
+            || self.is_living(id) && self.item_by_slot_ref(id, EquipmentSlot::Feet).is_some_and(|s| s.item == items::LEATHER_BOOTS)
     }
 
     fn friction_influenced_speed(&self, id: EntityId, block_friction: f32) -> f32 {

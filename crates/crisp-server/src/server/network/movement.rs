@@ -334,7 +334,7 @@ impl ServerLevel {
         let new_aabb = e.bounding_box().move_by(x - e.x(), y - e.y(), z - e.z());
         let deflate = 1.0e-5f32 as f64;
         let old_shape = VoxelShape::from_boxes(&[old_aabb.deflate_all(deflate)]);
-        for (_, collider) in self.block_collisions(&new_aabb.deflate_all(deflate), false) {
+        for (_, collider) in self.block_collisions(&new_aabb.deflate_all(deflate), &crate::world::phys::shapes::collision_context::CollisionContext::of(self, id), false) {
             let [ox, oy, oz] = collider.offset;
             if !join_is_not_empty(&collider.shape.moved(ox, oy, oz), &old_shape, BooleanOp::And) {
                 return true;

@@ -7,6 +7,7 @@ use crisp_data::blocks;
 use crate::server::level::ServerLevel;
 use crate::world::entity::EntityId;
 use crate::world::level::BlockGetter;
+use crate::world::phys::shapes::collision_context::CollisionContext;
 
 #[derive(Clone, Copy, Debug)]
 pub struct Collider<'a> {
@@ -61,16 +62,16 @@ pub fn compare_block_pos(a: BlockPos, b: BlockPos) -> Ordering {
 }
 
 impl ServerLevel {
-    pub fn block_collisions(&self, box_: &AABB, only_suffocating_blocks: bool) -> Vec<(BlockPos, Collider<'static>)> {
+    pub fn block_collisions(&self, box_: &AABB, context: &CollisionContext, only_suffocating_blocks: bool) -> Vec<(BlockPos, Collider<'static>)> {
         let mut out = Vec::new();
-        self.for_each_block_collision(box_, only_suffocating_blocks, false, |pos, collider| {
+        self.for_each_block_collision(box_, context, only_suffocating_blocks, false, |pos, collider| {
             out.push((pos, collider));
             true
         });
         out
     }
 
-    fn for_each_block_collision(&self, box_: &AABB, only_suffocating_blocks: bool, always_collide_with_fluid: bool, mut visit: impl FnMut(BlockPos, Collider<'static>) -> bool) -> bool {
+    fn for_each_block_collision(&self, box_: &AABB, context: &CollisionContext, only_suffocating_blocks: bool, always_collide_with_fluid: bool, mut visit: impl FnMut(BlockPos, Collider<'static>) -> bool) -> bool {
         let x0 = mth::floor(box_.min_x - 1.0e-7) - 1;
         let x1 = mth::floor(box_.max_x + 1.0e-7) + 1;
         let y0 = mth::floor(box_.min_y - 1.0e-7) - 1;
@@ -116,7 +117,7 @@ impl ServerLevel {
                 continue;
             }
             let liquid_block = always_collide_with_fluid && (state.is_block(blocks::WATER) || state.is_block(blocks::LAVA));
-            let shape = if liquid_block { &*FULL_BLOCK } else { state.collision_voxel_shape() };
+            let shape = if liquid_block { &*FULL_BLOCK } else { context.get_collision_shape(state, pos) };
             let collider = Collider { shape, offset: [x as f64, y as f64, z as f64] };
             let collides = if liquid_block || state.is_collision_shape_full_block() {
                 box_.intersects_bounds(x as f64, y as f64, z as f64, x as f64 + 1.0, y as f64 + 1.0, z as f64 + 1.0)
@@ -135,15 +136,15 @@ impl ServerLevel {
     }
 
     pub fn no_collision(&self, box_: &AABB) -> bool {
-        self.for_each_block_collision(box_, false, false, |_, c| c.shape.is_empty())
+        self.for_each_block_collision(box_, &CollisionContext::EMPTY, false, false, |_, c| c.shape.is_empty())
     }
 
     pub fn no_block_and_liquid_collision(&self, box_: &AABB) -> bool {
-        self.for_each_block_collision(box_, false, true, |_, c| c.shape.is_empty())
+        self.for_each_block_collision(box_, &CollisionContext::EMPTY, false, true, |_, c| c.shape.is_empty())
     }
 
     pub fn no_collision_for(&self, entity: EntityId, box_: &AABB) -> bool {
-        self.no_collision(box_) && self.no_border_collision(entity, box_)
+        self.for_each_block_collision(box_, &CollisionContext::of(self, entity), false, false, |_, c| c.shape.is_empty()) && self.no_border_collision(entity, box_)
     }
 
     pub fn no_border_collision(&self, entity: EntityId, box_: &AABB) -> bool {
@@ -155,10 +156,10 @@ impl ServerLevel {
         border.is_inside_close_to_border(self.entity(entity), box_).then(|| border.get_collision_shape())
     }
 
-    pub fn find_supporting_block(&self, position: Vec3, box_: &AABB) -> Option<BlockPos> {
+    pub fn find_supporting_block(&self, entity: EntityId, position: Vec3, box_: &AABB) -> Option<BlockPos> {
         let mut main_support: Option<BlockPos> = None;
         let mut main_support_distance = f64::MAX;
-        for (pos, _) in self.block_collisions(box_, false) {
+        for (pos, _) in self.block_collisions(box_, &CollisionContext::of(self, entity), false) {
             let distance = pos.dist_to_center_sqr(position.x, position.y, position.z);
             if distance < main_support_distance
                 || distance == main_support_distance && main_support.is_none_or(|m| compare_block_pos(m, pos) == Ordering::Less)
@@ -170,10 +171,10 @@ impl ServerLevel {
         main_support
     }
 
-    pub fn find_free_position(&self, allowed: &AABB, preferred: Vec3, size_x: f64, size_y: f64, size_z: f64) -> Option<Vec3> {
+    pub fn find_free_position(&self, context: &CollisionContext, allowed: &AABB, preferred: Vec3, size_x: f64, size_y: f64, size_z: f64) -> Option<Vec3> {
         let search = allowed.inflate(size_x, size_y, size_z);
         let mut expanded = Vec::new();
-        for (_, collider) in self.block_collisions(&search, false) {
+        for (_, collider) in self.block_collisions(&search, context, false) {
             let [dx, dy, dz] = collider.offset;
             let boxes: Vec<AABB> = collider.shape.to_aabbs().iter().map(|b| b.move_by(dx, dy, dz)).collect();
             let Some(bounds) = boxes.iter().copied().reduce(|a, b| a.minmax(&b)) else { continue };

@@ -884,11 +884,11 @@ impl ServerLevel {
             let test_area = AABB::new(bb.min_x, bb.min_y - 1.0e-6, bb.min_z, bb.max_x, bb.min_y, bb.max_z);
             let position = e.position();
             let no_blocks = e.on_ground_no_blocks;
-            let mut supporting = self.find_supporting_block(position, &test_area);
+            let mut supporting = self.find_supporting_block(id, position, &test_area);
             if supporting.is_some() || no_blocks {
                 self.entity_mut(id).main_supporting_block_pos = supporting;
             } else if let Some(movement) = movement {
-                supporting = self.find_supporting_block(position, &test_area.move_by(-movement.x, 0.0, -movement.z));
+                supporting = self.find_supporting_block(id, position, &test_area.move_by(-movement.x, 0.0, -movement.z));
                 self.entity_mut(id).main_supporting_block_pos = supporting;
             }
             self.entity_mut(id).on_ground_no_blocks = supporting.is_none();
@@ -1085,7 +1085,8 @@ impl ServerLevel {
 
     pub(crate) fn colliders(&self, id: EntityId, box_: &AABB) -> Vec<Collider<'_>> {
         let border = self.border_collision(id, box_).map(|shape| Collider { shape, offset: [0.0; 3] });
-        border.into_iter().chain(self.block_collisions(box_, false).into_iter().map(|(_, c)| c)).collect()
+        let context = crate::world::phys::shapes::collision_context::CollisionContext::of(self, id);
+        border.into_iter().chain(self.block_collisions(box_, &context, false).into_iter().map(|(_, c)| c)).collect()
     }
 
     fn collide(&mut self, id: EntityId, movement: Vec3) -> Vec3 {
@@ -1207,18 +1208,22 @@ impl ServerLevel {
         let damage = self.calculate_fall_damage(id, effective, damage_modifier);
         if damage > 0 {
             self.living_mut(id).reset_current_impulse_context();
-            let sound = match (self.is_player(id), damage > 4) {
-                (true, true) => "minecraft:entity.player.big_fall",
-                (true, false) => "minecraft:entity.player.small_fall",
-                (false, true) => "minecraft:entity.generic.big_fall",
-                (false, false) => "minecraft:entity.generic.small_fall",
-            };
+            let (small, big) = self.fall_sounds(id);
+            let sound = if damage > 4 { big } else { small };
             self.entity_play_sound(id, sound_event(sound), 1.0, 1.0);
             self.play_block_fall_sound(id);
             self.hurt(id, damage_source, damage as f32);
             return true;
         }
         false
+    }
+
+    pub fn fall_sounds(&self, id: EntityId) -> (&'static str, &'static str) {
+        if self.is_player(id) {
+            ("minecraft:entity.player.small_fall", "minecraft:entity.player.big_fall")
+        } else {
+            ("minecraft:entity.generic.small_fall", "minecraft:entity.generic.big_fall")
+        }
     }
 
     pub fn calculate_fall_damage(&self, id: EntityId, fall_distance: f64, damage_modifier: f32) -> i32 {

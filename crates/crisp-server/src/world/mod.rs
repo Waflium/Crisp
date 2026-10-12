@@ -12,6 +12,7 @@ pub mod food;
 pub mod inventory;
 pub mod item;
 pub mod level;
+pub mod phys;
 pub mod random_sequences;
 pub mod scores;
 pub mod stopwatches;

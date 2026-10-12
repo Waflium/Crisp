@@ -274,7 +274,7 @@ impl ServerLevel {
         if moved_up {
             aabb = aabb.expand_towards(0.0, -1.0, 0.0);
         }
-        let shapes: Vec<Collider> = self.block_collisions(&aabb, false).into_iter().map(|(_, collider)| collider).collect();
+        let shapes: Vec<Collider> = self.block_collisions(&aabb, &crate::world::phys::shapes::collision_context::CollisionContext::EMPTY, false).into_iter().map(|(_, collider)| collider).collect();
         1.0 + shapes_collide(Axis::Y, entity_box, &shapes, if moved_up { -2.0 } else { -1.0 })
     }
 

@@ -153,13 +153,13 @@ impl ServerLevel {
         let width_delta = (new.width - previous.width).max(0.0) as f64 + 1.0e-6;
         let height_delta = (new.height - previous.height).max(0.0) as f64 + 1.0e-6;
         let allowed = crisp_core::AABB::of_size(old_center, width_delta, height_delta, width_delta);
-        if let Some(free) = self.find_free_position(&allowed, old_center, new.width as f64, new.height as f64, new.width as f64) {
+        if let Some(free) = self.find_free_position(&crate::world::phys::shapes::collision_context::CollisionContext::of(self, id), &allowed, old_center, new.width as f64, new.height as f64, new.width as f64) {
             self.entity_mut(id).set_pos(free.add(0.0, -new.height as f64 / 2.0, 0.0));
             return true;
         }
         if new.width > previous.width && new.height > previous.height {
             let allowed = crisp_core::AABB::of_size(old_center, width_delta, 1.0e-6, width_delta);
-            if let Some(free) = self.find_free_position(&allowed, old_center, new.width as f64, previous.height as f64, new.width as f64) {
+            if let Some(free) = self.find_free_position(&crate::world::phys::shapes::collision_context::CollisionContext::of(self, id), &allowed, old_center, new.width as f64, previous.height as f64, new.width as f64) {
                 self.entity_mut(id).set_pos(free.add(0.0, -previous.height as f64 / 2.0 + 1.0e-6, 0.0));
                 return true;
             }

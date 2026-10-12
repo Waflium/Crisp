@@ -83,7 +83,7 @@ impl ServerLevel {
             let half_height = ExperienceOrb::DIMENSIONS.height as f64 / 2.0;
             let center = e.position().add(0.0, half_height, 0.0);
             let (width, height) = (ExperienceOrb::DIMENSIONS.width as f64, ExperienceOrb::DIMENSIONS.height as f64);
-            if let Some(free) = self.find_free_position(&AABB::of_size(center, size, size, size), center, width, height, width) {
+            if let Some(free) = self.find_free_position(&crate::world::phys::shapes::collision_context::CollisionContext::of_detached(e), &AABB::of_size(center, size, size, size), center, width, height, width) {
                 e.set_pos(free.add(0.0, -half_height, 0.0));
             }
         }
