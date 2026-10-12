@@ -10,6 +10,7 @@ pub mod comparator_block_entity;
 pub mod conduit_block_entity;
 pub mod container_openers_counter;
 mod dispenser_block_entity;
+pub mod enchanting_table_block_entity;
 pub mod hopper_block_entity;
 pub mod jukebox_block_entity;
 #[cfg(test)]
@@ -74,6 +75,7 @@ pub enum BlockEntityKind {
     Jukebox(jukebox_block_entity::JukeboxBlockEntity),
     Conduit(conduit_block_entity::ConduitBlockEntity),
     Beacon(beacon_block_entity::BeaconBlockEntity),
+    EnchantingTable(enchanting_table_block_entity::EnchantingTableBlockEntity),
     BrewingStand(brewing_stand_block_entity::BrewingStandBlockEntity),
     Other(Vec<(String, Nbt)>),
 }
@@ -112,6 +114,7 @@ impl BlockEntity {
             types::JUKEBOX => BlockEntityKind::Jukebox(jukebox_block_entity::JukeboxBlockEntity::default()),
             types::CONDUIT => BlockEntityKind::Conduit(conduit_block_entity::ConduitBlockEntity::default()),
             types::BEACON => BlockEntityKind::Beacon(beacon_block_entity::BeaconBlockEntity::default()),
+            types::ENCHANTING_TABLE => BlockEntityKind::EnchantingTable(enchanting_table_block_entity::EnchantingTableBlockEntity::default()),
             types::BREWING_STAND => BlockEntityKind::BrewingStand(brewing_stand_block_entity::BrewingStandBlockEntity::default()),
             _ => BlockEntityKind::Other(Vec::new()),
         };
@@ -208,6 +211,7 @@ impl BlockEntity {
             BlockEntityKind::Jukebox(jukebox) => jukebox.load_additional(input),
             BlockEntityKind::Conduit(conduit) => conduit.load_additional(input),
             BlockEntityKind::Beacon(beacon) => beacon.load_additional(input),
+            BlockEntityKind::EnchantingTable(enchanting_table) => enchanting_table.load_additional(input),
             BlockEntityKind::BrewingStand(brewing_stand) => brewing_stand.load_additional(input),
             BlockEntityKind::Other(data) => {
                 let _ = state;
@@ -236,6 +240,7 @@ impl BlockEntity {
             BlockEntityKind::Jukebox(jukebox) => jukebox.save_additional(output),
             BlockEntityKind::Conduit(conduit) => conduit.save_additional(output),
             BlockEntityKind::Beacon(beacon) => beacon.save_additional(output),
+            BlockEntityKind::EnchantingTable(enchanting_table) => enchanting_table.save_additional(output),
             BlockEntityKind::BrewingStand(brewing_stand) => brewing_stand.save_additional(output),
             BlockEntityKind::Other(data) => output.extend(data.iter().cloned()),
         }
@@ -341,6 +346,8 @@ impl BlockEntity {
             base.apply_implicit_components(&mut get);
         } else if let BlockEntityKind::Beacon(beacon) = &mut self.kind {
             beacon.apply_implicit_components(&mut get);
+        } else if let BlockEntityKind::EnchantingTable(enchanting_table) = &mut self.kind {
+            enchanting_table.apply_implicit_components(&mut get);
         }
         let added: Vec<(DataComponentType, Nbt)> =
             patch.iter().filter(|(ty, _)| !implicit.contains(ty)).filter_map(|(ty, value)| value.map(|v| (ty, v.clone()))).collect();
@@ -353,6 +360,8 @@ impl BlockEntity {
             base.collect_implicit_components(&mut result, self.is_randomizable());
         } else if let BlockEntityKind::Beacon(beacon) = &self.kind {
             beacon.collect_implicit_components(&mut result);
+        } else if let BlockEntityKind::EnchantingTable(enchanting_table) = &self.kind {
+            enchanting_table.collect_implicit_components(&mut result);
         }
         result
     }
@@ -373,6 +382,8 @@ impl BlockEntity {
             }
         } else if let BlockEntityKind::Beacon(_) = self.kind {
             output.retain(|(k, _)| !matches!(k.as_str(), "CustomName" | "lock"));
+        } else if let BlockEntityKind::EnchantingTable(_) = self.kind {
+            output.retain(|(k, _)| k != "CustomName");
         }
     }
 
@@ -422,6 +433,7 @@ impl BlockEntity {
             types::DROPPER => "container.dropper",
             types::BEACON => "container.beacon",
             types::BREWING_STAND => "container.brewing",
+            types::ENCHANTING_TABLE => "container.enchant",
             _ => "",
         }
     }
@@ -436,6 +448,7 @@ impl BlockEntity {
     pub fn get_custom_name(&self) -> Option<&Nbt> {
         match &self.kind {
             BlockEntityKind::Beacon(beacon) => beacon.get_custom_name(),
+            BlockEntityKind::EnchantingTable(enchanting_table) => enchanting_table.get_custom_name(),
             _ => self.container_base().and_then(|b| b.name.as_ref()),
         }
     }
