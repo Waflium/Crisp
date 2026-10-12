@@ -41,6 +41,14 @@ impl OpenHashKey for i32 {
     }
 }
 
+impl OpenHashKey for i16 {
+    const NULL: i16 = 0;
+
+    fn mix(self) -> usize {
+        mix_int(self as i32) as u32 as usize
+    }
+}
+
 impl OpenHashKey for crate::BlockPos {
     const NULL: crate::BlockPos = crate::BlockPos::new(i32::MIN, i32::MIN, i32::MIN);
 
@@ -384,6 +392,33 @@ impl LongOpenHashSet {
 
     pub fn retain(&mut self, mut keep: impl FnMut(i64) -> bool) {
         self.0.retain(|k, _| keep(k));
+    }
+}
+
+#[derive(Clone, Default)]
+pub struct ShortOpenHashSet(OpenHashMap<i16, ()>);
+
+impl ShortOpenHashSet {
+    pub fn add(&mut self, k: i16) -> bool {
+        match self.0.find(k) {
+            Ok(_) => false,
+            Err(pos) => {
+                self.0.insert_at(pos, k, ());
+                true
+            }
+        }
+    }
+
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = i16> + '_ {
+        self.0.keys()
     }
 }
 

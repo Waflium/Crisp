@@ -1,7 +1,8 @@
+use std::collections::BTreeMap;
 use std::time::Duration;
 
-use indexmap::{IndexMap, IndexSet};
-use crisp_core::fastutil::Int2ObjectOpenHashMap;
+use indexmap::IndexMap;
+use crisp_core::fastutil::{Int2ObjectOpenHashMap, ShortOpenHashSet};
 use crisp_core::hash_map::FastSet;
 use crate::util::FastIndexSet;
 
@@ -107,7 +108,7 @@ pub struct TrackedEntity {
 
 #[derive(Default)]
 struct ChangedBlocks {
-    sections: IndexMap<i32, IndexSet<BlockPos>>,
+    sections: BTreeMap<i32, ShortOpenHashSet>,
     sky_changed_light_sections: Vec<u64>,
     block_changed_light_sections: Vec<u64>,
 }
@@ -121,6 +122,15 @@ pub struct ChunkMap {
     ignored: FastSet<EntityId>,
 }
 
+fn section_relative_pos(pos: BlockPos) -> i16 {
+    ((pos.x & 15) << 8 | (pos.z & 15) << 4 | (pos.y & 15)) as i16
+}
+
+fn relative_to_block_pos(chunk_pos: ChunkPos, section_y: i32, position: i16) -> BlockPos {
+    let position = position as i32;
+    BlockPos::new(chunk_pos.x * 16 + (position >> 8 & 15), section_y * 16 + (position & 15), chunk_pos.z * 16 + (position >> 4 & 15))
+}
+
 fn section_pos(e: &Entity) -> (i32, i32, i32) {
     let p = e.position();
     (mth::floor(p.x) >> 4, mth::floor(p.y) >> 4, mth::floor(p.z) >> 4)
@@ -132,7 +142,7 @@ impl ChunkMap {
     }
 
     pub fn block_changed(&mut self, pos: BlockPos) {
-        self.changed.entry(pos.chunk()).or_default().sections.entry(pos.y >> 4).or_default().insert(pos);
+        self.changed.entry(pos.chunk()).or_default().sections.entry(pos.y >> 4).or_default().add(section_relative_pos(pos));
     }
 
     fn section_light_changed(&mut self, pos: ChunkPos, layer: LightLayer, index: usize) {
@@ -562,8 +572,8 @@ impl ServerLevel {
             if players.is_empty() {
                 continue;
             }
-            for (section_y, positions) in changes.sections {
-                let positions: Vec<BlockPos> = positions.into_iter().collect();
+            for (section_y, changed_blocks) in changes.sections {
+                let positions: Vec<BlockPos> = changed_blocks.iter().map(|position| relative_to_block_pos(chunk_pos, section_y, position)).collect();
                 let packet = if positions.len() == 1 {
                     let pos = *positions.first().unwrap();
                     let state = self.block_state(pos);
