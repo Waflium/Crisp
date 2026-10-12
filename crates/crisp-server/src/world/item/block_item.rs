@@ -80,7 +80,7 @@ pub fn update_custom_block_entity_tag(level: &mut ServerLevel, player: Option<En
     let (id, data) = values::typed_entity_data(&custom_data);
     let may_set = |level: &ServerLevel, ty: crisp_data::BlockEntityType| {
         !ty.only_op_can_set_nbt()
-            || player.is_some_and(|p| level.player(p).abilities.instabuild && level.spawn_protection.ops.contains(&level.player(p).profile.uuid))
+            || player.is_some_and(|p| level.can_use_game_master_blocks(p))
     };
     let Some(entity) = level.get_block_entity(pos) else { return false };
     let ty = entity.ty();

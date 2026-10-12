@@ -28,6 +28,7 @@ fn menu_kind(entity: &BlockEntity) -> Option<MenuKind> {
         types::HOPPER => MenuKind::Hopper,
         types::DISPENSER | types::DROPPER => MenuKind::Dispenser,
         types::BREWING_STAND => MenuKind::BrewingStand,
+        types::LECTERN => MenuKind::Lectern,
         _ => return None,
     })
 }
@@ -73,6 +74,10 @@ impl ServerLevel {
             MenuProvider::BlockEntity(pos) => {
                 let entity = self.get_block_entity(pos)?;
                 let kind = menu_kind(entity)?;
+                if kind == MenuKind::Lectern {
+                    let container = ContainerRef::lectern_book_access(self, pos);
+                    return Some((AbstractContainerMenu::new(container_id, kind, container), Component::translatable("container.lectern")));
+                }
                 let (name, randomizable) = (entity.name(), entity.is_randomizable());
                 if !self.can_open(pos, player) {
                     if !(randomizable && spectator) {
@@ -150,6 +155,20 @@ impl ServerLevel {
         self.player_mut(player).container_menu = Some(menu);
         if !valid {
             self.close_container(player, true);
+        }
+    }
+
+    pub fn handle_container_button_click(&mut self, player: EntityId, container_id: i32, button_id: i32) {
+        self.player_mut(player).reset_last_action_time();
+        if self.player(player).container_menu.as_ref().is_none_or(|menu| menu.container_id != container_id) || self.is_spectator(player) {
+            return;
+        }
+        let Some(mut menu) = self.player_mut(player).container_menu.take() else { return };
+        if self.menu_still_valid(&menu, player) && self.menu_click_menu_button(&mut menu, player, button_id) {
+            self.menu_broadcast_changes(&mut menu, player);
+        }
+        if self.players.contains_key(&player) && self.player(player).container_menu.is_none() {
+            self.player_mut(player).container_menu = Some(menu);
         }
     }
 

@@ -17,6 +17,7 @@ pub enum ContainerRef {
     Compound { first: (BlockPos, u64), second: (BlockPos, u64) },
     Composter(BlockPos),
     Jukebox(BlockPos),
+    Lectern { pos: BlockPos, id: u64 },
 }
 
 impl ContainerRef {
@@ -25,10 +26,15 @@ impl ContainerRef {
         ContainerRef::Block { pos, id }
     }
 
+    pub fn lectern_book_access(level: &ServerLevel, pos: BlockPos) -> ContainerRef {
+        let id = level.chunks.block_entity_ref(pos).map_or(0, BlockEntity::id);
+        ContainerRef::Lectern { pos, id }
+    }
+
     pub fn single_block(self) -> Option<BlockPos> {
         match self {
             ContainerRef::Block { pos, .. } => Some(pos),
-            ContainerRef::Compound { .. } | ContainerRef::Composter(_) | ContainerRef::Jukebox(_) => None,
+            ContainerRef::Compound { .. } | ContainerRef::Composter(_) | ContainerRef::Jukebox(_) | ContainerRef::Lectern { .. } => None,
         }
     }
 
@@ -40,13 +46,14 @@ impl ContainerRef {
         match self {
             ContainerRef::Block { .. } => self.is_single(pos, id),
             ContainerRef::Compound { first, second } => first == (pos, id) || second == (pos, id),
+            ContainerRef::Lectern { pos: p, id: i } => (p, i) == (pos, id),
             ContainerRef::Composter(_) | ContainerRef::Jukebox(_) => false,
         }
     }
 
     pub fn parts(self) -> Vec<(BlockPos, u64)> {
         match self {
-            ContainerRef::Block { pos, id } => vec![(pos, id)],
+            ContainerRef::Block { pos, id } | ContainerRef::Lectern { pos, id } => vec![(pos, id)],
             ContainerRef::Compound { first, second } => vec![first, second],
             ContainerRef::Composter(_) | ContainerRef::Jukebox(_) => Vec::new(),
         }
@@ -72,7 +79,7 @@ impl ServerLevel {
                 let first_size = self.get_block_entity(first.0).map_or(0, |e| size_of(e));
                 if slot >= first_size { Some((second.0, slot - first_size)) } else { Some((first.0, slot)) }
             }
-            ContainerRef::Composter(_) | ContainerRef::Jukebox(_) => None,
+            ContainerRef::Composter(_) | ContainerRef::Jukebox(_) | ContainerRef::Lectern { .. } => None,
         }
     }
 
@@ -97,7 +104,7 @@ impl ServerLevel {
         if let ContainerRef::Composter(pos) = container {
             return if self.composter_container(pos) == ComposterContainer::Empty { 0 } else { 1 };
         }
-        if let ContainerRef::Jukebox(_) = container {
+        if let ContainerRef::Jukebox(_) | ContainerRef::Lectern { .. } = container {
             return 1;
         }
         container.parts().into_iter().map(|(pos, _)| self.get_block_entity(pos).map_or(0, |e| size_of(e))).sum()
@@ -109,6 +116,9 @@ impl ServerLevel {
         }
         if let ContainerRef::Jukebox(pos) = container {
             return self.jukebox_get_the_item(pos).is_empty();
+        }
+        if let ContainerRef::Lectern { pos, .. } = container {
+            return self.lectern(pos).is_none_or(|lectern| lectern.get_book().is_empty());
         }
         container.parts().into_iter().all(|(pos, _)| self.container_items(pos).is_none_or(|items| items.iter().all(ItemStack::is_empty)))
     }
@@ -123,6 +133,9 @@ impl ServerLevel {
         }
         if let ContainerRef::Jukebox(pos) = container {
             return if slot == 0 { self.jukebox_get_the_item(pos) } else { ItemStack::empty() };
+        }
+        if let ContainerRef::Lectern { pos, .. } = container {
+            return if slot == 0 { self.lectern(pos).map_or_else(ItemStack::empty, |lectern| lectern.get_book().clone()) } else { ItemStack::empty() };
         }
         let Some((pos, slot)) = self.container_part(container, slot) else { return ItemStack::empty() };
         self.container_items(pos).and_then(|items| items.get(slot).cloned()).unwrap_or_else(ItemStack::empty)
@@ -180,6 +193,9 @@ impl ServerLevel {
         if let ContainerRef::Jukebox(pos) = container {
             return if slot == 0 { self.jukebox_split_the_item(pos) } else { ItemStack::empty() };
         }
+        if let ContainerRef::Lectern { pos, .. } = container {
+            return self.lectern_book_access_remove_item(pos, slot, count);
+        }
         let Some((pos, slot)) = self.container_part(container, slot) else { return ItemStack::empty() };
         let is_hopper = matches!(self.get_block_entity(pos).map(|e| &e.kind), Some(BlockEntityKind::Hopper(_)));
         let Some(items) = self.container_items(pos) else { return ItemStack::empty() };
@@ -199,6 +215,9 @@ impl ServerLevel {
         }
         if let ContainerRef::Jukebox(_) = container {
             return self.remove_item(container, slot, 1);
+        }
+        if let ContainerRef::Lectern { pos, .. } = container {
+            return self.lectern_book_access_remove_item_no_update(pos, slot);
         }
         let Some((pos, slot)) = self.container_part(container, slot) else { return ItemStack::empty() };
         let Some(items) = self.container_items(pos) else { return ItemStack::empty() };
@@ -221,7 +240,7 @@ impl ServerLevel {
     }
 
     pub fn container_max_stack_size(&self, container: ContainerRef, stack: &ItemStack) -> i32 {
-        if let ContainerRef::Composter(_) | ContainerRef::Jukebox(_) = container {
+        if let ContainerRef::Composter(_) | ContainerRef::Jukebox(_) | ContainerRef::Lectern { .. } = container {
             return stack.max_stack_size().min(1);
         }
         stack.max_stack_size().min(99)
@@ -233,6 +252,9 @@ impl ServerLevel {
         }
         if let ContainerRef::Jukebox(pos) = container {
             return self.jukebox_can_place_item(pos, slot, stack);
+        }
+        if let ContainerRef::Lectern { .. } = container {
+            return false;
         }
         let Some((pos, slot)) = self.container_part(container, slot) else { return false };
         match self.get_block_entity(pos).map(|e| &e.kind) {
@@ -295,9 +317,13 @@ impl ServerLevel {
     }
 
     pub fn container_still_valid(&mut self, container: ContainerRef, player: EntityId) -> bool {
-        container.parts().into_iter().all(|(pos, id)| {
+        let still_valid_block_entity = container.parts().into_iter().all(|(pos, id)| {
             self.get_block_entity(pos).is_some_and(|e| e.id() == id) && self.is_within_block_interaction_range(player, pos, DEFAULT_DISTANCE_BUFFER)
-        })
+        });
+        if let ContainerRef::Lectern { pos, .. } = container {
+            return still_valid_block_entity && self.lectern(pos).is_some_and(|lectern| lectern.has_book());
+        }
+        still_valid_block_entity
     }
 
     pub fn container_start_open(&mut self, container: ContainerRef, player: EntityId) {

@@ -176,6 +176,7 @@ async fn main() -> anyhow::Result<()> {
     let mut script = o.script.iter();
     let mut script_wait = 0u32;
     let mut sequence = 100;
+    let mut open_container = 0;
     loop {
         tokio::select! {
             packet = rx.recv() => {
@@ -208,6 +209,7 @@ async fn main() -> anyhow::Result<()> {
                         }
                         position = Some(pos);
                     }
+                    play::clientbound::OPEN_SCREEN => open_container = Reader::new(&data).varint()?,
                     play::clientbound::DISCONNECT => break,
                     _ => {}
                 }
@@ -248,6 +250,14 @@ async fn main() -> anyhow::Result<()> {
                     match words.as_slice() {
                         ["wait", ticks] => script_wait = ticks.parse()?,
                         ["respawn"] => send(&mut wr, codec, play::serverbound::CLIENT_COMMAND, |w| w.varint(0)).await?,
+                        ["button", button] => {
+                            let button: i32 = button.parse()?;
+                            send(&mut wr, codec, play::serverbound::CONTAINER_BUTTON_CLICK, |w| {
+                                w.varint(open_container);
+                                w.varint(button);
+                            })
+                            .await?;
+                        }
                         ["use", x, y, z, face] => {
                             let (x, y, z, face): (i32, i32, i32, i32) = (x.parse()?, y.parse()?, z.parse()?, face.parse()?);
                             sequence += 1;

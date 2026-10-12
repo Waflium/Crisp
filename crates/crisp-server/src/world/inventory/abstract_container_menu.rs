@@ -28,6 +28,7 @@ pub enum MenuKind {
     Hopper,
     Dispenser,
     BrewingStand,
+    Lectern,
 }
 
 impl MenuKind {
@@ -44,6 +45,7 @@ impl MenuKind {
             MenuKind::Hopper => "minecraft:hopper",
             MenuKind::Dispenser => "minecraft:generic_3x3",
             MenuKind::BrewingStand => "minecraft:brewing_stand",
+            MenuKind::Lectern => "minecraft:lectern",
         }
     }
 }
@@ -142,6 +144,12 @@ impl AbstractContainerMenu {
                 (0..3).for_each(|i| menu.add_slot(Slot::new(c, i, SlotKind::BrewingStandPotion)));
                 menu.add_slot(Slot::new(c, 3, SlotKind::BrewingStandIngredients));
                 menu.add_slot(Slot::new(c, 4, SlotKind::BrewingStandFuel));
+            }
+            MenuKind::Lectern => {
+                menu.add_slot(Slot::new(c, 0, SlotKind::Normal));
+                menu.data_prev = vec![0; 1];
+                menu.remote_data_slots = vec![0; 1];
+                return menu;
             }
         }
         for i in 9..36 {
@@ -245,6 +253,9 @@ impl ServerLevel {
     }
 
     fn menu_data(&mut self, menu: &AbstractContainerMenu, id: usize) -> i32 {
+        if let ContainerRef::Lectern { pos, .. } = menu.container {
+            return if id == crate::world::level::block::entity::lectern_block_entity::DATA_PAGE { self.lectern(pos).map_or(0, |lectern| lectern.get_page()) } else { 0 };
+        }
         let Some(pos) = menu.container.single_block() else { return 0 };
         match self.get_block_entity(pos).map(|e| &e.kind) {
             Some(crate::world::level::block::entity::BlockEntityKind::Furnace(furnace)) => furnace.data(id),
@@ -608,6 +619,7 @@ impl ServerLevel {
                     moved
                 }
             }
+            MenuKind::Lectern => false,
         };
         if !moved {
             menu.slots[index] = slot;

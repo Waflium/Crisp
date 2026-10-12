@@ -1,4 +1,5 @@
 pub mod abstract_container_menu;
+pub mod lectern_menu;
 pub mod menu_provider;
 pub mod slot;
 pub mod slot_ranges;

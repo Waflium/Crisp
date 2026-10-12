@@ -14,6 +14,7 @@ mod dispenser_block_entity;
 pub mod enchanting_table_block_entity;
 pub mod hopper_block_entity;
 pub mod jukebox_block_entity;
+pub mod lectern_block_entity;
 #[cfg(test)]
 mod oracle_data;
 #[cfg(test)]
@@ -80,6 +81,7 @@ pub enum BlockEntityKind {
     Beacon(beacon_block_entity::BeaconBlockEntity),
     EnchantingTable(enchanting_table_block_entity::EnchantingTableBlockEntity),
     Campfire(campfire_block_entity::CampfireBlockEntity),
+    Lectern(lectern_block_entity::LecternBlockEntity),
     BrewingStand(brewing_stand_block_entity::BrewingStandBlockEntity),
     Other(Vec<(String, Nbt)>),
 }
@@ -120,6 +122,7 @@ impl BlockEntity {
             types::BEACON => BlockEntityKind::Beacon(beacon_block_entity::BeaconBlockEntity::default()),
             types::ENCHANTING_TABLE => BlockEntityKind::EnchantingTable(enchanting_table_block_entity::EnchantingTableBlockEntity::default()),
             types::CAMPFIRE => BlockEntityKind::Campfire(campfire_block_entity::CampfireBlockEntity::default()),
+            types::LECTERN => BlockEntityKind::Lectern(lectern_block_entity::LecternBlockEntity::default()),
             types::BREWING_STAND => BlockEntityKind::BrewingStand(brewing_stand_block_entity::BrewingStandBlockEntity::default()),
             _ => BlockEntityKind::Other(Vec::new()),
         };
@@ -218,6 +221,7 @@ impl BlockEntity {
             BlockEntityKind::Beacon(beacon) => beacon.load_additional(input),
             BlockEntityKind::EnchantingTable(enchanting_table) => enchanting_table.load_additional(input),
             BlockEntityKind::Campfire(campfire) => campfire.load_additional(input),
+            BlockEntityKind::Lectern(lectern) => lectern.load_additional(input),
             BlockEntityKind::BrewingStand(brewing_stand) => brewing_stand.load_additional(input),
             BlockEntityKind::Other(data) => {
                 let _ = state;
@@ -248,6 +252,7 @@ impl BlockEntity {
             BlockEntityKind::Beacon(beacon) => beacon.save_additional(output),
             BlockEntityKind::EnchantingTable(enchanting_table) => enchanting_table.save_additional(output),
             BlockEntityKind::Campfire(campfire) => campfire.save_additional(output),
+            BlockEntityKind::Lectern(lectern) => lectern.save_additional(output),
             BlockEntityKind::BrewingStand(brewing_stand) => brewing_stand.save_additional(output),
             BlockEntityKind::Other(data) => output.extend(data.iter().cloned()),
         }
@@ -450,6 +455,7 @@ impl BlockEntity {
             types::BEACON => "container.beacon",
             types::BREWING_STAND => "container.brewing",
             types::ENCHANTING_TABLE => "container.enchant",
+            types::LECTERN => "container.lectern",
             _ => "",
         }
     }

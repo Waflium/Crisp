@@ -365,6 +365,18 @@ impl WrittenBookContent {
             resolved: bool_or(v.get("resolved"), false),
         }
     }
+
+    pub fn resolve_for_item(item_stack: &mut crate::world::item::ItemStack) -> bool {
+        let Some(Nbt::Compound(content)) = item_stack.get(super::WRITTEN_BOOK_CONTENT) else { return false };
+        if bool_or(content.iter().find(|(k, _)| k == "resolved").map(|(_, v)| v), false) {
+            return false;
+        }
+        let mut resolved_content = content.clone();
+        resolved_content.retain(|(k, _)| k != "resolved");
+        resolved_content.push(("resolved".into(), Nbt::Byte(1)));
+        item_stack.set(super::WRITTEN_BOOK_CONTENT, Some(Nbt::Compound(resolved_content)));
+        true
+    }
 }
 
 pub fn writable_book_pages(v: &Nbt) -> Vec<String> {

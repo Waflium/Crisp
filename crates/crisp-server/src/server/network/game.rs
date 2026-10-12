@@ -125,6 +125,11 @@ impl ServerLevel {
                 let using_secondary_action = r.bool()?;
                 self.handle_interact(id, entity_id, hand, Vec3::new(x, y, z), using_secondary_action);
             }
+            serverbound::CONTAINER_BUTTON_CLICK => {
+                let container_id = r.varint()?;
+                let button_id = r.varint()?;
+                self.handle_container_button_click(id, container_id, button_id);
+            }
             serverbound::CONTAINER_CLICK => self.handle_container_click(id, &mut r)?,
             serverbound::SET_CREATIVE_MODE_SLOT => {
                 let slot = r.i16()?;

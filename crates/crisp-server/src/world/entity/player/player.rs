@@ -105,6 +105,10 @@ impl ServerLevel {
         self.players.get(&id).is_some_and(|p| p.abilities.instabuild)
     }
 
+    pub fn can_use_game_master_blocks(&self, id: EntityId) -> bool {
+        self.players.get(&id).is_some_and(|p| p.abilities.instabuild && self.spawn_protection.ops.contains(&p.profile.uuid))
+    }
+
     pub fn interact_on(&mut self, id: EntityId, entity: EntityId, hand: InteractionHand, location: Vec3) -> InteractionResult {
         if self.is_spectator(id) {
             return InteractionResult::Pass;
