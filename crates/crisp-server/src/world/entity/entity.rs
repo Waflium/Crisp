@@ -1759,6 +1759,17 @@ impl ServerLevel {
         self.no_collision_for(id, &box_) && !self.contains_any_liquid(&box_)
     }
 
+    pub fn teleport_relative(&mut self, id: EntityId, dx: f64, dy: f64, dz: f64) {
+        if let Some(p) = self.players.get_mut(&id) {
+            let destination = super::relative::PositionMoveRotation { position: Vec3::new(dx, dy, dz), delta_movement: Vec3::ZERO, y_rot: 0.0, x_rot: 0.0 };
+            p.teleport_relative(destination, super::relative::relative::ALL);
+        } else {
+            let e = self.entity_mut(id);
+            let (x, y, z, y_rot, x_rot) = (e.x() + dx, e.y() + dy, e.z() + dz, e.y_rot, e.x_rot);
+            e.snap_to(x, y, z, y_rot, x_rot);
+        }
+    }
+
     pub fn make_stuck_in_block(&mut self, id: EntityId, speed_multiplier: Vec3) {
         if !self.players.get(&id).is_some_and(|p| p.abilities_flying()) {
             self.reset_fall_distance(id);

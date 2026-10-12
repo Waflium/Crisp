@@ -3,8 +3,16 @@ mod abstract_furnace_block;
 pub mod anvil_block;
 mod bonemealable_feature_placer_block;
 mod dragon_egg_block;
+mod barrier_block;
+mod budding_amethyst_block;
 mod grass_block;
 mod hay_block;
+mod mangrove_roots_block;
+mod path_block;
+mod pumpkin_block;
+mod waterlogged_transparent_block;
+mod weathering_copper_full_block;
+mod weathering_copper_grate_block;
 mod honey_block;
 mod magma_block;
 mod netherrack_block;
@@ -460,6 +468,30 @@ pub fn block_fall_on(level: &mut ServerLevel, state: BlockState, _pos: BlockPos,
     level.cause_fall_damage(entity, reduced, 1.0, crate::world::damagesource::DamageSource::new(crisp_data::damage_types::FALL));
 }
 
+pub fn push_entities_up(state: BlockState, new_state: BlockState, level: &mut ServerLevel, pos: BlockPos) -> BlockState {
+    use crisp_core::Axis;
+    use crisp_core::shapes::{BooleanOp, join_unoptimized};
+    let offset_shape = join_unoptimized(state.collision_voxel_shape(), new_state.collision_voxel_shape(), BooleanOp::OnlySecond).moved(pos.x as f64, pos.y as f64, pos.z as f64);
+    if offset_shape.is_empty() {
+        return new_state;
+    }
+    let bounds = AABB::new(
+        offset_shape.min(Axis::X),
+        offset_shape.min(Axis::Y),
+        offset_shape.min(Axis::Z),
+        offset_shape.max(Axis::X),
+        offset_shape.max(Axis::Y),
+        offset_shape.max(Axis::Z),
+    );
+    let colliders = [crate::world::level::collision::Collider { shape: &offset_shape, offset: [0.0; 3] }];
+    for colliding_entity in level.get_entities(None, &bounds) {
+        let moved = level.entity(colliding_entity).bounding_box().move_by(0.0, 1.0, 0.0);
+        let offset = crate::world::level::collision::shapes_collide(Axis::Y, &moved, &colliders, -1.0);
+        level.teleport_relative(colliding_entity, 0.0, 1.0 + offset, 0.0);
+    }
+    new_state
+}
+
 pub fn block_player_will_destroy(level: &mut ServerLevel, pos: BlockPos, state: BlockState, player: EntityId) -> BlockState {
     level.level_event(Some(player), crate::server::level::events::PARTICLES_AND_SOUND_DESTROY_BLOCK, pos, state.id() as i32);
     state
@@ -602,6 +634,14 @@ fn for_class(class: &str, block: Block) -> Option<Box<dyn BlockBehaviour>> {
         "WebBlock" => Box::new(web_block::WebBlock),
         "PowderSnowBlock" => Box::new(powder_snow_block::PowderSnowBlock),
         "HayBlock" => Box::new(hay_block::HayBlock),
+        "WeatheringCopperFullBlock" => Box::new(weathering_copper_full_block::WeatheringCopperFullBlock),
+        "WeatheringCopperGrateBlock" => Box::new(weathering_copper_grate_block::WeatheringCopperGrateBlock),
+        "WaterloggedTransparentBlock" => Box::new(waterlogged_transparent_block::WaterloggedTransparentBlock),
+        "MangroveRootsBlock" => Box::new(mangrove_roots_block::MangroveRootsBlock),
+        "BarrierBlock" => Box::new(barrier_block::BarrierBlock),
+        "PathBlock" => Box::new(path_block::PathBlock::new(block)),
+        "BuddingAmethystBlock" => Box::new(budding_amethyst_block::BuddingAmethystBlock),
+        "PumpkinBlock" => Box::new(pumpkin_block::PumpkinBlock),
         "CarpetBlock" => Box::new(carpet_block::CarpetBlock),
         "CartographyTableBlock" => Box::new(cartography_table_block::CartographyTableBlock),
         "CarvedPumpkinBlock" => Box::new(carved_pumpkin_block::CarvedPumpkinBlock),

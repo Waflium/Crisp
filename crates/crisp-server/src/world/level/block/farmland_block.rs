@@ -1,10 +1,12 @@
 use crisp_core::{BlockPos, Direction};
 use crisp_data::properties::MOISTURE;
-use crisp_data::{Block, BlockState, block_tags, fluid_tags};
+use crisp_core::random::RandomSource;
+use crisp_data::{Block, BlockState, block_tags, fluid_tags, game_rule};
 
 use super::BlockBehaviour;
 use super::vegetation_block::{block_field, fields};
 use crate::server::level::ServerLevel;
+use crate::world::entity::EntityId;
 use crate::world::item::context::BlockPlaceContext;
 use crate::world::level::{BlockGetter, LevelAccessor, LevelReader};
 use crate::world::level::update_flags::{UPDATE_ALL, UPDATE_CLIENTS};
@@ -18,8 +20,9 @@ impl FarmlandBlock {
         FarmlandBlock { base_block: block_field(&fields(block), "baseBlock") }
     }
 
-    fn turn_to_base_block(&self, level: &mut ServerLevel, pos: BlockPos) {
-        level.set_block(pos, self.base_block.default_state(), UPDATE_ALL);
+    fn turn_to_base_block(&self, state: BlockState, level: &mut ServerLevel, pos: BlockPos) {
+        let new_state = super::push_entities_up(state, self.base_block.default_state(), level, pos);
+        level.set_block(pos, new_state, UPDATE_ALL);
     }
 }
 
@@ -58,9 +61,24 @@ impl BlockBehaviour for FarmlandBlock {
         !above_state.is_solid() || should_maintain_farmland(level, pos)
     }
 
+    fn fall_on(&self, level: &mut ServerLevel, state: BlockState, pos: BlockPos, entity: EntityId, fall_distance: f64) {
+        if ((level.random.next_float() as f64) < fall_distance - 0.5) && level.is_living(entity) {
+            let can_trample = if level.is_player(entity) {
+                !level.is_under_spawn_protection(pos, entity)
+            } else {
+                level.game_rules.get_bool(game_rule::MOB_GRIEFING)
+            };
+            let dimensions = level.entity(entity).dimensions;
+            if can_trample && dimensions.width * dimensions.width * dimensions.height > 0.512 {
+                self.turn_to_base_block(state, level, pos);
+            }
+        }
+        super::block_fall_on(level, state, pos, entity, fall_distance);
+    }
+
     fn tick(&self, state: BlockState, level: &mut ServerLevel, pos: BlockPos) {
         if !self.can_survive(state, level, pos) {
-            self.turn_to_base_block(level, pos);
+            self.turn_to_base_block(state, level, pos);
         }
     }
 
@@ -70,7 +88,7 @@ impl BlockBehaviour for FarmlandBlock {
             if moisture > 0 {
                 level.set_block(pos, state.set(MOISTURE, moisture - 1), UPDATE_CLIENTS);
             } else if !should_maintain_farmland(level, pos) {
-                self.turn_to_base_block(level, pos);
+                self.turn_to_base_block(state, level, pos);
             }
         } else if moisture < 7 {
             level.set_block(pos, state.set(MOISTURE, 7), UPDATE_CLIENTS);
