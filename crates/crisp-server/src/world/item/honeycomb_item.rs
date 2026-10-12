@@ -33,6 +33,16 @@ pub fn use_on(level: &mut ServerLevel, player: EntityId, hand: InteractionHand, 
     InteractionResult::SUCCESS
 }
 
+pub fn try_apply_to_sign(level: &mut ServerLevel, pos: crisp_core::BlockPos) -> bool {
+    if level.sign_set_waxed(pos, true) {
+        level.level_event(None, PARTICLES_WAX_ON, pos, 0);
+        level.play_sound(None, pos, sound_event("minecraft:item.honeycomb.wax_on"), SoundSource::Blocks, 1.0, 1.0);
+        true
+    } else {
+        false
+    }
+}
+
 pub fn get_waxed(old_state: BlockState) -> Option<BlockState> {
     WAXABLES.iter().find(|&&(unwaxed, _)| unwaxed == old_state.block()).map(|&(_, waxed)| with_properties_of(waxed, old_state))
 }

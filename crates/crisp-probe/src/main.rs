@@ -250,6 +250,20 @@ async fn main() -> anyhow::Result<()> {
                     match words.as_slice() {
                         ["wait", ticks] => script_wait = ticks.parse()?,
                         ["respawn"] => send(&mut wr, codec, play::serverbound::CLIENT_COMMAND, |w| w.varint(0)).await?,
+                        ["sign", x, y, z, slot, rest @ ..] => {
+                            let (x, y, z, slot): (i32, i32, i32, i32) = (x.parse()?, y.parse()?, z.parse()?, slot.parse()?);
+                            let text = rest.join(" ");
+                            let mut lines: Vec<&str> = text.split('|').collect();
+                            lines.resize(4, "");
+                            send(&mut wr, codec, play::serverbound::SIGN_UPDATE, |w| {
+                                w.position(x, y, z);
+                                for line in &lines[..4] {
+                                    w.string(line);
+                                }
+                                w.varint(slot);
+                            })
+                            .await?;
+                        }
                         ["button", button] => {
                             let button: i32 = button.parse()?;
                             send(&mut wr, codec, play::serverbound::CONTAINER_BUTTON_CLICK, |w| {

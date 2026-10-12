@@ -212,6 +212,10 @@ pub fn degrees_difference(from: f32, to: f32) -> f32 {
     wrap_degrees(to - from)
 }
 
+pub fn degrees_difference_abs(angle_a: f32, angle_b: f32) -> f32 {
+    degrees_difference(angle_a, angle_b).abs()
+}
+
 pub fn rotate_if_necessary(base: f32, target: f32, max_diff: f32) -> f32 {
     let delta = degrees_difference(base, target);
     target - clamp_f(delta, -max_diff, max_diff)

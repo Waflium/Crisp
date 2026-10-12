@@ -342,12 +342,12 @@ fn chunk_packets_list_block_entities() {
 fn unported_block_entities_keep_their_data() {
     let (mut level, _) = level_with_player();
     let pos = BlockPos::new(0, -60, 0);
-    level.set_block(pos, blocks::OAK_SIGN.default_state(), UPDATE_ALL);
-    let tag = crate::nbt::parse_fully("{id:\"minecraft:sign\",x:0,y:-60,z:0,is_waxed:1b,front_text:{messages:[\"a\",\"\",\"\",\"\"]}}").unwrap();
+    level.set_block(pos, blocks::CREAKING_HEART.default_state(), UPDATE_ALL);
+    let tag = crate::nbt::parse_fully("{id:\"minecraft:creaking_heart\",x:0,y:-60,z:0,creaking:[I;1,2,3,4],extra:1b}").unwrap();
     level.get_block_entity(pos).unwrap().load_with_components(&tag);
     let saved = level.block_entity_data(pos).unwrap();
-    assert_eq!(saved.get("front_text"), tag.get("front_text"));
-    assert_eq!(saved.get("is_waxed"), Some(&Nbt::Byte(1)));
+    assert_eq!(saved.get("creaking"), tag.get("creaking"));
+    assert_eq!(saved.get("extra"), Some(&Nbt::Byte(1)));
     assert!(level.get_block_entity(pos).unwrap().has_update_packet());
 }
 

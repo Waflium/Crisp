@@ -19,6 +19,7 @@ use crate::world::item::component::swing_animation::SwingAnimation;
 use crate::world::item::{ItemStack, read_slot, validate_encodable, write_slot};
 use crate::world::level::BlockGetter;
 use crate::world::level::block::BlockHitResult;
+use crate::world::level::block::entity::sign_block_entity::{FilteredText, SignTextSlot};
 use crate::world::{InteractionHand, InteractionResult, SwingSource};
 
 const KEEP_ALIVE_INTERVAL: Duration = Duration::from_secs(15);
@@ -124,6 +125,15 @@ impl ServerLevel {
                 let (x, y, z) = r.lp_vec3()?;
                 let using_secondary_action = r.bool()?;
                 self.handle_interact(id, entity_id, hand, Vec3::new(x, y, z), using_secondary_action);
+            }
+            serverbound::SIGN_UPDATE => {
+                let pos = r.position()?;
+                let mut lines = Vec::with_capacity(4);
+                for _ in 0..4 {
+                    lines.push(r.string(384)?.to_string());
+                }
+                let slot = SignTextSlot::by_id(r.varint()?);
+                self.handle_sign_update(id, BlockPos::new(pos.0, pos.1, pos.2), lines, slot);
             }
             serverbound::CONTAINER_BUTTON_CLICK => {
                 let container_id = r.varint()?;
@@ -607,6 +617,21 @@ fn was_block_placement_attempt(stack: &ItemStack) -> bool {
 }
 
 impl ServerLevel {
+    fn handle_sign_update(&mut self, id: EntityId, pos: BlockPos, lines: Vec<String>, slot: SignTextSlot) {
+        let lines: Vec<FilteredText> = lines.iter().map(|line| FilteredText::pass_through(crate::util::string_util::strip_color(line))).collect();
+        self.update_sign_text(id, pos, slot, &lines);
+    }
+
+    fn update_sign_text(&mut self, id: EntityId, pos: BlockPos, slot: SignTextSlot, lines: &[FilteredText]) {
+        self.player_mut(id).reset_last_action_time();
+        if self.is_loaded(pos) {
+            if self.sign(pos).is_none() {
+                return;
+            }
+            self.sign_update_sign_text(pos, id, slot, lines);
+        }
+    }
+
     fn handle_pick_item_from_block(&mut self, id: EntityId, pos: BlockPos, include_data: bool) {
         if !self.is_within_block_interaction_range(id, pos, 1.0) || !self.is_loaded(pos) {
             return;

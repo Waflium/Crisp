@@ -24,6 +24,8 @@ mod oracle_data;
 #[cfg(test)]
 mod oracle_tests;
 pub mod shelf_block_entity;
+pub mod sign_block_entity;
+pub mod sign_text;
 pub mod shulker_box_block_entity;
 pub mod skull_block_entity;
 pub mod spawner_block_entity;
@@ -63,6 +65,7 @@ pub enum BlockEntityTicker {
     CampfireCook,
     CampfireCooldown,
     Bell,
+    Sign,
 }
 
 enum UpdateTag {
@@ -95,6 +98,7 @@ pub enum BlockEntityKind {
     Banner(banner_block_entity::BannerBlockEntity),
     Skull(skull_block_entity::SkullBlockEntity),
     Bell(bell_block_entity::BellBlockEntity),
+    Sign(sign_block_entity::SignBlockEntity),
     BrewingStand(brewing_stand_block_entity::BrewingStandBlockEntity),
     Other(Vec<(String, Nbt)>),
 }
@@ -142,6 +146,7 @@ impl BlockEntity {
             types::BANNER => BlockEntityKind::Banner(banner_block_entity::BannerBlockEntity::default()),
             types::SKULL => BlockEntityKind::Skull(skull_block_entity::SkullBlockEntity::default()),
             types::BELL => BlockEntityKind::Bell(bell_block_entity::BellBlockEntity::default()),
+            types::SIGN | types::HANGING_SIGN => BlockEntityKind::Sign(sign_block_entity::SignBlockEntity::default()),
             types::BREWING_STAND => BlockEntityKind::BrewingStand(brewing_stand_block_entity::BrewingStandBlockEntity::default()),
             _ => BlockEntityKind::Other(Vec::new()),
         };
@@ -247,6 +252,7 @@ impl BlockEntity {
             BlockEntityKind::Banner(banner) => banner.load_additional(input),
             BlockEntityKind::Skull(skull) => skull.load_additional(input),
             BlockEntityKind::Bell(_) => {}
+            BlockEntityKind::Sign(sign) => sign.load_additional(input),
             BlockEntityKind::BrewingStand(brewing_stand) => brewing_stand.load_additional(input),
             BlockEntityKind::Other(data) => {
                 let _ = state;
@@ -284,6 +290,7 @@ impl BlockEntity {
             BlockEntityKind::Banner(banner) => banner.save_additional(output),
             BlockEntityKind::Skull(skull) => skull.save_additional(output),
             BlockEntityKind::Bell(_) => {}
+            BlockEntityKind::Sign(sign) => sign.save_additional(output),
             BlockEntityKind::BrewingStand(brewing_stand) => brewing_stand.save_additional(output),
             BlockEntityKind::Other(data) => output.extend(data.iter().cloned()),
         }
@@ -409,6 +416,8 @@ impl BlockEntity {
             banner.apply_implicit_components(&mut get);
         } else if let BlockEntityKind::Skull(skull) = &mut self.kind {
             skull.apply_implicit_components(&mut get);
+        } else if let BlockEntityKind::Sign(sign) = &mut self.kind {
+            sign.apply_implicit_components(&mut get);
         }
         let added: Vec<(DataComponentType, Nbt)> =
             patch.iter().filter(|(ty, _)| !implicit.contains(ty)).filter_map(|(ty, value)| value.map(|v| (ty, v.clone()))).collect();
@@ -435,6 +444,8 @@ impl BlockEntity {
             banner.collect_implicit_components(&mut result);
         } else if let BlockEntityKind::Skull(skull) = &self.kind {
             skull.collect_implicit_components(&mut result);
+        } else if let BlockEntityKind::Sign(sign) = &self.kind {
+            sign.collect_implicit_components(&mut result);
         }
         result
     }
@@ -465,6 +476,8 @@ impl BlockEntity {
             output.retain(|(k, _)| !matches!(k.as_str(), "patterns" | "CustomName"));
         } else if let BlockEntityKind::Skull(_) = self.kind {
             output.retain(|(k, _)| !matches!(k.as_str(), "profile" | "note_block_sound" | "custom_name"));
+        } else if let BlockEntityKind::Sign(_) = self.kind {
+            output.retain(|(k, _)| !matches!(k.as_str(), "front_text" | "back_text" | "is_waxed"));
         }
     }
 
@@ -558,6 +571,7 @@ impl BlockEntity {
             types::BEACON if block.is_instance_of("BeaconBlock") => Some(BlockEntityTicker::Beacon),
             types::BREWING_STAND if block.is_instance_of("BrewingStandBlock") => Some(BlockEntityTicker::BrewingStand),
             types::BELL if block.is_instance_of("BellBlock") => Some(BlockEntityTicker::Bell),
+            types::SIGN | types::HANGING_SIGN if block.is_instance_of("SignBlock") => Some(BlockEntityTicker::Sign),
             types::CAMPFIRE if block.is_instance_of("CampfireBlock") => {
                 Some(if state.get(crisp_data::properties::LIT) { BlockEntityTicker::CampfireCook } else { BlockEntityTicker::CampfireCooldown })
             }

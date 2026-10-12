@@ -179,6 +179,7 @@ impl ServerLevel {
             BlockEntityTicker::CampfireCook => self.campfire_cook_tick(pos, state),
             BlockEntityTicker::CampfireCooldown => self.campfire_cooldown_tick(pos, state),
             BlockEntityTicker::Bell => self.bell_server_tick(pos),
+            BlockEntityTicker::Sign => self.sign_tick(pos),
         }
     }
 
