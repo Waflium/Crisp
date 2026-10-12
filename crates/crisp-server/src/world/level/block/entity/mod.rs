@@ -1,6 +1,7 @@
 pub mod abstract_furnace_block_entity;
 mod barrel_block_entity;
 pub mod base_container_block_entity;
+pub mod beacon_block_entity;
 pub mod beehive_block_entity;
 pub mod brushable_block_entity;
 pub mod chest_block_entity;
@@ -47,6 +48,7 @@ pub enum BlockEntityTicker {
     DaylightDetector,
     Jukebox,
     Conduit,
+    Beacon,
 }
 
 enum UpdateTag {
@@ -69,6 +71,7 @@ pub enum BlockEntityKind {
     Comparator(comparator_block_entity::ComparatorBlockEntity),
     Jukebox(jukebox_block_entity::JukeboxBlockEntity),
     Conduit(conduit_block_entity::ConduitBlockEntity),
+    Beacon(beacon_block_entity::BeaconBlockEntity),
     Other(Vec<(String, Nbt)>),
 }
 
@@ -105,6 +108,7 @@ impl BlockEntity {
             types::COMPARATOR => BlockEntityKind::Comparator(comparator_block_entity::ComparatorBlockEntity::default()),
             types::JUKEBOX => BlockEntityKind::Jukebox(jukebox_block_entity::JukeboxBlockEntity::default()),
             types::CONDUIT => BlockEntityKind::Conduit(conduit_block_entity::ConduitBlockEntity::default()),
+            types::BEACON => BlockEntityKind::Beacon(beacon_block_entity::BeaconBlockEntity::default()),
             _ => BlockEntityKind::Other(Vec::new()),
         };
         Some(BlockEntity { ty, pos, block_state: state, remove: false, components: DataComponentMap::EMPTY, id: NEXT_ID.fetch_add(1, Ordering::Relaxed), kind })
@@ -150,6 +154,12 @@ impl BlockEntity {
         self.remove = false;
     }
 
+    pub fn set_level(&mut self, min_y: i32) {
+        if let BlockEntityKind::Beacon(beacon) = &mut self.kind {
+            beacon.set_level(min_y);
+        }
+    }
+
     pub fn is_valid_block_state(&self, state: BlockState) -> bool {
         self.ty.is_valid(state)
     }
@@ -193,6 +203,7 @@ impl BlockEntity {
             BlockEntityKind::Comparator(comparator) => comparator.load_additional(input),
             BlockEntityKind::Jukebox(jukebox) => jukebox.load_additional(input),
             BlockEntityKind::Conduit(conduit) => conduit.load_additional(input),
+            BlockEntityKind::Beacon(beacon) => beacon.load_additional(input),
             BlockEntityKind::Other(data) => {
                 let _ = state;
                 *data = match input {
@@ -219,6 +230,7 @@ impl BlockEntity {
             BlockEntityKind::Comparator(comparator) => comparator.save_additional(output),
             BlockEntityKind::Jukebox(jukebox) => jukebox.save_additional(output),
             BlockEntityKind::Conduit(conduit) => conduit.save_additional(output),
+            BlockEntityKind::Beacon(beacon) => beacon.save_additional(output),
             BlockEntityKind::Other(data) => output.extend(data.iter().cloned()),
         }
     }
@@ -291,7 +303,7 @@ impl BlockEntity {
     }
 
     fn update_tag_kind(&self) -> UpdateTag {
-        if !matches!(self.kind, BlockEntityKind::Other(_) | BlockEntityKind::Conduit(_)) {
+        if !matches!(self.kind, BlockEntityKind::Other(_) | BlockEntityKind::Conduit(_) | BlockEntityKind::Beacon(_)) {
             return UpdateTag::None;
         }
         match self.ty {
@@ -321,6 +333,8 @@ impl BlockEntity {
         };
         if let Some(base) = self.container_base_mut() {
             base.apply_implicit_components(&mut get);
+        } else if let BlockEntityKind::Beacon(beacon) = &mut self.kind {
+            beacon.apply_implicit_components(&mut get);
         }
         let added: Vec<(DataComponentType, Nbt)> =
             patch.iter().filter(|(ty, _)| !implicit.contains(ty)).filter_map(|(ty, value)| value.map(|v| (ty, v.clone()))).collect();
@@ -331,6 +345,8 @@ impl BlockEntity {
         let mut result: Vec<(DataComponentType, Option<Nbt>)> = self.components.iter().map(|(t, v)| (t, Some(v.clone()))).collect();
         if let Some(base) = self.container_base() {
             base.collect_implicit_components(&mut result, self.is_randomizable());
+        } else if let BlockEntityKind::Beacon(beacon) = &self.kind {
+            beacon.collect_implicit_components(&mut result);
         }
         result
     }
@@ -349,6 +365,8 @@ impl BlockEntity {
             if self.is_randomizable() {
                 output.retain(|(k, _)| !matches!(k.as_str(), "LootTable" | "LootTableSeed"));
             }
+        } else if let BlockEntityKind::Beacon(_) = self.kind {
+            output.retain(|(k, _)| !matches!(k.as_str(), "CustomName" | "lock"));
         }
     }
 
@@ -377,9 +395,9 @@ impl BlockEntity {
     }
 
     pub fn is_randomizable(&self) -> bool {
-        !matches!(
+        matches!(
             self.kind,
-            BlockEntityKind::Furnace(_) | BlockEntityKind::Beehive(_) | BlockEntityKind::Spawner(_) | BlockEntityKind::Brushable(_) | BlockEntityKind::Comparator(_) | BlockEntityKind::Jukebox(_) | BlockEntityKind::Conduit(_) | BlockEntityKind::Other(_)
+            BlockEntityKind::Chest(_) | BlockEntityKind::Barrel(_) | BlockEntityKind::ShulkerBox(_) | BlockEntityKind::Hopper(_) | BlockEntityKind::Dispenser(_)
         )
     }
 
@@ -394,19 +412,27 @@ impl BlockEntity {
             types::HOPPER => "container.hopper",
             types::DISPENSER => "container.dispenser",
             types::DROPPER => "container.dropper",
+            types::BEACON => "container.beacon",
             _ => "",
         }
     }
 
     pub fn name(&self) -> crate::network::chat::Component {
-        match self.container_base().and_then(|b| b.name.as_ref()) {
+        match self.get_custom_name() {
             Some(name) => crate::world::item::component::values::text(name),
             None => crate::network::chat::Component::translatable(self.default_name()),
         }
     }
 
+    pub fn get_custom_name(&self) -> Option<&Nbt> {
+        match &self.kind {
+            BlockEntityKind::Beacon(beacon) => beacon.get_custom_name(),
+            _ => self.container_base().and_then(|b| b.name.as_ref()),
+        }
+    }
+
     pub fn has_custom_name(&self) -> bool {
-        self.container_base().is_some_and(|b| b.name.is_some())
+        self.get_custom_name().is_some()
     }
 
     pub fn ticker(&self, state: BlockState) -> Option<BlockEntityTicker> {
@@ -418,6 +444,7 @@ impl BlockEntity {
             types::DAYLIGHT_DETECTOR if block.is_instance_of("DaylightDetectorBlock") => Some(BlockEntityTicker::DaylightDetector),
             types::JUKEBOX if block.is_instance_of("JukeboxBlock") && state.get(crisp_data::properties::HAS_RECORD) => Some(BlockEntityTicker::Jukebox),
             types::CONDUIT if block.is_instance_of("ConduitBlock") => Some(BlockEntityTicker::Conduit),
+            types::BEACON if block.is_instance_of("BeaconBlock") => Some(BlockEntityTicker::Beacon),
             _ => None,
         }
     }

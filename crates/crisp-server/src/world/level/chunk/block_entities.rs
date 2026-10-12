@@ -193,6 +193,7 @@ impl LevelChunk {
             }
             entity.set_block_state(state);
         }
+        entity.set_level(self.min_y());
         entity.clear_removed();
         let id = entity.id();
         if let Some(mut previous) = self.block_entities.map.insert(pos, entity)

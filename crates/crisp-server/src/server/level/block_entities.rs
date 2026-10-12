@@ -57,9 +57,11 @@ impl ServerLevel {
         }
     }
 
-    pub fn block_entity_set_removed(&self, pos: BlockPos, entity: &BlockEntity) {
-        if let BlockEntityKind::Jukebox(_) = entity.kind {
-            self.level_event(None, crate::server::level::events::SOUND_STOP_JUKEBOX_SONG, pos, 0);
+    pub fn block_entity_set_removed(&mut self, pos: BlockPos, entity: &BlockEntity) {
+        match entity.kind {
+            BlockEntityKind::Jukebox(_) => self.level_event(None, crate::server::level::events::SOUND_STOP_JUKEBOX_SONG, pos, 0),
+            BlockEntityKind::Beacon(_) => self.beacon_play_sound(pos, "minecraft:block.beacon.deactivate"),
+            _ => {}
         }
     }
 
@@ -155,6 +157,7 @@ impl ServerLevel {
             BlockEntityTicker::DaylightDetector => self.daylight_detector_tick_entity(pos, state),
             BlockEntityTicker::Jukebox => self.jukebox_tick(pos),
             BlockEntityTicker::Conduit => self.conduit_server_tick(pos, state),
+            BlockEntityTicker::Beacon => self.beacon_tick(pos),
         }
     }
 

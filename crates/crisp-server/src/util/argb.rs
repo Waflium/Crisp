@@ -37,6 +37,10 @@ pub fn opaque(color: i32) -> i32 {
     color | 0xFF000000u32 as i32
 }
 
+pub fn average(lhs: i32, rhs: i32) -> i32 {
+    color((alpha(lhs) + alpha(rhs)) / 2, (red(lhs) + red(rhs)) / 2, (green(lhs) + green(rhs)) / 2, (blue(lhs) + blue(rhs)) / 2)
+}
+
 pub fn as_8bit_channel(value: f32) -> i32 {
     mth::floor_f(value * 255.0)
 }

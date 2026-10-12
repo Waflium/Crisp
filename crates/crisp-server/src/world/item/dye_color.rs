@@ -32,4 +32,8 @@ impl DyeColor {
     pub fn texture_diffuse_color(self) -> i32 {
         self.texture_diffuse_color
     }
+
+    pub fn by_name(name: &str) -> Option<DyeColor> {
+        DyeColor::VALUES.iter().find(|color| color.name == name).copied()
+    }
 }
