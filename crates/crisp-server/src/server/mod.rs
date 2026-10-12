@@ -210,6 +210,7 @@ impl Server {
         let mut data_packs = ReloadableServerResources::load_resources(&resource_manager, postponed_tags, config.function_permission_level).map_err(std::io::Error::other)?;
         data_packs.update_components_and_static_registry_tags();
         data_packs.finalize_recipe_loading();
+        crate::world::level::levelgen::structure::templatesystem::structure_template_manager::on_resource_manager_reload(&resource_manager);
         let mut world_data = match saved {
             Some(data) => data,
             None => {
@@ -600,6 +601,7 @@ impl Server {
         self.data_configuration = WorldDataConfiguration::new(get_selected_packs(&self.pack_repository, true), self.data_configuration.enabled_features);
         resources.update_components_and_static_registry_tags();
         resources.finalize_recipe_loading();
+        crate::world::level::levelgen::structure::templatesystem::structure_template_manager::on_resource_manager_reload(&resource_manager);
         for player in self.level.players.values() {
             self.save_player(player);
         }

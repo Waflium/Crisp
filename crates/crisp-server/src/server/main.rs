@@ -255,6 +255,7 @@ pub fn main(args: Vec<String>) {
     };
     data_packs.update_components_and_static_registry_tags();
     data_packs.finalize_recipe_loading();
+    crate::world::level::levelgen::structure::templatesystem::structure_template_manager::on_resource_manager_reload(&resource_manager);
     world_data.data_configuration = data_configuration;
     if let Err(e) = world_data.save_level_data(&world_dir) {
         error!("Failed to save level {}\n{e}", world_dir.root.display());

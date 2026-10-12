@@ -21,9 +21,13 @@ fn craft(width: usize, grid: &[Option<Item>]) -> (Option<&'static str>, ItemStac
     }
 }
 
-pub fn vanilla_data_files(directory: &str) -> usize {
+pub fn vanilla_data_files_with_extension(directory: &str, extension: &str) -> usize {
     let archive = zip::ZipArchive::new(std::io::Cursor::new(crisp_data::VANILLA_DATA)).unwrap();
-    archive.file_names().filter(|name| name.starts_with(&format!("data/minecraft/{directory}/")) && name.ends_with(".json")).count()
+    archive.file_names().filter(|name| name.starts_with(&format!("data/minecraft/{directory}/")) && name.ends_with(extension)).count()
+}
+
+pub fn vanilla_data_files(directory: &str) -> usize {
+    vanilla_data_files_with_extension(directory, ".json")
 }
 
 #[test]
