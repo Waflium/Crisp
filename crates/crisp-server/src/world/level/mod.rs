@@ -1,6 +1,7 @@
 pub mod base_spawner;
 pub mod biome;
 pub mod block;
+pub mod blockscan;
 pub mod border;
 pub mod chunk;
 pub mod data_pack_config;

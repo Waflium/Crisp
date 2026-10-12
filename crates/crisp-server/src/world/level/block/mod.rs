@@ -48,6 +48,7 @@ pub mod beacon_block;
 pub mod brewing_stand_block;
 mod conduit_block;
 mod enchanting_table_block;
+mod eyeblossom_block;
 mod daylight_detector_block;
 mod copper_bulb_block;
 mod jukebox_block;
@@ -627,6 +628,7 @@ fn for_class(class: &str, block: Block) -> Option<Box<dyn BlockBehaviour>> {
         "BeaconBlock" => Box::new(beacon_block::BeaconBlock),
         "BrewingStandBlock" => Box::new(brewing_stand_block::BrewingStandBlock),
         "EnchantingTableBlock" => Box::new(enchanting_table_block::EnchantingTableBlock),
+        "EyeblossomBlock" => Box::new(eyeblossom_block::EyeblossomBlock::new(block)),
         "DaylightDetectorBlock" => Box::new(daylight_detector_block::DaylightDetectorBlock),
         "JukeboxBlock" => Box::new(jukebox_block::JukeboxBlock),
         "StrawBedBlock" => Box::new(abstract_bed_block::AbstractBedBlock::new(abstract_bed_block::BedKind::StrawBed)),
