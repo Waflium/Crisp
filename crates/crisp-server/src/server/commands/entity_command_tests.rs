@@ -406,7 +406,9 @@ fn selectors_find_entities() {
     assert_eq!(find("@a[x_rotation=0]").map(|e| e.len()), Ok(3));
     assert_eq!(find("@a[y_rotation=10..20]"), Ok(vec![]));
     assert_eq!(find("@s"), Ok(vec![]));
-    assert_eq!(find("@a[advancements={story/root=true}]"), Err("An unexpected error occurred while trying to execute that command".into()));
+    assert_eq!(find("@a[advancements={story/root=true}]"), Ok(vec![]));
+    assert_eq!(find("@a[advancements={story/root=false}]").map(|e| e.len()), Ok(3));
+    assert_eq!(find("@a[advancements={story/root={crafting_table=false}}]").map(|e| e.len()), Ok(3));
     let random = find("@r").unwrap();
     assert!(random.len() == 1 && [alice, bob, carol].contains(&random[0]));
     let mut shuffled = find("@r[limit=5]").unwrap();

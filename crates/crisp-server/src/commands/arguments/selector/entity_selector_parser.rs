@@ -513,7 +513,9 @@ mod tests {
     #[test]
     fn unsupported_options() {
         let (advancements, _) = parse("@a[advancements={story/root=true}]", true).unwrap();
-        assert_eq!(advancements.unsupported, Some("advancements"));
+        assert_eq!(advancements.unsupported, None);
+        let (predicate, _) = parse("@a[predicate=test:x]", true).unwrap();
+        assert_eq!(predicate.unsupported, Some("predicate"));
         let (empty, _) = parse("@a[advancements={}]", true).unwrap();
         assert_eq!(empty.unsupported, None);
         assert!(parse("@e[nbt={}]", true).is_ok());
