@@ -246,6 +246,7 @@ mod piston_base_block;
 mod pointed_dripstone_block;
 mod rod_block;
 mod shelf_block;
+pub mod side_chain_part_block;
 mod speleothem_block;
 #[cfg(test)]
 mod speleothem_tests;

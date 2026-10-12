@@ -75,6 +75,7 @@ impl ServerLevel {
             BlockEntityKind::ChiseledBookShelf(_) => {
                 return crate::world::containers::drop_contents(self, pos, ContainerRef::ChiseledBookShelf(pos));
             }
+            BlockEntityKind::Shelf(_) => return crate::world::containers::drop_contents(self, pos, ContainerRef::Shelf(pos)),
             BlockEntityKind::Lectern(_) => {
                 let state = entity.block_state();
                 return self.lectern_pre_remove_side_effects(pos, state);

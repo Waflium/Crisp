@@ -20,6 +20,7 @@ pub mod lectern_block_entity;
 mod oracle_data;
 #[cfg(test)]
 mod oracle_tests;
+pub mod shelf_block_entity;
 pub mod shulker_box_block_entity;
 pub mod spawner_block_entity;
 #[cfg(test)]
@@ -84,6 +85,7 @@ pub enum BlockEntityKind {
     Campfire(campfire_block_entity::CampfireBlockEntity),
     Lectern(lectern_block_entity::LecternBlockEntity),
     ChiseledBookShelf(chiseled_book_shelf_block_entity::ChiseledBookShelfBlockEntity),
+    Shelf(shelf_block_entity::ShelfBlockEntity),
     BrewingStand(brewing_stand_block_entity::BrewingStandBlockEntity),
     Other(Vec<(String, Nbt)>),
 }
@@ -126,6 +128,7 @@ impl BlockEntity {
             types::CAMPFIRE => BlockEntityKind::Campfire(campfire_block_entity::CampfireBlockEntity::default()),
             types::LECTERN => BlockEntityKind::Lectern(lectern_block_entity::LecternBlockEntity::default()),
             types::CHISELED_BOOKSHELF => BlockEntityKind::ChiseledBookShelf(chiseled_book_shelf_block_entity::ChiseledBookShelfBlockEntity::default()),
+            types::SHELF => BlockEntityKind::Shelf(shelf_block_entity::ShelfBlockEntity::default()),
             types::BREWING_STAND => BlockEntityKind::BrewingStand(brewing_stand_block_entity::BrewingStandBlockEntity::default()),
             _ => BlockEntityKind::Other(Vec::new()),
         };
@@ -226,6 +229,7 @@ impl BlockEntity {
             BlockEntityKind::Campfire(campfire) => campfire.load_additional(input),
             BlockEntityKind::Lectern(lectern) => lectern.load_additional(input),
             BlockEntityKind::ChiseledBookShelf(bookshelf) => bookshelf.load_additional(input),
+            BlockEntityKind::Shelf(shelf) => shelf.load_additional(input),
             BlockEntityKind::BrewingStand(brewing_stand) => brewing_stand.load_additional(input),
             BlockEntityKind::Other(data) => {
                 let _ = state;
@@ -258,6 +262,7 @@ impl BlockEntity {
             BlockEntityKind::Campfire(campfire) => campfire.save_additional(output),
             BlockEntityKind::Lectern(lectern) => lectern.save_additional(output),
             BlockEntityKind::ChiseledBookShelf(bookshelf) => bookshelf.save_additional(output),
+            BlockEntityKind::Shelf(shelf) => shelf.save_additional(output),
             BlockEntityKind::BrewingStand(brewing_stand) => brewing_stand.save_additional(output),
             BlockEntityKind::Other(data) => output.extend(data.iter().cloned()),
         }
@@ -322,6 +327,9 @@ impl BlockEntity {
         if let BlockEntityKind::Campfire(campfire) = &self.kind {
             return campfire.get_update_tag();
         }
+        if let BlockEntityKind::Shelf(shelf) = &self.kind {
+            return shelf.get_update_tag();
+        }
         match self.update_tag_kind() {
             UpdateTag::CustomOnly => self.save_custom_only(),
             UpdateTag::WithoutMetadata => self.save_without_metadata(),
@@ -330,7 +338,7 @@ impl BlockEntity {
     }
 
     pub fn has_update_packet(&self) -> bool {
-        matches!(self.kind, BlockEntityKind::Spawner(_) | BlockEntityKind::Brushable(_) | BlockEntityKind::Campfire(_)) || !matches!(self.update_tag_kind(), UpdateTag::None)
+        matches!(self.kind, BlockEntityKind::Spawner(_) | BlockEntityKind::Brushable(_) | BlockEntityKind::Campfire(_) | BlockEntityKind::Shelf(_)) || !matches!(self.update_tag_kind(), UpdateTag::None)
     }
 
     fn update_tag_kind(&self) -> UpdateTag {
@@ -372,6 +380,8 @@ impl BlockEntity {
             campfire.apply_implicit_components(&mut get);
         } else if let BlockEntityKind::ChiseledBookShelf(bookshelf) = &mut self.kind {
             bookshelf.apply_implicit_components(&mut get);
+        } else if let BlockEntityKind::Shelf(shelf) = &mut self.kind {
+            shelf.apply_implicit_components(&mut get);
         }
         let added: Vec<(DataComponentType, Nbt)> =
             patch.iter().filter(|(ty, _)| !implicit.contains(ty)).filter_map(|(ty, value)| value.map(|v| (ty, v.clone()))).collect();
@@ -390,6 +400,8 @@ impl BlockEntity {
             campfire.collect_implicit_components(&mut result);
         } else if let BlockEntityKind::ChiseledBookShelf(bookshelf) = &self.kind {
             bookshelf.collect_implicit_components(&mut result);
+        } else if let BlockEntityKind::Shelf(shelf) = &self.kind {
+            shelf.collect_implicit_components(&mut result);
         }
         result
     }
@@ -412,7 +424,7 @@ impl BlockEntity {
             output.retain(|(k, _)| !matches!(k.as_str(), "CustomName" | "lock"));
         } else if let BlockEntityKind::EnchantingTable(_) = self.kind {
             output.retain(|(k, _)| k != "CustomName");
-        } else if let BlockEntityKind::Campfire(_) | BlockEntityKind::ChiseledBookShelf(_) = self.kind {
+        } else if let BlockEntityKind::Campfire(_) | BlockEntityKind::ChiseledBookShelf(_) | BlockEntityKind::Shelf(_) = self.kind {
             output.retain(|(k, _)| k != "Items");
         }
     }

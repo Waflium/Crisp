@@ -258,6 +258,7 @@ fn food_milk_honey_and_totems() {
 #[test]
 fn weaving_leaves_cobwebs_where_its_player_died() {
     let (mut level, id, _packets) = setup();
+    level.entity_mut(id).random = crisp_core::random::LegacyRandomSource::new(42);
     give(&mut level, id, mob_effects::WEAVING, 1000, 0);
     level.kill(id);
     for _ in 0..20 {

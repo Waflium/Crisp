@@ -127,6 +127,48 @@ impl FrontAndTop {
     }
 }
 
+impl SideChainPart {
+    pub fn is_connected(self) -> bool {
+        self != SideChainPart::Unconnected
+    }
+
+    pub fn is_connection_towards(self, end_part: SideChainPart) -> bool {
+        self == SideChainPart::Center || self == end_part
+    }
+
+    pub fn is_chain_end(self) -> bool {
+        self != SideChainPart::Center
+    }
+
+    pub fn when_connected_to_the_right(self) -> SideChainPart {
+        match self {
+            SideChainPart::Unconnected | SideChainPart::Left => SideChainPart::Left,
+            SideChainPart::Right | SideChainPart::Center => SideChainPart::Center,
+        }
+    }
+
+    pub fn when_connected_to_the_left(self) -> SideChainPart {
+        match self {
+            SideChainPart::Unconnected | SideChainPart::Right => SideChainPart::Right,
+            SideChainPart::Center | SideChainPart::Left => SideChainPart::Center,
+        }
+    }
+
+    pub fn when_disconnected_from_the_right(self) -> SideChainPart {
+        match self {
+            SideChainPart::Unconnected | SideChainPart::Left => SideChainPart::Unconnected,
+            SideChainPart::Right | SideChainPart::Center => SideChainPart::Right,
+        }
+    }
+
+    pub fn when_disconnected_from_the_left(self) -> SideChainPart {
+        match self {
+            SideChainPart::Unconnected | SideChainPart::Right => SideChainPart::Unconnected,
+            SideChainPart::Center | SideChainPart::Left => SideChainPart::Left,
+        }
+    }
+}
+
 pub type BooleanProperty = Property<bool>;
 pub type IntegerProperty = Property<i32>;
 pub type EnumProperty<T> = Property<T>;

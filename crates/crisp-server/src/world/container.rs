@@ -19,6 +19,7 @@ pub enum ContainerRef {
     Jukebox(BlockPos),
     Lectern { pos: BlockPos, id: u64 },
     ChiseledBookShelf(BlockPos),
+    Shelf(BlockPos),
 }
 
 impl ContainerRef {
@@ -35,7 +36,12 @@ impl ContainerRef {
     pub fn single_block(self) -> Option<BlockPos> {
         match self {
             ContainerRef::Block { pos, .. } => Some(pos),
-            ContainerRef::Compound { .. } | ContainerRef::Composter(_) | ContainerRef::Jukebox(_) | ContainerRef::Lectern { .. } | ContainerRef::ChiseledBookShelf(_) => None,
+            ContainerRef::Compound { .. }
+            | ContainerRef::Composter(_)
+            | ContainerRef::Jukebox(_)
+            | ContainerRef::Lectern { .. }
+            | ContainerRef::ChiseledBookShelf(_)
+            | ContainerRef::Shelf(_) => None,
         }
     }
 
@@ -48,7 +54,7 @@ impl ContainerRef {
             ContainerRef::Block { .. } => self.is_single(pos, id),
             ContainerRef::Compound { first, second } => first == (pos, id) || second == (pos, id),
             ContainerRef::Lectern { pos: p, id: i } => (p, i) == (pos, id),
-            ContainerRef::Composter(_) | ContainerRef::Jukebox(_) | ContainerRef::ChiseledBookShelf(_) => false,
+            ContainerRef::Composter(_) | ContainerRef::Jukebox(_) | ContainerRef::ChiseledBookShelf(_) | ContainerRef::Shelf(_) => false,
         }
     }
 
@@ -56,7 +62,7 @@ impl ContainerRef {
         match self {
             ContainerRef::Block { pos, id } | ContainerRef::Lectern { pos, id } => vec![(pos, id)],
             ContainerRef::Compound { first, second } => vec![first, second],
-            ContainerRef::Composter(_) | ContainerRef::Jukebox(_) | ContainerRef::ChiseledBookShelf(_) => Vec::new(),
+            ContainerRef::Composter(_) | ContainerRef::Jukebox(_) | ContainerRef::ChiseledBookShelf(_) | ContainerRef::Shelf(_) => Vec::new(),
         }
     }
 }
@@ -80,7 +86,15 @@ impl ServerLevel {
                 let first_size = self.get_block_entity(first.0).map_or(0, |e| size_of(e));
                 if slot >= first_size { Some((second.0, slot - first_size)) } else { Some((first.0, slot)) }
             }
-            ContainerRef::Composter(_) | ContainerRef::Jukebox(_) | ContainerRef::Lectern { .. } | ContainerRef::ChiseledBookShelf(_) => None,
+            ContainerRef::Composter(_) | ContainerRef::Jukebox(_) | ContainerRef::Lectern { .. } | ContainerRef::ChiseledBookShelf(_) | ContainerRef::Shelf(_) => None,
+        }
+    }
+
+    fn list_backed_items(&mut self, container: ContainerRef) -> Option<&mut Vec<ItemStack>> {
+        match container {
+            ContainerRef::ChiseledBookShelf(pos) => self.chiseled_book_shelf(pos).map(|bookshelf| bookshelf.get_items_mut()),
+            ContainerRef::Shelf(pos) => self.shelf(pos).map(|shelf| shelf.get_items_mut()),
+            _ => None,
         }
     }
 
@@ -108,8 +122,8 @@ impl ServerLevel {
         if let ContainerRef::Jukebox(_) | ContainerRef::Lectern { .. } = container {
             return 1;
         }
-        if let ContainerRef::ChiseledBookShelf(_) = container {
-            return crate::world::level::block::entity::chiseled_book_shelf_block_entity::MAX_BOOKS_IN_STORAGE;
+        if let ContainerRef::ChiseledBookShelf(_) | ContainerRef::Shelf(_) = container {
+            return self.list_backed_items(container).map_or(0, |items| items.len());
         }
         container.parts().into_iter().map(|(pos, _)| self.get_block_entity(pos).map_or(0, |e| size_of(e))).sum()
     }
@@ -124,8 +138,8 @@ impl ServerLevel {
         if let ContainerRef::Lectern { pos, .. } = container {
             return self.lectern(pos).is_none_or(|lectern| lectern.get_book().is_empty());
         }
-        if let ContainerRef::ChiseledBookShelf(pos) = container {
-            return self.chiseled_book_shelf(pos).is_none_or(|bookshelf| bookshelf.get_items().iter().all(ItemStack::is_empty));
+        if let ContainerRef::ChiseledBookShelf(_) | ContainerRef::Shelf(_) = container {
+            return self.list_backed_items(container).is_none_or(|items| items.iter().all(ItemStack::is_empty));
         }
         container.parts().into_iter().all(|(pos, _)| self.container_items(pos).is_none_or(|items| items.iter().all(ItemStack::is_empty)))
     }
@@ -144,19 +158,19 @@ impl ServerLevel {
         if let ContainerRef::Lectern { pos, .. } = container {
             return if slot == 0 { self.lectern(pos).map_or_else(ItemStack::empty, |lectern| lectern.get_book().clone()) } else { ItemStack::empty() };
         }
-        if let ContainerRef::ChiseledBookShelf(pos) = container {
-            return self.chiseled_book_shelf(pos).and_then(|bookshelf| bookshelf.get_items().get(slot).cloned()).unwrap_or_else(ItemStack::empty);
+        if let ContainerRef::ChiseledBookShelf(_) | ContainerRef::Shelf(_) = container {
+            return self.list_backed_items(container).and_then(|items| items.get(slot).cloned()).unwrap_or_else(ItemStack::empty);
         }
         let Some((pos, slot)) = self.container_part(container, slot) else { return ItemStack::empty() };
         self.container_items(pos).and_then(|items| items.get(slot).cloned()).unwrap_or_else(ItemStack::empty)
     }
 
     pub fn put_item(&mut self, container: ContainerRef, slot: usize, stack: ItemStack) {
-        if let ContainerRef::ChiseledBookShelf(pos) = container {
-            if let Some(bookshelf) = self.chiseled_book_shelf(pos)
-                && slot < bookshelf.get_items().len()
+        if let ContainerRef::ChiseledBookShelf(_) | ContainerRef::Shelf(_) = container {
+            if let Some(items) = self.list_backed_items(container)
+                && slot < items.len()
             {
-                bookshelf.get_items_mut()[slot] = stack;
+                items[slot] = stack;
             }
             return;
         }
@@ -183,6 +197,13 @@ impl ServerLevel {
         }
         if let ContainerRef::ChiseledBookShelf(pos) = container {
             return self.chiseled_book_shelf_set_item(pos, slot, stack);
+        }
+        if let ContainerRef::Shelf(pos) = container {
+            if let Some(items) = self.list_backed_items(container) {
+                stack.limit_size(stack.max_stack_size().min(99));
+                items[slot] = stack;
+            }
+            return self.shelf_set_changed(pos);
         }
         let Some((pos, slot)) = self.container_part(container, slot) else { return };
         self.unpack_loot_table(pos, None);
@@ -220,6 +241,16 @@ impl ServerLevel {
         if let ContainerRef::ChiseledBookShelf(pos) = container {
             return self.chiseled_book_shelf_remove_item(pos, slot);
         }
+        if let ContainerRef::Shelf(pos) = container {
+            let result = match self.list_backed_items(container).and_then(|items| items.get_mut(slot)) {
+                Some(stack) if !stack.is_empty() && count > 0 => stack.split(count),
+                _ => ItemStack::empty(),
+            };
+            if !result.is_empty() {
+                self.shelf_set_changed(pos);
+            }
+            return result;
+        }
         let Some((pos, slot)) = self.container_part(container, slot) else { return ItemStack::empty() };
         let is_hopper = matches!(self.get_block_entity(pos).map(|e| &e.kind), Some(BlockEntityKind::Hopper(_)));
         let Some(items) = self.container_items(pos) else { return ItemStack::empty() };
@@ -243,9 +274,10 @@ impl ServerLevel {
         if let ContainerRef::Lectern { pos, .. } = container {
             return self.lectern_book_access_remove_item_no_update(pos, slot);
         }
-        if let ContainerRef::ChiseledBookShelf(pos) = container {
-            return match self.chiseled_book_shelf(pos).and_then(|bookshelf| bookshelf.get_items_mut().get_mut(slot)) {
-                Some(stack) if !stack.is_empty() => stack.split(1),
+        if let ContainerRef::ChiseledBookShelf(_) | ContainerRef::Shelf(_) = container {
+            let max_stack_size = if let ContainerRef::Shelf(_) = container { 99 } else { 1 };
+            return match self.list_backed_items(container).and_then(|items| items.get_mut(slot)) {
+                Some(stack) if !stack.is_empty() => stack.split(max_stack_size),
                 _ => ItemStack::empty(),
             };
         }
@@ -263,6 +295,9 @@ impl ServerLevel {
         }
         if let ContainerRef::Jukebox(pos) | ContainerRef::ChiseledBookShelf(pos) = container {
             return self.block_entity_set_changed(pos);
+        }
+        if let ContainerRef::Shelf(pos) = container {
+            return self.shelf_set_changed(pos);
         }
         for (pos, _) in container.parts() {
             self.block_entity_set_changed(pos);
@@ -288,6 +323,10 @@ impl ServerLevel {
         }
         if let ContainerRef::ChiseledBookShelf(pos) = container {
             return self.chiseled_book_shelf(pos).is_some_and(|bookshelf| bookshelf.can_place_item(slot, stack));
+        }
+        if let ContainerRef::Shelf(_) = container {
+            let max_stack_size = self.container_max_stack_size(container, stack);
+            return self.list_backed_items(container).is_some_and(|items| items[slot].is_empty() || items[slot].count < max_stack_size);
         }
         let Some((pos, slot)) = self.container_part(container, slot) else { return false };
         match self.get_block_entity(pos).map(|e| &e.kind) {
@@ -409,6 +448,9 @@ impl ServerLevel {
         }
         if let BlockEntityKind::ChiseledBookShelf(_) = entity.kind {
             return Some(ContainerRef::ChiseledBookShelf(pos));
+        }
+        if let BlockEntityKind::Shelf(_) = entity.kind {
+            return Some(ContainerRef::Shelf(pos));
         }
         entity.container_base()?;
         if matches!(entity.kind, BlockEntityKind::Chest(_)) && state.block().is_instance_of("ChestBlock") {
