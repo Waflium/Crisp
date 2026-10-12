@@ -4,6 +4,7 @@ pub mod navigation;
 pub mod sensing;
 pub mod targeting;
 pub mod util;
+pub mod village;
 
 use control::body_rotation_control::BodyRotationControl;
 use control::jump_control::JumpControl;

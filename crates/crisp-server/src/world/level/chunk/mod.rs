@@ -97,6 +97,10 @@ impl LevelChunkSection {
         self.states.get(x, y, z)
     }
 
+    pub fn maybe_has(&self, predicate: impl Fn(BlockState) -> bool) -> bool {
+        self.states.maybe_has(predicate)
+    }
+
     pub fn set_block_state(&mut self, x: usize, y: usize, z: usize, state: BlockState) -> BlockState {
         let previous = self.states.get_and_set(x, y, z, state);
         if !previous.is_air() {

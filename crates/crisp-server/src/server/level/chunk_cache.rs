@@ -18,6 +18,7 @@ use super::distance_manager::DistanceManager;
 use super::threaded_level_light_engine::{LightTask, TaskType, ThreadedLevelLightEngine};
 use super::ticket::{Ticket, TicketType};
 use crate::world::difficulty::Difficulty;
+use crate::world::entity::ai::village::poi::poi_manager::PoiManager;
 use crate::world::level::BlockGetter;
 use crate::world::level::chunk::serialization::{self, SectionLight};
 use crate::world::level::chunk::storage::RegionStorage;
@@ -82,6 +83,7 @@ pub struct ChunkCache {
     live_futures: usize,
     pub block_entity_tickers: BlockEntityTickers,
     pub tick_deadline: Option<Instant>,
+    pub poi_manager: PoiManager,
 }
 
 impl ChunkCache {
@@ -130,10 +132,21 @@ impl ChunkCache {
             live_futures: 0,
             tick_deadline: None,
             block_entity_tickers: BlockEntityTickers::default(),
+            poi_manager: PoiManager::new(None, dimension.min_y >> 4, (dimension.min_y + dimension.height as i32 - 1) >> 4),
         };
         cache.set_seed(seed);
         cache.set_view_distance(10);
         cache
+    }
+
+    pub fn set_poi_storage(&mut self, storage: RegionStorage) {
+        let (min_section_y, max_section_y) = self.poi_manager.section_range();
+        self.poi_manager = PoiManager::new(Some(IoWorker::new(storage)), min_section_y, max_section_y);
+    }
+
+    pub fn get_chunk_at_status(&mut self, pos: ChunkPos, status: ChunkStatus) {
+        let future = self.chunk_future_main_thread(pos, status, true);
+        self.managed_block(future);
     }
 
     pub fn set_seed(&mut self, seed: i64) {
@@ -404,6 +417,8 @@ impl ChunkCache {
     }
 
     pub fn tick_unloads(&mut self, no_save: bool, have_time: bool) {
+        let deadline = self.tick_deadline;
+        self.poi_manager.tick(&mut || have_time || deadline.is_none_or(|deadline| Instant::now() < deadline));
         if !no_save {
             self.process_unloads(have_time);
         }
@@ -1097,7 +1112,7 @@ impl ChunkCache {
             lit[i] = self.holders.get(pos.pack()).is_some_and(|h| h.status_done(&self.holders.futures, ChunkStatus::InitializeLight));
             taken.push((pos, chunk, terrain));
         }
-        let light_tasks = {
+        let (light_tasks, poi_updates) = {
             let mut iter = taken.iter_mut();
             let cache: [Option<&mut LevelChunk>; 9] = std::array::from_fn(|_| iter.next().and_then(|(_, c, _)| c.as_mut()));
             let generation = WorldGenerationContext {
@@ -1111,7 +1126,7 @@ impl ChunkCache {
             };
             let mut region = WorldGenRegion::new(center, cache, writable, lit, &generator, random_state, dimension.min_y, dimension.height as i32, generation, &self.light_engine.engine, self.difficulty);
             generator.apply_biome_decoration(&mut region, &structure_starts);
-            std::mem::take(&mut region.light_tasks)
+            (std::mem::take(&mut region.light_tasks), std::mem::take(&mut region.poi_updates))
         };
         for (i, (pos, chunk, terrain)) in taken.into_iter().enumerate() {
             if let Some(mut chunk) = chunk {
@@ -1131,6 +1146,9 @@ impl ChunkCache {
                 RegionLightTask::CheckBlock(pos) => self.add_light_task(TaskType::PreUpdate, LightTask::CheckBlock(pos)),
             }
         }
+        for (pos, old, new) in poi_updates {
+            self.poi_manager.update_on_block_state_change(pos, old, new);
+        }
     }
 
     fn is_lighted(&self, pos: ChunkPos) -> bool {
@@ -1144,6 +1162,7 @@ impl ChunkCache {
             self.apply_loaded(job, Ok(None));
             return;
         }
+        self.poi_manager.storage.prefetch(pos);
         let token = self.new_token(job);
         let (dimension, seed, results) = (self.dimension, self.seed, self.results.0.clone());
         self.in_flight += 1;
@@ -1166,6 +1185,10 @@ impl ChunkCache {
         };
         let persisted = match read {
             Some(serialization::ReadChunk { chunk, status, block_ticks, fluid_ticks, light }) => {
+                let min_section_y = self.dimension.min_y >> 4;
+                for (i, section) in chunk.sections.iter().enumerate() {
+                    self.poi_manager.check_consistency_with_blocks(pos, min_section_y + i as i32, section);
+                }
                 let mut loaded_any_light = false;
                 for SectionLight { y, block, sky } in light {
                     let sky = sky.filter(|_| self.dimension.has_skylight);
@@ -1418,6 +1441,9 @@ impl ChunkCache {
             chunk.loaded = false;
         }
         let had_chunk = chunk.is_some() || terrain_chunk.is_some() || holder.loaded.is_some() || holder.persisted_status.is_some();
+        if had_chunk {
+            self.poi_manager.storage.flush(chunk_pos);
+        }
         if is_full && let Some(mut chunk) = chunk {
             if self.io.is_some() && chunk.unsaved {
                 let block_entities = chunk.block_entities_for_saving(&mut self.block_entity_tickers);
@@ -1477,6 +1503,7 @@ impl ChunkCache {
         if self.io.is_none() {
             return false;
         }
+        self.poi_manager.storage.flush(pos);
         let Some(chunk) = self.chunks.get_mut(&pos).filter(|c| c.unsaved) else { return false };
         let block_entities = chunk.block_entities_for_saving(&mut self.block_entity_tickers);
         let light = self.light_to_save(pos);
@@ -1507,7 +1534,9 @@ impl ChunkCache {
         full.sort();
         let saved = full.into_iter().filter(|&pos| self.save_chunk(pos)).count();
         if flush {
+            self.poi_manager.storage.flush_all();
             self.process_unloads(true);
+            self.poi_manager.storage.synchronize(true);
         }
         self.io.as_ref().unwrap().flush()?;
         Ok(saved)

@@ -290,6 +290,11 @@ impl<K: OpenHashKey, V> OpenHashMap<K, V> {
         self.value.iter_mut().filter_map(Option::as_mut)
     }
 
+    pub fn stream_values(&self) -> impl Iterator<Item = &V> + '_ {
+        let null = self.contains_null_key.then_some(self.n);
+        null.into_iter().chain((0..self.n).filter(|&pos| self.key[pos] != K::NULL)).map(|pos| self.value[pos].as_ref().unwrap())
+    }
+
     pub fn retain(&mut self, mut keep: impl FnMut(K, &mut V) -> bool) {
         let mut pos = self.n as isize;
         let mut remaining = self.size;

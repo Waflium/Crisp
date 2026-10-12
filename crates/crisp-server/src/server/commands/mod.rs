@@ -201,6 +201,7 @@ static EXECUTORS: &[(&str, CommandFn)] = &[
     ("list uuids", list_players_command::list_players_with_uuids),
     ("locate structure structure", locate_command::locate_structure),
     ("locate biome biome", locate_command::locate_biome),
+    ("locate poi poi", locate_command::locate_poi),
     ("random roll range", random_command::roll),
     ("random roll range sequence", random_command::roll),
     ("random value range", random_command::value),

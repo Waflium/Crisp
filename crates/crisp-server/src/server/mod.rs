@@ -103,6 +103,9 @@ fn create_level(config: &ServerConfig, world_dir: Option<&WorldDir>, dimension: 
     let mut chunks = ChunkCache::new(dimension_type, generator, storage);
     chunks.generate_structures = generate_structures;
     chunks.set_seed(seed);
+    if let Some(dir) = world_dir {
+        chunks.set_poi_storage(RegionStorage::new(dir.poi(dimension), config.sync_chunk_writes));
+    }
     let entity_storage = world_dir.map(|d| RegionStorage::new(d.entities(dimension), config.sync_chunk_writes));
     let mut level = ServerLevel::new(dimension, dimension_type_id, chunks, entity_storage, config.view_distance, config.simulation_distance);
     if let Some(dir) = world_dir {

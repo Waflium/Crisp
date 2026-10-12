@@ -113,6 +113,10 @@ impl WorldDir {
         let (ns, path) = dimension.split_once(':').unwrap();
         self.root.join("dimensions").join(ns).join(path).join("entities")
     }
+    pub fn poi(&self, dimension: &str) -> PathBuf {
+        let (ns, path) = dimension.split_once(':').unwrap();
+        self.root.join("dimensions").join(ns).join(path).join("poi")
+    }
     pub fn player(&self, uuid: u128) -> PathBuf {
         self.root.join("players/data").join(format!("{}.dat", format_uuid(uuid)))
     }

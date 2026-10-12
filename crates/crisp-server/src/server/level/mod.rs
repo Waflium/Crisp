@@ -568,8 +568,13 @@ impl ServerLevel {
                 self.update_neighbour_shapes(state, pos, neighbour_flags, update_limit - 1);
                 block::of(state).update_indirect_neighbour_shapes(state, self, pos, neighbour_flags, update_limit - 1);
             }
+            self.update_poi_on_block_state_change(pos, old, state);
         }
         true
+    }
+
+    pub fn update_poi_on_block_state_change(&mut self, pos: BlockPos, old: BlockState, new: BlockState) {
+        self.chunks.poi_manager.update_on_block_state_change(pos, old, new);
     }
 
     pub fn send_block_updated(&mut self, pos: BlockPos, old: BlockState, current: BlockState) {
@@ -1305,10 +1310,29 @@ impl ServerLevel {
         }
     }
 
+    fn find_lightning_rod(&mut self, center: BlockPos) -> Option<BlockPos> {
+        use crate::world::entity::ai::village::poi::poi_manager::Occupancy;
+        use crate::world::entity::ai::village::poi::poi_types::PoiType;
+        use crate::world::level::world_gen_level::WorldGenLevel;
+        let records = self.chunks.poi_manager.get_in_range(&|poi_type| poi_type == PoiType::LightningRod, center, 128, Occupancy::Any);
+        let mut nearby_lightning_rod: Option<BlockPos> = None;
+        for lightning_rod_pos in records.into_iter().map(|record| record.pos) {
+            if lightning_rod_pos.y == self.get_height(crate::world::level::chunk::HeightmapType::WorldSurface, lightning_rod_pos.x, lightning_rod_pos.z) - 1
+                && nearby_lightning_rod.is_none_or(|best| lightning_rod_pos.dist_sqr(center) < best.dist_sqr(center))
+            {
+                nearby_lightning_rod = Some(lightning_rod_pos);
+            }
+        }
+        nearby_lightning_rod.map(BlockPos::above)
+    }
+
     fn find_lightning_target_around(&mut self, pos: BlockPos) -> BlockPos {
         let chunk = self.chunks.chunk(pos.chunk());
         let height = chunk.height_at(crate::world::level::chunk::HeightmapType::MotionBlocking, pos.x, pos.z) + 1;
         let mut center = BlockPos::new(pos.x, height, pos.z);
+        if let Some(lightning_rod_target) = self.find_lightning_rod(center) {
+            return lightning_rod_target;
+        }
         let search = AABB::new(center.x as f64, center.y as f64, center.z as f64, center.x as f64 + 1.0, (self.chunks.max_y() + 2) as f64, center.z as f64 + 1.0)
             .inflate(3.0, 3.0, 3.0);
         let targets: Vec<BlockPos> = self

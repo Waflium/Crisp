@@ -7,16 +7,20 @@ use crate::commands::brigadier::{CommandContext, CommandSyntaxException, Dynamic
 use crate::commands::source::CommandSourceStack;
 use crate::network::chat::{Arg, ChatFormatting, ClickEvent, Component, HoverEvent};
 use crate::server::Server;
+use crate::world::entity::ai::village::poi::poi_manager::Occupancy;
+use crate::world::entity::ai::village::poi::poi_types::PoiType;
 use crate::world::level::chunk::Biome;
 use crate::world::level::levelgen::structure::structure::StructureHolder;
 
 static ERROR_STRUCTURE_NOT_FOUND: DynamicCommandExceptionType = DynamicCommandExceptionType(|value| tr("commands.locate.structure.not_found", vec![value]));
 static ERROR_STRUCTURE_INVALID: DynamicCommandExceptionType = DynamicCommandExceptionType(|value| tr("commands.locate.structure.invalid", vec![value]));
 static ERROR_BIOME_NOT_FOUND: DynamicCommandExceptionType = DynamicCommandExceptionType(|value| tr("commands.locate.biome.not_found", vec![value]));
+static ERROR_POI_NOT_FOUND: DynamicCommandExceptionType = DynamicCommandExceptionType(|value| tr("commands.locate.poi.not_found", vec![value]));
 const MAX_STRUCTURE_SEARCH_RADIUS: i32 = 100;
 const MAX_BIOME_SEARCH_RADIUS: i32 = 6400;
 const BIOME_SAMPLE_RESOLUTION_HORIZONTAL: i32 = 32;
 const BIOME_SAMPLE_RESOLUTION_VERTICAL: i32 = 64;
+const POI_SEARCH_RADIUS: i32 = 256;
 
 fn as_printable(tag: bool, id: &str) -> String {
     if tag { format!("#{id}") } else { id.to_string() }
@@ -63,6 +67,21 @@ pub fn locate_biome(server: &mut Server, context: &CommandContext, source: &Comm
     let Some((found_pos, found)) = nearest else { return Err(ERROR_BIOME_NOT_FOUND.create(as_printable(tag, id))) };
     let found_name = if tag { format!("#{id} ({})", found.name()) } else { id.to_string() };
     Ok(show_locate_result(server, source, source_pos, found_pos, "commands.locate.biome.success", true, &found_name, elapsed))
+}
+
+pub fn locate_poi(server: &mut Server, context: &CommandContext, source: &CommandSourceStack) -> Result<i32, CommandSyntaxException> {
+    let (tag, id) = context.get_resource_or_tag("poi");
+    let source_pos = BlockPos::containing_vec(source.position);
+    let stopwatch = Instant::now();
+    let poi_test = |poi_type: PoiType| match tag {
+        true => registry_tag("minecraft:point_of_interest_type", id).is_some_and(|ids| ids.contains(&(poi_type as i32))),
+        false => poi_type.name() == id,
+    };
+    let closest_with_type = server.levels[source.level].chunks.poi_manager.find_closest_with_type(&poi_test, source_pos, POI_SEARCH_RADIUS, Occupancy::Any);
+    let elapsed = stopwatch.elapsed();
+    let Some((found, found_pos)) = closest_with_type else { return Err(ERROR_POI_NOT_FOUND.create(as_printable(tag, id))) };
+    let found_name = if tag { format!("#{id} ({})", found.name()) } else { id.to_string() };
+    Ok(show_locate_result(server, source, source_pos, found_pos, "commands.locate.poi.success", false, &found_name, elapsed))
 }
 
 #[allow(clippy::too_many_arguments)]

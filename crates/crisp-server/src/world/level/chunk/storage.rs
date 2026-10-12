@@ -1,5 +1,6 @@
 pub mod entity_storage;
 pub mod region_file_version;
+pub mod section_storage;
 
 use std::collections::HashMap;
 use std::fs::{self, File, OpenOptions};

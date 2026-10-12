@@ -33,6 +33,7 @@ pub struct WorldGenRegion<'a> {
     generator: &'a ChunkGenerator,
     difficulty: Difficulty,
     pub light_tasks: Vec<RegionLightTask>,
+    pub poi_updates: Vec<(BlockPos, BlockState, BlockState)>,
 }
 
 pub enum RegionLightTask {
@@ -74,6 +75,7 @@ impl<'a> WorldGenRegion<'a> {
             generator,
             difficulty,
             light_tasks: Vec::new(),
+            poi_updates: Vec::new(),
         }
     }
 
@@ -194,6 +196,9 @@ impl<'a> WorldGenRegion<'a> {
             }
             Some(before)
         };
+        if let Some(old) = old {
+            self.poi_updates.push((pos, old, state));
+        }
         let chunk = self.cache[index].as_deref_mut().expect("a chunk in the region");
         if state.has_block_entity() {
             chunk.block_entities.pending.insert(pos, dummy_block_entity(pos));
