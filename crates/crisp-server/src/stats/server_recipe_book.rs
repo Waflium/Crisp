@@ -98,14 +98,15 @@ impl ServerLevel {
     pub fn award_recipes(&mut self, player: EntityId, recipes: &[&'static RecipeHolder]) -> i32 {
         let recipe_manager = RecipeManager::get();
         let mut recipes_to_add = Vec::new();
-        let recipe_book = &mut self.player_mut(player).recipe_book;
         for recipe in recipes {
+            let recipe_book = &mut self.player_mut(player).recipe_book;
             if !recipe_book.contains(recipe.id) && !recipe.value.is_special() {
                 recipe_book.add(recipe.id);
                 recipe_book.add_highlight(recipe.id);
                 for display in recipe_manager.list_displays_for_recipe(recipe.id) {
                     recipes_to_add.push((display, recipe.value.show_notification(), true));
                 }
+                crate::advancements::triggers::criteria_triggers::RECIPE_UNLOCKED.trigger(self, player, recipe.id);
             }
         }
         if !recipes_to_add.is_empty() {

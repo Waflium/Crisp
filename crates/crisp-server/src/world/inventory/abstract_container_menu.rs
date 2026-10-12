@@ -15,6 +15,7 @@ use super::enchantment_menu::EnchantmentMenu;
 use super::result_container::ResultContainer;
 use super::slot::{Slot, SlotContainer, SlotKind, brewing_stand_fuel_may_place_item, is_fuel};
 use super::transient_crafting_container::TransientCraftingContainer;
+use crate::advancements::triggers::criteria_triggers;
 use crate::network::hashed_stack::HashedStack;
 use crate::server::level::ServerLevel;
 use crate::util::Prediction;
@@ -1106,11 +1107,17 @@ impl ServerLevel {
         clicked
     }
 
-    fn trigger_slot_listeners(&mut self, menu: &mut AbstractContainerMenu, i: usize, current: &ItemStack) {
+    fn trigger_slot_listeners(&mut self, menu: &mut AbstractContainerMenu, player: EntityId, i: usize, current: &ItemStack) {
         if !ItemStack::matches(&menu.last_slots[i], current) {
             menu.last_slots[i] = current.copy();
             if menu.kind == MenuKind::Crafter {
                 self.crafter_menu_slot_changed(menu);
+            }
+            if menu.has_synchronizer {
+                let slot = &menu.slots[i];
+                if !matches!(slot.kind, SlotKind::Result { .. }) && slot.container == SlotContainer::Inventory {
+                    criteria_triggers::INVENTORY_CHANGED.trigger(self, player, current);
+                }
             }
         }
     }
@@ -1118,7 +1125,7 @@ impl ServerLevel {
     pub fn menu_broadcast_changes(&mut self, menu: &mut AbstractContainerMenu, player: EntityId) {
         for i in 0..menu.slots.len() {
             let current = self.slot_get(menu, player, i);
-            self.trigger_slot_listeners(menu, i, &current);
+            self.trigger_slot_listeners(menu, player, i, &current);
             if !menu.suppress_remote_updates && !menu.remote_slots[i].matches(&current) {
                 menu.remote_slots[i].force(&current);
                 if menu.has_synchronizer {
@@ -1160,7 +1167,7 @@ impl ServerLevel {
     pub fn menu_broadcast_full_state(&mut self, menu: &mut AbstractContainerMenu, player: EntityId) {
         for i in 0..menu.slots.len() {
             let current = self.slot_get(menu, player, i);
-            self.trigger_slot_listeners(menu, i, &current);
+            self.trigger_slot_listeners(menu, player, i, &current);
         }
         for i in 0..menu.data_count() {
             menu.data_prev[i] = self.menu_data(menu, i);

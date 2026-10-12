@@ -2,6 +2,7 @@ pub mod block_predicate;
 pub mod collection_contents_predicate;
 pub mod collection_counts_predicate;
 pub mod collection_predicate;
+pub mod damage_predicate;
 pub mod damage_source_predicate;
 pub mod data_component_matchers;
 pub mod distance_predicate;

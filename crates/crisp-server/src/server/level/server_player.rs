@@ -9,6 +9,7 @@ use crisp_protocol::Writer;
 use crisp_protocol::nbt::Nbt;
 
 use super::chunk_map::ChunkTrackingView;
+use crate::advancements::triggers::criteria_triggers;
 use super::game_mode::ServerPlayerGameMode;
 use crate::network::chat::remote_chat_session::RemoteChatSession;
 use crate::network::configuration::ClientInfo;
@@ -91,6 +92,8 @@ pub struct ServerPlayer {
     pub seen_credits: bool,
     pub won_game: bool,
     pub entered_nether_position: Option<Vec3>,
+    pub levitation_start_pos: Option<Vec3>,
+    pub levitation_start_time: i32,
     pub sleep_counter: i32,
     pub health: f32,
     pub food_data: crate::world::food::FoodData,
@@ -110,6 +113,7 @@ pub struct ServerPlayer {
     pub container_menu: Option<AbstractContainerMenu>,
     pub recipe_book: crate::stats::server_recipe_book::ServerRecipeBook,
     pub stats: ServerStatsCounter,
+    pub advancements: crate::server::player_advancements::PlayerAdvancements,
     pub carried: Option<ItemStack>,
     pub last_window_id: i32,
     pub living: LivingEntity,
@@ -169,6 +173,8 @@ impl ServerPlayer {
             seen_credits: false,
             won_game: false,
             entered_nether_position: None,
+            levitation_start_pos: None,
+            levitation_start_time: 0,
             sleep_counter: 0,
             health: 20.0,
             food_data: Default::default(),
@@ -188,6 +194,7 @@ impl ServerPlayer {
             container_menu: None,
             recipe_book: Default::default(),
             stats: ServerStatsCounter::default(),
+            advancements: Default::default(),
             carried: None,
             drop_spam_throttler: TickThrottler::new(20, 1480),
             last_window_id: 0,
@@ -625,6 +632,9 @@ impl ServerLevel {
             p.last_sent_exp = p.experience.total;
             p.send_experience();
         }
+        if self.entity(id).tick_count % 20 == 0 {
+            criteria_triggers::LOCATION.trigger(self, id);
+        }
     }
 
     pub fn server_player_hurt_server(&mut self, id: EntityId, source: DamageSource, damage: f32) -> bool {
@@ -836,6 +846,13 @@ impl ServerLevel {
         let p = self.player(id);
         let instance = p.living.effect(effect).expect("added effect");
         p.connection.send_raw(update_mob_effect(id, instance, true));
+        if effect == crisp_data::mob_effects::LEVITATION {
+            let tick_count = self.entity(id).tick_count;
+            let p = self.player_mut(id);
+            p.levitation_start_time = tick_count;
+            p.levitation_start_pos = Some(p.entity.position());
+        }
+        criteria_triggers::EFFECTS_CHANGED.trigger(self, id, source);
     }
 
     pub fn server_player_on_effect_updated(&mut self, id: EntityId, effect: MobEffect, refresh_attributes: bool, source: Option<EntityId>) {
@@ -843,14 +860,19 @@ impl ServerLevel {
         let p = self.player(id);
         let instance = p.living.effect(effect).expect("updated effect");
         p.connection.send_raw(update_mob_effect(id, instance, false));
+        criteria_triggers::EFFECTS_CHANGED.trigger(self, id, source);
     }
 
     pub fn server_player_on_effects_removed(&mut self, id: EntityId, effects: &[MobEffectInstance]) {
         self.living_entity_on_effects_removed(id, effects);
-        let p = self.player(id);
+        let p = self.player_mut(id);
         for effect in effects {
             p.connection.send_raw(remove_mob_effect(id, effect.effect));
+            if effect.effect == crisp_data::mob_effects::LEVITATION {
+                p.levitation_start_pos = None;
+            }
         }
+        criteria_triggers::EFFECTS_CHANGED.trigger(self, id, None);
     }
 
     pub fn show_end_credits(&mut self, id: EntityId) {
@@ -1019,7 +1041,7 @@ impl crate::server::Server {
         player.teleport_relative(transition.position_move_rotation(), transition.relatives);
         player.reset_position();
         self.levels[new_level].add_player(player);
-        self.trigger_dimension_change_triggers(id);
+        self.trigger_dimension_change_triggers(id, old_level);
         let level = &mut self.levels[new_level];
         level.stop_using_item(id);
         let player = level.player(id);
@@ -1046,8 +1068,18 @@ impl crate::server::Server {
         }
     }
 
-    fn trigger_dimension_change_triggers(&mut self, id: EntityId) {
+    fn trigger_dimension_change_triggers(&mut self, id: EntityId, old_level: usize) {
         let new_level = self.level_of(id).expect("player on this server");
+        let old_key = self.levels[old_level].dimension;
+        let new_key = self.levels[new_level].dimension;
+        let level = &mut self.levels[new_level];
+        criteria_triggers::CHANGED_DIMENSION.trigger(level, id, old_key, new_key);
+        if old_key == crate::server::THE_NETHER
+            && new_key == crate::server::OVERWORLD
+            && let Some(entered_nether_position) = level.player(id).entered_nether_position
+        {
+            criteria_triggers::NETHER_TRAVEL.trigger(level, id, entered_nether_position);
+        }
         if self.levels[new_level].dimension != crate::server::THE_NETHER {
             self.player_mut(id).entered_nether_position = None;
         }

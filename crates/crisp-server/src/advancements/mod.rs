@@ -1,1 +1,14 @@
+pub mod advancement;
+pub mod advancement_holder;
+pub mod advancement_node;
+pub mod advancement_progress;
+pub mod advancement_requirements;
+pub mod advancement_rewards;
+pub mod advancement_tree;
+pub mod advancement_type;
+pub mod criterion_progress;
+pub mod criterion_trigger_instance;
+pub mod display_info;
 pub mod predicates;
+pub mod tree_node_position;
+pub mod triggers;

@@ -1158,8 +1158,13 @@ impl ServerLevel {
     }
 
     pub fn reset_fall_distance(&mut self, id: EntityId) {
-        if let Some(p) = self.players.get_mut(&id) {
-            p.starting_to_fall_position = None;
+        if let Some(p) = self.players.get(&id) {
+            if p.health > 0.0
+                && let Some(starting_to_fall_position) = p.starting_to_fall_position
+            {
+                crate::advancements::triggers::criteria_triggers::FALL_FROM_HEIGHT.trigger(self, id, starting_to_fall_position);
+            }
+            self.player_mut(id).starting_to_fall_position = None;
         }
         self.entity_mut(id).reset_fall_distance();
     }
@@ -1600,6 +1605,12 @@ impl ServerLevel {
         }
     }
 
+    fn on_inside_block(&mut self, id: EntityId, state: crisp_data::BlockState) {
+        if self.is_player(id) {
+            crate::advancements::triggers::criteria_triggers::ENTER_BLOCK.trigger(self, id, state);
+        }
+    }
+
     fn check_inside_blocks_between(&mut self, id: EntityId, from: Vec3, to: Vec3, visited: &mut FastSet<BlockPos>, max_iterations: i32) -> i32 {
         let e = self.entity_mut(id);
         let dimensions = e.dimensions;
@@ -1639,6 +1650,7 @@ impl ServerLevel {
                     let is_precise = moved_far || deflated.intersects_block(pos);
                     effects.advance_step(iteration);
                     behaviour.entity_inside(state, self, pos, id, &mut effects, is_precise);
+                    self.on_inside_block(id, state);
                 }
                 if inside_fluid {
                     effects.advance_step(iteration);

@@ -8,6 +8,8 @@ use crate::network::configuration::ChatVisibility;
 use crate::network::login::Profile;
 use crate::server::Server;
 use crate::server::level::ServerLevel;
+use crate::server::player_advancements::PlayerAdvancements;
+use crate::server::server_advancement_manager::ServerAdvancementManager;
 use crate::stats::server_stats_counter::ServerStatsCounter;
 use crate::util::file_util;
 use crate::world::entity::EntityId;
@@ -44,8 +46,36 @@ fn locate_stats_file(dir: &WorldDir, profile: &Profile) -> PathBuf {
     uuid_stats_file
 }
 
+impl Server {
+    pub fn get_player_advancements(&self, uuid: u128) -> PlayerAdvancements {
+        PlayerAdvancements::new(ServerAdvancementManager::get_bound(), self.world_dir.as_ref().map(|dir| dir.player_advancements(uuid)))
+    }
+
+    pub fn reload_player_advancements(&mut self) {
+        let manager = ServerAdvancementManager::get_bound();
+        for id in self.player_ids() {
+            self.player_mut(id).advancements.reload(manager);
+        }
+    }
+
+    pub fn deliver_level_broadcasts(&mut self) {
+        for index in 0..self.levels.len() {
+            if self.levels[index].pending_system_broadcasts.is_empty() {
+                continue;
+            }
+            for message in std::mem::take(&mut self.levels[index].pending_system_broadcasts) {
+                for &id in &self.player_list {
+                    if self.level_of(id).is_some_and(|level| level != index) {
+                        self.send_player_system_message(id, &message, false);
+                    }
+                }
+            }
+        }
+    }
+}
+
 impl ServerLevel {
-    pub fn broadcast_system_message(&self, message: &Component) {
+    pub fn broadcast_system_message(&mut self, message: &Component) {
         info!("System chat: {}", message.get_string());
         for p in self.players.values() {
             if p.client.chat_visibility == ChatVisibility::Hidden {
@@ -56,6 +86,7 @@ impl ServerLevel {
                 w.bool(false);
             });
         }
+        self.pending_system_broadcasts.push(message.clone());
     }
 
     pub fn broadcast_system_to_team(&self, player: EntityId, message: &Component) {
@@ -69,7 +100,7 @@ impl ServerLevel {
         }
     }
 
-    pub fn broadcast_system_to_all_except_team(&self, player: EntityId, message: &Component) {
+    pub fn broadcast_system_to_all_except_team(&mut self, player: EntityId, message: &Component) {
         let Some(team) = self.team_of(player).map(|t| t.name().to_string()) else {
             self.broadcast_system_message(message);
             return;

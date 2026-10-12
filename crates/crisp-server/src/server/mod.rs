@@ -1,3 +1,4 @@
+pub mod advancements;
 pub mod bossevents;
 pub mod commands;
 pub mod dedicated;
@@ -13,6 +14,8 @@ pub mod eula;
 pub mod jsonrpc;
 pub mod main;
 pub mod notifications;
+pub mod player_advancements;
+pub mod server_advancement_manager;
 pub mod server_tick_rate_manager;
 pub mod services;
 #[cfg(test)]
@@ -705,6 +708,7 @@ impl Server {
         for player in self.players() {
             self.save_player(player);
         }
+        self.reload_player_advancements();
         for player in self.players() {
             player.connection.send(clientbound::UPDATE_TAGS, crate::network::configuration::write_tags);
         }
@@ -789,6 +793,7 @@ impl Server {
             warn!("Failed to save player data for {}", player.profile.name);
         }
         player.stats.save();
+        player.advancements.save();
     }
 
     fn handle(&mut self, event: Event) {
@@ -838,6 +843,7 @@ impl Server {
         self.name_to_id_cache.add(NameAndId { id: profile.uuid, name: profile.name.clone() });
         let mut player = ServerPlayer::new(profile, cookie.client_information, out, self.effective_respawn_data.pos);
         player.stats = self.get_player_stats(&player.profile);
+        player.advancements = self.get_player_advancements(player.profile.uuid);
         player.latency = cookie.latency;
         player.chat = ChatState::new(player.profile.uuid, &self.config);
         player.set_game_mode_for_player(self.calculate_game_mode_for_new_player(None), None);
@@ -1440,7 +1446,23 @@ impl Server {
         self.send_global_level_events();
     }
 
+    pub fn run_level_tasks(&mut self) {
+        self.deliver_level_broadcasts();
+        for index in 0..self.levels.len() {
+            for (function, player) in std::mem::take(&mut self.levels[index].pending_function_executions) {
+                if self.level_of(player).is_none() {
+                    continue;
+                }
+                if let Some(function) = self.functions.get(&function) {
+                    let source = CommandSourceStack::player(self, player).with_suppressed_output().with_permission(2);
+                    ServerFunctionManager::execute(self, &function, &source);
+                }
+            }
+        }
+    }
+
     pub fn send_global_level_events(&mut self) {
+        self.run_level_tasks();
         for index in 0..self.levels.len() {
             if self.levels[index].global_level_events.is_empty() {
                 continue;

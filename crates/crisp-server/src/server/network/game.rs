@@ -222,9 +222,25 @@ impl ServerLevel {
                 let desired = r.f32()?;
                 self.player_mut(id).chunk_sender.on_chunk_batch_received(desired);
             }
+            serverbound::SEEN_ADVANCEMENTS => {
+                let action = r.varint()?;
+                if action == 0 {
+                    let tab = crate::resources::identifier::read(r.string(32767)?).map_err(anyhow::Error::msg)?;
+                    self.handle_seen_advancements(id, &tab);
+                } else if action != 1 {
+                    anyhow::bail!("Unknown seen advancements action {action}");
+                }
+            }
             _ => {}
         }
         Ok(())
+    }
+
+    fn handle_seen_advancements(&mut self, id: EntityId, tab: &str) {
+        if let Some(advancement) = crate::server::server_advancement_manager::ServerAdvancementManager::get_bound().get(tab) {
+            let p = self.player_mut(id);
+            p.advancements.set_selected_tab(&p.connection, Some(advancement));
+        }
     }
 
     fn handle_player_action(&mut self, id: EntityId, action: i32, pos: BlockPos, direction: Direction, sequence: i32) {

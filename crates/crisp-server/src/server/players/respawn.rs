@@ -101,6 +101,7 @@ impl Server {
             p.reset_position();
             p.movement.waiting_for_respawn = false;
             p.movement.client_loaded_timeout_timer = 60;
+            crate::advancements::triggers::criteria_triggers::CHANGED_DIMENSION.trigger(self.entity_level_mut(id), id, crate::server::THE_END, crate::server::OVERWORLD);
             return Ok(());
         }
         if self.player(id).health > 0.0 {
@@ -181,6 +182,7 @@ impl Server {
         let old_score = old.score();
         let mut player = ServerPlayer::new(old.profile.clone(), old.client, old.connection.clone(), BlockPos::ZERO);
         player.stats = std::mem::take(&mut old.stats);
+        player.advancements = old.advancements;
         player.entity.id = id;
         player.chunk_sender = old.chunk_sender;
         player.movement = old.movement;

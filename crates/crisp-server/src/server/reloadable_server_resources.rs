@@ -2,6 +2,7 @@ use crisp_data::RegistryTags;
 
 use super::packs::resources::MultiPackResourceManager;
 use super::reloadable_server_registries::{self, LoadResult, ReloadableRegistries};
+use super::server_advancement_manager::ServerAdvancementManager;
 use super::server_function_library::{ServerFunctionLibrary, worker_name};
 use crate::tags::PendingTags;
 use crate::world::item::crafting::recipe_manager::RecipeManager;
@@ -10,16 +11,25 @@ pub struct ReloadableServerResources {
     postponed_tags: &'static [RegistryTags],
     registries: Option<ReloadableRegistries>,
     recipe_manager: Option<RecipeManager>,
+    advancements: Option<ServerAdvancementManager>,
     pub function_library: ServerFunctionLibrary,
 }
 
 impl ReloadableServerResources {
     pub fn load_resources(resource_manager: &MultiPackResourceManager, postponed_tags: PendingTags, function_compilation_permission: i32) -> Result<ReloadableServerResources, String> {
         let postponed_tags = crisp_data::prepare_tags(postponed_tags);
-        let loaded = std::thread::scope(|scope| {
+        let (loaded, advancements) = std::thread::scope(|scope| {
             std::thread::Builder::new()
                 .name(worker_name())
-                .spawn_scoped(scope, || reloadable_server_registries::load(resource_manager, postponed_tags, Some(reloadable_server_registries::get())))
+                .spawn_scoped(scope, || {
+                    let loaded = reloadable_server_registries::load(resource_manager, postponed_tags, Some(reloadable_server_registries::get()));
+                    let advancements = match &loaded {
+                        Ok(LoadResult::Loaded { registries, .. }) => Some(ServerAdvancementManager::new(&registries.advancements)),
+                        Ok(LoadResult::Unchanged) => Some(ServerAdvancementManager::new(&reloadable_server_registries::get().advancements)),
+                        Err(_) => None,
+                    };
+                    (loaded, advancements)
+                })
                 .expect("worker thread")
                 .join()
                 .expect("reloadable registries")
@@ -30,13 +40,16 @@ impl ReloadableServerResources {
             Err(_) => return Err("net.minecraft.ReportedException: Registry Loading".to_string()),
         };
         let function_library = ServerFunctionLibrary::reload(resource_manager, function_compilation_permission);
-        Ok(ReloadableServerResources { postponed_tags, registries, recipe_manager, function_library })
+        Ok(ReloadableServerResources { postponed_tags, registries, recipe_manager, advancements, function_library })
     }
 
     pub fn update_components_and_static_registry_tags(&mut self) {
         crisp_data::bind_tags(self.postponed_tags);
         if let Some(registries) = self.registries.take() {
             reloadable_server_registries::bind(registries);
+        }
+        if let Some(advancements) = self.advancements.take() {
+            ServerAdvancementManager::bind(advancements);
         }
     }
 

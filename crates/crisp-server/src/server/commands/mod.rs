@@ -1,3 +1,4 @@
+mod advancement_commands;
 mod attribute_command;
 mod ban_player_commands;
 mod boss_bar_commands;
@@ -232,6 +233,18 @@ static EXECUTORS: &[(&str, CommandFn)] = &[
     ("random reset sequence seed", random_command::reset_sequence_with),
     ("random reset sequence seed includeWorldSeed", random_command::reset_sequence_with),
     ("random reset sequence seed includeWorldSeed includeSequenceId", random_command::reset_sequence_with),
+    ("advancement grant targets only advancement", advancement_commands::grant_only),
+    ("advancement grant targets only advancement criterion", advancement_commands::grant_criterion),
+    ("advancement grant targets from advancement", advancement_commands::grant_from),
+    ("advancement grant targets until advancement", advancement_commands::grant_until),
+    ("advancement grant targets through advancement", advancement_commands::grant_through),
+    ("advancement grant targets everything", advancement_commands::grant_everything),
+    ("advancement revoke targets only advancement", advancement_commands::revoke_only),
+    ("advancement revoke targets only advancement criterion", advancement_commands::revoke_criterion),
+    ("advancement revoke targets from advancement", advancement_commands::revoke_from),
+    ("advancement revoke targets until advancement", advancement_commands::revoke_until),
+    ("advancement revoke targets through advancement", advancement_commands::revoke_through),
+    ("advancement revoke targets everything", advancement_commands::revoke_everything),
     ("recipe give targets recipe", recipe_command::give_recipe),
     ("recipe give targets *", recipe_command::give_all_recipes),
     ("recipe take targets recipe", recipe_command::take_recipe),
@@ -671,6 +684,8 @@ pub fn suggestion_providers() -> Vec<(String, crate::commands::SuggestFn)> {
     all.push(("tick sprint time".into(), tick_command::suggest_sprint));
     all.push(("trigger objective".into(), trigger_command::suggest_objectives));
     all.push(("tag targets remove name".into(), tag_command::suggest_tags));
+    all.push(("advancement grant targets only advancement criterion".into(), advancement_commands::suggest_criteria));
+    all.push(("advancement revoke targets only advancement criterion".into(), advancement_commands::suggest_criteria));
     all.push(("attribute target attribute modifier remove id".into(), modifiers));
     all.push(("attribute target attribute modifier value get id".into(), modifiers));
     all.push(("op targets".into(), op_command::suggest_non_operators));

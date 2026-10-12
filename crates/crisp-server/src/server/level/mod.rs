@@ -31,6 +31,7 @@ use crisp_core::{AABB, BlockPos, ChunkPos, Direction, Vec3, mth};
 use crisp_data::packets::play::clientbound;
 use crisp_data::{Block, BlockState, DimensionType, Fluid, blocks};
 
+use crate::advancements::triggers::criteria_triggers;
 use crate::network::connection::encode;
 use crate::world::attribute::environment_attribute_system::{EnvironmentAccess, EnvironmentAttributeReader};
 use crate::world::attribute::EnvironmentAttributeSystem;
@@ -122,6 +123,8 @@ pub struct ServerLevel {
     pub raids: crate::world::entity::raid::raids::Raids,
     pub pending_portal_teleport: Option<crate::world::level::block::portal::PendingPortalTeleport>,
     pub global_level_events: Vec<(i32, BlockPos, i32)>,
+    pub pending_system_broadcasts: Vec<crate::network::chat::Component>,
+    pub pending_function_executions: Vec<(String, EntityId)>,
     entity_tick_range: Option<(usize, usize)>,
     pub rain_level: f32,
     pub o_rain_level: f32,
@@ -237,6 +240,8 @@ impl ServerLevel {
             raids: crate::world::entity::raid::raids::Raids::load(None),
             pending_portal_teleport: None,
             global_level_events: Vec::new(),
+            pending_system_broadcasts: Vec::new(),
+            pending_function_executions: Vec::new(),
             entity_tick_range: None,
             environment_attributes: EnvironmentAttributeSystem::default(),
             clock_ticks: ServerClockManager::new().clocks.iter().map(|c| c.total_ticks).collect(),
@@ -1516,11 +1521,18 @@ impl ServerLevel {
         }
         self.tick_container_menu(id);
         self.tick_camera(id);
+        criteria_triggers::TICK.trigger(self, id);
+        if let Some(levitation_start_pos) = self.player(id).levitation_start_pos {
+            let duration = self.entity(id).tick_count - self.player(id).levitation_start_time;
+            criteria_triggers::LEVITATION.trigger(self, id, levitation_start_pos, duration);
+        }
         let p = self.player_mut(id);
         if p.entity.fall_distance > 0.0 && p.starting_to_fall_position.is_none() {
             p.starting_to_fall_position = Some(p.entity.position());
         }
         p.update_player_attributes();
+        let p = self.player_mut(id);
+        p.advancements.flush_dirty(&p.connection, true);
         if p.post_effects_dirty {
             p.send_post_effects();
         }

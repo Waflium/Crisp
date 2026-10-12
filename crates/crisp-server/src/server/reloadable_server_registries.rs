@@ -7,6 +7,8 @@ use crisp_protocol::nbt::Nbt;
 
 use super::packs::repository::{PackRepository, VANILLA_ID};
 use super::packs::resources::MultiPackResourceManager;
+use crate::advancements::advancement::Advancement;
+use crate::advancements::advancement_holder::AdvancementHolder;
 use crate::tags::identifier_order;
 use crate::world::item::component::json_to_nbt;
 use crate::world::item::crafting::recipe::Recipe;
@@ -25,8 +27,9 @@ pub const CONTEXT_FLOAT_PROVIDER: &str = "minecraft:context_float_provider";
 pub const CONTEXT_INT_PROVIDER: &str = "minecraft:context_int_provider";
 pub const ITEM_MODIFIER: &str = "minecraft:item_modifier";
 pub const SLOT_SOURCE: &str = "minecraft:slot_source";
+pub const ADVANCEMENT: &str = "minecraft:advancement";
 pub const RECIPE: &str = "minecraft:recipe";
-const RELOADABLE_REGISTRIES: [&str; 7] = [LOOT_TABLE, PREDICATE, CONTEXT_FLOAT_PROVIDER, CONTEXT_INT_PROVIDER, ITEM_MODIFIER, SLOT_SOURCE, RECIPE];
+const RELOADABLE_REGISTRIES: [&str; 8] = [LOOT_TABLE, PREDICATE, CONTEXT_FLOAT_PROVIDER, CONTEXT_INT_PROVIDER, ITEM_MODIFIER, SLOT_SOURCE, ADVANCEMENT, RECIPE];
 
 #[derive(PartialEq)]
 struct Source {
@@ -44,6 +47,7 @@ pub struct ReloadableRegistries {
     pub context_int_providers: HashMap<String, ContextIntProvider>,
     pub item_modifiers: HashMap<String, LootItemFunction>,
     pub slot_sources: HashMap<String, SlotSource>,
+    pub advancements: Vec<&'static AdvancementHolder>,
 }
 
 impl ReloadableRegistries {
@@ -55,6 +59,7 @@ impl ReloadableRegistries {
             CONTEXT_INT_PROVIDER => self.context_int_providers.contains_key(key),
             ITEM_MODIFIER => self.item_modifiers.contains_key(key),
             SLOT_SOURCE => self.slot_sources.contains_key(key),
+            ADVANCEMENT => self.advancements.iter().any(|holder| holder.id == key),
             _ => false,
         }
     }
@@ -179,11 +184,26 @@ pub fn load(resource_manager: &MultiPackResourceManager, tags: &'static [Registr
         let context_int_providers = decode_registry(CONTEXT_INT_PROVIDER, &sources[3], ContextIntProvider::decode, &mut errors);
         let item_modifiers = decode_registry(ITEM_MODIFIER, &sources[4], LootItemFunction::decode_typed, &mut errors);
         let slot_sources = decode_registry(SLOT_SOURCE, &sources[5], SlotSource::decode_typed, &mut errors);
-        let mut decoded_recipes = decode_registry(RECIPE, &sources[6], Recipe::decode, &mut errors);
+        let mut decoded_advancements = decode_registry(ADVANCEMENT, &sources[6], Advancement::decode, &mut errors);
+        let advancements: Vec<&'static AdvancementHolder> = sources[6]
+            .iter()
+            .filter_map(|source| decoded_advancements.remove(&source.id).map(|value| &*Box::leak(Box::new(AdvancementHolder { id: source.id.clone(), value }))))
+            .collect();
+        let mut decoded_recipes = decode_registry(RECIPE, &sources[7], Recipe::decode, &mut errors);
         let recipes: Vec<RecipeHolder> =
-            sources[6].iter().filter_map(|source| decoded_recipes.remove(&source.id).map(|value| RecipeHolder { id: source.id.clone().leak(), value })).collect();
+            sources[7].iter().filter_map(|source| decoded_recipes.remove(&source.id).map(|value| RecipeHolder { id: source.id.clone().leak(), value })).collect();
         (
-            ReloadableRegistries { sources: Vec::new(), tags, loot_tables, predicates, context_float_providers, context_int_providers, item_modifiers, slot_sources },
+            ReloadableRegistries {
+                sources: Vec::new(),
+                tags,
+                loot_tables,
+                predicates,
+                context_float_providers,
+                context_int_providers,
+                item_modifiers,
+                slot_sources,
+                advancements,
+            },
             recipes,
         )
     });

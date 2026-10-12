@@ -93,6 +93,9 @@ impl WorldDir {
     pub fn old_level_dat(&self) -> PathBuf {
         self.root.join("level.dat_old")
     }
+    pub fn player_advancements(&self, uuid: u128) -> PathBuf {
+        self.root.join("players/advancements").join(format!("{}.json", format_uuid(uuid)))
+    }
     pub fn icon_file(&self) -> PathBuf {
         self.root.join("icon.png")
     }

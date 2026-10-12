@@ -22,6 +22,10 @@ pub fn merge_styles(mut component: Component, style: &Style) -> Component {
     component
 }
 
+pub fn wrap_in_square_brackets(component: Component) -> Component {
+    Component::translatable_with("chat.square_brackets", vec![Arg::Component(component)])
+}
+
 pub fn resolve(server: &Server, source: &CommandSourceStack, component: &Component) -> Result<Component, CommandSyntaxException> {
     resolve_depth(server, source, source.entity, component, 0)
 }

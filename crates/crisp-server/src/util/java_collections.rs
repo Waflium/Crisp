@@ -808,8 +808,26 @@ impl<V> JavaHashMap<V> {
         JavaHashMap { entries: indexmap::IndexMap::new(), capacity: 16, hash }
     }
 
+    pub fn copy_of(hash: fn(&str) -> i32, entries: impl IntoIterator<Item = (String, V)>) -> JavaHashMap<V> {
+        let entries: indexmap::IndexMap<String, V> = entries.into_iter().collect();
+        let capacity = if entries.is_empty() { 16 } else { ((entries.len() as f64 / 0.75f32 as f64).ceil() as usize).next_power_of_two() };
+        JavaHashMap { entries, capacity, hash }
+    }
+
     pub fn len(&self) -> usize {
         self.entries.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.entries.is_empty()
+    }
+
+    pub fn contains_key(&self, key: &str) -> bool {
+        self.entries.contains_key(key)
+    }
+
+    pub fn values(&self) -> impl Iterator<Item = &V> {
+        self.entries.values()
     }
 
     pub fn get(&self, key: &str) -> Option<&V> {

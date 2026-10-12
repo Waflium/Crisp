@@ -824,6 +824,10 @@ pub fn list_suggestions(
         }
         ArgumentType::ResourceKey { registry } => match registry.as_str() {
             "minecraft:recipe" => resource_key_argument::suggest_recipes(&mut builder),
+            "minecraft:advancement" => shared_suggestion_provider::suggest_resource(
+                crate::server::server_advancement_manager::ServerAdvancementManager::get_bound().get_all_advancements().map(|holder| holder.id.as_str()),
+                &mut builder,
+            ),
             _ => shared_suggestion_provider::suggest_resource(crisp_data::registry_entries(registry).unwrap_or_default().iter(), &mut builder),
         },
         ArgumentType::ResourceOrTag { registry } | ArgumentType::ResourceOrTagKey { registry } => {
