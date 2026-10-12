@@ -344,9 +344,45 @@ fn send_registries(w: &mut PacketWriter) {
     w.queue(clientbound::UPDATE_TAGS, write_tags);
 }
 
+const UNSYNCHRONIZED_DATA_REGISTRIES: &[&str] = &[
+    "minecraft:advancement",
+    "minecraft:worldgen/carver",
+    "minecraft:context_float_provider",
+    "minecraft:context_int_provider",
+    "minecraft:worldgen/density_function",
+    "minecraft:enchantment_provider",
+    "minecraft:worldgen/feature",
+    "minecraft:worldgen/flat_level_generator_preset",
+    "minecraft:item_modifier",
+    "minecraft:dimension",
+    "minecraft:loot_table",
+    "minecraft:worldgen/material_condition",
+    "minecraft:worldgen/material_rule",
+    "minecraft:worldgen/multi_noise_biome_source_parameter_list",
+    "minecraft:worldgen/noise",
+    "minecraft:worldgen/noise_settings",
+    "minecraft:worldgen/placed_feature",
+    "minecraft:predicate",
+    "minecraft:worldgen/processor_list",
+    "minecraft:recipe",
+    "minecraft:slot_source",
+    "minecraft:worldgen/structure",
+    "minecraft:worldgen/structure_set",
+    "minecraft:worldgen/template_pool",
+    "minecraft:trade_set",
+    "minecraft:trial_spawner",
+    "minecraft:villager_trade",
+    "minecraft:worldgen/world_preset",
+];
+
+fn is_network_safe(registry: &str) -> bool {
+    !UNSYNCHRONIZED_DATA_REGISTRIES.contains(&registry)
+}
+
 pub fn write_tags(p: &mut crisp_protocol::Writer) {
-    p.varint(TAGS.len() as i32);
-    for registry in TAGS {
+    let registries: Vec<_> = TAGS.iter().filter(|registry| is_network_safe(registry.registry)).collect();
+    p.varint(registries.len() as i32);
+    for registry in registries {
         p.string(registry.registry);
         p.varint(registry.tags.len() as i32);
         for (name, ids) in registry.tags {
