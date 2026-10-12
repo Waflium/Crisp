@@ -205,7 +205,9 @@ impl Server {
         let initial_data_config = saved.as_ref().map_or_else(WorldDataConfiguration::default_configuration, |data| data.data_configuration.clone());
         let data_configuration = configure_pack_repository(&mut pack_repository, &initial_data_config, saved.is_none(), false);
         let resource_manager = MultiPackResourceManager::new(pack_repository.open_all_selected());
-        let data_packs = ReloadableServerResources::load_resources(&resource_manager, config.function_permission_level);
+        let postponed_tags = crate::tags::load_tags_for_existing_registries(&resource_manager);
+        let data_packs = ReloadableServerResources::load_resources(&resource_manager, postponed_tags, config.function_permission_level);
+        data_packs.update_static_registry_tags();
         let mut world_data = match saved {
             Some(data) => data,
             None => {
@@ -590,9 +592,11 @@ impl Server {
     pub fn reload_resources<S: AsRef<str>>(&mut self, packs_to_enable: &[S]) {
         let packs_to_load = packs_to_enable.iter().filter_map(|id| self.pack_repository.pack(id.as_ref())).map(|pack| pack.open()).collect();
         let resource_manager = MultiPackResourceManager::new(packs_to_load);
-        let resources = ReloadableServerResources::load_resources(&resource_manager, self.config.function_permission_level);
+        let postponed_tags = crate::tags::load_tags_for_existing_registries(&resource_manager);
+        let resources = ReloadableServerResources::load_resources(&resource_manager, postponed_tags, self.config.function_permission_level);
         self.pack_repository.set_selected(packs_to_enable);
         self.data_configuration = WorldDataConfiguration::new(get_selected_packs(&self.pack_repository, true), self.data_configuration.enabled_features);
+        resources.update_static_registry_tags();
         for player in self.level.players.values() {
             self.save_player(player);
         }

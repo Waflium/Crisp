@@ -212,7 +212,7 @@ fn registry_entry(name: &str, id: i32) -> Result<&'static str, String> {
 }
 
 pub fn tag_exists(registry: &str, tag: &str) -> bool {
-    crisp_data::TAGS.iter().any(|r| r.registry == registry && r.tags.iter().any(|t| t.0 == tag))
+    crisp_data::tags().iter().any(|r| r.registry == registry && r.tags.iter().any(|t| t.0 == tag))
 }
 
 fn missing_key(name: &str, input: &Nbt) -> String {

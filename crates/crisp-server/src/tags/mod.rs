@@ -1,7 +1,7 @@
 pub mod tag_entry;
 
+use std::collections::HashMap;
 use std::fmt;
-use std::sync::Arc;
 
 use serde_json::Value;
 
@@ -55,6 +55,36 @@ impl TagFile {
         };
         Ok(TagFile { entries, replace })
     }
+}
+
+pub type PendingTags = Vec<(String, Vec<(String, Vec<i32>)>)>;
+
+pub fn tags_dir_path(registry: &str) -> String {
+    match registry.split_once(':') {
+        Some(("minecraft", path)) => format!("tags/{path}"),
+        Some((namespace, path)) => format!("tags/{namespace}/{path}"),
+        None => format!("tags/{registry}"),
+    }
+}
+
+pub fn load_tags_for_existing_registries(resource_manager: &MultiPackResourceManager) -> PendingTags {
+    let mut registries: Vec<&str> = crisp_data::registry_names().collect();
+    registries.sort_unstable();
+    registries.dedup();
+    let mut pending_tags = Vec::new();
+    for registry in registries {
+        let entries = crisp_data::registry_entries(registry).unwrap_or_default();
+        let ids: HashMap<&str, i32> = entries.iter().enumerate().map(|(id, &entry)| (entry, id as i32)).collect();
+        let loader = TagLoader::new(&tags_dir_path(registry));
+        let tags = loader.build(&loader.load(resource_manager), &|id, _| ids.get(id).copied(), &|a, b| a == b);
+        if tags.len() == 0 {
+            continue;
+        }
+        let mut tags: Vec<(String, Vec<i32>)> = tags.iter().map(|(id, values)| (id.to_string(), values.clone())).collect();
+        tags.sort_unstable_by(|a, b| a.0.cmp(&b.0));
+        pending_tags.push((registry.to_string(), tags));
+    }
+    pending_tags
 }
 
 pub fn identifier_order<T>(entries: &mut [(String, T)]) {
@@ -114,23 +144,24 @@ impl TagLoader {
         builders
     }
 
-    pub fn build<T>(
+    pub fn build<V: Clone>(
         &self,
         builders: &JavaHashMap<Vec<EntryWithSource>>,
-        element_lookup: &dyn Fn(&str, bool) -> Option<Arc<T>>,
-    ) -> JavaHashMap<Vec<Arc<T>>> {
-        let mut new_tags: JavaHashMap<Vec<Arc<T>>> = JavaHashMap::new(identifier_hash);
+        element_lookup: &dyn Fn(&str, bool) -> Option<V>,
+        same: &dyn Fn(&V, &V) -> bool,
+    ) -> JavaHashMap<Vec<V>> {
+        let mut new_tags: JavaHashMap<Vec<V>> = JavaHashMap::new(identifier_hash);
         let mut sorter = DependencySorter::new();
         for (id, entries) in builders.iter() {
             sorter.add_entry(id.to_string(), SortingEntry(entries));
         }
         sorter.order_by_dependencies(&mut |id, contents| {
             let lookup = TagLookup { element_lookup, tags: &new_tags };
-            let mut values: Vec<Arc<T>> = Vec::new();
+            let mut values: Vec<V> = Vec::new();
             let mut missing_elements: Vec<&EntryWithSource> = Vec::new();
             for entry in contents.0 {
-                let present = entry.entry.build(&lookup, &mut |value: Arc<T>| {
-                    if !values.iter().any(|v| Arc::ptr_eq(v, &value)) {
+                let present = entry.entry.build(&lookup, &mut |value: V| {
+                    if !values.iter().any(|v| same(v, &value)) {
                         values.push(value);
                     }
                 });
@@ -149,17 +180,37 @@ impl TagLoader {
     }
 }
 
-struct TagLookup<'a, T> {
-    element_lookup: &'a dyn Fn(&str, bool) -> Option<Arc<T>>,
-    tags: &'a JavaHashMap<Vec<Arc<T>>>,
+struct TagLookup<'a, V> {
+    element_lookup: &'a dyn Fn(&str, bool) -> Option<V>,
+    tags: &'a JavaHashMap<Vec<V>>,
 }
 
-impl<T> Lookup<Arc<T>> for TagLookup<'_, T> {
-    fn element(&self, key: &str, required: bool) -> Option<Arc<T>> {
+impl<V: Clone> Lookup<V> for TagLookup<'_, V> {
+    fn element(&self, key: &str, required: bool) -> Option<V> {
         (self.element_lookup)(key, required)
     }
 
-    fn tag(&self, key: &str) -> Option<Vec<Arc<T>>> {
+    fn tag(&self, key: &str) -> Option<Vec<V>> {
         self.tags.get(key).cloned()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::load_tags_for_existing_registries;
+    use crate::server::packs::repository::PackRepository;
+    use crate::server::packs::resources::MultiPackResourceManager;
+
+    #[test]
+    fn vanilla_pack_tags_match_the_built_in_tags() {
+        let mut repository = PackRepository::create_vanilla_trusted_repository();
+        repository.reload();
+        repository.set_selected(&["vanilla"]);
+        let loaded = load_tags_for_existing_registries(&MultiPackResourceManager::new(repository.open_all_selected()));
+        let built_in: Vec<(String, Vec<(String, Vec<i32>)>)> = crisp_data::TAGS
+            .iter()
+            .map(|registry| (registry.registry.to_string(), registry.tags.iter().map(|(name, values)| (name.to_string(), values.to_vec())).collect()))
+            .collect();
+        assert_eq!(loaded, built_in);
     }
 }

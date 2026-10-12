@@ -359,6 +359,7 @@ dependencies = [
  "anyhow",
  "crisp-core",
  "serde_json",
+ "zip",
 ]
 
 [[package]]

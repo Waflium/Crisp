@@ -1,11 +1,26 @@
-use crate::{BUILTIN_REGISTRIES, PACKET_NAMES, SYNCED_REGISTRIES, TAGS};
+use std::sync::{LazyLock, RwLock};
+
+use crate::{BUILTIN_REGISTRIES, FEATURES, PACKET_NAMES, STRUCTURES, SYNCED_REGISTRIES, TAGS, TYPED_TAGS};
+
+static STRUCTURE_NAMES: LazyLock<Vec<&'static str>> = LazyLock::new(|| STRUCTURES.iter().map(|structure| structure.0).collect());
+static FEATURE_NAMES: LazyLock<Vec<&'static str>> = LazyLock::new(|| FEATURES.iter().map(|feature| feature.0).collect());
 
 pub fn registry_entries(name: &str) -> Option<&'static [&'static str]> {
+    BUILTIN_REGISTRIES.iter().find(|r| r.0 == name).map(|r| r.1).or_else(|| SYNCED_REGISTRIES.iter().find(|r| r.name == name).map(|r| r.entries)).or_else(|| {
+        match name {
+            "minecraft:worldgen/structure" => Some(&STRUCTURE_NAMES[..]),
+            "minecraft:worldgen/feature" => Some(&FEATURE_NAMES[..]),
+            _ => None,
+        }
+    })
+}
+
+pub fn registry_names() -> impl Iterator<Item = &'static str> {
     BUILTIN_REGISTRIES
         .iter()
-        .find(|r| r.0 == name)
-        .map(|r| r.1)
-        .or_else(|| SYNCED_REGISTRIES.iter().find(|r| r.name == name).map(|r| r.entries))
+        .map(|r| r.0)
+        .chain(SYNCED_REGISTRIES.iter().map(|r| r.name))
+        .chain(["minecraft:worldgen/structure", "minecraft:worldgen/feature"])
 }
 
 pub struct SyncedRegistry {
@@ -39,11 +54,44 @@ pub fn packet_name(state: &str, direction: &str, id: i32) -> Option<&'static str
     PACKET_NAMES.iter().find(|p| p.0 == state && p.1 == direction && p.2 == id).map(|p| p.3)
 }
 
+static BOUND_TAGS: RwLock<Option<&'static [RegistryTags]>> = RwLock::new(None);
+
+pub fn tags() -> &'static [RegistryTags] {
+    BOUND_TAGS.read().expect("bound tags").unwrap_or(TAGS)
+}
+
 pub fn tag(registry: &str, name: &str) -> &'static [i32] {
-    TAGS.iter()
-        .find(|r| r.registry == registry)
-        .and_then(|r| r.tags.iter().find(|t| t.0 == name))
-        .map_or(&[], |t| t.1)
+    tags().iter().find(|r| r.registry == registry).and_then(|r| r.tags.iter().find(|t| t.0 == name)).map_or(&[], |t| t.1)
+}
+
+fn same_tags(current: &[RegistryTags], tags: &[(String, Vec<(String, Vec<i32>)>)]) -> bool {
+    current.len() == tags.len()
+        && current.iter().zip(tags).all(|(current, (registry, tags))| {
+            current.registry == registry
+                && current.tags.len() == tags.len()
+                && current.tags.iter().zip(tags).all(|((name, values), (other_name, other_values))| name == other_name && values == other_values)
+        })
+}
+
+pub fn bind_tags(tags: Vec<(String, Vec<(String, Vec<i32>)>)>) {
+    if same_tags(self::tags(), &tags) {
+        return;
+    }
+    let bound: Vec<RegistryTags> = tags
+        .into_iter()
+        .map(|(registry, tags)| {
+            let tags: Vec<(&'static str, &'static [i32])> = tags.into_iter().map(|(name, values)| (&*name.leak(), &*values.leak())).collect();
+            RegistryTags { registry: registry.leak(), tags: tags.leak() }
+        })
+        .collect();
+    let bound: &'static [RegistryTags] = bound.leak();
+    for (registry, typed) in TYPED_TAGS {
+        let registry_tags = bound.iter().find(|r| r.registry == *registry).map_or(&[][..], |r| r.tags);
+        for tag in typed.iter() {
+            tag.bind(registry_tags.iter().find(|t| t.0 == tag.name).map_or(&[], |t| t.1));
+        }
+    }
+    *BOUND_TAGS.write().expect("bound tags") = Some(bound);
 }
 
 pub struct DimensionType {

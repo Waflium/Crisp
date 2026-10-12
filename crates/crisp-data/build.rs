@@ -66,6 +66,8 @@ fn main() -> anyhow::Result<()> {
 
     let mut out = String::new();
     version(&mut out, &read_json(&vanilla.join("version.json"))?);
+    let vanilla_data = vanilla_data_zip(&out_dir, &vanilla)?;
+    writeln!(out, "pub static VANILLA_DATA: &[u8] = include_bytes!({vanilla_data:?});")?;
     packets(&mut out, &read_json(&reports.join("packets.json"))?)?;
     let builtin = builtin_registries(&mut out, &read_json(&reports.join("registries.json"))?)?;
     let properties = read_json(&extracted.join("properties.json"))?;
@@ -977,6 +979,34 @@ fn list_entries(namespace: &str, dir: &Path) -> anyhow::Result<Vec<String>> {
     Ok(ids)
 }
 
+fn vanilla_data_zip(out_dir: &Path, vanilla: &Path) -> anyhow::Result<PathBuf> {
+    fn walk(dir: &Path, out: &mut Vec<PathBuf>) -> anyhow::Result<()> {
+        for entry in fs::read_dir(dir)? {
+            let path = entry?.path();
+            if path.is_dir() {
+                walk(&path, out)?;
+            } else {
+                out.push(path);
+            }
+        }
+        Ok(())
+    }
+    let mut files = Vec::new();
+    walk(&vanilla.join("data"), &mut files)?;
+    let mut names: Vec<(String, PathBuf)> =
+        files.into_iter().map(|file| (file.strip_prefix(vanilla).unwrap().to_string_lossy().replace('\\', "/"), file)).collect();
+    names.sort();
+    let path = out_dir.join("vanilla_data.zip");
+    let mut writer = zip::ZipWriter::new(fs::File::create(&path)?);
+    let options = zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
+    for (name, file) in names {
+        writer.start_file(name, options)?;
+        std::io::Write::write_all(&mut writer, &fs::read(file)?)?;
+    }
+    writer.finish()?;
+    Ok(path)
+}
+
 fn namespaces(data: &Path) -> anyhow::Result<Vec<String>> {
     let mut names = Vec::new();
     for entry in fs::read_dir(data)? {
@@ -1051,6 +1081,7 @@ fn tags(
         ("minecraft:damage_type", "damage_type_tags"),
     ];
     let mut typed = String::new();
+    let mut typed_registries = Vec::new();
     writeln!(out, "pub static TAGS: &[RegistryTags] = &[")?;
     for (registry, ids) in &ids_by_registry {
         let path = registry.strip_prefix("minecraft:").unwrap();
@@ -1068,7 +1099,8 @@ fn tags(
         let mut resolved = HashMap::new();
         let module = TYPED.iter().find(|(r, _)| r == registry).map(|(_, m)| *m);
         if let Some(module) = module {
-            writeln!(typed, "pub mod {module} {{ use crate::Tag;")?;
+            writeln!(typed, "pub mod {module} {{ use crate::Tag; use std::sync::atomic::AtomicU64;")?;
+            typed_registries.push((registry.clone(), module));
         }
         writeln!(out, "RegistryTags {{ registry: {registry:?}, tags: &[")?;
         for tag in files.keys() {
@@ -1080,7 +1112,9 @@ fn tags(
                 for v in &values {
                     bits[*v as usize / 64] |= 1 << (*v as usize % 64);
                 }
-                writeln!(typed, "pub static {}: Tag = Tag::new({tag:?}, &{bits:?});", const_name(tag))?;
+                let words: Vec<String> = bits.iter().map(|word| format!("AtomicU64::new({word})")).collect();
+                writeln!(typed, "static {}_BITS: [AtomicU64; {}] = [{}];", const_name(tag), bits.len(), words.join(", "))?;
+                writeln!(typed, "pub static {0}: Tag = Tag::new({tag:?}, &{0}_BITS);", const_name(tag))?;
             }
         }
         writeln!(out, "] }},")?;
@@ -1096,6 +1130,11 @@ fn tags(
     }
     writeln!(out, "];")?;
     out.push_str(&typed);
+    writeln!(out, "pub static TYPED_TAGS: &[(&str, &[&Tag])] = &[")?;
+    for (registry, module) in &typed_registries {
+        writeln!(out, "({registry:?}, {module}::ALL),")?;
+    }
+    writeln!(out, "];")?;
     Ok(())
 }
 

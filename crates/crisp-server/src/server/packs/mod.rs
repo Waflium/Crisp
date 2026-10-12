@@ -8,7 +8,7 @@ use std::fs::File;
 use std::io::{self, Read};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, OnceLock};
 
 use serde_json::Value;
 
@@ -71,24 +71,61 @@ pub fn escape_if_required(input: &str) -> String {
     result
 }
 
+enum ZipSource {
+    File(File),
+    Embedded(io::Cursor<&'static [u8]>),
+}
+
+impl Read for ZipSource {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        match self {
+            ZipSource::File(file) => file.read(buf),
+            ZipSource::Embedded(cursor) => cursor.read(buf),
+        }
+    }
+}
+
+impl io::Seek for ZipSource {
+    fn seek(&mut self, pos: io::SeekFrom) -> io::Result<u64> {
+        match self {
+            ZipSource::File(file) => file.seek(pos),
+            ZipSource::Embedded(cursor) => cursor.seek(pos),
+        }
+    }
+}
+
 pub struct SharedZip {
     file: PathBuf,
-    archive: Mutex<Option<zip::ZipArchive<File>>>,
+    embedded: Option<&'static [u8]>,
+    archive: Mutex<Option<zip::ZipArchive<ZipSource>>>,
+    names: OnceLock<Arc<[String]>>,
     failed_to_load: AtomicBool,
 }
 
 impl SharedZip {
     pub fn new(file: PathBuf) -> SharedZip {
-        SharedZip { file, archive: Mutex::new(None), failed_to_load: AtomicBool::new(false) }
+        SharedZip { file, embedded: None, archive: Mutex::new(None), names: OnceLock::new(), failed_to_load: AtomicBool::new(false) }
     }
 
-    fn with<R>(&self, f: impl FnOnce(&mut zip::ZipArchive<File>) -> R) -> Option<R> {
+    pub fn embedded(name: &str, bytes: &'static [u8]) -> SharedZip {
+        SharedZip { file: PathBuf::from(name), embedded: Some(bytes), archive: Mutex::new(None), names: OnceLock::new(), failed_to_load: AtomicBool::new(false) }
+    }
+
+    fn open(&self) -> zip::result::ZipResult<zip::ZipArchive<ZipSource>> {
+        let source = match self.embedded {
+            Some(bytes) => ZipSource::Embedded(io::Cursor::new(bytes)),
+            None => ZipSource::File(File::open(&self.file)?),
+        };
+        zip::ZipArchive::new(source)
+    }
+
+    fn with<R>(&self, f: impl FnOnce(&mut zip::ZipArchive<ZipSource>) -> R) -> Option<R> {
         let mut archive = self.archive.lock().unwrap();
         if self.failed_to_load.load(Ordering::Relaxed) {
             return None;
         }
         if archive.is_none() {
-            match File::open(&self.file).map_err(zip::result::ZipError::from).and_then(zip::ZipArchive::new) {
+            match self.open() {
                 Ok(opened) => *archive = Some(opened),
                 Err(e) => {
                     let exception = match e {
@@ -104,8 +141,19 @@ impl SharedZip {
         Some(f(archive.as_mut().unwrap()))
     }
 
-    fn names(&self) -> Vec<String> {
-        self.with(|archive| archive.file_names().map(str::to_string).collect()).unwrap_or_default()
+    fn names(&self) -> Arc<[String]> {
+        if let Some(names) = self.names.get() {
+            return names.clone();
+        }
+        let mut names: Vec<String> = self.with(|archive| archive.file_names().map(str::to_string).collect()).unwrap_or_default();
+        names.sort_unstable();
+        self.names.get_or_init(|| names.into()).clone()
+    }
+
+    fn names_with_prefix(&self, prefix: &str) -> Vec<String> {
+        let names = self.names();
+        let start = names.partition_point(|name| name.as_str() < prefix);
+        names[start..].iter().take_while(|name| name.starts_with(prefix)).cloned().collect()
     }
 
     fn read(&self, name: &str) -> io::Result<Vec<u8>> {
@@ -148,13 +196,12 @@ pub enum PackResources {
     Path { id: String, root: PathBuf },
     File { id: String, zip: Arc<SharedZip>, prefix: String },
     Overlayed { primary: Box<PackResources>, stack: Vec<PackResources> },
-    BuiltIn { id: String },
 }
 
 impl PackResources {
     pub fn pack_id(&self) -> &str {
         match self {
-            PackResources::Path { id, .. } | PackResources::File { id, .. } | PackResources::BuiltIn { id } => id,
+            PackResources::Path { id, .. } | PackResources::File { id, .. } => id,
             PackResources::Overlayed { primary, .. } => primary.pack_id(),
         }
     }
@@ -170,7 +217,6 @@ impl PackResources {
                 zip.contains(&name).then(|| IoSupplier::Zip(zip.clone(), name))
             }
             PackResources::Overlayed { primary, .. } => primary.root_resource(name),
-            PackResources::BuiltIn { .. } => None,
         }
     }
 
@@ -205,7 +251,7 @@ impl PackResources {
             }
             PackResources::File { zip, prefix, .. } => {
                 let type_prefix = add_prefix(prefix, &format!("{DATA_DIRECTORY}/"));
-                for name in zip.names() {
+                for name in zip.names_with_prefix(&type_prefix) {
                     let Some(rest) = name.strip_prefix(&type_prefix) else { continue };
                     let namespace = rest.split('/').next().unwrap_or_default();
                     if namespace.is_empty() {
@@ -219,7 +265,6 @@ impl PackResources {
                 }
             }
             PackResources::Overlayed { stack, .. } => stack.iter().for_each(|pack| namespaces.extend(pack.get_namespaces())),
-            PackResources::BuiltIn { .. } => {}
         }
         namespaces
     }
@@ -242,7 +287,7 @@ impl PackResources {
             PackResources::File { zip, prefix, .. } => {
                 let root = add_prefix(prefix, &format!("{DATA_DIRECTORY}/{namespace}/"));
                 let prefix = format!("{root}{directory}/");
-                for name in zip.names() {
+                for name in zip.names_with_prefix(&prefix) {
                     if name.ends_with('/') || !name.starts_with(&prefix) {
                         continue;
                     }
@@ -265,7 +310,6 @@ impl PackResources {
                 }
                 result.into_iter().for_each(|(id, supplier)| output(id, supplier));
             }
-            PackResources::BuiltIn { .. } => {}
         }
     }
 }

@@ -414,7 +414,7 @@ pub fn parse_identifier(raw: &str) -> Option<String> {
 }
 
 pub fn registry_tag(registry: &str, tag: &str) -> Option<&'static [i32]> {
-    let tags = crisp_data::TAGS.iter().find(|r| r.registry == registry)?;
+    let tags = crisp_data::tags().iter().find(|r| r.registry == registry)?;
     tags.tags.iter().find(|t| t.0 == tag).map(|t| t.1)
 }
 
@@ -666,7 +666,7 @@ pub fn list_suggestions(
             _ => shared_suggestion_provider::suggest_resource(crisp_data::registry_entries(registry).unwrap_or_default().iter(), &mut builder),
         },
         ArgumentType::ResourceOrTag { registry } | ArgumentType::ResourceOrTagKey { registry } => {
-            let tags = crisp_data::TAGS.iter().find(|r| r.registry == registry).map_or(&[][..], |r| r.tags);
+            let tags = crisp_data::tags().iter().find(|r| r.registry == registry).map_or(&[][..], |r| r.tags);
             shared_suggestion_provider::suggest_resource_with_prefix(tags.iter().map(|t| t.0), &mut builder, "#");
             match registry.as_str() {
                 "minecraft:worldgen/structure" => shared_suggestion_provider::suggest_resource(crisp_data::STRUCTURES.iter().map(|s| s.0), &mut builder),

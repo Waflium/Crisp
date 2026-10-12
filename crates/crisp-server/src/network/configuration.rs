@@ -2,7 +2,7 @@ use std::collections::VecDeque;
 use std::time::Duration;
 
 use crisp_data::packets::configuration::{clientbound, serverbound};
-use crisp_data::{SYNCED_REGISTRIES, TAGS, VERSION_NAME};
+use crisp_data::{SYNCED_REGISTRIES, VERSION_NAME};
 use tokio::sync::{mpsc, oneshot};
 use tokio::time::Instant;
 
@@ -380,7 +380,7 @@ fn is_network_safe(registry: &str) -> bool {
 }
 
 pub fn write_tags(p: &mut crisp_protocol::Writer) {
-    let registries: Vec<_> = TAGS.iter().filter(|registry| is_network_safe(registry.registry)).collect();
+    let registries: Vec<_> = crisp_data::tags().iter().filter(|registry| is_network_safe(registry.registry)).collect();
     p.varint(registries.len() as i32);
     for registry in registries {
         p.string(registry.registry);

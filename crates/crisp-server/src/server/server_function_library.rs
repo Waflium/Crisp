@@ -120,7 +120,7 @@ impl ServerFunctionLibrary {
                 Err(exception) => error!("Failed to load function {id}\njava.util.concurrent.CompletionException: {exception}\nCaused by: {exception}"),
             }
         }
-        let tags = tags_loader.build(&tags, &|id, _| functions.get(id).cloned());
+        let tags = tags_loader.build(&tags, &|id, _| functions.get(id).cloned(), &Arc::ptr_eq);
         ServerFunctionLibrary { functions, tags }
     }
 }

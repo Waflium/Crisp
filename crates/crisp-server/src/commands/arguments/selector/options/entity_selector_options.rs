@@ -384,7 +384,7 @@ pub fn suggest_types(parser: &EntitySelectorParser, builder: &mut SuggestionsBui
         shared_suggestion_provider::suggest_resource(registry::ENTITY_TYPE.iter(), builder);
     }
     if state.can_parse_any_tag() {
-        let allowed: Vec<&str> = crisp_data::TAGS
+        let allowed: Vec<&str> = crisp_data::tags()
             .iter()
             .find(|r| r.registry == "minecraft:entity_type")
             .into_iter()

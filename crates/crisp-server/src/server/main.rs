@@ -10,6 +10,7 @@ use super::packs::resources::MultiPackResourceManager;
 use super::reloadable_server_resources::ReloadableServerResources;
 use super::world_stem::WorldStem;
 use super::configure_pack_repository;
+use crate::tags::load_tags_for_existing_registries;
 use crate::world::flag::FeatureFlagSet;
 use crate::world::level::data_pack_config::DataPackConfig;
 use crate::world::level::world_data_configuration::WorldDataConfiguration;
@@ -227,18 +228,23 @@ pub fn main(args: Vec<String>) {
     let resource_manager = MultiPackResourceManager::new(pack_repository.open_all_selected());
     let worker_properties = properties.clone();
     let worker_data_configuration = data_configuration.clone();
-    let mut world_data = std::thread::Builder::new()
-        .name("Worker-Main-1".into())
-        .spawn(move || {
-            level_data.unwrap_or_else(|| {
-                info!("No existing world data, creating new world");
-                create_new_world_data(&worker_properties, worker_data_configuration)
+    let (postponed_tags, mut world_data) = std::thread::scope(|scope| {
+        std::thread::Builder::new()
+            .name("Worker-Main-1".into())
+            .spawn_scoped(scope, || {
+                let postponed_tags = load_tags_for_existing_registries(&resource_manager);
+                let world_data = level_data.unwrap_or_else(|| {
+                    info!("No existing world data, creating new world");
+                    create_new_world_data(&worker_properties, worker_data_configuration)
+                });
+                (postponed_tags, world_data)
             })
-        })
-        .expect("worker thread")
-        .join()
-        .expect("world data");
-    let data_packs = ReloadableServerResources::load_resources(&resource_manager, properties.function_permission_level);
+            .expect("worker thread")
+            .join()
+            .expect("world data")
+    });
+    let data_packs = ReloadableServerResources::load_resources(&resource_manager, postponed_tags, properties.function_permission_level);
+    data_packs.update_static_registry_tags();
     world_data.data_configuration = data_configuration;
     if let Err(e) = world_data.save_level_data(&world_dir) {
         error!("Failed to save level {}\n{e}", world_dir.root.display());

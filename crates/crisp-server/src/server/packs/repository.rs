@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 use std::io;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock};
 
 use super::metadata::{self, FormatRange, PackFormat};
 use super::{PackLocationInfo, PackResources, PackSource, SharedZip};
@@ -96,11 +96,17 @@ pub enum ResourcesSupplier {
     File(PathBuf),
 }
 
+static BUILT_IN_DATA: LazyLock<Arc<SharedZip>> = LazyLock::new(|| Arc::new(SharedZip::embedded(VANILLA_ID, crisp_data::VANILLA_DATA)));
+
+fn built_in_prefix(id: &str) -> String {
+    if id == VANILLA_ID { String::new() } else { format!("data/minecraft/datapacks/{id}") }
+}
+
 impl ResourcesSupplier {
     fn open_primary(&self, location: &PackLocationInfo, zip: &Option<Arc<SharedZip>>) -> PackResources {
         let id = location.id.clone();
         match self {
-            ResourcesSupplier::BuiltIn => PackResources::BuiltIn { id },
+            ResourcesSupplier::BuiltIn => PackResources::File { prefix: built_in_prefix(&id), id, zip: BUILT_IN_DATA.clone() },
             ResourcesSupplier::Path(root) => PackResources::Path { id, root: root.clone() },
             ResourcesSupplier::File(_) => PackResources::File { id, zip: zip.clone().unwrap(), prefix: String::new() },
         }
@@ -126,7 +132,7 @@ impl ResourcesSupplier {
         let overlays = metadata.overlays.iter().map(|overlay| match self {
             ResourcesSupplier::Path(root) => PackResources::Path { id: location.id.clone(), root: root.join(overlay) },
             ResourcesSupplier::File(_) => PackResources::File { id: location.id.clone(), zip: zip.clone().unwrap(), prefix: overlay.clone() },
-            ResourcesSupplier::BuiltIn => PackResources::BuiltIn { id: location.id.clone() },
+            ResourcesSupplier::BuiltIn => PackResources::File { id: location.id.clone(), zip: BUILT_IN_DATA.clone(), prefix: built_in_prefix(&location.id) },
         });
         let mut stack: Vec<PackResources> = overlays.collect();
         stack.reverse();
