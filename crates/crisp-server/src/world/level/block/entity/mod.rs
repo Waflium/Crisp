@@ -1,5 +1,6 @@
 pub mod abstract_furnace_block_entity;
 mod barrel_block_entity;
+pub mod banner_block_entity;
 pub mod base_container_block_entity;
 pub mod beacon_block_entity;
 pub mod beehive_block_entity;
@@ -88,6 +89,7 @@ pub enum BlockEntityKind {
     ChiseledBookShelf(chiseled_book_shelf_block_entity::ChiseledBookShelfBlockEntity),
     Shelf(shelf_block_entity::ShelfBlockEntity),
     DecoratedPot(decorated_pot_block_entity::DecoratedPotBlockEntity),
+    Banner(banner_block_entity::BannerBlockEntity),
     BrewingStand(brewing_stand_block_entity::BrewingStandBlockEntity),
     Other(Vec<(String, Nbt)>),
 }
@@ -132,6 +134,7 @@ impl BlockEntity {
             types::CHISELED_BOOKSHELF => BlockEntityKind::ChiseledBookShelf(chiseled_book_shelf_block_entity::ChiseledBookShelfBlockEntity::default()),
             types::SHELF => BlockEntityKind::Shelf(shelf_block_entity::ShelfBlockEntity::default()),
             types::DECORATED_POT => BlockEntityKind::DecoratedPot(decorated_pot_block_entity::DecoratedPotBlockEntity::default()),
+            types::BANNER => BlockEntityKind::Banner(banner_block_entity::BannerBlockEntity::default()),
             types::BREWING_STAND => BlockEntityKind::BrewingStand(brewing_stand_block_entity::BrewingStandBlockEntity::default()),
             _ => BlockEntityKind::Other(Vec::new()),
         };
@@ -234,6 +237,7 @@ impl BlockEntity {
             BlockEntityKind::ChiseledBookShelf(bookshelf) => bookshelf.load_additional(input),
             BlockEntityKind::Shelf(shelf) => shelf.load_additional(input),
             BlockEntityKind::DecoratedPot(pot) => pot.load_additional(input),
+            BlockEntityKind::Banner(banner) => banner.load_additional(input),
             BlockEntityKind::BrewingStand(brewing_stand) => brewing_stand.load_additional(input),
             BlockEntityKind::Other(data) => {
                 let _ = state;
@@ -268,6 +272,7 @@ impl BlockEntity {
             BlockEntityKind::ChiseledBookShelf(bookshelf) => bookshelf.save_additional(output),
             BlockEntityKind::Shelf(shelf) => shelf.save_additional(output),
             BlockEntityKind::DecoratedPot(pot) => pot.save_additional(output),
+            BlockEntityKind::Banner(banner) => banner.save_additional(output),
             BlockEntityKind::BrewingStand(brewing_stand) => brewing_stand.save_additional(output),
             BlockEntityKind::Other(data) => output.extend(data.iter().cloned()),
         }
@@ -347,9 +352,6 @@ impl BlockEntity {
     }
 
     fn update_tag_kind(&self) -> UpdateTag {
-        if !matches!(self.kind, BlockEntityKind::Other(_) | BlockEntityKind::Conduit(_) | BlockEntityKind::Beacon(_) | BlockEntityKind::DecoratedPot(_)) {
-            return UpdateTag::None;
-        }
         match self.ty {
             types::SIGN
             | types::HANGING_SIGN
@@ -389,6 +391,8 @@ impl BlockEntity {
             shelf.apply_implicit_components(&mut get);
         } else if let BlockEntityKind::DecoratedPot(pot) = &mut self.kind {
             pot.apply_implicit_components(&mut get);
+        } else if let BlockEntityKind::Banner(banner) = &mut self.kind {
+            banner.apply_implicit_components(&mut get);
         }
         let added: Vec<(DataComponentType, Nbt)> =
             patch.iter().filter(|(ty, _)| !implicit.contains(ty)).filter_map(|(ty, value)| value.map(|v| (ty, v.clone()))).collect();
@@ -411,6 +415,8 @@ impl BlockEntity {
             shelf.collect_implicit_components(&mut result);
         } else if let BlockEntityKind::DecoratedPot(pot) = &self.kind {
             pot.collect_implicit_components(&mut result);
+        } else if let BlockEntityKind::Banner(banner) = &self.kind {
+            banner.collect_implicit_components(&mut result);
         }
         result
     }
@@ -437,6 +443,8 @@ impl BlockEntity {
             output.retain(|(k, _)| k != "Items");
         } else if let BlockEntityKind::DecoratedPot(_) = self.kind {
             output.retain(|(k, _)| !matches!(k.as_str(), "sherds" | "item"));
+        } else if let BlockEntityKind::Banner(_) = self.kind {
+            output.retain(|(k, _)| !matches!(k.as_str(), "patterns" | "CustomName"));
         }
     }
 
@@ -493,6 +501,7 @@ impl BlockEntity {
             types::BREWING_STAND => "container.brewing",
             types::ENCHANTING_TABLE => "container.enchant",
             types::LECTERN => "container.lectern",
+            types::BANNER => "block.minecraft.banner",
             _ => "",
         }
     }
@@ -508,6 +517,7 @@ impl BlockEntity {
         match &self.kind {
             BlockEntityKind::Beacon(beacon) => beacon.get_custom_name(),
             BlockEntityKind::EnchantingTable(enchanting_table) => enchanting_table.get_custom_name(),
+            BlockEntityKind::Banner(banner) => banner.get_custom_name(),
             _ => self.container_base().and_then(|b| b.name.as_ref()),
         }
     }
