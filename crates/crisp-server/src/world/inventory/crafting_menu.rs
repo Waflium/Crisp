@@ -7,17 +7,27 @@ use crate::util::Prediction;
 use crate::world::entity::EntityId;
 use crate::world::item::ItemStack;
 use crate::world::item::crafting::crafting_input::CraftingInput;
+use crate::world::item::crafting::recipe_holder::RecipeHolder;
 use crate::world::item::crafting::recipe_manager::RecipeManager;
 
 pub const RESULT_SLOT: usize = 0;
-const CRAFT_SLOTS: usize = 0;
-const RESULT_SLOTS: usize = 1;
+pub const CRAFT_SLOTS: usize = 0;
+pub const RESULT_SLOTS: usize = 1;
+const INPUT_GRID_SLOTS: [usize; 9] = [1, 2, 3, 4, 5, 6, 7, 8, 9];
 
 impl AbstractContainerMenu {
     pub fn crafting(container_id: i32, pos: BlockPos) -> AbstractContainerMenu {
         let mut menu = AbstractContainerMenu::new(container_id, MenuKind::Crafting, None);
         menu.access = Some(pos);
         menu
+    }
+
+    pub fn crafting_menu_begin_placing_recipe(&mut self) {
+        self.placing_recipe = true;
+    }
+
+    pub fn crafting_menu_get_input_grid_slots(&self) -> &'static [usize] {
+        &INPUT_GRID_SLOTS
     }
 }
 
@@ -30,7 +40,7 @@ impl ServerLevel {
         let mut input = menu.containers[CRAFT_SLOTS].crafting().as_craft_input();
         let mut result = ItemStack::empty();
         if let Some(recipe_holder) = RecipeManager::get().get_crafting_recipe_for(&mut input, self, recipe_hint)
-            && menu.containers[RESULT_SLOTS].result().set_recipe_used_by(self, recipe_holder)
+            && menu.containers[RESULT_SLOTS].result().set_recipe_used_by(self, player, recipe_holder)
         {
             let crafting_recipe = recipe_holder.crafting().expect("a crafting recipe");
             result = crafting_recipe.assemble(&input);
@@ -39,6 +49,13 @@ impl ServerLevel {
         menu.set_remote_slot(RESULT_SLOT, &result);
         let state_id = menu.increment_state_id();
         self.send_container_set_slot(player, menu.container_id, state_id, RESULT_SLOT, &result);
+    }
+
+    pub fn crafting_menu_finish_placing_recipe(&mut self, menu: &mut AbstractContainerMenu, player: EntityId, recipe: &RecipeHolder) -> Option<()> {
+        menu.placing_recipe = false;
+        recipe.crafting()?;
+        self.slot_changed_crafting_grid(menu, player, Some(recipe.id));
+        Some(())
     }
 
     fn get_remaining_items(&mut self, input: &mut CraftingInput) -> Vec<ItemStack> {
@@ -51,7 +68,7 @@ impl ServerLevel {
     pub fn result_slot_on_take(&mut self, menu: &mut AbstractContainerMenu, player: EntityId, index: usize) {
         let SlotKind::Result { craft_slots, .. } = menu.slots[index].kind else { return };
         if let SlotContainer::Menu(c) = menu.slots[index].container {
-            menu.containers[c].award_used_recipes();
+            menu.containers[c].award_used_recipes(self, player);
         }
         if let SlotKind::Result { remove_count, .. } = &mut menu.slots[index].kind {
             *remove_count = 0;

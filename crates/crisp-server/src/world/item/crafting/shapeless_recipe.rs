@@ -1,6 +1,9 @@
+use crisp_data::items;
 use crisp_protocol::nbt::Nbt;
 
 use super::crafting_input::CraftingInput;
+use super::display::recipe_display::RecipeDisplay;
+use super::display::slot_display::SlotDisplay;
 use super::ingredient::Ingredient;
 use super::normal_crafting_recipe::NormalCraftingRecipe;
 use super::placement_info::PlacementInfo;
@@ -39,5 +42,13 @@ impl ShapelessRecipe {
 
     pub fn assemble(&self) -> ItemStack {
         self.result.create().unwrap_or_else(ItemStack::empty)
+    }
+
+    pub fn display(&self) -> Vec<RecipeDisplay> {
+        vec![RecipeDisplay::ShapelessCrafting {
+            ingredients: self.ingredients.iter().map(Ingredient::display).collect(),
+            result: SlotDisplay::ItemStackSlotDisplay(self.result.clone()),
+            crafting_station: SlotDisplay::ItemSlotDisplay(items::CRAFTING_TABLE),
+        }]
     }
 }

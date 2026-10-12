@@ -8,7 +8,9 @@ mod nbt;
 mod resources;
 mod tags;
 mod network;
+mod recipebook;
 pub mod server;
+mod stats;
 mod util;
 mod world;
 

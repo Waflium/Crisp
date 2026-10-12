@@ -1,5 +1,7 @@
 use crisp_protocol::nbt::Nbt;
 
+use super::display::recipe_display::RecipeDisplay;
+use super::display::slot_display::SlotDisplay;
 use super::ingredient::Ingredient;
 use super::placement_info::PlacementInfo;
 use super::simple_smithing_recipe::SimpleSmithingRecipe;
@@ -48,5 +50,17 @@ impl SmithingTrimRecipe {
 
     pub fn assemble(&self, input: &SmithingRecipeInput) -> ItemStack {
         apply_trim(&input.base, &input.addition, &self.pattern)
+    }
+
+    pub fn display(&self) -> Vec<RecipeDisplay> {
+        let base = self.base_ingredient.display();
+        let material = self.addition.display();
+        vec![RecipeDisplay::Smithing {
+            template: self.template.display(),
+            base: base.clone(),
+            addition: material.clone(),
+            result: SlotDisplay::SmithingTrimDemoSlotDisplay { base: Box::new(base), material: Box::new(material), pattern: self.pattern.clone() },
+            crafting_station: SlotDisplay::ItemSlotDisplay(crisp_data::items::SMITHING_TABLE),
+        }]
     }
 }

@@ -112,9 +112,9 @@ impl MenuContainer {
         }
     }
 
-    pub fn award_used_recipes(&mut self) {
+    pub fn award_used_recipes(&mut self, level: &mut ServerLevel, player: EntityId) {
         if let MenuContainer::Result(container) = self {
-            container.award_used_recipes();
+            container.award_used_recipes(level, player);
         }
     }
 
@@ -1073,12 +1073,12 @@ impl ServerLevel {
         }
     }
 
-    fn drop_or_place_in_inventory(&mut self, player: EntityId, carried: ItemStack) {
+    fn drop_or_place_in_inventory(&mut self, player: EntityId, mut carried: ItemStack) {
         let player_removed_not_changing_dimension = self.entity(player).removal.is_some_and(|reason| reason != crate::world::entity::RemovalReason::ChangedDimension);
         if player_removed_not_changing_dimension || self.player(player).disconnected {
             self.player_drop(player, carried, false, Prediction::ServerOnly);
         } else {
-            self.place_item_back_in_inventory(player, carried);
+            self.place_item_back_in_inventory(player, &mut carried, true);
         }
     }
 
@@ -1089,11 +1089,11 @@ impl ServerLevel {
         }
     }
 
-    pub fn place_item_back_in_inventory(&mut self, player: EntityId, mut stack: ItemStack) {
+    pub fn place_item_back_in_inventory(&mut self, player: EntityId, stack: &mut ItemStack, should_send_set_slot_packet: bool) {
         while !stack.is_empty() {
             let inventory = &self.player(player).inventory;
-            let Some(slot) = inventory.slot_with_remaining_space(&stack).or_else(|| inventory.free_slot()) else {
-                self.player_drop(player, stack, false, Prediction::ServerOnly);
+            let Some(slot) = inventory.slot_with_remaining_space(stack).or_else(|| inventory.free_slot()) else {
+                self.player_drop(player, stack.clone(), false, Prediction::ServerOnly);
                 break;
             };
             let p = self.player_mut(player);
@@ -1106,7 +1106,7 @@ impl ServerLevel {
                 in_slot.grow(piece.count);
             }
             let item = in_slot.clone();
-            if let Some(index) = crate::world::item::inventory_index(slot) {
+            if should_send_set_slot_packet && let Some(index) = crate::world::item::inventory_index(slot) {
                 p.connection.send(clientbound::SET_PLAYER_INVENTORY, |w| {
                     w.varint(index as i32);
                     write_slot(w, Some(&item));

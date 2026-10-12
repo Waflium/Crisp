@@ -1,6 +1,8 @@
 use crisp_protocol::nbt::Nbt;
 
 use super::crafting_input::CraftingInput;
+use super::display::recipe_display::RecipeDisplay;
+use super::display::slot_display::SlotDisplay;
 use super::ingredient::Ingredient;
 use super::normal_crafting_recipe::NormalCraftingRecipe;
 use super::placement_info::PlacementInfo;
@@ -51,5 +53,18 @@ impl ImbueRecipe {
         let mut result = self.result.create().unwrap_or_else(ItemStack::empty);
         result.set(dc::POTION_CONTENTS, source.get(dc::POTION_CONTENTS).cloned());
         result
+    }
+
+    pub fn display(&self) -> Vec<RecipeDisplay> {
+        let material = self.material.display();
+        let source = SlotDisplay::WithAnyPotion(Box::new(self.source.display()));
+        let m = || material.clone();
+        vec![RecipeDisplay::ShapedCrafting {
+            width: 3,
+            height: 3,
+            ingredients: vec![m(), m(), m(), m(), source, m(), m(), m(), m()],
+            result: SlotDisplay::WithAnyPotion(Box::new(SlotDisplay::ItemStackSlotDisplay(self.result.clone()))),
+            crafting_station: SlotDisplay::ItemSlotDisplay(crisp_data::items::CRAFTING_TABLE),
+        }]
     }
 }

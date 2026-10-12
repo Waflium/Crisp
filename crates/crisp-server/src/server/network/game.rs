@@ -13,7 +13,11 @@ use crate::server::network::movement::Input;
 use crate::util::Prediction;
 use crate::world::entity::EntityId;
 use crate::network::hashed_stack::HashedStack;
+use crate::world::inventory::recipe_book_menu::PostPlaceAction;
+use crate::world::inventory::recipe_book_type::RecipeBookType;
 use crate::world::item::component::swing_animation::SwingAnimation;
+use crate::world::item::crafting::display::recipe_display_entry::RecipeDisplayId;
+use crate::world::item::crafting::recipe_manager::RecipeManager;
 use crate::world::item::{ItemStack, read_slot, validate_encodable};
 use crate::world::level::BlockGetter;
 use crate::world::level::block::BlockHitResult;
@@ -151,6 +155,23 @@ impl ServerLevel {
                 self.handle_container_button_click(id, container_id, button_id);
             }
             serverbound::CONTAINER_CLICK => self.handle_container_click(id, &mut r)?,
+            serverbound::PLACE_RECIPE => {
+                let container_id = r.varint()?;
+                let recipe = RecipeDisplayId(r.varint()?);
+                let use_max_items = r.bool()?;
+                self.handle_place_recipe(id, container_id, recipe, use_max_items);
+            }
+            serverbound::RECIPE_BOOK_CHANGE_SETTINGS => {
+                let book_type = r.varint()?;
+                let book_type = RecipeBookType::by_id(book_type).ok_or_else(|| anyhow::anyhow!("Unknown recipe book type {book_type}"))?;
+                let is_open = r.bool()?;
+                let is_filtering = r.bool()?;
+                self.handle_recipe_book_change_settings_packet(id, book_type, is_open, is_filtering);
+            }
+            serverbound::RECIPE_BOOK_SEEN_RECIPE => {
+                let recipe = RecipeDisplayId(r.varint()?);
+                self.handle_recipe_book_seen_recipe_packet(id, recipe);
+            }
             serverbound::SET_CREATIVE_MODE_SLOT => {
                 let slot = r.i16()?;
                 let stack = read_slot(&mut r, true).map_err(anyhow::Error::msg)?;
@@ -567,6 +588,45 @@ impl ServerLevel {
         if self.players.contains_key(&id) && self.player(id).container_menu.is_none() {
             self.player_mut(id).container_menu = Some(menu);
         }
+    }
+
+    fn handle_recipe_book_seen_recipe_packet(&mut self, id: EntityId, recipe: RecipeDisplayId) {
+        if let Some(entry) = RecipeManager::get().get_recipe_from_display(recipe) {
+            self.player_mut(id).recipe_book.remove_highlight(entry.parent);
+        }
+    }
+
+    fn handle_recipe_book_change_settings_packet(&mut self, id: EntityId, book_type: RecipeBookType, is_open: bool, is_filtering: bool) {
+        self.player_mut(id).recipe_book.base.set_book_setting(book_type, is_open, is_filtering);
+    }
+
+    fn handle_place_recipe(&mut self, id: EntityId, container_id: i32, recipe: RecipeDisplayId, use_max_items: bool) {
+        self.player_mut(id).reset_last_action_time();
+        if self.is_spectator(id) || self.container_menu_id(id) != container_id {
+            return;
+        }
+        let Some(mut menu) = self.take_container_menu(id) else { return };
+        if self.menu_still_valid(&menu, id)
+            && let Some(display_info) = RecipeManager::get().get_recipe_from_display(recipe)
+            && let Some(recipe) = RecipeManager::get().by_key(display_info.parent)
+            && self.player(id).recipe_book.contains(recipe.id)
+            && menu.is_recipe_book_menu()
+            && !recipe.value.placement_info().is_impossible_to_place()
+        {
+            let allow_dropping_items_to_clear = self.player(id).game_mode.game_type.is_creative();
+            match self.recipe_book_menu_handle_placement(&mut menu, id, use_max_items, allow_dropping_items_to_clear, recipe) {
+                Some(PostPlaceAction::PlaceGhostRecipe) => self.player(id).connection.send(clientbound::PLACE_GHOST_RECIPE, |w| {
+                    w.varint(menu.container_id);
+                    display_info.display.display.write(w);
+                }),
+                Some(PostPlaceAction::Nothing) => {}
+                None => error!(
+                    "Failed to handle packet ServerboundPlaceRecipePacket[containerId={container_id}, recipe=RecipeDisplayId[index={}], useMaxItems={use_max_items}], suppressing error",
+                    display_info.display.id.0
+                ),
+            }
+        }
+        self.restore_container_menu(id, menu);
     }
 
     fn handle_sign_update(&mut self, id: EntityId, pos: BlockPos, lines: Vec<String>, slot: SignTextSlot) {

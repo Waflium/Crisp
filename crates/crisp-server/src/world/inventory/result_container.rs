@@ -1,6 +1,7 @@
 use crisp_data::game_rule;
 
 use crate::server::level::ServerLevel;
+use crate::world::entity::EntityId;
 use crate::world::item::ItemStack;
 use crate::world::item::crafting::recipe_holder::RecipeHolder;
 use crate::world::item::crafting::recipe_manager::RecipeManager;
@@ -18,12 +19,12 @@ impl Default for ResultContainer {
 }
 
 impl ResultContainer {
-    pub fn set_recipe_used_by(&mut self, level: &ServerLevel, recipe: &'static RecipeHolder) -> bool {
-        if recipe.value.is_special() || !level.game_rules.get_bool(game_rule::LIMITED_CRAFTING) {
-            self.recipe_used = Some(recipe.id);
-            return true;
+    pub fn set_recipe_used_by(&mut self, level: &ServerLevel, player: EntityId, recipe: &'static RecipeHolder) -> bool {
+        if !recipe.value.is_special() && level.game_rules.get_bool(game_rule::LIMITED_CRAFTING) && !level.player(player).recipe_book.contains(recipe.id) {
+            return false;
         }
-        false
+        self.set_recipe_used(Some(recipe.id));
+        true
     }
 
     pub fn set_recipe_used(&mut self, recipe_used: Option<&'static str>) {
@@ -34,10 +35,11 @@ impl ResultContainer {
         self.recipe_used
     }
 
-    pub fn award_used_recipes(&mut self) {
-        if let Some(recipe) = self.recipe_used.and_then(|id| RecipeManager::get().by_key(id))
-            && !recipe.value.is_special()
+    pub fn award_used_recipes(&mut self, level: &mut ServerLevel, player: EntityId) {
+        if let Some(recipe_used) = self.recipe_used.and_then(|id| RecipeManager::get().by_key(id))
+            && !recipe_used.value.is_special()
         {
+            level.award_recipes(player, &[recipe_used]);
             self.set_recipe_used(None);
         }
     }

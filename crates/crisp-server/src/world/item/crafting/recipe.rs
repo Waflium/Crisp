@@ -3,7 +3,9 @@ use crisp_protocol::nbt::Nbt;
 use super::abstract_cooking_recipe::AbstractCookingRecipe;
 use super::brewing_recipe::BrewingRecipe;
 use super::crafting_recipe::CraftingRecipe;
+use super::display::recipe_display::RecipeDisplay;
 use super::placement_info::PlacementInfo;
+use super::recipe_book_categories::RecipeBookCategory;
 use super::recipe_type::RecipeType;
 use super::smithing_recipe::SmithingRecipe;
 use super::stonecutter_recipe::StonecutterRecipe;
@@ -78,6 +80,26 @@ impl Recipe {
             Recipe::Crafting(recipe) => recipe.group(),
             Recipe::Cooking(recipe) => recipe.group(),
             Recipe::Stonecutter(_) | Recipe::Smithing(_) | Recipe::Brewing(_) => "",
+        }
+    }
+
+    pub fn display(&self) -> Vec<RecipeDisplay> {
+        match self {
+            Recipe::Crafting(recipe) => recipe.display(),
+            Recipe::Cooking(recipe) => recipe.display(),
+            Recipe::Stonecutter(recipe) => recipe.display(),
+            Recipe::Smithing(recipe) => recipe.display(),
+            Recipe::Brewing(_) => Vec::new(),
+        }
+    }
+
+    pub fn recipe_book_category(&self) -> RecipeBookCategory {
+        match self {
+            Recipe::Crafting(recipe) => recipe.recipe_book_category(),
+            Recipe::Cooking(recipe) => recipe.recipe_book_category(),
+            Recipe::Stonecutter(_) => RecipeBookCategory::Stonecutter,
+            Recipe::Smithing(_) => RecipeBookCategory::Smithing,
+            Recipe::Brewing(_) => RecipeBookCategory::CraftingMisc,
         }
     }
 

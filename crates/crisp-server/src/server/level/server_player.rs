@@ -31,7 +31,7 @@ use crate::world::scores::score_holder::ScoreHolder;
 use crate::world::scores::team::Visibility;
 use crisp_data::{MobEffect, game_rule};
 use crate::world::inventory::abstract_container_menu::AbstractContainerMenu;
-use crate::world::item::{Inventory, ItemStack, OFFHAND, protocol_slot, storage_slot};
+use crate::world::item::{Inventory, ItemStack, OFFHAND, inventory_slot, protocol_slot};
 use crate::world::entity::player::abilities::Abilities;
 use crate::world::level::storage::RespawnData;
 use crate::world::InteractionHand;
@@ -95,6 +95,7 @@ pub struct ServerPlayer {
     pub ender_chest_inventory: crate::world::inventory::player_ender_chest_container::PlayerEnderChestContainer,
     pub inventory_menu: Option<AbstractContainerMenu>,
     pub container_menu: Option<AbstractContainerMenu>,
+    pub recipe_book: crate::stats::server_recipe_book::ServerRecipeBook,
     pub carried: Option<ItemStack>,
     pub last_window_id: i32,
     pub living: LivingEntity,
@@ -164,6 +165,7 @@ impl ServerPlayer {
             ender_chest_inventory: Default::default(),
             inventory_menu: Some(AbstractContainerMenu::inventory()),
             container_menu: None,
+            recipe_book: Default::default(),
             carried: None,
             drop_spam_throttler: TickThrottler::new(20, 1480),
             last_window_id: 0,
@@ -283,16 +285,11 @@ impl ServerPlayer {
             nbt.push(("equipment".into(), Nbt::Compound(equipment)));
         }
         nbt.push(("DataVersion".into(), Nbt::Int(WORLD_VERSION)));
-        let inventory = self
-            .inventory
-            .slots
-            .iter()
-            .enumerate()
-            .filter_map(|(slot, stack)| {
-                let stack = stack.as_ref().filter(|s| !s.is_empty())?;
-                let storage = storage_slot(slot).filter(|&s| (0..36).contains(&s))?;
+        let inventory = (0..36)
+            .filter_map(|index| {
+                let stack = self.inventory.slots[inventory_slot(index)].as_ref().filter(|s| !s.is_empty())?;
                 let Nbt::Compound(mut fields) = stack.to_nbt() else { return None };
-                fields.insert(0, ("Slot".into(), Nbt::Byte(storage)));
+                fields.insert(0, ("Slot".into(), Nbt::Byte(index as i8)));
                 Some(Nbt::Compound(fields))
             })
             .collect();
@@ -314,6 +311,7 @@ impl ServerPlayer {
         if let Some(previous) = self.game_mode.previous_game_type {
             nbt.push(("previousPlayerGameType".into(), Nbt::Int(previous.id())));
         }
+        nbt.push((crate::stats::server_recipe_book::RECIPE_BOOK_TAG.into(), self.recipe_book.pack()));
         nbt.push(("Dimension".into(), s(dimension)));
         if let Some(respawn) = &self.respawn_config {
             let mut fields = respawn.respawn_data.to_nbt_fields();
@@ -384,6 +382,9 @@ impl ServerPlayer {
             }
         }
         self.ender_chest_inventory.from_slots(nbt.get("EnderItems").map(Nbt::as_list).unwrap_or(&[]));
+        if let Some(recipe_book) = nbt.get(crate::stats::server_recipe_book::RECIPE_BOOK_TAG) {
+            self.recipe_book.load_untrusted(recipe_book);
+        }
         self.experience.load(nbt, &mut self.entity.random);
         self.set_score(nbt.get("Score").and_then(crate::world::level::block::entity::int_value).unwrap_or(0));
         self.sleep_counter = number("SleepTimer").map_or(0, |v| v as i16 as i32);

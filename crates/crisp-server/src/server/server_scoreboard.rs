@@ -343,6 +343,9 @@ mod tests {
         server.place_new_player(1, profile, CommonListenerCookie::create_initial(false), out, "127.0.0.1:25565".parse().unwrap());
         let sent = packets(&mut rx);
         let commands = sent.iter().position(|p| id(p) == clientbound::COMMANDS).unwrap();
+        assert_eq!(id(&sent[commands + 1]), clientbound::RECIPE_BOOK_SETTINGS);
+        assert_eq!(id(&sent[commands + 2]), clientbound::RECIPE_BOOK_ADD);
+        let commands = commands + 2;
         let scoreboard = &server.level.scoreboard;
         let objective = scoreboard.objective(foo);
         let mut expected = vec![set_player_team_add_or_modify_packet(scoreboard.get_player_team("red").unwrap(), true), set_objective_packet(objective, METHOD_ADD)];

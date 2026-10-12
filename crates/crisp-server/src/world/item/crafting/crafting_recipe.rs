@@ -5,6 +5,8 @@ use super::book_cloning_recipe::BookCloningRecipe;
 use super::crafting_book_category::CraftingBookCategory;
 use super::crafting_input::CraftingInput;
 use super::decorated_pot_recipe::DecoratedPotRecipe;
+use super::display::recipe_display::RecipeDisplay;
+use super::recipe_book_categories::RecipeBookCategory;
 use super::dye_recipe::DyeRecipe;
 use super::firework_rocket_recipe::FireworkRocketRecipe;
 use super::firework_star_fade_recipe::FireworkStarFadeRecipe;
@@ -155,5 +157,25 @@ impl CraftingRecipe {
 
     pub fn placement_info(&self) -> &PlacementInfo {
         self.normal().map_or(&NOT_PLACEABLE, |normal| &normal.placement_info)
+    }
+
+    pub fn display(&self) -> Vec<RecipeDisplay> {
+        match self {
+            CraftingRecipe::Shaped(recipe) => recipe.display(),
+            CraftingRecipe::Shapeless(recipe) => recipe.display(),
+            CraftingRecipe::Transmute(recipe) => recipe.display(),
+            CraftingRecipe::Dye(recipe) => recipe.display(),
+            CraftingRecipe::Imbue(recipe) => recipe.display(),
+            _ => Vec::new(),
+        }
+    }
+
+    pub fn recipe_book_category(&self) -> RecipeBookCategory {
+        match self.category() {
+            CraftingBookCategory::Building => RecipeBookCategory::CraftingBuildingBlocks,
+            CraftingBookCategory::Equipment => RecipeBookCategory::CraftingEquipment,
+            CraftingBookCategory::Redstone => RecipeBookCategory::CraftingRedstone,
+            CraftingBookCategory::Misc => RecipeBookCategory::CraftingMisc,
+        }
     }
 }

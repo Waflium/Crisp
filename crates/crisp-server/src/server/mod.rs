@@ -599,6 +599,10 @@ impl Server {
         for player in self.level.players.values() {
             player.connection.send(clientbound::UPDATE_TAGS, crate::network::configuration::write_tags);
         }
+        for player in self.level.players.values() {
+            player.connection.send(clientbound::UPDATE_RECIPES, crate::world::item::crafting::recipe_manager::write_update_recipes);
+            crate::stats::server_recipe_book::send_initial_recipe_book(&player.connection, &player.recipe_book);
+        }
         self.functions.replace_library(resources.function_library);
     }
 
@@ -784,12 +788,14 @@ impl Server {
         self.send_difficulty_update(&out);
         out.send(clientbound::PLAYER_ABILITIES, |p| player.abilities.write(p));
         out.send(clientbound::SET_HELD_SLOT, |p| p.varint(player.inventory.selected as i32));
+        out.send(clientbound::UPDATE_RECIPES, crate::world::item::crafting::recipe_manager::write_update_recipes);
         let permission = self.profile_permission_level(player.profile.uuid);
         out.send(clientbound::ENTITY_EVENT, |p| {
             p.i32(id);
             p.u8(EVENT_PERMISSION_LEVEL_ALL + permission as u8);
         });
         out.send(clientbound::COMMANDS, |p| crate::commands::write_commands_packet(p, &CommandSourceStack::for_new_player(self, &player)));
+        crate::stats::server_recipe_book::send_initial_recipe_book(&out, &player.recipe_book);
         level.scoreboard.update_entire_scoreboard(&out);
         let (pos, y_rot, x_rot) = (player.entity.position(), player.entity.y_rot, player.entity.x_rot);
         player.teleport(pos, y_rot, x_rot);

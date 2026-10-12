@@ -1,5 +1,6 @@
 use crisp_protocol::nbt::Nbt;
 
+use super::display::recipe_display::RecipeDisplay;
 use super::ingredient::Ingredient;
 use super::placement_info::PlacementInfo;
 use super::smithing_recipe_input::SmithingRecipeInput;
@@ -28,6 +29,13 @@ impl SmithingRecipe {
         match self {
             SmithingRecipe::Transform(recipe) => recipe.assemble(input),
             SmithingRecipe::Trim(recipe) => recipe.assemble(input),
+        }
+    }
+
+    pub fn display(&self) -> Vec<RecipeDisplay> {
+        match self {
+            SmithingRecipe::Transform(recipe) => recipe.display(),
+            SmithingRecipe::Trim(recipe) => recipe.display(),
         }
     }
 

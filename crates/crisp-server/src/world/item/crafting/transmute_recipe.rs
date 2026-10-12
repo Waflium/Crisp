@@ -1,6 +1,9 @@
+use crisp_data::{Item, items};
 use crisp_protocol::nbt::Nbt;
 
 use super::crafting_input::CraftingInput;
+use super::display::recipe_display::RecipeDisplay;
+use super::display::slot_display::SlotDisplay;
 use super::ingredient::Ingredient;
 use super::normal_crafting_recipe::NormalCraftingRecipe;
 use super::placement_info::PlacementInfo;
@@ -125,6 +128,32 @@ impl TransmuteRecipe {
             }
         }
         ItemStack::empty()
+    }
+
+    pub fn display(&self) -> Vec<RecipeDisplay> {
+        let mut displays = Vec::new();
+        let mut ingredient_slots = vec![self.input.display()];
+        let material_display = self.material.display();
+        for material_count in self.min_material_count()..=self.max_material_count() {
+            ingredient_slots.push(material_display.clone());
+            displays.push(RecipeDisplay::ShapelessCrafting {
+                ingredients: ingredient_slots.clone(),
+                result: self.result_display(self.compute_result_size(material_count)),
+                crafting_station: SlotDisplay::ItemSlotDisplay(items::CRAFTING_TABLE),
+            });
+        }
+        displays
+    }
+
+    fn result_display(&self, result_count: i32) -> SlotDisplay {
+        match &self.result.item {
+            Some(item) => self.stack_display(Item::by_name(item).unwrap_or(items::AIR), result_count),
+            None => SlotDisplay::Composite(self.input.items().map(|item| self.stack_display(item, result_count)).collect()),
+        }
+    }
+
+    fn stack_display(&self, item: Item, result_count: i32) -> SlotDisplay {
+        SlotDisplay::ItemStackSlotDisplay(self.result.resolve_count(item, result_count))
     }
 
     fn min_material_count(&self) -> i32 {

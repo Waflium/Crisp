@@ -1,6 +1,7 @@
 use crisp_data::{Item, items};
 use crisp_protocol::nbt::Nbt;
 
+use super::display::slot_display::SlotDisplay;
 use crate::core::holder_set::HolderSet;
 use crate::util::codec::DataResult;
 use crate::world::entity::player::stacked_contents::IngredientInfo;
@@ -50,6 +51,18 @@ impl Ingredient {
 
     pub fn of(item: Item) -> Ingredient {
         Ingredient { values: HolderSet::Direct(vec![item.0 as i32]) }
+    }
+
+    pub fn values(&self) -> &HolderSet {
+        &self.values
+    }
+
+    pub fn display(&self) -> SlotDisplay {
+        SlotDisplay::TagSlotDisplay(self.values.clone())
+    }
+
+    pub fn optional_ingredient_to_display(ingredient: Option<&Ingredient>) -> SlotDisplay {
+        ingredient.map_or(SlotDisplay::Empty, Ingredient::display)
     }
 
     pub fn get_single_item(&self) -> Option<Item> {

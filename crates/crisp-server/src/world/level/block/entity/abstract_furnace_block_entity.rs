@@ -7,6 +7,7 @@ use super::base_container_block_entity::{BaseContainerBlockEntity, save_all_item
 use super::{BlockEntityKind, float_value, int_or, int_value};
 use crate::server::level::ServerLevel;
 use crate::world::entity::EntityId;
+use crate::world::entity::player::stacked_item_contents::StackedItemContents;
 use crate::world::item::ItemStack;
 use crate::world::item::component as dc;
 use crate::world::item::crafting::abstract_cooking_recipe::AbstractCookingRecipe;
@@ -154,6 +155,12 @@ impl AbstractFurnaceBlockEntity {
         if direction == Direction::Down && slot == SLOT_FUEL { stack.get_item().is(&crisp_data::item_tags::FURNACE_FUEL_BOTTOM_TAKEABLE) } else { true }
     }
 
+    pub fn fill_stacked_contents(&self, contents: &mut StackedItemContents) {
+        for item_stack in &self.base.items {
+            contents.account_stack(item_stack);
+        }
+    }
+
     fn set_recipe_used(&mut self, recipe: &RecipeHolder) {
         let id = recipe.id;
         match self.recipes_used.iter_mut().find(|(k, _)| k == id) {
@@ -187,7 +194,7 @@ fn burn(items: &mut [ItemStack], result: &ItemStack) {
 }
 
 impl ServerLevel {
-    fn furnace(&mut self, pos: BlockPos) -> Option<&mut AbstractFurnaceBlockEntity> {
+    pub fn furnace(&mut self, pos: BlockPos) -> Option<&mut AbstractFurnaceBlockEntity> {
         match &mut self.get_block_entity(pos)?.kind {
             BlockEntityKind::Furnace(furnace) => Some(furnace),
             _ => None,
@@ -287,11 +294,15 @@ impl ServerLevel {
         }
     }
 
-    pub fn get_recipes_to_award_and_pop_experience(&mut self, pos: BlockPos, position: Vec3) {
-        let Some(furnace) = self.furnace(pos) else { return };
+    pub fn get_recipes_to_award_and_pop_experience(&mut self, pos: BlockPos, position: Vec3) -> Vec<&'static RecipeHolder> {
+        let mut recipes_to_award = Vec::new();
+        let Some(furnace) = self.furnace(pos) else { return recipes_to_award };
         let used = furnace.recipes_used.clone();
         for (id, amount) in used {
-            if let Some(recipe) = RecipeManager::get().by_key(&id).and_then(RecipeHolder::cooking) {
+            if let Some(recipe_holder) = RecipeManager::get().by_key(&id)
+                && let Some(recipe) = recipe_holder.cooking()
+            {
+                recipes_to_award.push(recipe_holder);
                 let total = amount as f32 * recipe.experience();
                 let mut xp_reward = crisp_core::mth::floor(total as f64);
                 let fraction = crisp_core::mth::frac_f(total);
@@ -301,11 +312,13 @@ impl ServerLevel {
                 self.award_experience(position, xp_reward);
             }
         }
+        recipes_to_award
     }
 
     pub fn award_used_recipes_and_pop_experience(&mut self, pos: BlockPos, player: EntityId) {
         let position = self.player(player).entity.position();
-        self.get_recipes_to_award_and_pop_experience(pos, position);
+        let recipes_to_award = self.get_recipes_to_award_and_pop_experience(pos, position);
+        self.award_recipes(player, &recipes_to_award);
         if let Some(furnace) = self.furnace(pos) {
             furnace.recipes_used.clear();
         }

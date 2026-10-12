@@ -10,6 +10,7 @@ pub mod message_argument;
 pub mod objective_argument;
 pub mod objective_criteria_argument;
 pub mod operation_argument;
+pub mod resource_key_argument;
 pub mod score_holder_argument;
 pub mod scoreboard_slot_argument;
 pub mod selector;
@@ -75,6 +76,7 @@ pub enum ArgumentType {
     Dimension,
     Uuid,
     Resource { registry: String },
+    ResourceKey { registry: String },
     ResourceOrTag { registry: String },
     ResourceOrTagKey { registry: String },
     CompoundTag,
@@ -170,6 +172,7 @@ impl ArgumentType {
             "minecraft:dimension" => ArgumentType::Dimension,
             "minecraft:uuid" => ArgumentType::Uuid,
             "minecraft:resource" => ArgumentType::Resource { registry: registry() },
+            "minecraft:resource_key" => ArgumentType::ResourceKey { registry: registry() },
             "minecraft:resource_or_tag" => ArgumentType::ResourceOrTag { registry: registry() },
             "minecraft:resource_or_tag_key" => ArgumentType::ResourceOrTagKey { registry: registry() },
             "minecraft:nbt_compound_tag" => ArgumentType::CompoundTag,
@@ -274,6 +277,7 @@ impl ArgumentType {
                 }
                 ArgumentValue::Resource { registry: registry.clone(), id }
             }
+            ArgumentType::ResourceKey { ref registry } => ArgumentValue::Resource { registry: registry.clone(), id: read_identifier(reader)? },
             ArgumentType::ResourceOrTag { ref registry } => {
                 if reader.can_read() && reader.peek() == b'#' as u16 {
                     let cursor = reader.cursor;
@@ -657,6 +661,10 @@ pub fn list_suggestions(
         ArgumentType::Resource { registry } => {
             shared_suggestion_provider::suggest_resource(crisp_data::registry_entries(registry).unwrap_or_default().iter(), &mut builder)
         }
+        ArgumentType::ResourceKey { registry } => match registry.as_str() {
+            "minecraft:recipe" => resource_key_argument::suggest_recipes(&mut builder),
+            _ => shared_suggestion_provider::suggest_resource(crisp_data::registry_entries(registry).unwrap_or_default().iter(), &mut builder),
+        },
         ArgumentType::ResourceOrTag { registry } | ArgumentType::ResourceOrTagKey { registry } => {
             let tags = crisp_data::TAGS.iter().find(|r| r.registry == registry).map_or(&[][..], |r| r.tags);
             shared_suggestion_provider::suggest_resource_with_prefix(tags.iter().map(|t| t.0), &mut builder, "#");

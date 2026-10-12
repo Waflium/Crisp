@@ -26,6 +26,8 @@ pub mod spawn_egg_item;
 
 use crisp_data::Item;
 
+use crate::world::entity::player::stacked_item_contents::StackedItemContents;
+
 pub use item_stack::{ItemStack, read_slot, validate_encodable, write_slot};
 
 use crate::server::level::ServerLevel;
@@ -107,16 +109,6 @@ pub const MAIN_START: usize = 9;
 pub const OFFHAND: usize = 45;
 pub const SLOTS: usize = 46;
 
-pub fn storage_slot(slot: usize) -> Option<i8> {
-    match slot {
-        36..=44 => Some((slot - 36) as i8),
-        9..=35 => Some(slot as i8),
-        5..=8 => Some((108 - slot) as i8),
-        OFFHAND => Some(-106),
-        _ => None,
-    }
-}
-
 pub fn inventory_slot(index: usize) -> usize {
     match index {
         0..=8 => HOTBAR_START + index,
@@ -182,6 +174,35 @@ impl Inventory {
 
     fn get_free_slot(&self) -> Option<usize> {
         (0..36).find(|&i| self.item(i).is_none())
+    }
+
+    pub fn find_slot_matching_crafting_ingredient(&self, item: Item, existing_item: &ItemStack) -> Option<usize> {
+        (0..36).find(|&i| {
+            self.item(i).is_some_and(|inventory_item_stack| {
+                inventory_item_stack.is(item)
+                    && Inventory::is_usable_for_crafting(inventory_item_stack)
+                    && (existing_item.is_empty() || ItemStack::is_same_item_same_components(existing_item, inventory_item_stack))
+            })
+        })
+    }
+
+    pub fn get_item(&self, index: usize) -> ItemStack {
+        self.item(index).cloned().unwrap_or_else(ItemStack::empty)
+    }
+
+    pub fn remove_item(&mut self, index: usize, count: i32) -> ItemStack {
+        match &mut self.slots[inventory_slot(index)] {
+            Some(item_stack) if !item_stack.is_empty() && count > 0 => item_stack.split(count),
+            _ => ItemStack::empty(),
+        }
+    }
+
+    pub fn remove_item_no_update(&mut self, index: usize) -> ItemStack {
+        self.slots[inventory_slot(index)].take().unwrap_or_else(ItemStack::empty)
+    }
+
+    pub fn fill_stacked_contents(&self, contents: &mut StackedItemContents) {
+        (0..36).filter_map(|i| self.item(i)).for_each(|item_stack| contents.account_simple_stack(item_stack));
     }
 
     pub fn get_suitable_hotbar_slot(&self) -> usize {
@@ -341,15 +362,6 @@ mod tests {
         plain.set(component::MAX_STACK_SIZE, Some(crisp_protocol::nbt::Nbt::Int(64)));
         assert!(plain.components_patch().is_empty());
         assert!(ItemStack::is_same_item_same_components(&plain, &ItemStack::new(items::DIRT, 2)));
-    }
-
-    #[test]
-    fn storage_slots_round_trip() {
-        for slot in 5..SLOTS {
-            assert_eq!(storage_slot(slot).and_then(protocol_slot), Some(slot));
-        }
-        assert_eq!(storage_slot(36), Some(0));
-        assert_eq!(storage_slot(5), Some(103));
     }
 
     #[test]

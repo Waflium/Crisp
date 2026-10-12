@@ -137,6 +137,7 @@ impl Server {
             player.set_score(old_score);
         }
         player.experience.enchantment_seed = old.experience.enchantment_seed;
+        player.recipe_book.copy_over_data(&old.recipe_book);
         player.last_sent_exp = -1;
         player.last_sent_health = -1.0;
         player.last_sent_food = -1;

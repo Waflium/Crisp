@@ -224,7 +224,7 @@ impl ServerLevel {
             }
             SlotKind::Result { .. } => {
                 if let SlotContainer::Menu(c) = menu.slots[index].container {
-                    menu.containers[c].award_used_recipes();
+                    menu.containers[c].award_used_recipes(self, player);
                 }
             }
             _ => {}

@@ -1,6 +1,8 @@
 use crisp_protocol::nbt::Nbt;
 
 use super::crafting_input::CraftingInput;
+use super::display::recipe_display::RecipeDisplay;
+use super::display::slot_display::SlotDisplay;
 use super::ingredient::Ingredient;
 use super::normal_crafting_recipe::NormalCraftingRecipe;
 use super::placement_info::PlacementInfo;
@@ -84,5 +86,15 @@ impl DyeRecipe {
         let mut result = create_with_original_components(&self.result, target_stack);
         result.set_value(dc::DYED_COLOR, Nbt::Int(new_dyed_color));
         result
+    }
+
+    pub fn display(&self) -> Vec<RecipeDisplay> {
+        let dyes_with_dye_component = SlotDisplay::OnlyWithComponent(Box::new(self.dye.display()), dc::DYE);
+        let target_display = self.target.display();
+        vec![RecipeDisplay::ShapelessCrafting {
+            ingredients: vec![target_display.clone(), dyes_with_dye_component.clone()],
+            result: SlotDisplay::DyedSlotDemo { dye: Box::new(dyes_with_dye_component), target: Box::new(target_display) },
+            crafting_station: SlotDisplay::ItemSlotDisplay(crisp_data::items::CRAFTING_TABLE),
+        }]
     }
 }

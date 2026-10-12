@@ -297,6 +297,28 @@ async fn main() -> anyhow::Result<()> {
                             })
                             .await?;
                         }
+                        ["place_recipe", recipe, use_max_items] => {
+                            let (recipe, use_max_items): (i32, bool) = (recipe.parse()?, use_max_items.parse()?);
+                            send(&mut wr, codec, play::serverbound::PLACE_RECIPE, |w| {
+                                w.varint(open_container);
+                                w.varint(recipe);
+                                w.bool(use_max_items);
+                            })
+                            .await?;
+                        }
+                        ["book_settings", book_type, is_open, is_filtering] => {
+                            let (book_type, is_open, is_filtering): (i32, bool, bool) = (book_type.parse()?, is_open.parse()?, is_filtering.parse()?);
+                            send(&mut wr, codec, play::serverbound::RECIPE_BOOK_CHANGE_SETTINGS, |w| {
+                                w.varint(book_type);
+                                w.bool(is_open);
+                                w.bool(is_filtering);
+                            })
+                            .await?;
+                        }
+                        ["seen_recipe", recipe] => {
+                            let recipe: i32 = recipe.parse()?;
+                            send(&mut wr, codec, play::serverbound::RECIPE_BOOK_SEEN_RECIPE, |w| w.varint(recipe)).await?;
+                        }
                         ["close"] => {
                             send(&mut wr, codec, play::serverbound::CONTAINER_CLOSE, |w| w.varint(open_container)).await?;
                             open_container = 0;

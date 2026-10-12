@@ -36,6 +36,7 @@ mod msg_command;
 mod op_command;
 mod play_sound_command;
 mod random_command;
+mod recipe_command;
 mod reload_command;
 mod return_command;
 mod rotate_command;
@@ -212,6 +213,10 @@ static EXECUTORS: &[(&str, CommandFn)] = &[
     ("random reset sequence seed", random_command::reset_sequence_with),
     ("random reset sequence seed includeWorldSeed", random_command::reset_sequence_with),
     ("random reset sequence seed includeWorldSeed includeSequenceId", random_command::reset_sequence_with),
+    ("recipe give targets recipe", recipe_command::give_recipe),
+    ("recipe give targets *", recipe_command::give_all_recipes),
+    ("recipe take targets recipe", recipe_command::take_recipe),
+    ("recipe take targets *", recipe_command::take_all_recipes),
     ("rotate target rotation", rotate_command::rotate),
     ("rotate target facing entity facingEntity", rotate_command::rotate_facing_entity),
     ("rotate target facing entity facingEntity facingAnchor", rotate_command::rotate_facing_entity_anchor),

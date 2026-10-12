@@ -1,5 +1,7 @@
 use crisp_protocol::nbt::Nbt;
 
+use super::display::recipe_display::RecipeDisplay;
+use super::display::slot_display::SlotDisplay;
 use super::ingredient::Ingredient;
 use super::placement_info::PlacementInfo;
 use super::simple_smithing_recipe::SimpleSmithingRecipe;
@@ -30,5 +32,15 @@ impl SmithingTransformRecipe {
 
     pub fn assemble(&self, input: &SmithingRecipeInput) -> ItemStack {
         create_with_original_components(&self.result, &input.base)
+    }
+
+    pub fn display(&self) -> Vec<RecipeDisplay> {
+        vec![RecipeDisplay::Smithing {
+            template: Ingredient::optional_ingredient_to_display(self.template.as_ref()),
+            base: self.base_ingredient.display(),
+            addition: Ingredient::optional_ingredient_to_display(self.addition.as_ref()),
+            result: SlotDisplay::ItemStackSlotDisplay(self.result.clone()),
+            crafting_station: SlotDisplay::ItemSlotDisplay(crisp_data::items::SMITHING_TABLE),
+        }]
     }
 }
