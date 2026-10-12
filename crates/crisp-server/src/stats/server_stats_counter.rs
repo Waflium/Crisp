@@ -4,34 +4,33 @@ use crisp_core::fastutil::Object2ObjectOpenHashMap;
 use crisp_core::random::java_string_hash;
 use crisp_data::WORLD_VERSION;
 use crisp_data::packets::play::clientbound;
-use indexmap::{IndexMap, IndexSet};
 use serde_json::{Map, Value};
 
 use super::stat::Stat;
 use super::stat_type::StatType;
 use super::stats_counter::StatsCounter;
 use crate::network::connection::Outbound;
-use crate::util::file_util;
+use crate::util::{FastIndexMap, FastIndexSet, file_util};
 use crate::util::java_collections::JavaHashMap;
 
 const DEFAULT_TABLE_SIZE: usize = 16;
 
 pub struct ServerStatsCounter {
-    stats: IndexMap<Stat, i32>,
+    stats: FastIndexMap<Stat, i32>,
     presized: usize,
     file: PathBuf,
-    dirty: IndexSet<Stat>,
+    dirty: FastIndexSet<Stat>,
     dirty_table_size: usize,
 }
 
 impl Default for ServerStatsCounter {
     fn default() -> ServerStatsCounter {
-        ServerStatsCounter { stats: IndexMap::new(), presized: 0, file: PathBuf::new(), dirty: IndexSet::new(), dirty_table_size: DEFAULT_TABLE_SIZE }
+        ServerStatsCounter { stats: FastIndexMap::default(), presized: 0, file: PathBuf::new(), dirty: FastIndexSet::default(), dirty_table_size: DEFAULT_TABLE_SIZE }
     }
 }
 
 impl StatsCounter for ServerStatsCounter {
-    fn stats(&self) -> &IndexMap<Stat, i32> {
+    fn stats(&self) -> &FastIndexMap<Stat, i32> {
         &self.stats
     }
 
@@ -78,45 +77,36 @@ impl ServerStatsCounter {
     }
 
     pub fn parse(&mut self, element: &Value) {
-        let mut errors = Vec::new();
         let mut grouped: Vec<Vec<(Stat, i32)>> = Vec::new();
-        match element.get("stats") {
-            None => {}
+        let error = match element.get("stats") {
+            None => None,
             Some(Value::Object(types)) => {
+                let mut errors = Vec::new();
+                let mut failed = Map::new();
                 for (type_key, values) in types {
-                    let stat_type = registry_key(type_key, "minecraft:stat_type", |id| StatType::by_key(id));
-                    let entries = match values {
-                        Value::Object(entries) => Ok(entries),
-                        other => Err(format!("Not a JSON object: {other}")),
+                    let stat_type = registry_key(type_key, "minecraft:stat_type", StatType::by_key);
+                    let typed = match &stat_type {
+                        Ok(stat_type) => parse_typed_stats(*stat_type, values),
+                        Err(message) => Err(message.clone()),
                     };
-                    let (stat_type, entries) = match (stat_type, entries) {
-                        (Ok(stat_type), Ok(entries)) => (stat_type, entries),
-                        (stat_type, entries) => {
-                            errors.extend(stat_type.err());
-                            errors.extend(entries.err());
-                            continue;
-                        }
-                    };
-                    let mut group = Vec::new();
-                    for (key, value) in entries {
-                        let stat = registry_key(key, stat_type.registry_key(), |id| {
-                            stat_type.get_registry().iter().position(|&e| e == id).map(|value| stat_type.get(value as u16))
-                        });
-                        match (stat, int_value(value)) {
-                            (Ok(stat), Ok(count)) => group.push((stat, count)),
-                            (stat, count) => {
-                                errors.extend(stat.err());
-                                errors.extend(count.err());
-                            }
-                        }
+                    let entry_errors: Vec<&str> = [typed.as_ref().map_or_else(|e| Some(e.as_str()), |t| t.1.as_deref()), stat_type.as_ref().err().map(String::as_str)]
+                        .into_iter()
+                        .flatten()
+                        .collect();
+                    if !entry_errors.is_empty() {
+                        errors.push(entry_errors.join("; "));
+                        failed.insert(type_key.clone(), values.clone());
                     }
-                    grouped.push(group);
+                    if let (Ok(_), Ok((group, _))) = (&stat_type, typed) {
+                        grouped.push(group);
+                    }
                 }
+                partial_error(errors, failed)
             }
-            Some(other) => errors.push(format!("Not a JSON object: {other}")),
-        }
-        if !errors.is_empty() {
-            error!("Failed to parse statistics for {}: {}", self.file.display(), errors.join("; "));
+            Some(other) => Some(format!("Not a JSON object: {other}")),
+        };
+        if let Some(error) = error {
+            error!("Failed to parse statistics for {}: {error}", self.file.display());
         }
         let parsed = parsed_stats_order(&grouped);
         self.presized = self.stats.len() + parsed.len();
@@ -188,13 +178,40 @@ fn registry_key<T>(key: &str, registry: &str, lookup: impl FnOnce(&str) -> Optio
     lookup(&id).ok_or_else(|| format!("Unknown registry key in ResourceKey[minecraft:root / {registry}]: {id}"))
 }
 
+fn parse_typed_stats(stat_type: StatType, values: &Value) -> Result<(Vec<(Stat, i32)>, Option<String>), String> {
+    let Value::Object(entries) = values else { return Err(format!("Not a JSON object: {values}")) };
+    let mut group = Vec::new();
+    let mut errors = Vec::new();
+    let mut failed = Map::new();
+    for (key, value) in entries {
+        let stat = registry_key(key, stat_type.registry_key(), |id| stat_type.get_registry().iter().position(|&e| e == id).map(|value| stat_type.get(value as u16)));
+        match (stat, int_value(value)) {
+            (Ok(stat), Ok(count)) => group.push((stat, count)),
+            (stat, count) => {
+                let entry_errors: Vec<String> = [count.err(), stat.err()].into_iter().flatten().collect();
+                errors.push(entry_errors.join("; "));
+                failed.insert(key.clone(), value.clone());
+            }
+        }
+    }
+    Ok((group, partial_error(errors, failed)))
+}
+
+fn partial_error(errors: Vec<String>, failed: Map<String, Value>) -> Option<String> {
+    if errors.is_empty() {
+        return None;
+    }
+    let messages: Vec<String> = errors.into_iter().rev().collect();
+    Some(format!("{} missed input: {}", messages.join("; "), Value::Object(failed)))
+}
+
 fn int_value(value: &Value) -> Result<i32, String> {
     match value {
-        Value::Number(number) => Ok(match number.as_i64() {
-            Some(v) => v as i32,
-            None => number.as_f64().map_or(0, |v| v as i64 as i32),
+        Value::Number(number) => Ok(match (number.as_i64(), number.as_u64()) {
+            (Some(v), _) => v as i32,
+            (None, Some(v)) => v as i32,
+            (None, None) => number.as_f64().map_or(0, |v| v.trunc() as i128 as i32),
         }),
-        Value::Bool(b) => Ok(*b as i32),
         other => Err(format!("Not a number: {other}")),
     }
 }

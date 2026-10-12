@@ -122,7 +122,7 @@ impl WorldDir {
         self.root.join("players/data").join(format!("{}.dat", format_uuid(uuid)))
     }
     pub fn player_stats_dir(&self) -> PathBuf {
-        self.root.join("players/stats")
+        self.root.join("players").join("stats")
     }
 }
 

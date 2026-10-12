@@ -1,9 +1,8 @@
-use indexmap::IndexMap;
-
 use super::stat::Stat;
+use crate::util::FastIndexMap;
 
 pub trait StatsCounter {
-    fn stats(&self) -> &IndexMap<Stat, i32>;
+    fn stats(&self) -> &FastIndexMap<Stat, i32>;
 
     fn set_value(&mut self, stat: Stat, count: i32);
 
