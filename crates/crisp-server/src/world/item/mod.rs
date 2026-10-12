@@ -9,6 +9,7 @@ pub mod dye_color;
 pub mod enchantment;
 pub mod flint_and_steel_item;
 mod item_stack;
+pub mod item_utils;
 pub mod name_tag_item;
 pub mod scaffolding_block_item;
 pub mod slot;

@@ -42,6 +42,7 @@ pub mod campfire_block;
 pub mod abstract_bed_block;
 pub mod abstract_candle_block;
 mod cake_block;
+mod comparator_block;
 pub mod candle_block;
 pub mod candle_cake_block;
 mod carpet_block;
@@ -601,6 +602,7 @@ fn for_class(class: &str, block: Block) -> Option<Box<dyn BlockBehaviour>> {
         "CandleBlock" => Box::new(candle_block::CandleBlock),
         "BedBlock" => Box::new(abstract_bed_block::AbstractBedBlock::new(abstract_bed_block::BedKind::Bed)),
         "RespawnAnchorBlock" => Box::new(respawn_anchor_block::RespawnAnchorBlock),
+        "ComparatorBlock" => Box::new(comparator_block::ComparatorBlock { block }),
         "StrawBedBlock" => Box::new(abstract_bed_block::AbstractBedBlock::new(abstract_bed_block::BedKind::StrawBed)),
         "CakeBlock" => Box::new(cake_block::CakeBlock),
         "PistonHeadBlock" => Box::new(piston_head_block::PistonHeadBlock),
@@ -617,6 +619,7 @@ fn for_class(class: &str, block: Block) -> Option<Box<dyn BlockBehaviour>> {
         "TntBlock" => Box::new(tnt_block::TntBlock),
         "SoulFireBlock" => Box::new(soul_fire_block::SoulFireBlock),
         "LayeredCauldronBlock" => Box::new(cauldron_block::LayeredCauldronBlock::new(block)),
+        "LavaCauldronBlock" => Box::new(cauldron_block::LavaCauldronBlock),
         "DropExperienceBlock" => Box::new(drop_experience_block::DropExperienceBlock::new(block)),
         "RedStoneOreBlock" => Box::new(red_stone_ore_block::RedStoneOreBlock),
         "SpawnerBlock" => Box::new(spawner_block::SpawnerBlock),

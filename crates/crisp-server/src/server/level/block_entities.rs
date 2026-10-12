@@ -53,9 +53,9 @@ impl ServerLevel {
     pub fn pre_remove_side_effects(&mut self, pos: BlockPos) {
         let Some(entity) = self.get_block_entity(pos) else { return };
         let (is_container, is_furnace) = match &entity.kind {
-            BlockEntityKind::ShulkerBox(_) | BlockEntityKind::Beehive(_) | BlockEntityKind::Spawner(_) | BlockEntityKind::Other(_) => (false, false),
+            BlockEntityKind::Chest(_) | BlockEntityKind::Barrel(_) | BlockEntityKind::Hopper(_) | BlockEntityKind::Dispenser(_) => (true, false),
             BlockEntityKind::Furnace(_) => (true, true),
-            _ => (true, false),
+            _ => (false, false),
         };
         if is_container {
             let container = ContainerRef::block(self, pos);

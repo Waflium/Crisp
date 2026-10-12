@@ -32,14 +32,7 @@ pub trait DiodeBlock {
     }
 
     fn get_input_signal(&self, level: &mut ServerLevel, pos: BlockPos, state: BlockState) -> i32 {
-        let direction = state.get(HORIZONTAL_FACING);
-        let target_pos = pos.relative(direction);
-        let input = level.get_signal(target_pos, direction);
-        if input >= 15 {
-            return input;
-        }
-        let target_state = level.block_state(target_pos);
-        input.max(if target_state.is_block(blocks::REDSTONE_WIRE) { target_state.get(POWER) } else { 0 })
+        get_input_signal(level, pos, state)
     }
 
     fn get_alternate_signal(&self, level: &mut dyn LevelReader, pos: BlockPos, state: BlockState) -> i32 {
@@ -75,6 +68,17 @@ pub trait DiodeBlock {
         level.neighbor_changed(opposite_pos, self.block());
         level.update_neighbors_at_except_from_facing(opposite_pos, self.block(), Some(direction));
     }
+}
+
+pub fn get_input_signal(level: &mut ServerLevel, pos: BlockPos, state: BlockState) -> i32 {
+    let direction = state.get(HORIZONTAL_FACING);
+    let target_pos = pos.relative(direction);
+    let input = level.get_signal(target_pos, direction);
+    if input >= 15 {
+        return input;
+    }
+    let target_state = level.block_state(target_pos);
+    input.max(if target_state.is_block(blocks::REDSTONE_WIRE) { target_state.get(POWER) } else { 0 })
 }
 
 pub fn should_prioritize(level: &mut ServerLevel, pos: BlockPos, state: BlockState) -> bool {

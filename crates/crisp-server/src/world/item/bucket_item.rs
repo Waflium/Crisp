@@ -3,6 +3,7 @@ use crisp_core::{BlockPos, Vec3, mth};
 use crisp_data::{Fluid, Item, fluid_tags, items, registry, registry_id};
 
 use super::ItemStack;
+use super::item_utils::{self, has_infinite_materials};
 use crate::server::level::game_mode::GameType;
 use crate::server::level::{ServerLevel, SoundSource};
 use crate::world::attribute::environment_attributes;
@@ -51,7 +52,7 @@ impl BucketItem {
             if block::of(clicked).is_liquid_block_container(clicked) && self.content == Fluid::Water { pos } else { direction_offset_pos };
         if self.empty_contents(level, Some(player), place_pos, Some(hit)) {
             let empty_result = if has_infinite_materials(level, player) { item_stack.clone() } else { ItemStack::new(items::BUCKET, 1) };
-            let result = create_filled_result(level, player, hand, item_stack, empty_result);
+            let result = item_utils::create_filled_result(level, player, hand, item_stack, empty_result, true);
             return (InteractionResult::SUCCESS, Some(result));
         }
         if self.content == Fluid::Empty {
@@ -64,7 +65,7 @@ impl BucketItem {
                     let position = level.player(player).entity.position();
                     level.play_sound_at(Some(player), position.x, position.y, position.z, sound, SoundSource::Players, 1.0, 1.0);
                 }
-                let result = create_filled_result(level, player, hand, item_stack, taken);
+                let result = item_utils::create_filled_result(level, player, hand, item_stack, taken, true);
                 return (InteractionResult::SUCCESS, Some(result));
             }
         }
@@ -132,31 +133,6 @@ pub fn player_pov_hit_result(level: &mut ServerLevel, player: EntityId, fluid: C
 
 pub fn may_use_item_at(level: &ServerLevel, player: EntityId) -> bool {
     !matches!(level.player(player).game_mode.game_type, GameType::Adventure | GameType::Spectator)
-}
-
-fn has_infinite_materials(level: &ServerLevel, player: EntityId) -> bool {
-    level.player(player).game_mode.game_type == GameType::Creative
-}
-
-fn create_filled_result(level: &mut ServerLevel, player: EntityId, hand: InteractionHand, mut item_stack: ItemStack, new_stack: ItemStack) -> ItemStack {
-    if has_infinite_materials(level, player) {
-        let p = level.player_mut(player);
-        if !p.inventory.slots.iter().flatten().any(|s| !s.is_empty() && ItemStack::is_same_item_same_components(s, &new_stack)) {
-            p.pick_up(new_stack);
-        }
-        return item_stack;
-    }
-    item_stack.count -= 1;
-    let p = level.player_mut(player);
-    p.set_item_in_hand(hand, Some(item_stack.clone()));
-    if item_stack.is_empty() {
-        return new_stack;
-    }
-    let left = p.pick_up(new_stack.clone());
-    if left > 0 {
-        level.player_drop(player, new_stack.copy_with_count(left), false, crate::util::Prediction::Predicted);
-    }
-    item_stack
 }
 
 #[cfg(test)]

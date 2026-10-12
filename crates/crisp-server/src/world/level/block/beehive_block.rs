@@ -13,6 +13,10 @@ use crate::world::item::component::{self as dc};
 pub struct BeehiveBlock;
 
 impl BlockBehaviour for BeehiveBlock {
+    fn get_analog_output_signal(&self, state: BlockState, _level: &mut ServerLevel, _pos: BlockPos, _direction: crisp_core::Direction) -> i32 {
+        state.get(LEVEL_HONEY)
+    }
+
     fn rotate(&self, state: BlockState, rotation: Rotation) -> BlockState {
         state.set(HORIZONTAL_FACING, rotation.rotate(state.get(HORIZONTAL_FACING)))
     }
