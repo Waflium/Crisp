@@ -45,6 +45,7 @@ mod cake_block;
 mod comparator_block;
 pub mod composter_block;
 mod daylight_detector_block;
+mod copper_bulb_block;
 mod jukebox_block;
 pub mod candle_block;
 pub mod candle_cake_block;
@@ -654,6 +655,8 @@ fn for_class(class: &str, block: Block) -> Option<Box<dyn BlockBehaviour>> {
         "PowderSnowBlock" => Box::new(powder_snow_block::PowderSnowBlock),
         "HayBlock" => Box::new(hay_block::HayBlock),
         "WeatheringCopperFullBlock" => Box::new(weathering_copper_full_block::WeatheringCopperFullBlock),
+        "CopperBulbBlock" => Box::new(copper_bulb_block::CopperBulbBlock),
+        "WeatheringCopperBulbBlock" => Box::new(copper_bulb_block::WeatheringCopperBulbBlock),
         "WeatheringCopperGrateBlock" => Box::new(weathering_copper_grate_block::WeatheringCopperGrateBlock),
         "WaterloggedTransparentBlock" => Box::new(waterlogged_transparent_block::WaterloggedTransparentBlock),
         "MangroveRootsBlock" => Box::new(mangrove_roots_block::MangroveRootsBlock),
