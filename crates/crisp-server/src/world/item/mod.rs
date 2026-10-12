@@ -67,7 +67,13 @@ pub fn use_on(level: &mut ServerLevel, player: EntityId, hand: InteractionHand, 
             let ctx = BlockPlaceContext::new(level, Some(player), hand, stack, hit);
             block_item::place(item.as_ref(), level, ctx)
         }
-        None => InteractionResult::Pass,
+        None => match stack.get(component::BLOCK_TRANSFORMER).and_then(crate::core::component::block_transformer::BlockTransformer::get) {
+            Some(block_transformer) => {
+                let ctx = BlockPlaceContext::new(level, Some(player), hand, stack, hit);
+                block_transformer.transform_block(level, &ctx)
+            }
+            None => InteractionResult::Pass,
+        },
     }
 }
 

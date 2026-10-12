@@ -562,10 +562,29 @@ impl ServerLevel {
         let x = pos.x as f64 + 0.5 + mth::next_double(&mut self.random, -0.25, 0.25);
         let y = pos.y as f64 + 0.5 + mth::next_double(&mut self.random, -0.25, 0.25) - half_height;
         let z = pos.z as f64 + 0.5 + mth::next_double(&mut self.random, -0.25, 0.25);
-        if stack.count <= 0 {
+        if stack.is_empty() || !self.game_rules.get_bool(crisp_data::game_rule::BLOCK_DROPS) {
             return;
         }
         let mut item = ItemEntity::new(Vec3::new(x, y, z), stack);
+        item.set_default_pickup_delay();
+        self.add_fresh_entity(LevelEntity::Item(item));
+    }
+
+    pub fn pop_resource_from_face(&mut self, pos: BlockPos, face: crisp_core::Direction, stack: ItemStack) {
+        let (step_x, step_y, step_z) = (face.step_x(), face.step_y(), face.step_z());
+        let half_width = ItemEntity::DIMENSIONS.width as f64 / 2.0;
+        let half_height = ItemEntity::DIMENSIONS.height as f64 / 2.0;
+        let random = &mut self.random;
+        let x = pos.x as f64 + 0.5 + if step_x == 0 { mth::next_double(random, -0.25, 0.25) } else { step_x as f64 * (0.5 + half_width) };
+        let y = pos.y as f64 + 0.5 + if step_y == 0 { mth::next_double(random, -0.25, 0.25) } else { step_y as f64 * (0.5 + half_height) } - half_height;
+        let z = pos.z as f64 + 0.5 + if step_z == 0 { mth::next_double(random, -0.25, 0.25) } else { step_z as f64 * (0.5 + half_width) };
+        let delta_x = if step_x == 0 { mth::next_double(random, -0.1, 0.1) } else { step_x as f64 * 0.1 };
+        let delta_y = if step_y == 0 { mth::next_double(random, 0.0, 0.1) } else { step_y as f64 * 0.1 + 0.1 };
+        let delta_z = if step_z == 0 { mth::next_double(random, -0.1, 0.1) } else { step_z as f64 * 0.1 };
+        if stack.is_empty() || !self.game_rules.get_bool(crisp_data::game_rule::BLOCK_DROPS) {
+            return;
+        }
+        let mut item = ItemEntity::with_movement(Vec3::new(x, y, z), stack, Vec3::new(delta_x, delta_y, delta_z));
         item.set_default_pickup_delay();
         self.add_fresh_entity(LevelEntity::Item(item));
     }

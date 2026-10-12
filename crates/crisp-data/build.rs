@@ -101,6 +101,7 @@ fn main() -> anyhow::Result<()> {
     embed_json(&mut out, &data, "worldgen/feature", "FEATURES")?;
     embed_json(&mut out, &data, "worldgen/placed_feature", "PLACED_FEATURES")?;
     embed_json(&mut out, &data, "worldgen/block_state_provider", "BLOCK_STATE_PROVIDERS")?;
+    embed_json(&mut out, &data, "block_transformer", "BLOCK_TRANSFORMERS")?;
     embed_json(&mut out, &data, "worldgen/processor_list", "PROCESSOR_LISTS")?;
     embed_structure_templates(&mut out, &data)?;
     writeln!(out, "pub static BIOME_PARAMETERS: &[(&str, &str)] = &[")?;
