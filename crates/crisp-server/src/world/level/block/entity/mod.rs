@@ -73,6 +73,7 @@ pub enum BlockEntityTicker {
     Sign,
     Vault,
     Crafter,
+    EndGateway,
 }
 
 enum UpdateTag {
@@ -604,6 +605,7 @@ impl BlockEntity {
             types::SIGN | types::HANGING_SIGN if block.is_instance_of("SignBlock") => Some(BlockEntityTicker::Sign),
             types::VAULT if block.is_instance_of("VaultBlock") => Some(BlockEntityTicker::Vault),
             types::CRAFTER if block.is_instance_of("CrafterBlock") => Some(BlockEntityTicker::Crafter),
+            types::END_GATEWAY if block.is_instance_of("EndGatewayBlock") => Some(BlockEntityTicker::EndGateway),
             types::CAMPFIRE if block.is_instance_of("CampfireBlock") => {
                 Some(if state.get(crisp_data::properties::LIT) { BlockEntityTicker::CampfireCook } else { BlockEntityTicker::CampfireCooldown })
             }
@@ -615,6 +617,10 @@ impl BlockEntity {
         match &mut self.kind {
             BlockEntityKind::Chest(chest) => chest.trigger_event(b0, b1),
             BlockEntityKind::ShulkerBox(shulker) => shulker.trigger_event(b0, b1),
+            BlockEntityKind::EndGateway(gateway) if b0 == 1 => {
+                gateway.teleport_cooldown = the_end_gateway_block_entity::COOLDOWN_TIME;
+                true
+            }
             _ => false,
         }
     }

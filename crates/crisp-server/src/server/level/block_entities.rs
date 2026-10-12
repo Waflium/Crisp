@@ -182,6 +182,7 @@ impl ServerLevel {
             BlockEntityTicker::Vault => self.vault_server_tick(pos, state),
             BlockEntityTicker::Crafter => self.crafter_server_tick(pos, state),
             BlockEntityTicker::Sign => self.sign_tick(pos),
+            BlockEntityTicker::EndGateway => self.end_gateway_portal_tick(pos, state),
         }
     }
 

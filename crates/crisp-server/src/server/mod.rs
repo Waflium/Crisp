@@ -310,6 +310,9 @@ impl Server {
         ] {
             levels.push(create_level(&config, world_dir.as_ref(), dimension, generator, generate_structures, seed));
         }
+        for (index, level) in levels.iter_mut().enumerate() {
+            level.index = index;
+        }
         let weather = Rc::new(Cell::new(weather));
         let scoreboard_save_data = ScoreboardSaveData::load(world_dir.as_ref().map(WorldDir::data_folder));
         let scoreboard = Rc::new(RefCell::new(Scoreboard::default()));

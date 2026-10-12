@@ -2125,7 +2125,13 @@ impl ServerLevel {
         self.entity_mut(id).portal_process = Some(process);
         if teleport {
             self.set_portal_cooldown(id);
-            let pending = self.capture_portal_teleport(id, process.portal(), process.get_entry_position());
+            if portal == Portal::EndGateway && !self.is_player(id) {
+                if let Some(transition) = crate::world::level::block::end_gateway_block::get_portal_destination_in_level(self, process.get_entry_position()) {
+                    self.teleport_same_dimension(id, transition);
+                }
+                return;
+            }
+            let pending = self.capture_portal_teleport(id, portal, process.get_entry_position());
             self.pending_portal_teleport = Some(pending);
         } else if process.has_expired() {
             self.entity_mut(id).portal_process = None;
