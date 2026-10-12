@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use super::any_block_interaction_trigger::AnyBlockInteractionTrigger;
 use super::bee_nest_destroyed_trigger::BeeNestDestroyedTrigger;
 use super::bred_animals_trigger::BredAnimalsTrigger;

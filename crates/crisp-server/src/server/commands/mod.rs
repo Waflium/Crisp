@@ -1,4 +1,6 @@
 mod advancement_commands;
+#[cfg(test)]
+mod advancement_command_tests;
 mod attribute_command;
 mod ban_player_commands;
 mod boss_bar_commands;

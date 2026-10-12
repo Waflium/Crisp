@@ -64,6 +64,8 @@ impl Server {
                 continue;
             }
             for message in std::mem::take(&mut self.levels[index].pending_system_broadcasts) {
+                #[cfg(test)]
+                self.console_log.borrow_mut().push(message.get_string());
                 for &id in &self.player_list {
                     if self.level_of(id).is_some_and(|level| level != index) {
                         self.send_player_system_message(id, &message, false);
