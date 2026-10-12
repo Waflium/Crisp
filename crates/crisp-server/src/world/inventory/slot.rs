@@ -1,7 +1,7 @@
 use crisp_data::{EquipmentSlot, items};
 
 use super::abstract_container_menu::{AbstractContainerMenu, MenuKind};
-use super::smithing_menu;
+use super::{grindstone_menu, loom_menu, smithing_menu};
 use crate::server::level::ServerLevel;
 use crate::world::container::ContainerRef;
 use crate::world::entity::EntityId;
@@ -38,6 +38,12 @@ pub enum SlotKind {
     StonecutterResult,
     ItemCombinerInput,
     ItemCombinerResult,
+    GrindstoneInput,
+    GrindstoneResult,
+    LoomBanner,
+    LoomDye,
+    LoomPattern,
+    LoomResult,
 }
 
 #[derive(Clone, Debug)]
@@ -142,7 +148,17 @@ impl ServerLevel {
             SlotKind::Normal | SlotKind::Offhand | SlotKind::EnchantmentItem => true,
             SlotKind::ShulkerBox => !stack.get_item().info().block.is_some_and(|b| b.is_instance_of("ShulkerBoxBlock")),
             SlotKind::FurnaceFuel => is_fuel(stack) || is_bucket(stack),
-            SlotKind::FurnaceResult { .. } | SlotKind::Result { .. } | SlotKind::NonInteractiveResult | SlotKind::StonecutterResult | SlotKind::ItemCombinerResult => false,
+            SlotKind::FurnaceResult { .. }
+            | SlotKind::Result { .. }
+            | SlotKind::NonInteractiveResult
+            | SlotKind::StonecutterResult
+            | SlotKind::ItemCombinerResult
+            | SlotKind::GrindstoneResult
+            | SlotKind::LoomResult => false,
+            SlotKind::GrindstoneInput => grindstone_menu::may_place(stack),
+            SlotKind::LoomBanner => crate::world::item::banner_item::is_banner_item(stack.get_item()),
+            SlotKind::LoomDye => loom_menu::is_dye_item(stack),
+            SlotKind::LoomPattern => loom_menu::is_pattern_item(stack),
             SlotKind::ItemCombinerInput => menu.kind != MenuKind::Smithing || smithing_menu::may_place(menu.slots[index].slot, stack),
             SlotKind::Crafter => !self.crafter_menu_is_slot_disabled(menu, index),
             SlotKind::BrewingStandPotion => PotionIngredient::is_potion_input(stack),
@@ -220,6 +236,11 @@ impl ServerLevel {
                 self.slot_set_changed(menu, player, index);
             }
             SlotKind::ItemCombinerResult => self.item_combiner_menu_on_take(menu, player, carried),
+            SlotKind::GrindstoneResult => self.grindstone_result_slot_on_take(menu, player),
+            SlotKind::LoomResult => {
+                self.loom_result_slot_on_take(menu, player);
+                self.slot_set_changed(menu, player, index);
+            }
             _ => self.slot_set_changed(menu, player, index),
         }
     }

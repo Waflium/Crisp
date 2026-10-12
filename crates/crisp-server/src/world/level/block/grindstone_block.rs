@@ -43,7 +43,8 @@ impl BlockBehaviour for GrindstoneBlock {
         true
     }
 
-    fn use_without_item(&self, _state: BlockState, _level: &mut ServerLevel, _pos: BlockPos, _player: EntityId, _hit: &BlockHitResult) -> InteractionResult {
+    fn use_without_item(&self, _state: BlockState, level: &mut ServerLevel, pos: BlockPos, player: EntityId, _hit: &BlockHitResult) -> InteractionResult {
+        level.open_menu(player, crate::world::inventory::menu_provider::MenuProvider::Grindstone(pos));
         InteractionResult::SUCCESS
     }
 }

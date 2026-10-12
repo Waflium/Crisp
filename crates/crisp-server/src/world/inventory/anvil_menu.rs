@@ -11,9 +11,8 @@ use crate::util::string_util::{filter_text, is_blank};
 use crate::world::entity::EntityId;
 use crate::world::item::ItemStack;
 use crate::world::item::component as dc;
-use crate::world::item::component::values::ItemEnchantments;
 use crate::world::item::enchantment::enchantment::Enchantment;
-use crate::world::item::enchantment::enchantment_helper::get_component_type;
+use crate::world::item::enchantment::enchantment_helper::{can_store_enchantments, get_enchantments_for_crafting, set_enchantments};
 use crate::world::level::BlockGetter;
 use crate::world::level::block::anvil_block::damage;
 use crate::world::level::update_flags::UPDATE_CLIENTS;
@@ -44,18 +43,6 @@ pub fn calculate_increased_repair_cost(base_cost: i32) -> i32 {
 fn validate_name(name: &str) -> Option<String> {
     let filtered_name = filter_text(name);
     (filtered_name.encode_utf16().count() <= MAX_NAME_LENGTH).then_some(filtered_name)
-}
-
-fn can_store_enchantments(item_stack: &ItemStack) -> bool {
-    item_stack.has(get_component_type(item_stack))
-}
-
-fn get_enchantments_for_crafting(item_stack: &ItemStack) -> ItemEnchantments {
-    item_stack.get(get_component_type(item_stack)).map_or_else(ItemEnchantments::default, ItemEnchantments::from_nbt)
-}
-
-fn set_enchantments(item_stack: &mut ItemStack, enchantments: &ItemEnchantments) {
-    item_stack.set(get_component_type(item_stack), Some(enchantments.to_nbt()));
 }
 
 fn repair_cost(item_stack: &ItemStack) -> i32 {

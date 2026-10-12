@@ -63,6 +63,23 @@ pub fn has_tag(item_stack: &ItemStack, tag: &str) -> bool {
         .any(|(enchantment, _)| crate::world::item::component::codec::registry_id("minecraft:enchantment", enchantment).is_ok_and(|id| tag.contains(&id)))
 }
 
+pub fn can_store_enchantments(item_stack: &ItemStack) -> bool {
+    item_stack.has(get_component_type(item_stack))
+}
+
+pub fn set_enchantments(item_stack: &mut ItemStack, enchantments: &ItemEnchantments) {
+    item_stack.set(get_component_type(item_stack), Some(enchantments.to_nbt()));
+}
+
+pub fn get_enchantments_for_crafting(item_stack: &ItemStack) -> ItemEnchantments {
+    item_stack.get(get_component_type(item_stack)).map_or_else(ItemEnchantments::default, ItemEnchantments::from_nbt)
+}
+
+pub fn has_any_enchantments(item_stack: &ItemStack) -> bool {
+    item_stack.get(dc::ENCHANTMENTS).is_some_and(|enchantments| !ItemEnchantments::from_nbt(enchantments).is_empty())
+        || item_stack.get(dc::STORED_ENCHANTMENTS).is_some_and(|enchantments| !ItemEnchantments::from_nbt(enchantments).is_empty())
+}
+
 pub fn get_component_type(item_stack: &ItemStack) -> DataComponentType {
     if item_stack.is(items::ENCHANTED_BOOK) { dc::STORED_ENCHANTMENTS } else { dc::ENCHANTMENTS }
 }

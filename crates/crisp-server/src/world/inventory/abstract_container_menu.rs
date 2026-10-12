@@ -5,7 +5,9 @@ use crisp_data::{EquipmentSlot, registry, registry_id};
 use super::beacon_menu::PAYMENT_SLOT;
 use super::crafter_menu::{INV_SLOT_START, SLOT_COUNT, USE_ROW_SLOT_END};
 use super::anvil_menu::{self, AnvilMenu};
+use super::grindstone_menu;
 use super::item_combiner_menu;
+use super::loom_menu::{self, LoomMenu};
 use super::smithing_menu::{self, SmithingMenu};
 use super::stonecutter_menu::{self, StonecutterMenu};
 use super::enchantment_menu::EnchantmentMenu;
@@ -51,6 +53,8 @@ pub enum MenuKind {
     Stonecutter,
     Smithing,
     Anvil,
+    Grindstone,
+    Loom,
 }
 
 impl MenuKind {
@@ -75,6 +79,8 @@ impl MenuKind {
             MenuKind::Stonecutter => "minecraft:stonecutter",
             MenuKind::Smithing => "minecraft:smithing",
             MenuKind::Anvil => "minecraft:anvil",
+            MenuKind::Grindstone => "minecraft:grindstone",
+            MenuKind::Loom => "minecraft:loom",
         }
     }
 }
@@ -206,6 +212,7 @@ pub struct AbstractContainerMenu {
     pub stonecutter: Option<StonecutterMenu>,
     pub smithing: Option<SmithingMenu>,
     pub anvil: Option<AnvilMenu>,
+    pub loom: Option<LoomMenu>,
     pub placing_recipe: bool,
     pub slots: Vec<Slot>,
     last_slots: Vec<ItemStack>,
@@ -235,6 +242,7 @@ impl AbstractContainerMenu {
             stonecutter: None,
             smithing: None,
             anvil: None,
+            loom: None,
             placing_recipe: false,
             slots: Vec::new(),
             last_slots: Vec::new(),
@@ -318,6 +326,21 @@ impl AbstractContainerMenu {
                 menu.data_prev = vec![0; 1];
                 menu.remote_data_slots = vec![0; 1];
             }
+            MenuKind::Grindstone => {
+                menu.containers.push(MenuContainer::Simple(SimpleContainer::new(SimpleContainerKind::Plain, 2)));
+                menu.containers.push(MenuContainer::Result(ResultContainer::default()));
+                menu.add_slot(Slot::new(SlotContainer::Menu(grindstone_menu::REPAIR_SLOTS), 0, SlotKind::GrindstoneInput));
+                menu.add_slot(Slot::new(SlotContainer::Menu(grindstone_menu::REPAIR_SLOTS), 1, SlotKind::GrindstoneInput));
+                menu.add_slot(Slot::new(SlotContainer::Menu(grindstone_menu::RESULT_SLOTS), 2, SlotKind::GrindstoneResult));
+            }
+            MenuKind::Loom => {
+                menu.containers.push(MenuContainer::Simple(SimpleContainer::new(SimpleContainerKind::Plain, 3)));
+                menu.containers.push(MenuContainer::Simple(SimpleContainer::new(SimpleContainerKind::Plain, 1)));
+                menu.add_slot(Slot::new(SlotContainer::Menu(loom_menu::INPUT_CONTAINER), 0, SlotKind::LoomBanner));
+                menu.add_slot(Slot::new(SlotContainer::Menu(loom_menu::INPUT_CONTAINER), 1, SlotKind::LoomDye));
+                menu.add_slot(Slot::new(SlotContainer::Menu(loom_menu::INPUT_CONTAINER), 2, SlotKind::LoomPattern));
+                menu.add_slot(Slot::new(SlotContainer::Menu(loom_menu::OUTPUT_CONTAINER), 0, SlotKind::LoomResult));
+            }
         }
         for i in 9..36 {
             menu.add_slot(Slot::new(SlotContainer::Inventory, i, SlotKind::Normal));
@@ -331,6 +354,10 @@ impl AbstractContainerMenu {
         if let MenuKind::Furnace(_) | MenuKind::BrewingStand = kind {
             menu.data_prev = vec![0; 4];
             menu.remote_data_slots = vec![0; 4];
+        }
+        if kind == MenuKind::Loom {
+            menu.data_prev = vec![0; 1];
+            menu.remote_data_slots = vec![0; 1];
         }
         if kind == MenuKind::Crafter {
             menu.containers.push(MenuContainer::Result(ResultContainer::default()));
@@ -487,6 +514,9 @@ impl ServerLevel {
         if let Some(anvil) = &menu.anvil {
             return anvil.get_cost();
         }
+        if let Some(loom) = &menu.loom {
+            return loom.get_selected_banner_pattern_index();
+        }
         if let Some(ContainerRef::Lectern { pos, .. }) = menu.container {
             return if id == crate::world::level::block::entity::lectern_block_entity::DATA_PAGE { self.lectern(pos).map_or(0, |lectern| lectern.get_page()) } else { 0 };
         }
@@ -535,7 +565,8 @@ impl ServerLevel {
 
     pub fn menu_container_set_changed(&mut self, menu: &mut AbstractContainerMenu, player: EntityId, c: usize) {
         let slots_changed = match menu.containers[c] {
-            MenuContainer::Simple(_) => matches!(menu.kind, MenuKind::Enchantment | MenuKind::Stonecutter | MenuKind::Smithing | MenuKind::Anvil),
+            MenuContainer::Simple(_) if menu.kind == MenuKind::Loom => c == loom_menu::INPUT_CONTAINER,
+            MenuContainer::Simple(_) => matches!(menu.kind, MenuKind::Enchantment | MenuKind::Stonecutter | MenuKind::Smithing | MenuKind::Anvil | MenuKind::Grindstone),
             MenuContainer::Result(_) => matches!(menu.kind, MenuKind::Smithing | MenuKind::Anvil),
             MenuContainer::Crafting(_) => false,
         };
@@ -548,6 +579,8 @@ impl ServerLevel {
         match menu.kind {
             MenuKind::Smithing => self.smithing_menu_slots_changed(menu, player, c),
             MenuKind::Anvil => self.item_combiner_menu_slots_changed(menu, player, c),
+            MenuKind::Grindstone => self.grindstone_menu_slots_changed(menu, player, c),
+            MenuKind::Loom => self.loom_menu_slots_changed(menu, player),
             MenuKind::Enchantment => self.enchantment_menu_slots_changed(menu, player),
             MenuKind::Stonecutter => self.stonecutter_menu_slots_changed(menu, player),
             MenuKind::Inventory => self.slot_changed_crafting_grid(menu, player, None),
@@ -945,6 +978,8 @@ impl ServerLevel {
             }
             MenuKind::Lectern => false,
             MenuKind::Smithing | MenuKind::Anvil => self.item_combiner_menu_quick_move_stack(menu, player, index, &mut stack),
+            MenuKind::Grindstone => self.grindstone_menu_quick_move_stack(menu, player, index, &mut stack),
+            MenuKind::Loom => self.loom_menu_quick_move_stack(menu, player, index, &mut stack),
             MenuKind::Stonecutter => {
                 if index == stonecutter_menu::RESULT_SLOT {
                     self.move_item_stack_to(menu, player, &mut stack, stonecutter_menu::INV_SLOT_START, stonecutter_menu::USE_ROW_SLOT_END, true)
@@ -1025,6 +1060,8 @@ impl ServerLevel {
                 | MenuKind::Stonecutter
                 | MenuKind::Smithing
                 | MenuKind::Anvil
+                | MenuKind::Grindstone
+                | MenuKind::Loom
         ) {
             if stack.count == clicked.count {
                 return ItemStack::empty();
@@ -1155,6 +1192,8 @@ impl ServerLevel {
             MenuKind::Enchantment => self.still_valid_access(menu.access, player, crisp_data::blocks::ENCHANTING_TABLE),
             MenuKind::Stonecutter => self.still_valid_access(menu.access, player, crisp_data::blocks::STONECUTTER),
             MenuKind::Smithing => self.still_valid_access(menu.access, player, crisp_data::blocks::SMITHING_TABLE),
+            MenuKind::Grindstone => self.still_valid_access(menu.access, player, crisp_data::blocks::GRINDSTONE),
+            MenuKind::Loom => self.still_valid_access(menu.access, player, crisp_data::blocks::LOOM),
             MenuKind::Anvil => menu.access.is_none_or(|pos| {
                 crate::world::level::BlockGetter::block_state(self, pos).block().is(&crisp_data::block_tags::ANVIL) && self.is_within_block_interaction_range(player, pos, 4.0)
             }),
@@ -1190,6 +1229,8 @@ impl ServerLevel {
             MenuKind::Enchantment => self.enchantment_menu_removed(menu, player),
             MenuKind::Stonecutter => self.stonecutter_menu_removed(menu, player),
             MenuKind::Smithing | MenuKind::Anvil => self.item_combiner_menu_removed(menu, player),
+            MenuKind::Grindstone => self.grindstone_menu_removed(menu, player),
+            MenuKind::Loom => self.loom_menu_removed(menu, player),
             _ => {}
         }
     }
