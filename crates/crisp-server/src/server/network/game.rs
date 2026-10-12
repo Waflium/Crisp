@@ -473,13 +473,23 @@ impl ServerLevel {
 
 
     pub fn tick_connection(&mut self, id: EntityId) -> bool {
+        self.tick_connection_start(id);
+        self.pending_portal_teleport = None;
+        self.tick_connection_end(id)
+    }
+
+    pub fn tick_connection_start(&mut self, id: EntityId) {
         let p = self.player_mut(id);
         if p.ack_block_changes_up_to > -1 {
             let sequence = p.ack_block_changes_up_to;
             p.connection.send(clientbound::BLOCK_CHANGED_ACK, |w| w.varint(sequence));
             p.ack_block_changes_up_to = -1;
         }
-        if self.tick_player(id) {
+        self.tick_player_start(id);
+    }
+
+    pub fn tick_connection_end(&mut self, id: EntityId) -> bool {
+        if self.tick_player_end(id) {
             return false;
         }
         let p = self.player_mut(id);

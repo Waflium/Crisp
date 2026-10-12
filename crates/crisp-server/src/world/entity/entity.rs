@@ -23,6 +23,9 @@ use crate::world::attribute::environment_attributes;
 use crate::world::level::BlockGetter;
 use crate::world::level::block;
 use crate::world::level::portal::teleport_transition::{PostTeleportTransition, TeleportTransition};
+use crate::world::level::block::portal::{PendingPortalTeleport, Portal, PortalEntity};
+use crate::world::phys::shapes::collision_context::CollisionContext;
+use super::portal_processor::PortalProcessor;
 use crate::world::level::clip::{ClipBlock, ClipContext, ClipFluid};
 use crate::world::level::clip::for_each_block_intersected_between;
 use crate::world::level::collision::{Collider, collide_with_shapes};
@@ -131,6 +134,7 @@ pub struct Entity {
     pub invulnerable: bool,
     pub invulnerable_time: i32,
     pub portal_cooldown: i32,
+    pub portal_process: Option<super::portal_processor::PortalProcessor>,
     pub has_glowing_tag: bool,
     pub has_visual_fire: bool,
     pub tags: Vec<String>,
@@ -193,6 +197,7 @@ impl Entity {
             invulnerable: false,
             invulnerable_time: 0,
             portal_cooldown: 0,
+            portal_process: None,
             has_glowing_tag: false,
             has_visual_fire: false,
             tags: Vec::new(),
@@ -1701,6 +1706,8 @@ impl ServerLevel {
         let e = self.entity_mut(id);
         e.compute_speed();
         e.in_block_state = None;
+        self.handle_portal(id);
+        let e = self.entity_mut(id);
         e.was_in_powder_snow = e.is_in_powder_snow;
         e.is_in_powder_snow = false;
         e.was_eye_in_water = e.is_eye_in_fluid(&fluid_tags::WATER);
@@ -2039,6 +2046,9 @@ impl ServerLevel {
             self.send_teleport_transition_to_players(id);
         }
         transition.post_teleport_transition.on_transition(self, id);
+        if matches!(self.entities.get(&id), Some(LevelEntity::Item(_))) {
+            self.merge_with_neighbours(id);
+        }
         id
     }
 
@@ -2056,6 +2066,103 @@ impl ServerLevel {
     fn remove_after_changing_dimensions(&mut self, id: EntityId) {
         self.entity_mut(id).removal = Some(RemovalReason::ChangedDimension);
         self.remove_entity(id);
+    }
+
+    pub fn set_portal_cooldown(&mut self, id: EntityId) {
+        let delay = self.get_dimension_changing_delay(id);
+        self.entity_mut(id).portal_cooldown = delay;
+    }
+
+    pub fn is_on_portal_cooldown(&self, id: EntityId) -> bool {
+        self.entity(id).portal_cooldown > 0
+    }
+
+    fn process_portal_cooldown(&mut self, id: EntityId) {
+        if self.is_on_portal_cooldown(id) {
+            self.entity_mut(id).portal_cooldown -= 1;
+        }
+    }
+
+    pub fn get_dimension_changing_delay(&self, id: EntityId) -> i32 {
+        if self.is_player(id) { 10 } else { 300 }
+    }
+
+    pub fn can_use_portal(&self, id: EntityId, ignore_passenger: bool) -> bool {
+        (ignore_passenger || self.vehicle(id).is_none()) && self.is_alive(id) && !(self.is_living(id) && self.is_sleeping(id))
+    }
+
+    pub fn can_teleport(&self, _id: EntityId, _from: &str, _to: &str) -> bool {
+        true
+    }
+
+    pub fn is_allowed_to_enter_portal(&self, to_dimension: &str) -> bool {
+        to_dimension != crate::server::THE_NETHER || self.game_rules.get_bool(crisp_data::game_rule::ALLOW_ENTERING_NETHER_USING_PORTALS)
+    }
+
+    pub fn set_as_inside_portal(&mut self, id: EntityId, portal: Portal, pos: BlockPos) {
+        if self.is_on_portal_cooldown(id) {
+            self.set_portal_cooldown(id);
+            return;
+        }
+        let e = self.entity_mut(id);
+        match &mut e.portal_process {
+            Some(process) if process.is_same_portal(portal) => {
+                if !process.is_inside_portal_this_tick() {
+                    process.update_entry_position(pos);
+                    process.set_as_inside_portal_this_tick(true);
+                }
+            }
+            _ => e.portal_process = Some(PortalProcessor::new(portal, pos)),
+        }
+    }
+
+    pub fn handle_portal(&mut self, id: EntityId) {
+        self.process_portal_cooldown(id);
+        let Some(mut process) = self.entity(id).portal_process else { return };
+        let allowed_to_teleport = self.can_use_portal(id, false);
+        let portal = process.portal();
+        let teleport = process.process_portal_teleportation(allowed_to_teleport, || portal.get_portal_transition_time(self, id));
+        self.entity_mut(id).portal_process = Some(process);
+        if teleport {
+            self.set_portal_cooldown(id);
+            let pending = self.capture_portal_teleport(id, process.portal(), process.get_entry_position());
+            self.pending_portal_teleport = Some(pending);
+        } else if process.has_expired() {
+            self.entity_mut(id).portal_process = None;
+        }
+    }
+
+    fn capture_portal_teleport(&mut self, id: EntityId, portal: Portal, entry_position: BlockPos) -> PendingPortalTeleport {
+        let entity = self.portal_entity(id);
+        let destination = portal.get_destination_dimension(self.dimension);
+        let removed = entity.data.is_some() && destination != self.dimension && self.is_allowed_to_enter_portal(destination);
+        if removed {
+            self.entity_mut(id).removal = Some(RemovalReason::ChangedDimension);
+        }
+        PendingPortalTeleport { entity, portal, entry_position, removed }
+    }
+
+    pub fn portal_entity(&self, id: EntityId) -> PortalEntity {
+        let data = self.entities.get(&id).map(|old| {
+            let mut data = Vec::new();
+            old.save_without_id(&mut data);
+            data
+        });
+        let e = self.entity(id);
+        PortalEntity {
+            id,
+            entity_type: e.entity_type,
+            position: e.position(),
+            delta_movement: e.delta_movement,
+            y_rot: e.y_rot,
+            x_rot: e.x_rot,
+            dimensions: e.dimensions,
+            collision_context: CollisionContext::of(self, id),
+            is_spectator: self.is_spectator(id),
+            portal_cooldown: e.portal_cooldown,
+            portal_process: e.portal_process,
+            data,
+        }
     }
 }
 
@@ -2077,30 +2184,69 @@ impl crate::server::Server {
             return None;
         }
         if transition.new_level != old_level {
-            self.teleport_cross_dimension(old_level, id, transition)
+            let old_entity = self.levels[old_level].portal_entity(id);
+            self.teleport_cross_dimension(old_level, &old_entity, transition)
         } else {
             Some(self.levels[old_level].teleport_same_dimension(id, transition))
         }
     }
 
-    fn teleport_cross_dimension(&mut self, old_level: usize, id: EntityId, transition: TeleportTransition) -> Option<EntityId> {
-        let old = self.levels[old_level].entities.get(&id)?;
-        let entity_type = registry::ENTITY_TYPE[old.entity().entity_type as usize];
-        let mut new_entity = ServerLevel::create_entity(entity_type)?;
-        let mut data = Vec::new();
-        old.save_without_id(&mut data);
-        let _ = new_entity.load(&Nbt::Compound(data));
-        let old_entity = old.entity();
-        let current = relative::PositionMoveRotation { position: old_entity.position(), delta_movement: old_entity.delta_movement, y_rot: old_entity.y_rot, x_rot: old_entity.x_rot };
-        new_entity.entity_mut().portal_cooldown = old_entity.portal_cooldown;
-        self.levels[old_level].remove_after_changing_dimensions(id);
+    fn teleport_cross_dimension(&mut self, old_level: usize, old_entity: &PortalEntity, transition: TeleportTransition) -> Option<EntityId> {
+        let mut new_entity = ServerLevel::create_entity(registry::ENTITY_TYPE[old_entity.entity_type as usize])?;
+        let _ = new_entity.load(&Nbt::Compound(old_entity.data.clone().unwrap_or_default()));
+        let e = new_entity.entity_mut();
+        e.portal_cooldown = old_entity.portal_cooldown;
+        e.portal_process = old_entity.portal_process;
+        if self.levels[old_level].entities.contains_key(&old_entity.id) {
+            self.levels[old_level].remove_after_changing_dimensions(old_entity.id);
+        }
+        let current = relative::PositionMoveRotation {
+            position: old_entity.position,
+            delta_movement: old_entity.delta_movement,
+            y_rot: old_entity.y_rot,
+            x_rot: old_entity.x_rot,
+        };
         new_entity.entity_mut().teleport_set_position(current, transition.position_move_rotation(), transition.relatives);
+        let is_item = matches!(new_entity, LevelEntity::Item(_));
         let new_id = new_entity.entity().id;
         let level = &mut self.levels[transition.new_level];
         level.add_entity(new_entity);
         level.reset_empty_time();
         transition.post_teleport_transition.on_transition(level, new_id);
+        if is_item {
+            level.merge_with_neighbours(new_id);
+        }
         Some(new_id)
+    }
+
+    pub fn handle_pending_portal_teleport(&mut self, level: usize) {
+        let Some(pending) = self.levels[level].pending_portal_teleport.take() else { return };
+        let transition = pending.portal.get_portal_destination(self, level, &pending.entity, pending.entry_position);
+        let teleported = transition.is_some_and(|transition| self.teleport_to_portal_destination(level, &pending, transition));
+        if !teleported
+            && pending.removed
+            && let Some(old) = self.levels[level].entities.get_mut(&pending.entity.id)
+            && old.entity().removal == Some(RemovalReason::ChangedDimension)
+        {
+            old.entity_mut().removal = None;
+        }
+    }
+
+    fn teleport_to_portal_destination(&mut self, level: usize, pending: &PendingPortalTeleport, transition: TeleportTransition) -> bool {
+        let id = pending.entity.id;
+        let (from, to) = (self.levels[level].dimension, self.levels[transition.new_level].dimension);
+        let current_level = &self.levels[level];
+        if !current_level.is_allowed_to_enter_portal(to) || from != to && !current_level.can_teleport(id, from, to) {
+            return false;
+        }
+        if self.has_player(id) {
+            self.server_player_teleport(id, transition);
+        } else if transition.new_level != level {
+            self.teleport_cross_dimension(level, &pending.entity, transition);
+        } else {
+            self.levels[level].teleport_same_dimension(id, transition);
+        }
+        true
     }
 }
 

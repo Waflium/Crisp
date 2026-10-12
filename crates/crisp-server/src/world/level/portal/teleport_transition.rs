@@ -9,17 +9,23 @@ use crate::world::entity::relative::PositionMoveRotation;
 pub struct PostTeleportTransition {
     play_portal_sound: bool,
     place_portal_ticket: bool,
+    place_portal_ticket_at: Option<BlockPos>,
 }
 
 impl PostTeleportTransition {
-    pub const DO_NOTHING: PostTeleportTransition = PostTeleportTransition { play_portal_sound: false, place_portal_ticket: false };
-    pub const PLAY_PORTAL_SOUND: PostTeleportTransition = PostTeleportTransition { play_portal_sound: true, place_portal_ticket: false };
-    pub const PLACE_PORTAL_TICKET: PostTeleportTransition = PostTeleportTransition { play_portal_sound: false, place_portal_ticket: true };
+    pub const DO_NOTHING: PostTeleportTransition = PostTeleportTransition { play_portal_sound: false, place_portal_ticket: false, place_portal_ticket_at: None };
+    pub const PLAY_PORTAL_SOUND: PostTeleportTransition = PostTeleportTransition { play_portal_sound: true, ..PostTeleportTransition::DO_NOTHING };
+    pub const PLACE_PORTAL_TICKET: PostTeleportTransition = PostTeleportTransition { place_portal_ticket: true, ..PostTeleportTransition::DO_NOTHING };
+
+    pub fn place_portal_ticket_at(pos: BlockPos) -> PostTeleportTransition {
+        PostTeleportTransition { place_portal_ticket_at: Some(pos), ..PostTeleportTransition::DO_NOTHING }
+    }
 
     pub fn then(self, other: PostTeleportTransition) -> PostTeleportTransition {
         PostTeleportTransition {
             play_portal_sound: self.play_portal_sound || other.play_portal_sound,
             place_portal_ticket: self.place_portal_ticket || other.place_portal_ticket,
+            place_portal_ticket_at: self.place_portal_ticket_at.or(other.place_portal_ticket_at),
         }
     }
 
@@ -29,6 +35,9 @@ impl PostTeleportTransition {
         }
         if self.place_portal_ticket {
             place_portal_ticket(level, entity);
+        }
+        if let Some(pos) = self.place_portal_ticket_at {
+            level.place_portal_ticket(pos);
         }
     }
 }

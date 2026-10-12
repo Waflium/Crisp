@@ -33,7 +33,7 @@ pub fn flint_and_steel_use_on(level: &mut ServerLevel, player: EntityId, hand: I
         pos
     } else {
         let relative_pos = pos.relative(ctx.clicked_face());
-        if !base_fire_block::can_be_placed_at(level, relative_pos) {
+        if !base_fire_block::can_be_placed_at(level, relative_pos, ctx.horizontal_direction()) {
             return InteractionResult::Fail;
         }
         relative_pos
@@ -54,7 +54,7 @@ pub fn fire_charge_use_on(level: &mut ServerLevel, player: EntityId, hand: Inter
         level.set_block(pos, state.set(LIT, true), UPDATE_ALL);
     } else {
         pos = pos.relative(ctx.clicked_face());
-        if !base_fire_block::can_be_placed_at(level, pos) {
+        if !base_fire_block::can_be_placed_at(level, pos, ctx.horizontal_direction()) {
             return InteractionResult::Fail;
         }
         play_fire_charge_sound(level, pos);

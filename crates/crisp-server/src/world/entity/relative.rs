@@ -12,6 +12,7 @@ pub mod relative {
     pub const DELTA_Z: u16 = 1 << 7;
     pub const ROTATE_DELTA: u16 = 1 << 8;
     pub const ROTATION: u16 = X_ROT | Y_ROT;
+    pub const DELTA: u16 = DELTA_X | DELTA_Y | DELTA_Z | ROTATE_DELTA;
     pub const ALL: u16 = X | Y | Z | ROTATION | DELTA_X | DELTA_Y | DELTA_Z | ROTATE_DELTA;
 
     pub fn rotation(relative_y_rot: bool, relative_x_rot: bool) -> u16 {

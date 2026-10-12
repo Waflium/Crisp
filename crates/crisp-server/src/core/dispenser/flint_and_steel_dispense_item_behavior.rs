@@ -12,7 +12,7 @@ pub fn execute(level: &mut ServerLevel, source: &BlockSource, mut dispensed: Ite
     let facing = source.facing();
     let target_pos = source.pos.relative(facing);
     let target = level.block_state(target_pos);
-    if base_fire_block::can_be_placed_at(level, target_pos) {
+    if base_fire_block::can_be_placed_at(level, target_pos, facing) {
         let fire = base_fire_block::get_state(level, target_pos);
         level.set_block(target_pos, fire, UPDATE_ALL);
     } else if campfire_block::can_light(target) || candle_block::can_light(target) || candle_cake_block::can_light(target) {

@@ -1335,7 +1335,11 @@ impl Server {
             self.tick_level(index);
         }
         for id in self.player_ids() {
-            let connected = self.entity_level_mut(id).tick_connection(id);
+            self.entity_level_mut(id).tick_connection_start(id);
+            if let Some(level) = self.level_of(id) {
+                self.handle_pending_portal_teleport(level);
+            }
+            let connected = self.entity_level_mut(id).tick_connection_end(id);
             if connected {
                 self.tick_command_suggestions(id);
             }
@@ -1395,6 +1399,10 @@ impl Server {
             TimerQueue::tick(self, time);
         }
         self.levels[index].tick_after_time(runs);
+        while self.levels[index].tick_entities() {
+            self.handle_pending_portal_teleport(index);
+        }
+        self.levels[index].tick_after_entities();
     }
 
     pub fn tick_times_nanos(&self) -> &[i64; 100] {

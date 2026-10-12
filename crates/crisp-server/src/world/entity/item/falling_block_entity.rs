@@ -155,6 +155,7 @@ impl ServerLevel {
         if self.entity_ref(id).is_none() {
             return;
         }
+        self.handle_portal(id);
         let falling = self.falling_block(id);
         if !falling.entity.is_removed() || falling.force_tick_after_teleport_to_duplicate {
             let mut pos = falling.entity.block_position();

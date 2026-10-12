@@ -24,8 +24,6 @@ pub trait WorldGenLevel: LevelAccessor {
 
     fn get_height(&mut self, kind: HeightmapType, x: i32, z: i32) -> i32;
 
-    fn get_min_y(&self) -> i32;
-
     fn get_height_of_level(&self) -> i32;
 
     fn get_max_y(&self) -> i32 {

@@ -41,6 +41,8 @@ pub fn is_in_spawnable_bounds(pos: BlockPos) -> bool {
 pub trait BlockGetter {
     fn block_state(&mut self, pos: BlockPos) -> BlockState;
 
+    fn get_min_y(&self) -> i32;
+
     fn fluid_state(&mut self, pos: BlockPos) -> FluidState {
         self.block_state(pos).fluid_state()
     }

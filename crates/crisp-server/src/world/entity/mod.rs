@@ -23,6 +23,7 @@ pub mod living_entity;
 pub mod mob;
 pub mod monster;
 pub mod pathfinder_mob;
+pub mod portal_processor;
 pub mod primed_tnt;
 pub mod projectile;
 pub mod raid;

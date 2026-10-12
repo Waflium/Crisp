@@ -75,6 +75,7 @@ impl ServerLevel {
     }
 
     pub fn tick_primed_tnt(&mut self, id: EntityId) {
+        self.handle_portal(id);
         self.apply_gravity(id);
         let delta = self.entity(id).delta_movement;
         self.move_entity(id, MoverType::SelfMove, delta);

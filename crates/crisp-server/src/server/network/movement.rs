@@ -417,10 +417,19 @@ impl ServerLevel {
     }
 
     pub fn tick_player(&mut self, id: EntityId) -> bool {
+        self.tick_player_start(id);
+        self.pending_portal_teleport = None;
+        self.tick_player_end(id)
+    }
+
+    pub fn tick_player_start(&mut self, id: EntityId) {
         let p = self.player_mut(id);
         p.reset_position();
         p.entity.xo = p.entity.position();
         self.server_player_do_tick(id);
+    }
+
+    pub fn tick_player_end(&mut self, id: EntityId) -> bool {
         let sleeping = self.is_sleeping(id);
         let p = self.player_mut(id);
         let first_good = p.movement.first_good;

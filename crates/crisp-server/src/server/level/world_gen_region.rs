@@ -293,10 +293,6 @@ impl crate::world::level::world_gen_level::WorldGenLevel for WorldGenRegion<'_> 
         WorldGenRegion::get_height(self, kind, x, z)
     }
 
-    fn get_min_y(&self) -> i32 {
-        self.min_y
-    }
-
     fn get_height_of_level(&self) -> i32 {
         self.height
     }
@@ -317,6 +313,10 @@ impl crate::world::level::world_gen_level::WorldGenLevel for WorldGenRegion<'_> 
 impl BlockGetter for WorldGenRegion<'_> {
     fn block_state(&mut self, pos: BlockPos) -> BlockState {
         self.get_block_state(pos)
+    }
+
+    fn get_min_y(&self) -> i32 {
+        self.min_y
     }
 }
 

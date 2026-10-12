@@ -116,6 +116,8 @@ pub struct ServerLevel {
     pub scoreboard: Rc<RefCell<Scoreboard>>,
     pub world_border: WorldBorder,
     pub raids: crate::world::entity::raid::raids::Raids,
+    pub pending_portal_teleport: Option<crate::world::level::block::portal::PendingPortalTeleport>,
+    entity_tick_range: Option<(usize, usize)>,
     pub rain_level: f32,
     pub o_rain_level: f32,
     pub thunder_level: f32,
@@ -225,6 +227,8 @@ impl ServerLevel {
             scoreboard: Rc::default(),
             world_border: WorldBorder::new(Settings::DEFAULT, None),
             raids: crate::world::entity::raid::raids::Raids::load(None),
+            pending_portal_teleport: None,
+            entity_tick_range: None,
             environment_attributes: EnvironmentAttributeSystem::default(),
             clock_ticks: ServerClockManager::new().clocks.iter().map(|c| c.total_ticks).collect(),
             sky_darken: 0,
@@ -1067,6 +1071,10 @@ impl ServerLevel {
             self.tick_time();
         }
         self.tick_after_time(runs);
+        while self.tick_entities() {
+            self.pending_portal_teleport = None;
+        }
+        self.tick_after_entities();
     }
 
     pub fn tick_until_time(&mut self) -> bool {
@@ -1163,29 +1171,44 @@ impl ServerLevel {
             self.empty_time += 1;
         }
         if self.empty_time < 300 {
-            let end = self.tick_list.begin_iteration();
-            for i in 0..end {
-                let Some(id) = self.tick_list.at(i) else { continue };
-                if self.players.contains_key(&id) {
-                    self.common_tick(id);
-                    self.tick_player_entity(id);
-                } else if let Some(entity) = self.entities.get(&id) {
-                    if entity.entity().is_removed() {
+            self.entity_tick_range = Some((0, self.tick_list.begin_iteration()));
+        }
+    }
+
+    pub fn tick_entities(&mut self) -> bool {
+        let Some((start, end)) = self.entity_tick_range else { return false };
+        for i in start..end {
+            let Some(id) = self.tick_list.at(i) else { continue };
+            if self.players.contains_key(&id) {
+                self.common_tick(id);
+                self.tick_player_entity(id);
+            } else if let Some(entity) = self.entities.get(&id) {
+                if entity.entity().is_removed() {
+                    self.remove_entity(id);
+                } else if !self.tick_rate_manager.is_entity_frozen() {
+                    let chunk = entity.entity().chunk_position();
+                    if self.is_mob(id) {
+                        self.check_mob_despawn(id);
+                    }
+                    if self.in_entity_ticking_range(chunk) {
+                        self.common_tick(id);
+                        self.tick_entity(id);
+                    } else if self.entities.get(&id).is_some_and(|e| e.entity().is_removed()) {
                         self.remove_entity(id);
-                    } else if !self.tick_rate_manager.is_entity_frozen() {
-                        let chunk = entity.entity().chunk_position();
-                        if self.is_mob(id) {
-                            self.check_mob_despawn(id);
-                        }
-                        if self.in_entity_ticking_range(chunk) {
-                            self.common_tick(id);
-                            self.tick_entity(id);
-                        } else if self.entities.get(&id).is_some_and(|e| e.entity().is_removed()) {
-                            self.remove_entity(id);
-                        }
                     }
                 }
             }
+            if self.pending_portal_teleport.is_some() {
+                self.entity_tick_range = Some((i + 1, end));
+                return true;
+            }
+        }
+        self.entity_tick_range = Some((end, end));
+        false
+    }
+
+    pub fn tick_after_entities(&mut self) {
+        if self.entity_tick_range.take().is_some() {
             self.tick_list.end_iteration();
             self.tick_block_entities();
         }
@@ -1279,7 +1302,11 @@ impl ServerLevel {
             .collect()
     }
 
-    fn any_player_close_enough_for_spawning(&self, pos: ChunkPos) -> bool {
+    pub fn is_spawning_monsters(&self) -> bool {
+        self.game_rules.get_bool(crisp_data::game_rule::SPAWN_MOBS) && self.game_rules.get_bool(crisp_data::game_rule::SPAWN_MONSTERS)
+    }
+
+    pub fn any_player_close_enough_for_spawning(&self, pos: ChunkPos) -> bool {
         let (x, z) = ((pos.min_block_x() + 8) as f64, (pos.min_block_z() + 8) as f64);
         self.players.values().any(|p| {
             let (dx, dz) = (x - p.entity.x(), z - p.entity.z());
@@ -1516,6 +1543,10 @@ impl BlockGetter for ServerLevel {
     fn block_state(&mut self, pos: BlockPos) -> BlockState {
         self.chunks.block_state(pos)
     }
+
+    fn get_min_y(&self) -> i32 {
+        self.chunks.min_y()
+    }
 }
 
 impl crate::world::level::LevelReader for ServerLevel {
@@ -1630,10 +1661,6 @@ impl crate::world::level::world_gen_level::WorldGenLevel for ServerLevel {
         } else {
             self.sea_level() + 1
         }
-    }
-
-    fn get_min_y(&self) -> i32 {
-        self.chunks.min_y()
     }
 
     fn get_height_of_level(&self) -> i32 {

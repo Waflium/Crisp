@@ -1555,6 +1555,10 @@ impl BlockGetter for ChunkCache {
         }
         self.chunk(pos.chunk()).block_state(pos)
     }
+
+    fn get_min_y(&self) -> i32 {
+        self.min_y()
+    }
 }
 
 #[cfg(test)]

@@ -32,6 +32,10 @@ impl BlockGetter for Column {
     fn block_state(&mut self, pos: BlockPos) -> BlockState {
         if pos.x == 0 && pos.z == 0 && (-1..=1).contains(&pos.y) { self.states[(pos.y + 1) as usize] } else { blocks::AIR.default_state() }
     }
+
+    fn get_min_y(&self) -> i32 {
+        -64
+    }
 }
 
 impl LevelReader for Column {
