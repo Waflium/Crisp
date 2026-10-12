@@ -32,6 +32,7 @@ fn menu_kind(entity: &BlockEntity) -> Option<MenuKind> {
         types::DISPENSER | types::DROPPER => MenuKind::Dispenser,
         types::BREWING_STAND => MenuKind::BrewingStand,
         types::LECTERN => MenuKind::Lectern,
+        types::CRAFTER => MenuKind::Crafter,
         _ => return None,
     })
 }
@@ -107,7 +108,11 @@ impl ServerLevel {
                 self.unpack_loot_table(pos, Some(player));
                 let container = ContainerRef::block(self, pos);
                 self.container_start_open(container, player);
-                Some((AbstractContainerMenu::new(container_id, kind, Some(container)), name))
+                let mut menu = AbstractContainerMenu::new(container_id, kind, Some(container));
+                if kind == MenuKind::Crafter {
+                    self.crafter_menu_refresh_recipe_result(&mut menu);
+                }
+                Some((menu, name))
             }
             MenuProvider::EnderChest => {
                 let container = ContainerRef::PlayerEnderChest(player);

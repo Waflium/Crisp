@@ -3,6 +3,7 @@ use crisp_data::packets::play::clientbound;
 use crisp_data::{EquipmentSlot, registry, registry_id};
 
 use super::beacon_menu::PAYMENT_SLOT;
+use super::crafter_menu::{INV_SLOT_START, SLOT_COUNT, USE_ROW_SLOT_END};
 use super::enchantment_menu::EnchantmentMenu;
 use super::result_container::ResultContainer;
 use super::slot::{Slot, SlotContainer, SlotKind, brewing_stand_fuel_may_place_item, is_fuel};
@@ -17,6 +18,7 @@ use crate::world::item::crafting::recipe_manager::RecipeManager;
 use crate::world::item::crafting::recipe_property_set::{BLAST_FURNACE_INPUT, CAMPFIRE_INPUT, FURNACE_INPUT, RecipePropertySetKey, SMOKER_INPUT};
 use crate::world::item::crafting::recipe_type::RecipeType;
 use crate::world::item::{ItemStack, write_slot};
+use crate::world::level::block::entity::crafter_block_entity::NUM_DATA;
 use crate::world::simple_container::{SimpleContainer, SimpleContainerKind};
 
 pub const PICKUP: i32 = 0;
@@ -41,6 +43,7 @@ pub enum MenuKind {
     Lectern,
     Beacon,
     Enchantment,
+    Crafter,
 }
 
 impl MenuKind {
@@ -61,6 +64,7 @@ impl MenuKind {
             MenuKind::Lectern => "minecraft:lectern",
             MenuKind::Beacon => "minecraft:beacon",
             MenuKind::Enchantment => "minecraft:enchantment",
+            MenuKind::Crafter => "minecraft:crafter_3x3",
         }
     }
 }
@@ -280,6 +284,7 @@ impl AbstractContainerMenu {
                 menu.data_prev = vec![0; 10];
                 menu.remote_data_slots = vec![0; 10];
             }
+            MenuKind::Crafter => (0..SLOT_COUNT).for_each(|i| menu.add_slot(Slot::new(c, i, SlotKind::Crafter))),
         }
         for i in 9..36 {
             menu.add_slot(Slot::new(SlotContainer::Inventory, i, SlotKind::Normal));
@@ -293,6 +298,12 @@ impl AbstractContainerMenu {
         if let MenuKind::Furnace(_) | MenuKind::BrewingStand = kind {
             menu.data_prev = vec![0; 4];
             menu.remote_data_slots = vec![0; 4];
+        }
+        if kind == MenuKind::Crafter {
+            menu.containers.push(MenuContainer::Result(ResultContainer::default()));
+            menu.add_slot(Slot::new(SlotContainer::Menu(0), 0, SlotKind::NonInteractiveResult));
+            menu.data_prev = vec![0; NUM_DATA];
+            menu.remote_data_slots = vec![0; NUM_DATA];
         }
         menu
     }
@@ -437,6 +448,7 @@ impl ServerLevel {
         match self.get_block_entity(pos).map(|e| &e.kind) {
             Some(crate::world::level::block::entity::BlockEntityKind::Furnace(furnace)) => furnace.data(id),
             Some(crate::world::level::block::entity::BlockEntityKind::BrewingStand(brewing_stand)) => brewing_stand.data(id),
+            Some(crate::world::level::block::entity::BlockEntityKind::Crafter(crafter)) => crafter.container_data.get(id),
             _ => 0,
         }
     }
@@ -880,6 +892,13 @@ impl ServerLevel {
                 }
             }
             MenuKind::Lectern => false,
+            MenuKind::Crafter => {
+                if index < SLOT_COUNT {
+                    self.move_item_stack_to(menu, player, &mut stack, INV_SLOT_START, USE_ROW_SLOT_END, true)
+                } else {
+                    self.move_item_stack_to(menu, player, &mut stack, 0, SLOT_COUNT, false)
+                }
+            }
             MenuKind::Beacon => {
                 if index == PAYMENT_SLOT {
                     let moved = self.move_item_stack_to(menu, player, &mut stack, 1, 37, true);
@@ -923,7 +942,7 @@ impl ServerLevel {
         } else {
             self.slot_set_changed(menu, player, index);
         }
-        if matches!(menu.kind, MenuKind::Inventory | MenuKind::Crafting | MenuKind::Furnace(_) | MenuKind::Dispenser | MenuKind::BrewingStand | MenuKind::Beacon | MenuKind::Enchantment) {
+        if matches!(menu.kind, MenuKind::Inventory | MenuKind::Crafting | MenuKind::Furnace(_) | MenuKind::Dispenser | MenuKind::BrewingStand | MenuKind::Beacon | MenuKind::Enchantment | MenuKind::Crafter) {
             if stack.count == clicked.count {
                 return ItemStack::empty();
             }
@@ -935,12 +954,19 @@ impl ServerLevel {
         clicked
     }
 
+    fn trigger_slot_listeners(&mut self, menu: &mut AbstractContainerMenu, i: usize, current: &ItemStack) {
+        if !ItemStack::matches(&menu.last_slots[i], current) {
+            menu.last_slots[i] = current.copy();
+            if menu.kind == MenuKind::Crafter {
+                self.crafter_menu_slot_changed(menu);
+            }
+        }
+    }
+
     pub fn menu_broadcast_changes(&mut self, menu: &mut AbstractContainerMenu, player: EntityId) {
         for i in 0..menu.slots.len() {
             let current = self.slot_get(menu, player, i);
-            if !ItemStack::matches(&menu.last_slots[i], &current) {
-                menu.last_slots[i] = current.copy();
-            }
+            self.trigger_slot_listeners(menu, i, &current);
             if !menu.suppress_remote_updates && !menu.remote_slots[i].matches(&current) {
                 menu.remote_slots[i].force(&current);
                 if menu.has_synchronizer {
@@ -982,9 +1008,7 @@ impl ServerLevel {
     pub fn menu_broadcast_full_state(&mut self, menu: &mut AbstractContainerMenu, player: EntityId) {
         for i in 0..menu.slots.len() {
             let current = self.slot_get(menu, player, i);
-            if !ItemStack::matches(&menu.last_slots[i], &current) {
-                menu.last_slots[i] = current.copy();
-            }
+            self.trigger_slot_listeners(menu, i, &current);
         }
         for i in 0..menu.data_count() {
             menu.data_prev[i] = self.menu_data(menu, i);

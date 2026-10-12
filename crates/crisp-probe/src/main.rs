@@ -315,6 +315,15 @@ async fn main() -> anyhow::Result<()> {
                             })
                             .await?;
                         }
+                        ["slot_state", slot_id, new_state] => {
+                            let (slot_id, new_state): (i32, bool) = (slot_id.parse()?, new_state.parse()?);
+                            send(&mut wr, codec, play::serverbound::CONTAINER_SLOT_STATE_CHANGED, |w| {
+                                w.varint(slot_id);
+                                w.varint(open_container);
+                                w.bool(new_state);
+                            })
+                            .await?;
+                        }
                         ["seen_recipe", recipe] => {
                             let recipe: i32 = recipe.parse()?;
                             send(&mut wr, codec, play::serverbound::RECIPE_BOOK_SEEN_RECIPE, |w| w.varint(recipe)).await?;

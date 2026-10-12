@@ -142,6 +142,9 @@ impl ServerLevel {
         if let ContainerRef::ChiseledBookShelf(_) | ContainerRef::Shelf(_) | ContainerRef::PlayerEnderChest(_) = container {
             return self.list_backed_items(container).is_none_or(|items| items.iter().all(ItemStack::is_empty));
         }
+        if let Some(crafter) = container.single_block().and_then(|pos| self.crafter(pos)) {
+            return crafter.is_empty();
+        }
         container.parts().into_iter().all(|(pos, _)| self.container_items(pos).is_none_or(|items| items.iter().all(ItemStack::is_empty)))
     }
 
@@ -166,6 +169,9 @@ impl ServerLevel {
             return self.list_backed_items(container).and_then(|items| items.get(slot).cloned()).unwrap_or_else(ItemStack::empty);
         }
         let Some((pos, slot)) = self.container_part(container, slot) else { return ItemStack::empty() };
+        if let Some(crafter) = self.crafter(pos) {
+            return crafter.get_item(slot).clone();
+        }
         self.container_items(pos).and_then(|items| items.get(slot).cloned()).unwrap_or_else(ItemStack::empty)
     }
 
@@ -229,6 +235,9 @@ impl ServerLevel {
             return;
         }
         let Some((pos, slot)) = self.container_part(container, slot) else { return };
+        if self.crafter(pos).is_some_and(|crafter| crafter.is_slot_disabled(slot as i32)) {
+            self.crafter_set_slot_state(pos, slot as i32, true);
+        }
         self.unpack_loot_table(pos, None);
         let Some(entity) = self.get_block_entity(pos) else { return };
         let changed = match &mut entity.kind {
@@ -369,6 +378,7 @@ impl ServerLevel {
         match self.get_block_entity(pos).map(|e| &e.kind) {
             Some(BlockEntityKind::Furnace(furnace)) => furnace.can_place_item(slot, stack),
             Some(BlockEntityKind::BrewingStand(brewing_stand)) => brewing_stand.can_place_item(slot, stack),
+            Some(BlockEntityKind::Crafter(crafter)) => crafter.can_place_item(slot, stack),
             _ => true,
         }
     }

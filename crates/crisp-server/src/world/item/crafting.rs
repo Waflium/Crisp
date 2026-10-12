@@ -21,6 +21,7 @@ pub mod placement_info;
 pub mod potion_ingredient;
 pub mod recipe;
 pub mod recipe_book_categories;
+pub mod recipe_cache;
 pub mod recipe_holder;
 pub mod recipe_manager;
 pub mod recipe_map;

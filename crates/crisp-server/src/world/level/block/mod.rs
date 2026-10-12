@@ -233,7 +233,7 @@ pub mod chiseled_book_shelf_block;
 pub mod selectable_slot_container;
 mod command_block;
 mod copper_golem_statue_block;
-mod crafter_block;
+pub mod crafter_block;
 mod creaking_heart_block;
 mod decorated_pot_block;
 mod end_portal_frame_block;

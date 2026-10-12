@@ -32,6 +32,8 @@ pub enum SlotKind {
     Result { remove_count: i32, craft_slots: usize },
     Armor(EquipmentSlot),
     Offhand,
+    Crafter,
+    NonInteractiveResult,
 }
 
 #[derive(Clone, Debug)]
@@ -112,6 +114,9 @@ impl ServerLevel {
             SlotContainer::Container(c) => self.container_set_changed(c),
             SlotContainer::Menu(c) => self.menu_container_set_changed(menu, player, c),
         }
+        if menu.slots[index].kind == SlotKind::Crafter {
+            self.menu_slots_changed(menu, player, 0);
+        }
     }
 
     pub fn slot_max_stack_size(&self, menu: &AbstractContainerMenu, index: usize, stack: &ItemStack) -> i32 {
@@ -133,7 +138,8 @@ impl ServerLevel {
             SlotKind::Normal | SlotKind::Offhand | SlotKind::EnchantmentItem => true,
             SlotKind::ShulkerBox => !stack.get_item().info().block.is_some_and(|b| b.is_instance_of("ShulkerBoxBlock")),
             SlotKind::FurnaceFuel => is_fuel(stack) || is_bucket(stack),
-            SlotKind::FurnaceResult { .. } | SlotKind::Result { .. } => false,
+            SlotKind::FurnaceResult { .. } | SlotKind::Result { .. } | SlotKind::NonInteractiveResult => false,
+            SlotKind::Crafter => !self.crafter_menu_is_slot_disabled(menu, index),
             SlotKind::BrewingStandPotion => PotionIngredient::is_potion_input(stack),
             SlotKind::BrewingStandIngredients => RecipeManager::get().property_set(BREWING_REAGENTS).test(stack),
             SlotKind::BrewingStandFuel => brewing_stand_fuel_may_place_item(stack),
@@ -144,6 +150,9 @@ impl ServerLevel {
     }
 
     pub fn slot_may_pickup(&mut self, menu: &AbstractContainerMenu, player: EntityId, index: usize) -> bool {
+        if menu.slots[index].kind == SlotKind::NonInteractiveResult {
+            return false;
+        }
         if let SlotKind::Armor(_) = menu.slots[index].kind {
             let item_stack = self.slot_get(menu, player, index);
             if !item_stack.is_empty() && !self.player(player).game_mode.game_type.is_creative() && crate::world::item::enchantment::enchantment_helper::has_prevent_armor_change(&item_stack) {
@@ -154,6 +163,9 @@ impl ServerLevel {
     }
 
     pub fn slot_remove(&mut self, menu: &mut AbstractContainerMenu, player: EntityId, index: usize, amount: i32) -> ItemStack {
+        if menu.slots[index].kind == SlotKind::NonInteractiveResult {
+            return ItemStack::empty();
+        }
         if let SlotKind::FurnaceResult { .. } | SlotKind::Result { .. } = menu.slots[index].kind {
             let current = self.slot_get(menu, player, index);
             if !current.is_empty()
@@ -193,6 +205,7 @@ impl ServerLevel {
                 self.slot_set_changed(menu, player, index);
             }
             SlotKind::Result { .. } => self.result_slot_on_take(menu, player, index),
+            SlotKind::NonInteractiveResult => {}
             _ => self.slot_set_changed(menu, player, index),
         }
     }

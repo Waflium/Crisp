@@ -13,6 +13,7 @@ pub mod chiseled_book_shelf_block_entity;
 pub mod comparator_block_entity;
 pub mod conduit_block_entity;
 pub mod container_openers_counter;
+pub mod crafter_block_entity;
 pub mod decorated_pot_block_entity;
 mod dispenser_block_entity;
 pub mod enchanting_table_block_entity;
@@ -70,6 +71,7 @@ pub enum BlockEntityTicker {
     Bell,
     Sign,
     Vault,
+    Crafter,
 }
 
 enum UpdateTag {
@@ -86,6 +88,7 @@ pub enum BlockEntityKind {
     Furnace(AbstractFurnaceBlockEntity),
     Hopper(HopperBlockEntity),
     Dispenser(DispenserBlockEntity),
+    Crafter(crafter_block_entity::CrafterBlockEntity),
     Beehive(BeehiveBlockEntity),
     Spawner(spawner_block_entity::SpawnerBlockEntity),
     Brushable(BrushableBlockEntity),
@@ -137,6 +140,7 @@ impl BlockEntity {
             types::SMOKER => BlockEntityKind::Furnace(AbstractFurnaceBlockEntity::new(RecipeType::Smoking)),
             types::HOPPER => BlockEntityKind::Hopper(HopperBlockEntity::new(state)),
             types::DISPENSER | types::DROPPER => BlockEntityKind::Dispenser(DispenserBlockEntity::default()),
+            types::CRAFTER => BlockEntityKind::Crafter(crafter_block_entity::CrafterBlockEntity::new(state)),
             types::BEEHIVE => BlockEntityKind::Beehive(BeehiveBlockEntity::default()),
             types::MOB_SPAWNER => BlockEntityKind::Spawner(spawner_block_entity::SpawnerBlockEntity::default()),
             types::BRUSHABLE_BLOCK => BlockEntityKind::Brushable(BrushableBlockEntity::default()),
@@ -246,6 +250,7 @@ impl BlockEntity {
             BlockEntityKind::Furnace(furnace) => furnace.load_additional(input),
             BlockEntityKind::Hopper(hopper) => hopper.load_additional(input),
             BlockEntityKind::Dispenser(dispenser) => dispenser.load_additional(input),
+            BlockEntityKind::Crafter(crafter) => crafter.load_additional(input),
             BlockEntityKind::Beehive(beehive) => beehive.load_additional(input),
             BlockEntityKind::Spawner(spawner) => spawner.load_additional(input),
             BlockEntityKind::Brushable(brushable) => brushable.load_additional(input),
@@ -285,6 +290,7 @@ impl BlockEntity {
             BlockEntityKind::Furnace(furnace) => furnace.save_additional(output),
             BlockEntityKind::Hopper(hopper) => hopper.save_additional(output),
             BlockEntityKind::Dispenser(dispenser) => dispenser.save_additional(output),
+            BlockEntityKind::Crafter(crafter) => crafter.save_additional(output),
             BlockEntityKind::Beehive(beehive) => beehive.save_additional(output),
             BlockEntityKind::Spawner(spawner) => spawner.save_additional(output),
             BlockEntityKind::Brushable(brushable) => brushable.save_additional(output),
@@ -504,6 +510,7 @@ impl BlockEntity {
             BlockEntityKind::Furnace(f) => &f.base,
             BlockEntityKind::Hopper(h) => &h.base,
             BlockEntityKind::Dispenser(d) => &d.base,
+            BlockEntityKind::Crafter(c) => &c.base,
             BlockEntityKind::BrewingStand(b) => &b.base,
             _ => return None,
         })
@@ -517,6 +524,7 @@ impl BlockEntity {
             BlockEntityKind::Furnace(f) => &mut f.base,
             BlockEntityKind::Hopper(h) => &mut h.base,
             BlockEntityKind::Dispenser(d) => &mut d.base,
+            BlockEntityKind::Crafter(c) => &mut c.base,
             BlockEntityKind::BrewingStand(b) => &mut b.base,
             _ => return None,
         })
@@ -530,6 +538,7 @@ impl BlockEntity {
                 | BlockEntityKind::ShulkerBox(_)
                 | BlockEntityKind::Hopper(_)
                 | BlockEntityKind::Dispenser(_)
+                | BlockEntityKind::Crafter(_)
                 | BlockEntityKind::DecoratedPot(_)
         )
     }
@@ -545,6 +554,7 @@ impl BlockEntity {
             types::HOPPER => "container.hopper",
             types::DISPENSER => "container.dispenser",
             types::DROPPER => "container.dropper",
+            types::CRAFTER => "container.crafter",
             types::BEACON => "container.beacon",
             types::BREWING_STAND => "container.brewing",
             types::ENCHANTING_TABLE => "container.enchant",
@@ -588,6 +598,7 @@ impl BlockEntity {
             types::BELL if block.is_instance_of("BellBlock") => Some(BlockEntityTicker::Bell),
             types::SIGN | types::HANGING_SIGN if block.is_instance_of("SignBlock") => Some(BlockEntityTicker::Sign),
             types::VAULT if block.is_instance_of("VaultBlock") => Some(BlockEntityTicker::Vault),
+            types::CRAFTER if block.is_instance_of("CrafterBlock") => Some(BlockEntityTicker::Crafter),
             types::CAMPFIRE if block.is_instance_of("CampfireBlock") => {
                 Some(if state.get(crisp_data::properties::LIT) { BlockEntityTicker::CampfireCook } else { BlockEntityTicker::CampfireCooldown })
             }

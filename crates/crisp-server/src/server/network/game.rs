@@ -13,6 +13,8 @@ use crate::server::network::movement::Input;
 use crate::util::Prediction;
 use crate::world::entity::EntityId;
 use crate::network::hashed_stack::HashedStack;
+use crate::world::container::ContainerRef;
+use crate::world::inventory::abstract_container_menu::MenuKind;
 use crate::world::inventory::recipe_book_menu::PostPlaceAction;
 use crate::world::inventory::recipe_book_type::RecipeBookType;
 use crate::world::item::component::swing_animation::SwingAnimation;
@@ -155,6 +157,12 @@ impl ServerLevel {
                 self.handle_container_button_click(id, container_id, button_id);
             }
             serverbound::CONTAINER_CLICK => self.handle_container_click(id, &mut r)?,
+            serverbound::CONTAINER_SLOT_STATE_CHANGED => {
+                let slot_id = r.varint()?;
+                let container_id = r.varint()?;
+                let new_state = r.bool()?;
+                self.handle_container_slot_state_changed(id, slot_id, container_id, new_state);
+            }
             serverbound::PLACE_RECIPE => {
                 let container_id = r.varint()?;
                 let recipe = RecipeDisplayId(r.varint()?);
@@ -587,6 +595,22 @@ impl ServerLevel {
         }
         if self.players.contains_key(&id) && self.player(id).container_menu.is_none() {
             self.player_mut(id).container_menu = Some(menu);
+        }
+    }
+
+    fn handle_container_slot_state_changed(&mut self, id: EntityId, slot_id: i32, container_id: i32, new_state: bool) {
+        if self.is_spectator(id) || container_id != self.container_menu_id(id) {
+            return;
+        }
+        let crafter_block_entity = self
+            .player(id)
+            .container_menu
+            .as_ref()
+            .filter(|menu| menu.kind == MenuKind::Crafter)
+            .and_then(|menu| menu.container)
+            .and_then(ContainerRef::single_block);
+        if let Some(pos) = crafter_block_entity {
+            self.crafter_set_slot_state(pos, slot_id, new_state);
         }
     }
 
