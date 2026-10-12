@@ -335,21 +335,21 @@ fn spawnpoint() {
     let alice = join(&mut server, "Alice", ORIGIN);
     join(&mut server, "Bob", ORIGIN);
     assert_eq!(run(&mut server, "spawnpoint"), ["A player is required to run this command here"]);
-    assert_eq!(run(&mut server, "spawnpoint Alice 1 2 3"), ["Set spawn point to 1, 2, 3 [0.0] in 0.0 for minecraft:overworld"]);
+    assert_eq!(run(&mut server, "spawnpoint Alice 1 2 3"), ["Set spawn point to 1, 2, 3 [0.0, 0.0] in minecraft:overworld for Alice"]);
     let respawn = server.level.player(alice.id).respawn_config.clone().unwrap();
     assert_eq!((respawn.respawn_data.pos, respawn.forced), (crisp_core::BlockPos::new(1, 2, 3), true));
-    assert_eq!(run(&mut server, "spawnpoint @a ~ ~ ~ 270 -100"), ["Set spawn point to 0, -60, 0 [-90.0] in -90.0 for minecraft:overworld players"]);
+    assert_eq!(run(&mut server, "spawnpoint @a ~ ~ ~ 270 -100"), ["Set spawn point to 0, -60, 0 [-90.0, -90.0] in minecraft:overworld for 2 players"]);
     assert_eq!(server.level.player(alice.id).respawn_config.as_ref().unwrap().respawn_data.pitch, -90.0);
     assert_eq!(run(&mut server, "spawnpoint Alice 0 20000000 0"), ["That position is outside the allowed boundaries"]);
     let own = CommandSourceStack::server(&server).with_entity(alice.id).with_position(Vec3::new(5.7, 1.0, -0.2));
-    assert_eq!(run_as(&mut server, &own, "spawnpoint"), ["Set spawn point to 5, 1, -1 [0.0] in 0.0 for minecraft:overworld"]);
+    assert_eq!(run_as(&mut server, &own, "spawnpoint"), ["Set spawn point to 5, 1, -1 [0.0, 0.0] in minecraft:overworld for Alice"]);
 }
 
 #[test]
 fn setworldspawn() {
     let mut server = server();
     let mut alice = join(&mut server, "Alice", ORIGIN);
-    assert_eq!(run(&mut server, "setworldspawn 5 -60 5"), ["Set the world spawn point to 5, -60, 5 [0.0]"]);
+    assert_eq!(run(&mut server, "setworldspawn 5 -60 5"), ["Set the world spawn point to 5, -60, 5 [0.0, 0.0] in minecraft:overworld"]);
     assert_eq!(server.spawn, crisp_core::BlockPos::new(5, -60, 5));
     let spawn = bytes(|w| {
         w.string("minecraft:overworld");
@@ -358,9 +358,9 @@ fn setworldspawn() {
         w.f32(0.0);
     });
     assert_eq!(alice.packets(), [(clientbound::SET_DEFAULT_SPAWN_POSITION, spawn)]);
-    assert_eq!(run(&mut server, "setworldspawn 5 -60 5"), ["Set the world spawn point to 5, -60, 5 [0.0]"]);
+    assert_eq!(run(&mut server, "setworldspawn 5 -60 5"), ["Set the world spawn point to 5, -60, 5 [0.0, 0.0] in minecraft:overworld"]);
     assert!(alice.packets().is_empty());
-    assert_eq!(run(&mut server, "setworldspawn 1 2 3 200 100"), ["Set the world spawn point to 1, 2, 3 [-160.0]"]);
+    assert_eq!(run(&mut server, "setworldspawn 1 2 3 200 100"), ["Set the world spawn point to 1, 2, 3 [-160.0, 90.0] in minecraft:overworld"]);
     assert_eq!((server.spawn_yaw, server.spawn_pitch), (-160.0, 90.0));
     assert_eq!(run(&mut server, "setworldspawn 30000000 0 0"), ["That position is outside the allowed boundaries"]);
 }

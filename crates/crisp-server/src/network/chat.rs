@@ -503,8 +503,31 @@ fn append_nbt_string(tag: &Nbt, out: &mut String) {
     }
 }
 
+fn apply_deprecated_translations(translations: &mut HashMap<String, String>) {
+    let deprecated_info: serde_json::Value = serde_json::from_str(crisp_data::LANGUAGE_DEPRECATED).expect("deprecated.json");
+    for key in deprecated_info["removed"].as_array().into_iter().flatten().filter_map(serde_json::Value::as_str) {
+        translations.remove(key);
+    }
+    for (from_key, to_key) in deprecated_info["renamed"].as_object().into_iter().flatten() {
+        let Some(to_key) = to_key.as_str() else { continue };
+        match translations.remove(from_key) {
+            Some(value) => {
+                translations.insert(to_key.to_string(), value);
+            }
+            None => {
+                warn!("Missing translation key for rename: {from_key}");
+                translations.remove(to_key);
+            }
+        }
+    }
+}
+
 fn language() -> &'static HashMap<String, String> {
-    static LANGUAGE: LazyLock<HashMap<String, String>> = LazyLock::new(|| serde_json::from_str(crisp_data::LANGUAGE_EN_US).expect("en_us.json"));
+    static LANGUAGE: LazyLock<HashMap<String, String>> = LazyLock::new(|| {
+        let mut translations = serde_json::from_str(crisp_data::LANGUAGE_EN_US).expect("en_us.json");
+        apply_deprecated_translations(&mut translations);
+        translations
+    });
     &LANGUAGE
 }
 

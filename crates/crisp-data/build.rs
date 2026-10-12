@@ -128,6 +128,8 @@ fn main() -> anyhow::Result<()> {
     tags(&mut out, &data, &builtin, &tagged)?;
     let lang = vanilla.join("assets/minecraft/lang/en_us.json").canonicalize()?;
     writeln!(out, "pub static LANGUAGE_EN_US: &str = include_str!({lang:?});")?;
+    let deprecated = vanilla.join("assets/minecraft/lang/deprecated.json").canonicalize()?;
+    writeln!(out, "pub static LANGUAGE_DEPRECATED: &str = include_str!({deprecated:?});")?;
     command_tree(&mut out, &read_json(&extracted.join("commands.json"))?)?;
     game_rules(&mut out, &read_json(&extracted.join("game_rules.json"))?)?;
     fire_odds(&mut out, &read_json(&extracted.join("fire.json"))?, &builtin)?;

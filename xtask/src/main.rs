@@ -73,7 +73,7 @@ fn vanilla() -> anyhow::Result<()> {
     for i in 0..zip.len() {
         let mut entry = zip.by_index(i)?;
         let name = entry.name().to_owned();
-        if !(name.starts_with("data/") || name == "version.json" || name == "assets/minecraft/lang/en_us.json") || entry.is_dir() {
+        if !(name.starts_with("data/") || name == "version.json" || name == "assets/minecraft/lang/en_us.json" || name == "assets/minecraft/lang/deprecated.json") || entry.is_dir() {
             continue;
         }
         let out = dir.join(&name);
