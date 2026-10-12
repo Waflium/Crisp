@@ -8,6 +8,8 @@ pub mod jigsaw_structure;
 pub mod jungle_temple_piece;
 pub mod mineshaft_pieces;
 pub mod mineshaft_structure;
+pub mod nether_fortress_pieces;
+pub mod nether_fortress_structure;
 pub mod ocean_ruin_pieces;
 pub mod ocean_ruin_structure;
 pub mod shipwreck_pieces;
@@ -34,6 +36,7 @@ use igloo_pieces::IglooPiece;
 use jungle_temple_piece::JungleTemplePiece;
 use mineshaft_pieces::{MineShaftCorridor, MineShaftCrossing, MineShaftRoom, MineShaftStairs};
 use mineshaft_structure::MineshaftStructure;
+use nether_fortress_pieces::NetherBridgePieceKind;
 use ocean_ruin_pieces::OceanRuinPiece;
 use ocean_ruin_structure::OceanRuinStructure;
 use shipwreck_pieces::ShipwreckPiece;
@@ -59,6 +62,7 @@ pub enum StructureType {
     Jigsaw(Box<jigsaw_structure::JigsawStructure>),
     JungleTemple,
     Mineshaft(MineshaftStructure),
+    NetherFortress,
     OceanRuin(OceanRuinStructure),
     Shipwreck { is_beached: bool },
     Stronghold,
@@ -79,6 +83,7 @@ impl StructureType {
             "jigsaw" => StructureType::Jigsaw(Box::new(jigsaw_structure::JigsawStructure::parse(json)?)),
             "jungle_temple" => StructureType::JungleTemple,
             "mineshaft" => StructureType::Mineshaft(MineshaftStructure::parse(json)?),
+            "fortress" => StructureType::NetherFortress,
             "ocean_ruin" => StructureType::OceanRuin(OceanRuinStructure::parse(json)?),
             "shipwreck" => StructureType::Shipwreck { is_beached: json.get("is_beached").and_then(Value::as_bool).ok_or("missing is_beached")? },
             "stronghold" => StructureType::Stronghold,
@@ -102,6 +107,7 @@ impl StructureType {
                 single_piece_structure::find_generation_point(context, |random, x, z| Piece::JungleTemple(JungleTemplePiece::new(random, x, z)), 12, 15)
             }
             StructureType::Mineshaft(structure) => structure.find_generation_point(context),
+            StructureType::NetherFortress => nether_fortress_structure::find_generation_point(context),
             StructureType::OceanRuin(structure) => structure.find_generation_point(context),
             StructureType::Shipwreck { is_beached } => shipwreck_structure::find_generation_point(context, *is_beached),
             StructureType::Stronghold => stronghold_structure::find_generation_point(context),
@@ -134,6 +140,7 @@ pub enum Piece {
     MineShaftCrossing(MineShaftCrossing),
     MineShaftRoom(MineShaftRoom),
     MineShaftStairs(MineShaftStairs),
+    NetherFortress(NetherBridgePieceKind),
     OceanRuin(OceanRuinPiece),
     Shipwreck(ShipwreckPiece),
     Stronghold(StrongholdPieceKind),
@@ -155,6 +162,7 @@ impl Piece {
             Piece::MineShaftCrossing(piece) => &piece.mine_shaft.piece,
             Piece::MineShaftRoom(piece) => &piece.mine_shaft.piece,
             Piece::MineShaftStairs(piece) => &piece.mine_shaft.piece,
+            Piece::NetherFortress(piece) => piece.piece(),
             Piece::OceanRuin(piece) => &piece.template.piece,
             Piece::Shipwreck(piece) => &piece.template.piece,
             Piece::Stronghold(piece) => piece.piece(),
@@ -176,6 +184,7 @@ impl Piece {
             Piece::MineShaftCrossing(piece) => &mut piece.mine_shaft.piece,
             Piece::MineShaftRoom(piece) => &mut piece.mine_shaft.piece,
             Piece::MineShaftStairs(piece) => &mut piece.mine_shaft.piece,
+            Piece::NetherFortress(piece) => piece.piece_mut(),
             Piece::OceanMonumentBuilding(piece) => &mut piece.monument.piece,
             Piece::OceanRuin(piece) => &mut piece.template.piece,
             Piece::RuinedPortal(piece) => &mut piece.template.piece,
@@ -197,6 +206,7 @@ impl Piece {
             Piece::MineShaftCrossing(piece) => piece.mine_shaft.piece.move_by(dx, dy, dz),
             Piece::MineShaftRoom(piece) => piece.move_by(dx, dy, dz),
             Piece::MineShaftStairs(piece) => piece.mine_shaft.piece.move_by(dx, dy, dz),
+            Piece::NetherFortress(piece) => piece.piece_mut().move_by(dx, dy, dz),
             Piece::OceanMonumentBuilding(piece) => piece.monument.piece.move_by(dx, dy, dz),
             Piece::OceanRuin(piece) => piece.template.move_by(dx, dy, dz),
             Piece::RuinedPortal(piece) => piece.template.move_by(dx, dy, dz),
@@ -218,6 +228,21 @@ impl Piece {
             mineshaft_pieces::MINE_SHAFT_CROSSING => Piece::MineShaftCrossing(MineShaftCrossing::load(tag)?),
             mineshaft_pieces::MINE_SHAFT_ROOM => Piece::MineShaftRoom(MineShaftRoom::load(tag)?),
             mineshaft_pieces::MINE_SHAFT_STAIRS => Piece::MineShaftStairs(MineShaftStairs::load(tag)?),
+            nether_fortress_pieces::NETHER_FORTRESS_BRIDGE_CROSSING
+            | nether_fortress_pieces::NETHER_FORTRESS_BRIDGE_END_FILLER
+            | nether_fortress_pieces::NETHER_FORTRESS_BRIDGE_STRAIGHT
+            | nether_fortress_pieces::NETHER_FORTRESS_CASTLE_CORRIDOR_STAIRS
+            | nether_fortress_pieces::NETHER_FORTRESS_CASTLE_CORRIDOR_T_BALCONY
+            | nether_fortress_pieces::NETHER_FORTRESS_CASTLE_ENTRANCE
+            | nether_fortress_pieces::NETHER_FORTRESS_CASTLE_SMALL_CORRIDOR_CROSSING
+            | nether_fortress_pieces::NETHER_FORTRESS_CASTLE_SMALL_CORRIDOR_LEFT_TURN
+            | nether_fortress_pieces::NETHER_FORTRESS_CASTLE_SMALL_CORRIDOR
+            | nether_fortress_pieces::NETHER_FORTRESS_CASTLE_SMALL_CORRIDOR_RIGHT_TURN
+            | nether_fortress_pieces::NETHER_FORTRESS_CASTLE_STALK_ROOM
+            | nether_fortress_pieces::NETHER_FORTRESS_MONSTER_THRONE
+            | nether_fortress_pieces::NETHER_FORTRESS_ROOM_CROSSING
+            | nether_fortress_pieces::NETHER_FORTRESS_STAIRS_ROOM
+            | nether_fortress_pieces::NETHER_FORTRESS_START => Piece::NetherFortress(NetherBridgePieceKind::load(piece_id, tag)?),
             ocean_ruin_pieces::OCEAN_RUIN => Piece::OceanRuin(OceanRuinPiece::load(tag)?),
             shipwreck_pieces::SHIPWRECK_PIECE => Piece::Shipwreck(ShipwreckPiece::load(tag)?),
             stronghold_pieces::STRONGHOLD_CHEST_CORRIDOR
@@ -253,6 +278,7 @@ impl Piece {
             Piece::MineShaftCrossing(piece) => piece.add_additional_save_data(&mut additional),
             Piece::MineShaftRoom(piece) => piece.add_additional_save_data(&mut additional),
             Piece::MineShaftStairs(piece) => piece.mine_shaft.add_additional_save_data(&mut additional),
+            Piece::NetherFortress(piece) => piece.add_additional_save_data(&mut additional),
             Piece::OceanRuin(piece) => piece.add_additional_save_data(&mut additional),
             Piece::Shipwreck(piece) => piece.add_additional_save_data(&mut additional),
             Piece::Stronghold(piece) => piece.add_additional_save_data(&mut additional),
@@ -274,6 +300,7 @@ impl Piece {
             Piece::MineShaftCrossing(piece) => piece.post_process(level, chunk_bb),
             Piece::MineShaftRoom(piece) => piece.post_process(level, chunk_bb),
             Piece::MineShaftStairs(piece) => piece.post_process(level, chunk_bb),
+            Piece::NetherFortress(piece) => piece.post_process(level, random, chunk_bb),
             Piece::OceanRuin(piece) => piece.post_process(level, random, chunk_bb, reference_pos),
             Piece::Shipwreck(piece) => piece.post_process(level, random, chunk_bb, reference_pos),
             Piece::Stronghold(piece) => piece.post_process(level, random, chunk_bb),

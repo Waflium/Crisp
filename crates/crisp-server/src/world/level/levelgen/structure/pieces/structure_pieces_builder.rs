@@ -37,6 +37,14 @@ impl StructurePiecesBuilder {
         dy
     }
 
+    pub fn move_inside_heights(&mut self, random: &mut impl RandomSource, lowest_allowed: i32, highest_allowed: i32) {
+        let bounding_box = self.get_bounding_box();
+        let height_span = highest_allowed - lowest_allowed + 1 - bounding_box.y_span();
+        let y0_pos = if height_span > 1 { lowest_allowed + random.next_int_bounded(height_span) } else { lowest_allowed };
+        let dy = y0_pos - bounding_box.min.y;
+        self.offset_pieces_vertically(dy);
+    }
+
     pub fn build(self) -> PiecesContainer {
         PiecesContainer { pieces: self.pieces }
     }

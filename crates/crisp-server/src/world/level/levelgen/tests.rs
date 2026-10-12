@@ -45,11 +45,11 @@ fn oracle_dimension() -> &'static str {
     }
 }
 
-fn oracle_dimension_type() -> &'static DimensionType {
+pub fn oracle_dimension_type() -> &'static DimensionType {
     &crisp_data::DIMENSION_TYPES[crisp_data::SyncedRegistry::get("minecraft:dimension_type").id_of(oracle_dimension()).unwrap() as usize]
 }
 
-fn oracle_generator(seed: i64) -> NoiseBasedChunkGenerator {
+pub fn oracle_generator(seed: i64) -> NoiseBasedChunkGenerator {
     match oracle_dimension() {
         "minecraft:the_nether" => NoiseBasedChunkGenerator::nether(seed),
         "minecraft:the_end" => NoiseBasedChunkGenerator::end(seed),
@@ -126,7 +126,7 @@ impl StructureHarness {
         let state = &self.state;
         self.starts.entry(pos).or_insert_with(|| {
             let mut structures = ChunkStructures::default();
-            generator.create_structures(state, pos, overworld(), &mut structures);
+            generator.create_structures(state, pos, oracle_dimension_type(), &mut structures);
             structures
         })
     }

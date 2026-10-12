@@ -1,17 +1,12 @@
 use std::collections::BTreeSet;
 
 use crisp_core::ChunkPos;
-use crisp_data::DimensionType;
 
 use super::structure::StructureHolder;
 use super::structures::StructureType;
 use crate::world::level::chunk::{ChunkGenerator, ChunkStructures};
 use crate::world::level::chunk::chunk_generator_structure_state::ChunkGeneratorStructureState;
-use crate::world::level::levelgen::NoiseBasedChunkGenerator;
-
-fn overworld() -> &'static DimensionType {
-    &crisp_data::DIMENSION_TYPES[crisp_data::SyncedRegistry::get("minecraft:dimension_type").id_of("minecraft:overworld").unwrap() as usize]
-}
+use crate::world::level::levelgen::tests::{oracle_dimension_type, oracle_generator};
 
 #[test]
 #[ignore]
@@ -26,14 +21,14 @@ fn structure_starts_match_vanilla_dump() {
         .filter(|line| line.split(' ').nth(2).is_some_and(implemented))
         .map(str::to_owned)
         .collect();
-    let generator = ChunkGenerator::Noise(std::sync::Arc::new(NoiseBasedChunkGenerator::overworld(seed)));
+    let generator = ChunkGenerator::Noise(std::sync::Arc::new(oracle_generator(seed)));
     let state = ChunkGeneratorStructureState::create_for_normal(&generator, seed);
     let mut actual = BTreeSet::new();
     for x in range[0]..=range[2] {
         for z in range[1]..=range[3] {
             let pos = ChunkPos::new(x, z);
             let mut structures = ChunkStructures::default();
-            generator.create_structures(&state, pos, overworld(), &mut structures);
+            generator.create_structures(&state, pos, oracle_dimension_type(), &mut structures);
             for (holder, start) in &structures.starts {
                 actual.insert(format!("{x} {z} {} {}", holder.key(), crate::nbt::to_string(&start.create_tag(pos))));
             }

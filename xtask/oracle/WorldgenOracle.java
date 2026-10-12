@@ -148,6 +148,14 @@ public final class WorldgenOracle {
         return new World(seed, generator, randomState, settings);
     }
 
+    private static net.minecraft.resources.ResourceKey<net.minecraft.world.level.Level> levelKey() {
+        return switch (DIMENSION) {
+            case "nether" -> net.minecraft.world.level.Level.NETHER;
+            case "end" -> net.minecraft.world.level.Level.END;
+            default -> net.minecraft.world.level.Level.OVERWORLD;
+        };
+    }
+
     private static Object call(Class<?> owner, String name, Object target, Class<?>[] types, Object... args) throws Exception {
         Method method = owner.getDeclaredMethod(name, types);
         method.setAccessible(true);
@@ -502,12 +510,12 @@ public final class WorldgenOracle {
 
         @Override
         public LayerLightEventListener getLayerListener(LightLayer layer) {
-            return constant(layer == LightLayer.SKY ? 15 : 0);
+            return constant(layer == LightLayer.SKY && OracleLevel.dimensionType.hasSkyLight() ? 15 : 0);
         }
 
         @Override
         public int getRawBrightness(net.minecraft.core.BlockPos pos, int skyDampen) {
-            return Math.max(15 - skyDampen, 0);
+            return OracleLevel.dimensionType.hasSkyLight() ? Math.max(15 - skyDampen, 0) : 0;
         }
     }
 
@@ -554,7 +562,7 @@ public final class WorldgenOracle {
             for (int z = fromZ; z <= toZ; z++) {
                 ChunkPos pos = new ChunkPos(x, z);
                 ProtoChunk chunk = new ProtoChunk(pos, UpgradeData.EMPTY, HEIGHT, containers, null);
-                world.generator.createStructures(fullRegistries, state, structures, chunk, templates, net.minecraft.world.level.Level.OVERWORLD);
+                world.generator.createStructures(fullRegistries, state, structures, chunk, templates, levelKey());
                 for (var entry : chunk.getAllStarts().entrySet()) {
                     String id = registries.lookupOrThrow(Registries.STRUCTURE).getKey(entry.getKey()).toString();
                     System.out.println("START " + x + " " + z + " " + id + " " + entry.getValue().createTag(context, pos));
@@ -701,7 +709,7 @@ public final class WorldgenOracle {
         java.util.function.LongFunction<ProtoChunk> startsChunk = key -> structureChunks.computeIfAbsent(key, k -> {
             ProtoChunk c = new ProtoChunk(ChunkPos.unpack(k), UpgradeData.EMPTY, HEIGHT, containers, null);
             if (withStructures) {
-                world.generator.createStructures(fullRegistries, structureState, structures, c, templates, net.minecraft.world.level.Level.OVERWORLD);
+                world.generator.createStructures(fullRegistries, structureState, structures, c, templates, levelKey());
                 String only = System.getenv("ORACLE_STRUCTURE_TYPES");
                 if (only != null) {
                     Set<String> allowed = Set.of(only.split(","));
