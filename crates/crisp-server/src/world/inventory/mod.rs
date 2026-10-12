@@ -1,6 +1,7 @@
 pub mod abstract_container_menu;
 pub mod lectern_menu;
 pub mod menu_provider;
+pub mod player_ender_chest_container;
 pub mod slot;
 pub mod slot_ranges;
 

@@ -21,6 +21,7 @@ pub enum ContainerRef {
     ChiseledBookShelf(BlockPos),
     Shelf(BlockPos),
     DecoratedPot(BlockPos),
+    PlayerEnderChest(EntityId),
 }
 
 impl ContainerRef {
@@ -37,13 +38,7 @@ impl ContainerRef {
     pub fn single_block(self) -> Option<BlockPos> {
         match self {
             ContainerRef::Block { pos, .. } => Some(pos),
-            ContainerRef::Compound { .. }
-            | ContainerRef::Composter(_)
-            | ContainerRef::Jukebox(_)
-            | ContainerRef::Lectern { .. }
-            | ContainerRef::ChiseledBookShelf(_)
-            | ContainerRef::Shelf(_)
-            | ContainerRef::DecoratedPot(_) => None,
+            _ => None,
         }
     }
 
@@ -56,7 +51,7 @@ impl ContainerRef {
             ContainerRef::Block { .. } => self.is_single(pos, id),
             ContainerRef::Compound { first, second } => first == (pos, id) || second == (pos, id),
             ContainerRef::Lectern { pos: p, id: i } => (p, i) == (pos, id),
-            ContainerRef::Composter(_) | ContainerRef::Jukebox(_) | ContainerRef::ChiseledBookShelf(_) | ContainerRef::Shelf(_) | ContainerRef::DecoratedPot(_) => false,
+            _ => false,
         }
     }
 
@@ -64,7 +59,7 @@ impl ContainerRef {
         match self {
             ContainerRef::Block { pos, id } | ContainerRef::Lectern { pos, id } => vec![(pos, id)],
             ContainerRef::Compound { first, second } => vec![first, second],
-            ContainerRef::Composter(_) | ContainerRef::Jukebox(_) | ContainerRef::ChiseledBookShelf(_) | ContainerRef::Shelf(_) | ContainerRef::DecoratedPot(_) => Vec::new(),
+            _ => Vec::new(),
         }
     }
 }
@@ -88,12 +83,7 @@ impl ServerLevel {
                 let first_size = self.get_block_entity(first.0).map_or(0, |e| size_of(e));
                 if slot >= first_size { Some((second.0, slot - first_size)) } else { Some((first.0, slot)) }
             }
-            ContainerRef::Composter(_)
-            | ContainerRef::Jukebox(_)
-            | ContainerRef::Lectern { .. }
-            | ContainerRef::ChiseledBookShelf(_)
-            | ContainerRef::Shelf(_)
-            | ContainerRef::DecoratedPot(_) => None,
+            _ => None,
         }
     }
 
@@ -101,6 +91,7 @@ impl ServerLevel {
         match container {
             ContainerRef::ChiseledBookShelf(pos) => self.chiseled_book_shelf(pos).map(|bookshelf| bookshelf.get_items_mut()),
             ContainerRef::Shelf(pos) => self.shelf(pos).map(|shelf| shelf.get_items_mut()),
+            ContainerRef::PlayerEnderChest(player) => self.players.get_mut(&player).map(|p| &mut p.ender_chest_inventory.items),
             _ => None,
         }
     }
@@ -129,7 +120,7 @@ impl ServerLevel {
         if let ContainerRef::Jukebox(_) | ContainerRef::Lectern { .. } | ContainerRef::DecoratedPot(_) = container {
             return 1;
         }
-        if let ContainerRef::ChiseledBookShelf(_) | ContainerRef::Shelf(_) = container {
+        if let ContainerRef::ChiseledBookShelf(_) | ContainerRef::Shelf(_) | ContainerRef::PlayerEnderChest(_) = container {
             return self.list_backed_items(container).map_or(0, |items| items.len());
         }
         container.parts().into_iter().map(|(pos, _)| self.get_block_entity(pos).map_or(0, |e| size_of(e))).sum()
@@ -148,7 +139,7 @@ impl ServerLevel {
         if let ContainerRef::DecoratedPot(pos) = container {
             return self.decorated_pot_get_the_item(pos).is_empty();
         }
-        if let ContainerRef::ChiseledBookShelf(_) | ContainerRef::Shelf(_) = container {
+        if let ContainerRef::ChiseledBookShelf(_) | ContainerRef::Shelf(_) | ContainerRef::PlayerEnderChest(_) = container {
             return self.list_backed_items(container).is_none_or(|items| items.iter().all(ItemStack::is_empty));
         }
         container.parts().into_iter().all(|(pos, _)| self.container_items(pos).is_none_or(|items| items.iter().all(ItemStack::is_empty)))
@@ -171,7 +162,7 @@ impl ServerLevel {
         if let ContainerRef::DecoratedPot(pos) = container {
             return if slot == 0 { self.decorated_pot_get_the_item(pos) } else { ItemStack::empty() };
         }
-        if let ContainerRef::ChiseledBookShelf(_) | ContainerRef::Shelf(_) = container {
+        if let ContainerRef::ChiseledBookShelf(_) | ContainerRef::Shelf(_) | ContainerRef::PlayerEnderChest(_) = container {
             return self.list_backed_items(container).and_then(|items| items.get(slot).cloned()).unwrap_or_else(ItemStack::empty);
         }
         let Some((pos, slot)) = self.container_part(container, slot) else { return ItemStack::empty() };
@@ -185,7 +176,7 @@ impl ServerLevel {
             }
             return;
         }
-        if let ContainerRef::ChiseledBookShelf(_) | ContainerRef::Shelf(_) = container {
+        if let ContainerRef::ChiseledBookShelf(_) | ContainerRef::Shelf(_) | ContainerRef::PlayerEnderChest(_) = container {
             if let Some(items) = self.list_backed_items(container)
                 && slot < items.len()
             {
@@ -230,6 +221,13 @@ impl ServerLevel {
             }
             return self.shelf_set_changed(pos);
         }
+        if let ContainerRef::PlayerEnderChest(_) = container {
+            if let Some(items) = self.list_backed_items(container) {
+                stack.limit_size(stack.max_stack_size().min(99));
+                items[slot] = stack;
+            }
+            return;
+        }
         let Some((pos, slot)) = self.container_part(container, slot) else { return };
         self.unpack_loot_table(pos, None);
         let Some(entity) = self.get_block_entity(pos) else { return };
@@ -269,12 +267,14 @@ impl ServerLevel {
         if let ContainerRef::DecoratedPot(pos) = container {
             return if slot != 0 { ItemStack::empty() } else { self.decorated_pot_split_the_item(pos, count) };
         }
-        if let ContainerRef::Shelf(pos) = container {
+        if let ContainerRef::Shelf(_) | ContainerRef::PlayerEnderChest(_) = container {
             let result = match self.list_backed_items(container).and_then(|items| items.get_mut(slot)) {
                 Some(stack) if !stack.is_empty() && count > 0 => stack.split(count),
                 _ => ItemStack::empty(),
             };
-            if !result.is_empty() {
+            if let ContainerRef::Shelf(pos) = container
+                && !result.is_empty()
+            {
                 self.shelf_set_changed(pos);
             }
             return result;
@@ -304,6 +304,9 @@ impl ServerLevel {
         }
         if let ContainerRef::Lectern { pos, .. } = container {
             return self.lectern_book_access_remove_item_no_update(pos, slot);
+        }
+        if let ContainerRef::PlayerEnderChest(_) = container {
+            return self.list_backed_items(container).and_then(|items| items.get_mut(slot)).map(|s| std::mem::replace(s, ItemStack::empty())).unwrap_or_else(ItemStack::empty);
         }
         if let ContainerRef::ChiseledBookShelf(_) | ContainerRef::Shelf(_) = container {
             let max_stack_size = if let ContainerRef::Shelf(_) = container { 99 } else { 1 };
@@ -352,7 +355,7 @@ impl ServerLevel {
         if let ContainerRef::Lectern { .. } = container {
             return false;
         }
-        if let ContainerRef::DecoratedPot(_) = container {
+        if let ContainerRef::DecoratedPot(_) | ContainerRef::PlayerEnderChest(_) = container {
             return true;
         }
         if let ContainerRef::ChiseledBookShelf(pos) = container {
@@ -430,6 +433,10 @@ impl ServerLevel {
     }
 
     pub fn container_still_valid(&mut self, container: ContainerRef, player: EntityId) -> bool {
+        if let ContainerRef::PlayerEnderChest(owner) = container {
+            let Some((pos, id)) = self.player(owner).ender_chest_inventory.active_chest() else { return true };
+            return self.get_block_entity(pos).is_some_and(|e| e.id() == id) && self.is_within_block_interaction_range(player, pos, DEFAULT_DISTANCE_BUFFER);
+        }
         let still_valid_block_entity = container.parts().into_iter().all(|(pos, id)| {
             self.get_block_entity(pos).is_some_and(|e| e.id() == id) && self.is_within_block_interaction_range(player, pos, DEFAULT_DISTANCE_BUFFER)
         });
@@ -440,6 +447,12 @@ impl ServerLevel {
     }
 
     pub fn container_start_open(&mut self, container: ContainerRef, player: EntityId) {
+        if let ContainerRef::PlayerEnderChest(owner) = container {
+            if let Some((pos, _)) = self.player(owner).ender_chest_inventory.active_chest() {
+                self.ender_chest_start_open(pos, player);
+            }
+            return;
+        }
         for (pos, _) in container.parts() {
             let Some(entity) = self.get_block_entity(pos) else { continue };
             if entity.is_removed() || self.is_spectator(player) {
@@ -456,6 +469,13 @@ impl ServerLevel {
     }
 
     pub fn container_stop_open(&mut self, container: ContainerRef, player: EntityId) {
+        if let ContainerRef::PlayerEnderChest(owner) = container {
+            if let Some((pos, _)) = self.player(owner).ender_chest_inventory.active_chest() {
+                self.ender_chest_stop_open(pos, player);
+            }
+            self.player_mut(owner).ender_chest_inventory.set_active_chest(None);
+            return;
+        }
         for (pos, _) in container.parts() {
             let Some(entity) = self.get_block_entity(pos) else { continue };
             if entity.is_removed() || self.is_spectator(player) {

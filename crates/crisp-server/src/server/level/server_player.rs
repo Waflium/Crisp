@@ -92,6 +92,7 @@ pub struct ServerPlayer {
     pub last_recorded: LastRecorded,
     pub last_death_location: Option<(String, BlockPos)>,
     pub inventory: Inventory,
+    pub ender_chest_inventory: crate::world::inventory::player_ender_chest_container::PlayerEnderChestContainer,
     pub inventory_state: i32,
     pub dirty_slots: Vec<usize>,
     pub window: Window,
@@ -163,6 +164,7 @@ impl ServerPlayer {
             last_recorded: LastRecorded::default(),
             last_death_location: None,
             inventory: Inventory::new(),
+            ender_chest_inventory: Default::default(),
             inventory_state: 1,
             dirty_slots: Vec::new(),
             window: Window::inventory(),
@@ -308,6 +310,7 @@ impl ServerPlayer {
         nbt.push(("Score".into(), Nbt::Int(self.score())));
         self.food_data.save(&mut nbt);
         nbt.push(("abilities".into(), self.abilities.to_nbt()));
+        nbt.push(("EnderItems".into(), self.ender_chest_inventory.store_as_slots()));
         if let Some((dimension, pos)) = &self.last_death_location {
             nbt.push((
                 "LastDeathLocation".into(),
@@ -387,6 +390,7 @@ impl ServerPlayer {
                 }
             }
         }
+        self.ender_chest_inventory.from_slots(nbt.get("EnderItems").map(Nbt::as_list).unwrap_or(&[]));
         self.experience.load(nbt, &mut self.entity.random);
         self.set_score(nbt.get("Score").and_then(crate::world::level::block::entity::int_value).unwrap_or(0));
         self.sleep_counter = number("SleepTimer").map_or(0, |v| v as i16 as i32);

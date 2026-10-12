@@ -16,6 +16,7 @@ use crate::world::level::block::entity::BlockEntity;
 pub enum MenuProvider {
     BlockEntity(BlockPos),
     DoubleChest { first: BlockPos, second: BlockPos },
+    EnderChest,
 }
 
 fn menu_kind(entity: &BlockEntity) -> Option<MenuKind> {
@@ -89,6 +90,11 @@ impl ServerLevel {
                 let container = ContainerRef::block(self, pos);
                 self.container_start_open(container, player);
                 Some((AbstractContainerMenu::new(container_id, kind, container), name))
+            }
+            MenuProvider::EnderChest => {
+                let container = ContainerRef::PlayerEnderChest(player);
+                self.container_start_open(container, player);
+                Some((AbstractContainerMenu::new(container_id, MenuKind::Chest { rows: 3 }, container), Component::translatable("container.enderchest")))
             }
             MenuProvider::DoubleChest { first, second } => {
                 let name = self.double_chest_name(first, second);

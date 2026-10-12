@@ -21,6 +21,7 @@ fn counter_mut(entity: &mut BlockEntity) -> Option<&mut ContainerOpenersCounter>
     match &mut entity.kind {
         BlockEntityKind::Chest(chest) => Some(&mut chest.openers_counter),
         BlockEntityKind::Barrel(barrel) => Some(&mut barrel.openers_counter),
+        BlockEntityKind::EnderChest(ender_chest) => Some(&mut ender_chest.openers_counter),
         _ => None,
     }
 }
@@ -72,6 +73,9 @@ impl ServerLevel {
     }
 
     fn is_own_container(&self, player: EntityId, pos: BlockPos, id: u64) -> bool {
+        if let Some(BlockEntityKind::EnderChest(_)) = self.chunks.loaded_chunk(pos.chunk()).and_then(|c| c.block_entities.map.get(&pos)).map(|e| &e.kind) {
+            return self.player(player).ender_chest_inventory.is_active_chest(pos, id);
+        }
         let Some(container) = self.player(player).container_menu.as_ref().and_then(|m| m.chest_container()) else { return false };
         match self.chunks.loaded_chunk(pos.chunk()).and_then(|c| c.block_entities.map.get(&pos)).map(|e| &e.kind) {
             Some(BlockEntityKind::Barrel(_)) => container.is_single(pos, id),
@@ -111,6 +115,8 @@ impl ServerLevel {
         } else if state.block().is_instance_of("BarrelBlock") {
             self.play_barrel_sound(pos, state, "minecraft:block.barrel.open");
             self.set_block(pos, state.set(OPEN, true), UPDATE_ALL);
+        } else if state.block().is_instance_of("EnderChestBlock") {
+            self.ender_chest_play_sound(pos, "minecraft:block.ender_chest.open");
         }
     }
 
@@ -121,10 +127,16 @@ impl ServerLevel {
         } else if state.block().is_instance_of("BarrelBlock") {
             self.play_barrel_sound(pos, state, "minecraft:block.barrel.close");
             self.set_block(pos, state.set(OPEN, false), UPDATE_ALL);
+        } else if state.block().is_instance_of("EnderChestBlock") {
+            self.ender_chest_play_sound(pos, "minecraft:block.ender_chest.close");
         }
     }
 
     fn opener_count_changed(&mut self, pos: BlockPos, state: BlockState, previous: i32, current: i32) {
+        if let Some(BlockEntityKind::EnderChest(_)) = self.get_block_entity(pos).map(|e| &e.kind) {
+            self.block_event(pos, crisp_data::blocks::ENDER_CHEST, 1, current);
+            return;
+        }
         let is_chest = matches!(self.get_block_entity(pos).map(|e| &e.kind), Some(BlockEntityKind::Chest(_)));
         if !is_chest {
             return;

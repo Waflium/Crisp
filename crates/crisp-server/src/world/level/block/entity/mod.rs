@@ -16,6 +16,7 @@ pub mod container_openers_counter;
 pub mod decorated_pot_block_entity;
 mod dispenser_block_entity;
 pub mod enchanting_table_block_entity;
+pub mod ender_chest_block_entity;
 pub mod hopper_block_entity;
 pub mod jukebox_block_entity;
 pub mod lectern_block_entity;
@@ -99,6 +100,7 @@ pub enum BlockEntityKind {
     Skull(skull_block_entity::SkullBlockEntity),
     Bell(bell_block_entity::BellBlockEntity),
     Sign(sign_block_entity::SignBlockEntity),
+    EnderChest(ender_chest_block_entity::EnderChestBlockEntity),
     BrewingStand(brewing_stand_block_entity::BrewingStandBlockEntity),
     Other(Vec<(String, Nbt)>),
 }
@@ -147,6 +149,7 @@ impl BlockEntity {
             types::SKULL => BlockEntityKind::Skull(skull_block_entity::SkullBlockEntity::default()),
             types::BELL => BlockEntityKind::Bell(bell_block_entity::BellBlockEntity::default()),
             types::SIGN | types::HANGING_SIGN => BlockEntityKind::Sign(sign_block_entity::SignBlockEntity::default()),
+            types::ENDER_CHEST => BlockEntityKind::EnderChest(ender_chest_block_entity::EnderChestBlockEntity::default()),
             types::BREWING_STAND => BlockEntityKind::BrewingStand(brewing_stand_block_entity::BrewingStandBlockEntity::default()),
             _ => BlockEntityKind::Other(Vec::new()),
         };
@@ -251,7 +254,7 @@ impl BlockEntity {
             BlockEntityKind::DecoratedPot(pot) => pot.load_additional(input),
             BlockEntityKind::Banner(banner) => banner.load_additional(input),
             BlockEntityKind::Skull(skull) => skull.load_additional(input),
-            BlockEntityKind::Bell(_) => {}
+            BlockEntityKind::Bell(_) | BlockEntityKind::EnderChest(_) => {}
             BlockEntityKind::Sign(sign) => sign.load_additional(input),
             BlockEntityKind::BrewingStand(brewing_stand) => brewing_stand.load_additional(input),
             BlockEntityKind::Other(data) => {
@@ -289,7 +292,7 @@ impl BlockEntity {
             BlockEntityKind::DecoratedPot(pot) => pot.save_additional(output),
             BlockEntityKind::Banner(banner) => banner.save_additional(output),
             BlockEntityKind::Skull(skull) => skull.save_additional(output),
-            BlockEntityKind::Bell(_) => {}
+            BlockEntityKind::Bell(_) | BlockEntityKind::EnderChest(_) => {}
             BlockEntityKind::Sign(sign) => sign.save_additional(output),
             BlockEntityKind::BrewingStand(brewing_stand) => brewing_stand.save_additional(output),
             BlockEntityKind::Other(data) => output.extend(data.iter().cloned()),
