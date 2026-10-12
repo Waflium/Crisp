@@ -247,6 +247,7 @@ async fn main() -> anyhow::Result<()> {
                     let words: Vec<&str> = line.split_whitespace().collect();
                     match words.as_slice() {
                         ["wait", ticks] => script_wait = ticks.parse()?,
+                        ["respawn"] => send(&mut wr, codec, play::serverbound::CLIENT_COMMAND, |w| w.varint(0)).await?,
                         ["use", x, y, z, face] => {
                             let (x, y, z, face): (i32, i32, i32, i32) = (x.parse()?, y.parse()?, z.parse()?, face.parse()?);
                             sequence += 1;

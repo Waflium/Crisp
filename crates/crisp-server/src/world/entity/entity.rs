@@ -1913,6 +1913,9 @@ impl ServerLevel {
     }
 
     pub fn is_in_wall(&mut self, id: EntityId) -> bool {
+        if self.is_sleeping(id) {
+            return false;
+        }
         let e = self.entity(id);
         if e.no_physics {
             return false;

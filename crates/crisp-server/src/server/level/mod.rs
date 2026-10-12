@@ -125,6 +125,7 @@ pub struct ServerLevel {
     pub entity_manager: PersistentEntitySectionManager,
     pub(crate) tick_list: EntityTickList,
     pub random: LegacyRandomSource,
+    pub sleep_status: crate::server::players::sleep_status::SleepStatus,
     pub thread_safe_random: LegacyRandomSource,
     neighbor_updater: NeighborUpdater,
     sub_tick_count: i64,
@@ -204,6 +205,7 @@ impl ServerLevel {
             entity_manager: PersistentEntitySectionManager::new(entity_storage),
             tick_list: EntityTickList::default(),
             random: LegacyRandomSource::create(),
+            sleep_status: Default::default(),
             thread_safe_random: LegacyRandomSource::create(),
             neighbor_updater: NeighborUpdater { max_chained_neighbor_updates: 1_000_000, stack: Vec::new(), added_this_layer: Vec::new(), count: 0 },
             sub_tick_count: 0,
@@ -878,6 +880,7 @@ impl ServerLevel {
         self.tick_list.add(id);
         let config = TrackingConfig { range: 32 * 16, update_interval: UpdateInterval::Periodic(2), track_deltas: false, stepped: true, is_item: false };
         self.track_entity(id, config);
+        self.update_sleeping_player_list();
     }
 
     pub fn remove_player(&mut self, id: EntityId) -> Option<ServerPlayer> {
@@ -886,6 +889,7 @@ impl ServerLevel {
         self.player_left_level(id);
         let player = self.players.shift_remove(&id);
         self.update_player_names_array();
+        self.update_sleeping_player_list();
         player
     }
 
@@ -961,14 +965,37 @@ impl ServerLevel {
     }
 
     pub fn tick_until_time(&mut self) -> bool {
+        let runs = self.tick_until_sleep();
+        if self.should_wake_up_all_players() {
+            self.wake_up_all_players_after_clock();
+        }
+        self.update_sky_brightness();
+        runs
+    }
+
+    pub fn tick_until_sleep(&mut self) -> bool {
         self.environment_attributes.invalidate_tick_cache();
         let runs = self.tick_rate_manager.runs_normally();
         if runs {
             self.world_border.tick();
             self.advance_weather_cycle();
         }
-        self.update_sky_brightness();
         runs
+    }
+
+    pub fn wake_up_all_players_after_clock(&mut self) {
+        self.wake_up_all_players();
+        if self.game_rules.get_bool(crisp_data::game_rule::ADVANCE_WEATHER) && self.is_raining() {
+            self.reset_weather_cycle();
+        }
+    }
+
+    pub fn reset_weather_cycle(&mut self) {
+        let w = &mut self.weather;
+        w.rain_time = 0;
+        w.raining = false;
+        w.thunder_time = 0;
+        w.thundering = false;
     }
 
     pub fn find_closest_biome_3d(

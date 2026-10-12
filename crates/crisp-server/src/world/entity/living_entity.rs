@@ -1,7 +1,7 @@
 use crisp_core::random::RandomSource;
 use crisp_core::{BlockPos, Vec3, mth};
 use crisp_data::packets::play::clientbound;
-use crisp_data::properties::{HORIZONTAL_FACING, OPEN};
+use crisp_data::properties::{HORIZONTAL_FACING, OCCUPIED, OPEN};
 use crisp_protocol::nbt::Nbt;
 use crisp_data::{EquipmentSlot, EquipmentSlotGroup, MobEffect, block_tags, blocks, damage_type_tags, damage_types, entity_type_tags, fluid_tags, game_rule, item_tags, items, mob_effects};
 
@@ -26,6 +26,8 @@ use crate::world::item::component::attack_range::AttackRange;
 use crate::world::item::component::swing_animation::SwingAnimation;
 use crate::world::item::enchantment::{enchantment, enchantment_helper};
 use crate::world::level::BlockGetter;
+use crate::world::level::block::abstract_bed_block;
+use crate::world::level::update_flags::UPDATE_ALL;
 use crate::world::level::clip::{ClipBlock, ClipContext, ClipFluid};
 use crate::world::level::storage::loot::loot_params::LootParams;
 use crate::world::level::storage::loot::loot_table::LootTable;
@@ -566,6 +568,9 @@ impl ServerLevel {
         if source.is(&damage_type_tags::IS_FIRE) && self.has_effect(id, mob_effects::FIRE_RESISTANCE) {
             return false;
         }
+        if self.is_sleeping(id) {
+            self.stop_sleeping(id);
+        }
         self.living_mut(id).no_action_time = 0;
         if damage < 0.0 {
             damage = 0.0;
@@ -875,6 +880,9 @@ impl ServerLevel {
         if let Some(killer) = self.kill_credit(id) {
             self.award_kill_score(killer, id);
         }
+        if self.is_sleeping(id) {
+            self.stop_sleeping(id);
+        }
         if self.entity(id).custom_name().is_some() {
             let message = self.death_message(id);
             info!("Named entity {} died: {}", self.entity_to_string(id), message.get_string());
@@ -1017,6 +1025,12 @@ impl ServerLevel {
         if self.entity(id).tick_count % 20 == 0 {
             self.recheck_combat_status(id);
         }
+        if self.is_sleeping(id) {
+            let can_interact_with_level = self.is_alive(id) && !self.entity(id).is_removed() && !self.is_spectator(id);
+            if !can_interact_with_level || !self.check_bed_exists(id) {
+                self.stop_sleeping(id);
+            }
+        }
         if !self.entity(id).is_removed() {
             self.ai_step(id);
         }
@@ -1025,6 +1039,9 @@ impl ServerLevel {
         }
         if self.is_mob(id) {
             self.body_rotation_control_tick(id);
+        }
+        if self.is_sleeping(id) {
+            self.entity_mut(id).set_x_rot(0.0);
         }
         self.refresh_dirty_attributes(id);
         let living = self.living_mut(id);
@@ -1370,6 +1387,9 @@ impl ServerLevel {
     }
 
     fn push_entity(&mut self, id: EntityId, other: EntityId) {
+        if self.is_sleeping(id) {
+            return;
+        }
         let (e, o) = (self.entity(id), self.entity(other));
         if o.no_physics || e.no_physics {
             return;
@@ -1858,6 +1878,102 @@ impl ServerLevel {
     pub fn should_effects_refill_air_supply(&self, id: EntityId) -> bool {
         let living = &self.living(id);
         !living.has_effect(mob_effects::BREATH_OF_THE_NAUTILUS) || living.has_effect(mob_effects::WATER_BREATHING) || living.has_effect(mob_effects::CONDUIT_POWER)
+    }
+
+    pub fn get_sleeping_pos(&self, id: EntityId) -> Option<BlockPos> {
+        match self.entity(id).data.get(ids::SLEEPING_POS) {
+            DataValue::OptionalBlockPos(pos) => *pos,
+            _ => None,
+        }
+    }
+
+    pub fn set_sleeping_pos(&mut self, id: EntityId, bed_position: BlockPos) {
+        self.entity_mut(id).data.set(ids::SLEEPING_POS, DataValue::OptionalBlockPos(Some(bed_position)));
+    }
+
+    pub fn clear_sleeping_pos(&mut self, id: EntityId) {
+        self.entity_mut(id).data.set(ids::SLEEPING_POS, DataValue::OptionalBlockPos(None));
+    }
+
+    pub fn is_sleeping(&self, id: EntityId) -> bool {
+        self.is_living(id) && self.get_sleeping_pos(id).is_some()
+    }
+
+    pub fn living_entity_start_sleeping(&mut self, id: EntityId, bed_position: BlockPos) -> bool {
+        let block_state = self.block_state(bed_position);
+        if abstract_bed_block::kind(block_state.block()).is_none() {
+            return false;
+        }
+        let Some(sleep_height) = abstract_bed_block::get_sleep_height(block_state, self, bed_position) else { return false };
+        self.set_pos_to_bed(id, sleep_height, bed_position);
+        self.set_block(bed_position, block_state.set(OCCUPIED, true), UPDATE_ALL);
+        self.set_entity_pose(id, Pose::Sleeping);
+        self.set_sleeping_pos(id, bed_position);
+        let e = self.entity_mut(id);
+        e.set_delta_movement(Vec3::ZERO);
+        e.needs_sync = true;
+        true
+    }
+
+    fn set_pos_to_bed(&mut self, id: EntityId, sleep_height: f64, bed_position: BlockPos) {
+        self.entity_mut(id).set_pos(Vec3::new(bed_position.x as f64 + 0.5, bed_position.y as f64 + sleep_height + 0.125, bed_position.z as f64 + 0.5));
+    }
+
+    pub fn check_bed_exists(&mut self, id: EntityId) -> bool {
+        let Some(bed_position) = self.get_sleeping_pos(id) else { return false };
+        let state = self.block_state(bed_position);
+        abstract_bed_block::kind(state.block()).is_some() && abstract_bed_block::get_sleep_height(state, self, bed_position).is_some()
+    }
+
+    pub fn living_entity_stop_sleeping(&mut self, id: EntityId) {
+        if let Some(bed_position) = self.get_sleeping_pos(id).filter(|&pos| self.has_chunk_at(pos)) {
+            let state = self.block_state(bed_position);
+            if let Some(kind) = abstract_bed_block::kind(state.block()) {
+                let facing = state.get(HORIZONTAL_FACING);
+                self.set_block(bed_position, state.set(OCCUPIED, false), UPDATE_ALL);
+                abstract_bed_block::on_stop_sleeping(kind, self, bed_position);
+                let y_rot = self.entity(id).y_rot;
+                let entity_type = self.dismount_type(id);
+                let stand_up = abstract_bed_block::find_stand_up_position(entity_type, self, bed_position, facing, y_rot).unwrap_or_else(|| {
+                    let above = bed_position.above();
+                    Vec3::new(above.x as f64 + 0.5, above.y as f64 + 0.1, above.z as f64 + 0.5)
+                });
+                let look_direction = Vec3::at_bottom_center_of(bed_position).subtract(stand_up).normalize();
+                let yaw = mth::wrap_degrees_d(mth::atan2(look_direction.z, look_direction.x) * (180.0f32 as f64) / std::f32::consts::PI as f64 - 90.0) as f32;
+                let e = self.entity_mut(id);
+                e.set_pos(stand_up);
+                e.set_y_rot(yaw);
+                e.set_x_rot(0.0);
+            }
+        }
+        let pos = self.entity(id).position();
+        self.set_entity_pose(id, Pose::Standing);
+        self.entity_mut(id).set_pos(pos);
+        self.clear_sleeping_pos(id);
+    }
+
+    pub fn stop_sleeping(&mut self, id: EntityId) {
+        if self.is_player(id) {
+            self.stop_sleep_in_bed(id, true, true);
+        } else {
+            self.living_entity_stop_sleeping(id);
+        }
+    }
+
+    pub fn dismount_type(&self, id: EntityId) -> crate::world::entity::vehicle::dismount_helper::DismountType {
+        crate::world::entity::vehicle::dismount_helper::DismountType {
+            dimensions: if self.is_player(id) { super::player::player::get_default_dimensions(Pose::Standing) } else { self.entity(id).dimensions },
+            fire_immune: self.fire_immune(id),
+            is_player: self.is_player(id),
+        }
+    }
+
+    pub fn set_entity_pose(&mut self, id: EntityId, pose: Pose) {
+        if self.is_player(id) {
+            self.set_player_pose(id, pose);
+        } else {
+            self.entity_mut(id).set_pose(pose);
+        }
     }
 }
 

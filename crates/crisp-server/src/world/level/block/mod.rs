@@ -17,6 +17,7 @@ mod honey_block;
 mod magma_block;
 mod netherrack_block;
 mod powder_snow_block;
+pub mod respawn_anchor_block;
 mod rooted_dirt_block;
 mod slime_block;
 mod web_block;
@@ -38,6 +39,7 @@ mod block_set_type;
 mod bubble_column_block;
 mod button_block;
 pub mod campfire_block;
+pub mod abstract_bed_block;
 pub mod abstract_candle_block;
 mod cake_block;
 pub mod candle_block;
@@ -597,6 +599,9 @@ fn for_class(class: &str, block: Block) -> Option<Box<dyn BlockBehaviour>> {
         "BambooStalkBlock" => Box::new(bamboo_stalk_block::BambooStalkBlock),
         "CandleCakeBlock" => Box::new(candle_cake_block::CandleCakeBlock),
         "CandleBlock" => Box::new(candle_block::CandleBlock),
+        "BedBlock" => Box::new(abstract_bed_block::AbstractBedBlock::new(abstract_bed_block::BedKind::Bed)),
+        "RespawnAnchorBlock" => Box::new(respawn_anchor_block::RespawnAnchorBlock),
+        "StrawBedBlock" => Box::new(abstract_bed_block::AbstractBedBlock::new(abstract_bed_block::BedKind::StrawBed)),
         "CakeBlock" => Box::new(cake_block::CakeBlock),
         "PistonHeadBlock" => Box::new(piston_head_block::PistonHeadBlock),
         "LightBlock" => Box::new(light_block::LightBlock),

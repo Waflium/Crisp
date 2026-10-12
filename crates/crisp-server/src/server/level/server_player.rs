@@ -78,6 +78,7 @@ pub struct ServerPlayer {
     pub game_mode: ServerPlayerGameMode,
     pub abilities: Abilities,
     pub respawn_config: Option<RespawnConfig>,
+    pub sleep_counter: i32,
     pub health: f32,
     pub food_data: crate::world::food::FoodData,
     pub experience: crate::world::entity::player::experience::Experience,
@@ -148,6 +149,7 @@ impl ServerPlayer {
             game_mode: ServerPlayerGameMode::default(),
             abilities: Abilities::default(),
             respawn_config: None,
+            sleep_counter: 0,
             health: 20.0,
             food_data: Default::default(),
             experience: Default::default(),
@@ -274,6 +276,9 @@ impl ServerPlayer {
         if !self.living.active_effects.is_empty() {
             nbt.push(("active_effects".into(), Nbt::List(self.living.active_effects.iter().map(MobEffectInstance::to_nbt).collect())));
         }
+        if let DataValue::OptionalBlockPos(Some(pos)) = self.entity.data.get(ids::SLEEPING_POS) {
+            nbt.push(("sleeping_pos".into(), Nbt::IntArray(vec![pos.x, pos.y, pos.z])));
+        }
         nbt.push(("DataVersion".into(), Nbt::Int(WORLD_VERSION)));
         let inventory = self
             .inventory
@@ -290,6 +295,7 @@ impl ServerPlayer {
         nbt.push(("Inventory".into(), Nbt::List(inventory)));
         nbt.push(("SelectedItemSlot".into(), Nbt::Int(self.inventory.selected as i32)));
         self.experience.save(&mut nbt);
+        nbt.push(("SleepTimer".into(), Nbt::Short(self.sleep_counter as i16)));
         nbt.push(("Score".into(), Nbt::Int(self.score())));
         self.food_data.save(&mut nbt);
         nbt.push(("abilities".into(), self.abilities.to_nbt()));
@@ -306,10 +312,19 @@ impl ServerPlayer {
         nbt.push(("Dimension".into(), s(dimension)));
         if let Some(respawn) = &self.respawn_config {
             let mut fields = respawn.respawn_data.to_nbt_fields();
-            fields.push(("forced".into(), Nbt::Byte(respawn.forced as i8)));
+            if respawn.forced {
+                fields.push(("forced".into(), Nbt::Byte(1)));
+            }
             nbt.push(("respawn".into(), Nbt::Compound(fields)));
         }
         Nbt::Compound(nbt)
+    }
+
+    pub fn saved_sleeping_pos(nbt: &Nbt) -> Option<BlockPos> {
+        match nbt.get("sleeping_pos")? {
+            Nbt::IntArray(p) if p.len() == 3 => Some(BlockPos::new(p[0], p[1], p[2])),
+            _ => None,
+        }
     }
 
     pub fn load_nbt(&mut self, nbt: &Nbt) {
@@ -358,6 +373,7 @@ impl ServerPlayer {
         }
         self.experience.load(nbt, &mut self.entity.random);
         self.set_score(nbt.get("Score").and_then(crate::world::level::block::entity::int_value).unwrap_or(0));
+        self.sleep_counter = number("SleepTimer").map_or(0, |v| v as i16 as i32);
         let p = self.entity.position();
         self.last_section_pos = (mth::floor(p.x) >> 4, mth::floor(p.y) >> 4, mth::floor(p.z) >> 4);
     }

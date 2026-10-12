@@ -4,12 +4,18 @@ use crisp_protocol::Writer;
 
 use crate::network::connection::Packet;
 use crate::server::level::game_mode::GameType;
-use crate::server::level::server_player::ServerPlayer;
+use crate::server::level::server_player::{RespawnConfig, ServerPlayer};
 use crate::server::{GAME_EVENT_LEVEL_CHUNKS_LOAD_START, OVERWORLD, Server, hashed_seed};
 use crate::world::entity::attributes::Attribute;
-use crate::world::entity::data::{DataValue, ids};
+use crate::world::entity::data::{DataValue, Pose, ids};
+use crate::world::entity::player::player::get_default_dimensions;
+use crate::world::entity::vehicle::dismount_helper::DismountType;
 use crate::world::entity::{EntityId, RemovalReason};
 use crate::world::level::BlockGetter;
+use crate::world::level::block::{abstract_bed_block, respawn_anchor_block};
+use crate::world::level::update_flags::UPDATE_ALL;
+use crisp_core::random::RandomSource;
+use crisp_data::properties::{HORIZONTAL_FACING, RESPAWN_ANCHOR_CHARGES};
 use crate::world::level::border::border_change_listener::write_initialize_border;
 
 const PERFORM_RESPAWN: i32 = 0;
@@ -53,22 +59,42 @@ impl Server {
         Ok(())
     }
 
-    fn find_respawn_position(&mut self, id: EntityId) -> RespawnTransition {
+    fn find_respawn_position(&mut self, id: EntityId, consume_spawn_block: bool) -> RespawnTransition {
         let config = self.level.player(id).respawn_config.clone();
         if let Some(config) = config.filter(|c| c.respawn_data.dimension == OVERWORLD) {
-            let data = &config.respawn_data;
-            let pos = data.pos;
-            if config.forced {
-                let bottom = self.level.block_state(pos);
-                let top = self.level.block_state(pos.above());
-                if is_possible_to_respawn_in_this(bottom) && is_possible_to_respawn_in_this(top) {
-                    let position = Vec3::new(pos.x as f64 + 0.5, pos.y as f64 + 0.1, pos.z as f64 + 0.5);
-                    return RespawnTransition { position, y_rot: data.yaw, x_rot: data.pitch, missing_respawn_block: false };
-                }
-            }
-            return self.default_respawn(true);
+            return match self.find_respawn_and_use_spawn_block(&config, consume_spawn_block) {
+                Some((position, y_rot, x_rot)) => RespawnTransition { position, y_rot, x_rot, missing_respawn_block: false },
+                None => self.default_respawn(true),
+            };
         }
         self.default_respawn(false)
+    }
+
+    fn find_respawn_and_use_spawn_block(&mut self, respawn_config: &RespawnConfig, consume_spawn_block: bool) -> Option<(Vec3, f32, f32)> {
+        let respawn_data = &respawn_config.respawn_data;
+        let (pos, yaw, pitch, forced) = (respawn_data.pos, respawn_data.yaw, respawn_data.pitch, respawn_config.forced);
+        let block_state = self.level.block_state(pos);
+        let block = block_state.block();
+        let player_type = DismountType { dimensions: get_default_dimensions(Pose::Standing), fire_immune: false, is_player: true };
+        if block.is_instance_of("RespawnAnchorBlock") && (forced || block_state.get(RESPAWN_ANCHOR_CHARGES) > 0) && respawn_anchor_block::can_set_spawn(&self.level, pos) {
+            let stand_up_position = respawn_anchor_block::find_stand_up_position(player_type, &mut self.level, pos);
+            if !forced && consume_spawn_block && stand_up_position.is_some() {
+                self.level.set_block(pos, block_state.set(RESPAWN_ANCHOR_CHARGES, block_state.get(RESPAWN_ANCHOR_CHARGES) - 1), UPDATE_ALL);
+            }
+            return stand_up_position.map(|p| (p, calculate_look_at_yaw(p, pos), 0.0));
+        }
+        if let Some(kind) = abstract_bed_block::kind(block)
+            && abstract_bed_block::get_bed_rule(kind, &self.level, pos).can_set_spawn(&self.level)
+        {
+            return abstract_bed_block::find_stand_up_position(player_type, &mut self.level, pos, block_state.get(HORIZONTAL_FACING), yaw)
+                .map(|p| (p, calculate_look_at_yaw(p, pos), 0.0));
+        }
+        if !forced {
+            return None;
+        }
+        let free_bottom = is_possible_to_respawn_in_this(block_state);
+        let free_top = is_possible_to_respawn_in_this(self.level.block_state(pos.above()));
+        (free_bottom && free_top).then(|| (Vec3::new(pos.x as f64 + 0.5, pos.y as f64 + 0.1, pos.z as f64 + 0.5), yaw, pitch))
     }
 
     fn default_respawn(&mut self, missing_respawn_block: bool) -> RespawnTransition {
@@ -79,7 +105,7 @@ impl Server {
     }
 
     pub fn respawn(&mut self, id: EntityId) {
-        let transition = self.find_respawn_position(id);
+        let transition = self.find_respawn_position(id, true);
         self.level.player_remove(id, RemovalReason::Killed);
         let old = self.level.players.shift_remove(&id).expect("respawning player");
         let old_score = old.score();
@@ -174,7 +200,31 @@ impl Server {
         out.send(clientbound::COMMANDS, |p| crate::commands::write_commands_packet(p, &crate::commands::source::CommandSourceStack::for_new_player(self, &player)));
         self.level.add_player(player);
         self.level.player(id).send_window_content();
+        if let Some(respawn_config) = self.level.player(id).respawn_config.clone()
+            && respawn_config.respawn_data.dimension == OVERWORLD
+        {
+            let respawn_position = respawn_config.respawn_data.pos;
+            if self.level.block_state(respawn_position).is_block(crisp_data::blocks::RESPAWN_ANCHOR) {
+                let seed = self.level.random.next_long();
+                let sound = crate::world::entity::sound_event("minecraft:block.respawn_anchor.deplete");
+                self.level.player(id).connection.send(clientbound::SOUND, |p| {
+                    p.varint(sound + 1);
+                    p.varint(crate::server::level::SoundSource::Blocks as i32);
+                    p.i32(respawn_position.x * 8);
+                    p.i32(respawn_position.y * 8);
+                    p.i32(respawn_position.z * 8);
+                    p.f32(1.0);
+                    p.f32(1.0);
+                    p.i64(seed);
+                });
+            }
+        }
     }
+}
+
+fn calculate_look_at_yaw(position: Vec3, look_at_block_pos: BlockPos) -> f32 {
+    let look_direction = Vec3::at_bottom_center_of(look_at_block_pos).subtract(position).normalize();
+    crisp_core::mth::wrap_degrees_d(crisp_core::mth::atan2(look_direction.z, look_direction.x) * (180.0f32 as f64) / std::f32::consts::PI as f64 - 90.0) as f32
 }
 
 fn is_possible_to_respawn_in_this(state: crisp_data::BlockState) -> bool {

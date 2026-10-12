@@ -43,7 +43,23 @@ pub struct ServerExplosion {
     pub radius: f32,
     pub fire: bool,
     pub block_interaction: BlockInteraction,
+    damage_calculator: ExplosionDamageCalculator,
     hit_players: Vec<(EntityId, Vec3)>,
+}
+
+#[derive(Clone, Copy)]
+pub enum ExplosionDamageCalculator {
+    Default,
+    RespawnAnchor { pos: BlockPos, in_water: bool },
+}
+
+impl ExplosionDamageCalculator {
+    fn get_block_explosion_resistance(self, test_pos: BlockPos, state: crisp_data::BlockState, fluid: Fluid) -> f32 {
+        match self {
+            ExplosionDamageCalculator::RespawnAnchor { pos, in_water: true } if test_pos == pos => crisp_data::blocks::WATER.info().explosion_resistance,
+            _ => state.block().info().explosion_resistance.max(fluid_explosion_resistance(fluid)),
+        }
+    }
 }
 
 fn fluid_explosion_resistance(fluid: Fluid) -> f32 {
@@ -76,6 +92,21 @@ impl ServerLevel {
         fire: bool,
         interaction: ExplosionInteraction,
     ) {
+        self.explode_with_calculator(source, indirect_source, damage_source, ExplosionDamageCalculator::Default, center, radius, fire, interaction);
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn explode_with_calculator(
+        &mut self,
+        source: Option<EntityId>,
+        indirect_source: Option<EntityId>,
+        damage_source: Option<DamageSource>,
+        damage_calculator: ExplosionDamageCalculator,
+        center: Vec3,
+        radius: f32,
+        fire: bool,
+        interaction: ExplosionInteraction,
+    ) {
         let block_interaction = match interaction {
             ExplosionInteraction::None => BlockInteraction::Keep,
             ExplosionInteraction::Block => self.destroy_type(game_rule::BLOCK_EXPLOSION_DROP_DECAY),
@@ -86,7 +117,7 @@ impl ServerLevel {
             ExplosionInteraction::Trigger => BlockInteraction::TriggerBlock,
         };
         let damage_source = damage_source.unwrap_or_else(|| default_damage_source(source, indirect_source));
-        let mut explosion = ServerExplosion { source, indirect_source, damage_source, center, radius, fire, block_interaction, hit_players: Vec::new() };
+        let mut explosion = ServerExplosion { source, indirect_source, damage_source, center, radius, fire, block_interaction, damage_calculator, hit_players: Vec::new() };
         let block_count = self.run_explosion(&mut explosion);
         let particle = registry_id(registry::PARTICLE_TYPE, if explosion.is_small() { "minecraft:explosion" } else { "minecraft:explosion_emitter" });
         let play_sound = source.is_none_or(|s| !self.entity(s).is_silent());
@@ -160,7 +191,7 @@ impl ServerLevel {
                             break;
                         }
                         if !(state.is_air() && fluid.fluid == Fluid::Empty) {
-                            let resistance = state.block().info().explosion_resistance.max(fluid_explosion_resistance(fluid.fluid));
+                            let resistance = explosion.damage_calculator.get_block_explosion_resistance(pos, state, fluid.fluid);
                             remaining_power -= (resistance + 0.3) * 0.3;
                         }
                         if remaining_power > 0.0 && seen.insert(pos) {

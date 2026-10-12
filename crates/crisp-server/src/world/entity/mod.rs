@@ -31,6 +31,7 @@ pub mod slot_access;
 #[cfg(test)]
 mod survival_tests;
 pub mod using_item;
+pub mod vehicle;
 
 pub use entity::*;
 pub use entity_dimensions::EntityDimensions;

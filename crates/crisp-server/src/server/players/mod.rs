@@ -14,6 +14,7 @@ use crate::world::level::storage::format_uuid;
 pub mod cached_user_name_to_id_resolver;
 pub mod player_list;
 pub mod respawn;
+pub mod sleep_status;
 
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
 pub struct NameAndId {

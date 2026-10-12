@@ -13,6 +13,9 @@ use crate::world::entity::{EntityDimensions, EntityId, RemovalReason, sound_even
 use crate::world::item::ItemStack;
 use crate::world::item::component::{self as dc, codec as component_codec};
 use crate::world::level::BlockGetter;
+use crate::world::level::block::abstract_bed_block::{self, BedKind};
+use crate::world::attribute::bed_rule::BedRule;
+use crate::network::chat::Component;
 use crate::world::{InteractionHand, InteractionResult};
 
 pub fn get_default_dimensions(pose: Pose) -> EntityDimensions {
@@ -35,6 +38,23 @@ impl ServerLevel {
         let experience = &mut self.player_mut(id).experience;
         if experience.take_xp_delay > 0 {
             experience.take_xp_delay -= 1;
+        }
+        if self.is_sleeping(id) {
+            let p = self.player_mut(id);
+            p.sleep_counter = (p.sleep_counter + 1).min(100);
+            let in_block_state = self.in_block_state(id);
+            if let Some(kind) = abstract_bed_block::kind(in_block_state.block()) {
+                let pos = self.entity(id).block_position();
+                if !abstract_bed_block::get_bed_rule(kind, self, pos).can_sleep(self) {
+                    self.stop_sleep_in_bed(id, false, true);
+                }
+            }
+        } else if self.player(id).sleep_counter > 0 {
+            let p = self.player_mut(id);
+            p.sleep_counter += 1;
+            if p.sleep_counter >= 110 {
+                p.sleep_counter = 0;
+            }
         }
         self.living_entity_tick(id);
         let e = self.entity_mut(id);
@@ -496,13 +516,114 @@ impl ServerLevel {
         }
     }
 
+    pub fn player_start_sleep_in_bed(&mut self, id: EntityId, pos: BlockPos) -> Result<(), Option<Component>> {
+        if !self.start_sleeping(id, pos) {
+            return Err(None);
+        }
+        self.player_mut(id).sleep_counter = 0;
+        Ok(())
+    }
+
+    pub fn start_sleep_in_bed(&mut self, id: EntityId, _kind: BedKind, bed_block_state: crisp_data::BlockState, rule: &BedRule, pos: BlockPos) -> Result<(), Option<Component>> {
+        let direction = bed_block_state.get(crisp_data::properties::HORIZONTAL_FACING);
+        if self.is_sleeping(id) || !self.is_alive(id) {
+            return Err(None);
+        }
+        let can_sleep = rule.can_sleep(self);
+        let can_set_spawn = rule.can_set_spawn(self);
+        if !self.bed_in_range(id, pos, direction) {
+            return Err(Some(Component::translatable("block.minecraft.bed.too_far_away")));
+        }
+        if self.bed_blocked(id, pos, direction) {
+            return Err(Some(Component::translatable("block.minecraft.bed.obstructed")));
+        }
+        if can_set_spawn {
+            let e = self.entity(id);
+            let respawn_data = crate::world::level::storage::RespawnData { dimension: self.dimension.to_string(), pos, yaw: e.y_rot, pitch: e.x_rot };
+            self.set_respawn_position(id, Some(crate::server::level::server_player::RespawnConfig { respawn_data, forced: false }), true);
+        }
+        if !can_sleep {
+            return Err(abstract_bed_block::error_message(rule));
+        }
+        let result = self.player_start_sleep_in_bed(id, pos);
+        if !self.can_sleep_through_nights() {
+            self.send_overlay_message(id, &Component::translatable("sleep.not_possible"));
+        }
+        self.update_sleeping_player_list();
+        result
+    }
+
+    pub fn start_sleeping(&mut self, id: EntityId, bed_position: BlockPos) -> bool {
+        if !self.living_entity_start_sleeping(id, bed_position) {
+            return false;
+        }
+        let e = &self.player(id).entity;
+        let (pos, y_rot, x_rot) = (e.position(), e.y_rot, e.x_rot);
+        self.player_mut(id).teleport(pos, y_rot, x_rot);
+        true
+    }
+
+    fn bed_in_range(&self, id: EntityId, pos: BlockPos, direction: crisp_core::Direction) -> bool {
+        self.is_reachable_bed_block(id, pos) || self.is_reachable_bed_block(id, pos.relative(direction.opposite()))
+    }
+
+    fn is_reachable_bed_block(&self, id: EntityId, bed_block_pos: BlockPos) -> bool {
+        let bed_block_center = Vec3::at_bottom_center_of(bed_block_pos);
+        let e = self.entity(id);
+        (e.x() - bed_block_center.x).abs() <= 3.0 && (e.y() - bed_block_center.y).abs() <= 2.0 && (e.z() - bed_block_center.z).abs() <= 3.0
+    }
+
+    fn bed_blocked(&mut self, _id: EntityId, pos: BlockPos, direction: crisp_core::Direction) -> bool {
+        let above = pos.above();
+        !self.free_at(above) || !self.free_at(above.relative(direction.opposite()))
+    }
+
+    fn free_at(&mut self, pos: BlockPos) -> bool {
+        !self.block_state(pos).is_suffocating()
+    }
+
+    pub fn stop_sleep_in_bed(&mut self, id: EntityId, forceful_wake_up: bool, update_level_list: bool) {
+        if self.is_sleeping(id) {
+            let packet = crate::network::connection::encode(crisp_data::packets::play::clientbound::ANIMATE, |w| {
+                w.varint(id);
+                w.u8(0);
+            });
+            self.send_to_tracking_players_and_self(id, &packet);
+        }
+        self.living_entity_stop_sleeping(id);
+        if update_level_list {
+            self.update_sleeping_player_list();
+        }
+        self.player_mut(id).sleep_counter = if forceful_wake_up { 0 } else { 100 };
+        let e = &self.player(id).entity;
+        let (pos, y_rot, x_rot) = (e.position(), e.y_rot, e.x_rot);
+        self.player_mut(id).teleport(pos, y_rot, x_rot);
+    }
+
+    pub fn is_sleeping_long_enough(&self, id: EntityId) -> bool {
+        self.is_sleeping(id) && self.player(id).sleep_counter >= 100
+    }
+
+    pub fn set_respawn_position(&mut self, id: EntityId, respawn_config: Option<crate::server::level::server_player::RespawnConfig>, show_message: bool) {
+        if show_message
+            && let Some(config) = &respawn_config
+            && !self.player(id).respawn_config.as_ref().is_some_and(|other| other.respawn_data.dimension == config.respawn_data.dimension && other.respawn_data.pos == config.respawn_data.pos)
+        {
+            self.send_system_message(id, &Component::translatable("block.minecraft.set_spawn"));
+        }
+        self.player_mut(id).respawn_config = respawn_config;
+    }
+
     fn update_player_pose(&mut self, id: EntityId) {
         if !self.can_player_fit_within_blocks_and_entities_when(id, Pose::Swimming) {
             return;
         }
+        let sleeping = self.is_sleeping(id);
         let p = self.player(id);
         let e = &p.entity;
-        let desired = if e.is_swimming() {
+        let desired = if sleeping {
+            Pose::Sleeping
+        } else if e.is_swimming() {
             Pose::Swimming
         } else if e.is_fall_flying() {
             Pose::FallFlying

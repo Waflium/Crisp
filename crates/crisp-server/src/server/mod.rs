@@ -720,6 +720,13 @@ impl Server {
         let saved = self.load_player_data(&player.profile.name, player.profile.uuid);
         if let Some(nbt) = &saved {
             player.load_nbt(nbt);
+            if let Some(bed_position) = ServerPlayer::saved_sleeping_pos(nbt).filter(|&pos| self.level.has_chunk_at(pos)) {
+                let state = crate::world::level::BlockGetter::block_state(&mut self.level, bed_position);
+                if let Some(kind) = crate::world::level::block::abstract_bed_block::kind(state.block()) {
+                    self.level.set_block(bed_position, state.set(crisp_data::properties::OCCUPIED, false), crate::world::level::update_flags::UPDATE_ALL);
+                    crate::world::level::block::abstract_bed_block::on_stop_sleeping(kind, &mut self.level, bed_position);
+                }
+            }
             let (game_type, previous) = ServerPlayer::saved_game_types(nbt);
             player.set_game_mode_for_player(self.calculate_game_mode_for_new_player(game_type), previous);
         }
@@ -1130,6 +1137,9 @@ impl Server {
 
     fn remove_player(&mut self, conn: ConnId, reason: Option<Component>) {
         let Some(id) = self.connections.remove(&conn) else { return };
+        if self.level.is_sleeping(id) {
+            self.level.stop_sleep_in_bed(id, true, false);
+        }
         self.level.close_container(id, false);
         let Some(player) = self.level.remove_player(id) else { return };
         self.custom_boss_events.on_player_disconnect(&self.level, id);
@@ -1192,7 +1202,16 @@ impl Server {
             }
         }
         self.update_effective_respawn_data();
-        let runs = self.level.tick_until_time();
+        let runs = self.level.tick_until_sleep();
+        if self.level.should_wake_up_all_players() {
+            let clock = ServerClockManager::id_of(OVERWORLD).unwrap();
+            if self.game_rules.get_bool(game_rule::ADVANCE_TIME) {
+                self.clocks.move_to_time_marker(clock, "minecraft:wake_up_from_sleep");
+                self.modify_clock(clock);
+            }
+            self.level.wake_up_all_players_after_clock();
+        }
+        self.level.update_sky_brightness();
         if runs {
             let time = self.level.tick_time();
             TimerQueue::tick(self, time);

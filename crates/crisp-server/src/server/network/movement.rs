@@ -36,6 +36,7 @@ impl Input {
 }
 
 mod player_command {
+    pub const STOP_SLEEPING: i32 = 0;
     pub const START_SPRINTING: i32 = 1;
     pub const STOP_SPRINTING: i32 = 2;
 }
@@ -184,6 +185,12 @@ impl ServerLevel {
         let expected_dist = p.entity.delta_movement.length_sqr();
         let moved_dist = x_dist * x_dist + y_dist * y_dist + z_dist * z_dist;
         let is_fall_flying = p.entity.is_fall_flying();
+        if self.is_sleeping(id) {
+            if moved_dist > 1.0 {
+                self.player_mut(id).teleport(start, target_y_rot, target_x_rot);
+            }
+            return;
+        }
         if self.tick_rate_manager.runs_normally() {
             let m = &mut self.player_mut(id).movement;
             m.received_move_packet_count += 1;
@@ -375,6 +382,13 @@ impl ServerLevel {
         }
         self.player_mut(id).reset_last_action_time();
         match action {
+            player_command::STOP_SLEEPING => {
+                if self.is_sleeping(id) {
+                    self.stop_sleep_in_bed(id, false, true);
+                    let position = self.entity(id).position();
+                    self.player_mut(id).movement.awaiting_position_from_client = Some(position);
+                }
+            }
             player_command::START_SPRINTING => self.set_sprinting(id, true),
             player_command::STOP_SPRINTING => self.set_sprinting(id, false),
             _ => {}
@@ -399,6 +413,7 @@ impl ServerLevel {
         p.reset_position();
         p.entity.xo = p.entity.position();
         self.server_player_do_tick(id);
+        let sleeping = self.is_sleeping(id);
         let p = self.player_mut(id);
         let first_good = p.movement.first_good;
         let (y_rot, x_rot) = (p.entity.y_rot, p.entity.x_rot);
@@ -406,7 +421,7 @@ impl ServerLevel {
         p.entity.abs_snap_rotation_to(y_rot, x_rot);
         p.movement.tick_count += 1;
         p.movement.known_move_packet_count = p.movement.received_move_packet_count;
-        if p.movement.client_is_floating && p.health > 0.0 {
+        if p.movement.client_is_floating && !sleeping && p.health > 0.0 {
             p.movement.above_ground_tick_count += 1;
             let maximum = self.maximum_flying_ticks(id);
             let p = self.player_mut(id);

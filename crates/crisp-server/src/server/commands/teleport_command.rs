@@ -176,6 +176,9 @@ fn teleport_to(level: &mut ServerLevel, id: EntityId, pos: Vec3, relatives: u16,
         return false;
     }
     let destination = PositionMoveRotation { position: pos, delta_movement: Vec3::ZERO, y_rot, x_rot };
+    if level.is_player(id) && level.is_sleeping(id) {
+        level.stop_sleep_in_bed(id, true, true);
+    }
     if let Some(player) = level.players.get_mut(&id) {
         player.teleport_relative(destination, relatives);
         player.reset_position();
