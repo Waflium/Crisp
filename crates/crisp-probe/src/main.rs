@@ -284,6 +284,23 @@ async fn main() -> anyhow::Result<()> {
                             })
                             .await?;
                         }
+                        ["click", slot, button, mode] => {
+                            let (slot, button, mode): (i16, u8, i32) = (slot.parse()?, button.parse()?, mode.parse()?);
+                            send(&mut wr, codec, play::serverbound::CONTAINER_CLICK, |w| {
+                                w.varint(open_container);
+                                w.varint(0);
+                                w.i16(slot);
+                                w.u8(button);
+                                w.varint(mode);
+                                w.varint(0);
+                                w.bool(false);
+                            })
+                            .await?;
+                        }
+                        ["close"] => {
+                            send(&mut wr, codec, play::serverbound::CONTAINER_CLOSE, |w| w.varint(open_container)).await?;
+                            open_container = 0;
+                        }
                         ["quick", slot] => {
                             let slot: i16 = slot.parse()?;
                             send(&mut wr, codec, play::serverbound::CONTAINER_CLICK, |w| {

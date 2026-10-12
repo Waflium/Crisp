@@ -32,8 +32,9 @@ impl ServerLevel {
                 if !self.may_build(player) {
                     return false;
                 }
-                let book = self.remove_item_no_update(menu.container, 0);
-                self.container_set_changed(menu.container);
+                let Some(container) = menu.container else { return false };
+                let book = self.remove_item_no_update(container, 0);
+                self.container_set_changed(container);
                 if self.player_mut(player).pick_up(book.clone()) > 0 {
                     self.player_drop(player, book, false, Prediction::Predicted);
                 }
@@ -44,7 +45,7 @@ impl ServerLevel {
     }
 
     fn lectern_menu_set_data(&mut self, menu: &mut AbstractContainerMenu, player: EntityId, id: usize, value: i32) {
-        if let ContainerRef::Lectern { pos, .. } = menu.container
+        if let Some(ContainerRef::Lectern { pos, .. }) = menu.container
             && id == DATA_PAGE
         {
             self.lectern_set_page(pos, value);
@@ -54,7 +55,7 @@ impl ServerLevel {
 
     fn lectern_menu_get_page(&mut self, menu: &AbstractContainerMenu) -> i32 {
         match menu.container {
-            ContainerRef::Lectern { pos, .. } => self.lectern(pos).map_or(0, |lectern| lectern.get_page()),
+            Some(ContainerRef::Lectern { pos, .. }) => self.lectern(pos).map_or(0, |lectern| lectern.get_page()),
             _ => 0,
         }
     }

@@ -199,7 +199,7 @@ impl Server {
         });
         out.send(clientbound::COMMANDS, |p| crate::commands::write_commands_packet(p, &crate::commands::source::CommandSourceStack::for_new_player(self, &player)));
         self.level.add_player(player);
-        self.level.player(id).send_window_content();
+        self.level.init_inventory_menu(id);
         if let Some(respawn_config) = self.level.player(id).respawn_config.clone()
             && respawn_config.respawn_data.dimension == OVERWORLD
         {

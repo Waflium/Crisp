@@ -1,33 +1,32 @@
-use crisp_data::{Item, item_tags};
-use serde_json::Value;
+use crisp_data::item_tags;
+use crisp_protocol::nbt::Nbt;
 
-use super::recipe_property_set::{BREWING_INPUTS, RecipePropertySet};
+use super::ingredient::Ingredient;
+use super::recipe_manager::RecipeManager;
+use super::recipe_property_set::BREWING_INPUTS;
 use crate::core::component::predicates::potions_predicate::PotionsPredicate;
+use crate::util::codec::{self, DataResult};
 use crate::world::item::ItemStack;
-use crate::world::item::component::{self as dc, json_to_nbt};
+use crate::world::item::component as dc;
 
 pub struct PotionIngredient {
-    pub ingredient: Vec<Item>,
+    pub ingredient: Ingredient,
     potions: Option<PotionsPredicate>,
 }
 
 impl PotionIngredient {
-    pub fn from_json(json: &Value) -> Option<PotionIngredient> {
-        let potions = match json.get("potion_contents") {
-            Some(potions) => Some(PotionsPredicate::decode(&json_to_nbt(potions)).ok()?),
-            None => None,
-        };
-        Some(PotionIngredient { ingredient: super::ingredient(&json["item"])?, potions })
+    pub fn decode(tag: &Nbt) -> DataResult<PotionIngredient> {
+        Ok(PotionIngredient { ingredient: codec::decode_field(tag, "item", Ingredient::decode)?, potions: codec::decode_optional(tag, "potion_contents", PotionsPredicate::decode)? })
     }
 
     pub fn test(&self, input: &ItemStack) -> bool {
-        if input.is_empty() || !self.ingredient.contains(&input.item) {
+        if !self.ingredient.test(input) {
             return false;
         }
         self.potions.as_ref().is_none_or(|potions| input.get(dc::POTION_CONTENTS).is_some_and(|value| potions.matches(value)))
     }
 
     pub fn is_potion_input(item_stack: &ItemStack) -> bool {
-        RecipePropertySet::get(BREWING_INPUTS).test(item_stack) || item_stack.get_item().is(&item_tags::BREWING_POTION_INPUTS)
+        RecipeManager::get().property_set(BREWING_INPUTS).test(item_stack) || item_stack.get_item().is(&item_tags::BREWING_POTION_INPUTS)
     }
 }

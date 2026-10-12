@@ -9,7 +9,11 @@ use crate::server::level::ServerLevel;
 use crate::world::entity::EntityId;
 use crate::world::item::ItemStack;
 use crate::world::item::component as dc;
-use crate::world::item::crafting::{self, CookingRecipeType};
+use crate::world::item::crafting::abstract_cooking_recipe::AbstractCookingRecipe;
+use crate::world::item::crafting::recipe_holder::RecipeHolder;
+use crate::world::item::crafting::recipe_manager::RecipeManager;
+use crate::world::item::crafting::recipe_type::RecipeType;
+use crate::world::item::crafting::single_recipe_input::SingleRecipeInput;
 use crate::world::level::storage::loot::providers::number::floats::resolvable_float::ResolvableFloat;
 use crate::world::level::storage::loot::providers::number::ints::resolvable_int::ResolvableInt;
 use crate::world::level::update_flags::UPDATE_ALL;
@@ -25,18 +29,22 @@ pub const BURN_TIME_STANDARD: i32 = 200;
 #[derive(Clone)]
 pub struct AbstractFurnaceBlockEntity {
     pub base: BaseContainerBlockEntity,
-    pub recipe_type: CookingRecipeType,
+    pub recipe_type: RecipeType,
     pub lit_time_remaining: i32,
     pub lit_total_time: i32,
     pub cooking_timer: i32,
     pub cooking_total_time: i32,
     pub speed_multiplier: f32,
     pub recipes_used: Vec<(String, i32)>,
-    last_recipe: Option<usize>,
+    last_recipe: Option<&'static str>,
+}
+
+fn cooking(recipe: &RecipeHolder) -> &AbstractCookingRecipe {
+    recipe.cooking().expect("a cooking recipe")
 }
 
 impl AbstractFurnaceBlockEntity {
-    pub fn new(recipe_type: CookingRecipeType) -> AbstractFurnaceBlockEntity {
+    pub fn new(recipe_type: RecipeType) -> AbstractFurnaceBlockEntity {
         AbstractFurnaceBlockEntity {
             base: BaseContainerBlockEntity::with_size(3),
             recipe_type,
@@ -89,16 +97,16 @@ impl AbstractFurnaceBlockEntity {
         }
     }
 
-    fn get_recipe_for(&mut self, input: &ItemStack) -> Option<usize> {
-        let found = crafting::get_recipe_for(self.recipe_type, input, self.last_recipe);
-        if found.is_some() {
-            self.last_recipe = found;
+    fn get_recipe_for(&mut self, input: &ItemStack) -> Option<&'static RecipeHolder> {
+        let found = RecipeManager::get().get_cooking_recipe_for(self.recipe_type, &SingleRecipeInput { item: input }, self.last_recipe);
+        if let Some(found) = found {
+            self.last_recipe = Some(found.id);
         }
         found
     }
 
-    fn total_cook_time_of(&self, recipe: usize) -> i32 {
-        let time = crafting::cooking_recipes()[recipe].cooking_time;
+    fn total_cook_time_of(&self, recipe: &RecipeHolder) -> i32 {
+        let time = cooking(recipe).cooking_time();
         if self.speed_multiplier > 0.0 { (time as f32 / self.speed_multiplier).ceil() as i32 } else { time }
     }
 
@@ -146,8 +154,8 @@ impl AbstractFurnaceBlockEntity {
         if direction == Direction::Down && slot == SLOT_FUEL { stack.get_item().is(&crisp_data::item_tags::FURNACE_FUEL_BOTTOM_TAKEABLE) } else { true }
     }
 
-    fn set_recipe_used(&mut self, recipe: usize) {
-        let id = crafting::cooking_recipes()[recipe].id;
+    fn set_recipe_used(&mut self, recipe: &RecipeHolder) {
+        let id = recipe.id;
         match self.recipes_used.iter_mut().find(|(k, _)| k == id) {
             Some((_, count)) => *count += 1,
             None => self.recipes_used.push((id.to_string(), 1)),
@@ -215,7 +223,7 @@ impl ServerLevel {
         if is_lit || has_fuel && has_ingredient {
             if has_ingredient {
                 if let Some(recipe) = entity.get_recipe_for(&ingredient) {
-                    let burn_result = crafting::cooking_recipes()[recipe].assemble();
+                    let burn_result = cooking(recipe).assemble();
                     if !burn_result.is_empty() && can_burn(&entity.base.items, 99, &burn_result) {
                         if !is_lit {
                             let new_lit_time = self.get_burn_duration(pos, state, &fuel);
@@ -283,8 +291,8 @@ impl ServerLevel {
         let Some(furnace) = self.furnace(pos) else { return };
         let used = furnace.recipes_used.clone();
         for (id, amount) in used {
-            if let Some(recipe) = crafting::by_key(&id) {
-                let total = amount as f32 * recipe.experience;
+            if let Some(recipe) = RecipeManager::get().by_key(&id).and_then(RecipeHolder::cooking) {
+                let total = amount as f32 * recipe.experience();
                 let mut xp_reward = crisp_core::mth::floor(total as f64);
                 let fraction = crisp_core::mth::frac_f(total);
                 if fraction != 0.0 && crisp_core::random::RandomSource::next_float(&mut self.random) < fraction {

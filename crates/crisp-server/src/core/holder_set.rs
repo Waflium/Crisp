@@ -3,7 +3,7 @@ use crisp_protocol::nbt::Nbt;
 use crate::util::codec::{self, DataResult};
 use crate::world::item::component::codec as component_codec;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum HolderSet {
     Direct(Vec<i32>),
     Named(String, &'static [i32]),

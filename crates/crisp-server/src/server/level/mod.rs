@@ -1300,15 +1300,7 @@ impl ServerLevel {
         if living.damage_cooldown_time > 0 {
             living.damage_cooldown_time -= 1;
         }
-        self.player_mut(id).sync_inventory();
         self.tick_container_menu(id);
-        if let crate::world::inventory::Kind::CraftingTable { pos } = self.player(id).window.kind {
-            let center = Vec3::at_center_of(pos);
-            let distance = self.player(id).entity.position().distance_to_sqr(center);
-            if distance > 64.0 || !self.block_state(pos).is_block(blocks::CRAFTING_TABLE) {
-                self.close_container(id, true);
-            }
-        }
         let p = self.player_mut(id);
         if p.entity.fall_distance > 0.0 && p.starting_to_fall_position.is_none() {
             p.starting_to_fall_position = Some(p.entity.position());

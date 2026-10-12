@@ -69,7 +69,6 @@ pub fn fire_charge_use_on(level: &mut ServerLevel, player: EntityId, hand: Inter
             p.inventory.slots[slot] = None;
         }
     }
-    p.dirty_slots.push(slot);
     InteractionResult::SUCCESS
 }
 

@@ -98,7 +98,6 @@ impl BlockBehaviour for TntBlock {
                     if held.count <= 0 {
                         p.inventory.slots[slot] = None;
                     }
-                    p.dirty_slots.push(slot);
                 }
             }
         } else if !level.game_rules.get_bool(game_rule::TNT_EXPLODES) {

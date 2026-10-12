@@ -152,6 +152,11 @@ impl ItemStack {
         self.components.set(ty, value)
     }
 
+    pub fn set_value(&mut self, ty: DataComponentType, value: Nbt) -> Option<Nbt> {
+        let value = ty.decode(&value).unwrap_or(value);
+        self.components.set(ty, Some(value))
+    }
+
     pub fn remove(&mut self, ty: DataComponentType) -> Option<Nbt> {
         self.components.remove(ty)
     }

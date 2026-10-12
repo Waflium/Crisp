@@ -15,7 +15,8 @@ use crate::world::entity::EntityId;
 use crate::world::entity::inside_block::InsideBlockEffects;
 use crate::world::item::ItemStack;
 use crate::world::item::context::BlockPlaceContext;
-use crate::world::item::crafting::{self, CookingRecipeType};
+use crate::world::item::crafting::recipe_manager::RecipeManager;
+use crate::world::item::crafting::recipe_property_set::CAMPFIRE_INPUT;
 use crate::world::level::BlockGetter;
 use crate::world::level::LevelAccessor;
 use crate::world::level::block::entity::BlockEntityKind;
@@ -50,7 +51,7 @@ impl BlockBehaviour for CampfireBlock {
     ) -> InteractionResult {
         if matches!(level.get_block_entity(pos).map(|e| &e.kind), Some(BlockEntityKind::Campfire(_))) {
             let mut item_in_hand = level.player(player).item_in_hand(hand).unwrap_or_else(ItemStack::empty);
-            if crafting::property_set_contains(CookingRecipeType::CampfireCooking, item_in_hand.item) {
+            if RecipeManager::get().property_set(CAMPFIRE_INPUT).test(&item_in_hand) {
                 if level.campfire_place_food(pos, Some(player), &mut item_in_hand) {
                     level.player_mut(player).set_item_in_hand(hand, Some(item_in_hand));
                     return InteractionResult::SUCCESS_SERVER;

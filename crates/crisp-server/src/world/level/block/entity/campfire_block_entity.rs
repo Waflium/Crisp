@@ -8,11 +8,19 @@ use crate::server::level::ServerLevel;
 use crate::world::entity::EntityId;
 use crate::world::item::ItemStack;
 use crate::world::item::component::{self as dc, DataComponentType};
-use crate::world::item::crafting::{self, CookingRecipeType};
+use crate::world::item::crafting::abstract_cooking_recipe::AbstractCookingRecipe;
+use crate::world::item::crafting::recipe_holder::RecipeHolder;
+use crate::world::item::crafting::recipe_manager::RecipeManager;
+use crate::world::item::crafting::recipe_type::RecipeType;
+use crate::world::item::crafting::single_recipe_input::SingleRecipeInput;
 use crate::world::item::item_utils::has_infinite_materials;
 
 const BURN_COOL_SPEED: i32 = 2;
 const NUM_SLOTS: usize = 4;
+
+fn campfire_recipe_for(item: &ItemStack) -> Option<&'static AbstractCookingRecipe> {
+    RecipeManager::get().get_cooking_recipe_for(RecipeType::CampfireCooking, &SingleRecipeInput { item }, None).and_then(RecipeHolder::cooking)
+}
 
 #[derive(Clone)]
 pub struct CampfireBlockEntity {
@@ -103,8 +111,8 @@ impl ServerLevel {
             changed = true;
             entity.cooking_progress[slot] += 1;
             if entity.cooking_progress[slot] >= entity.cooking_time[slot] {
-                let result = match crafting::get_recipe_for(CookingRecipeType::CampfireCooking, &item_stack, None) {
-                    Some(recipe) => crafting::cooking_recipes()[recipe].assemble(),
+                let result = match campfire_recipe_for(&item_stack) {
+                    Some(recipe) => recipe.assemble(),
                     None => item_stack,
                 };
                 crate::world::containers::drop_item_stack(self, pos.x as f64, pos.y as f64, pos.z as f64, result);
@@ -139,11 +147,11 @@ impl ServerLevel {
             if !entity.items[slot].is_empty() {
                 continue;
             }
-            let Some(recipe) = crafting::get_recipe_for(CookingRecipeType::CampfireCooking, place_item, None) else { return false };
+            let Some(recipe) = campfire_recipe_for(place_item) else { return false };
             let infinite = source_entity.is_some_and(|source| self.is_player(source) && has_infinite_materials(self, source));
             let consumed = if infinite { place_item.copy_with_count(1) } else { place_item.split(1) };
             let Some(entity) = self.campfire(pos) else { return false };
-            entity.cooking_time[slot] = crafting::cooking_recipes()[recipe].cooking_time;
+            entity.cooking_time[slot] = recipe.cooking_time();
             entity.cooking_progress[slot] = 0;
             entity.items[slot] = consumed;
             self.campfire_mark_updated(pos);

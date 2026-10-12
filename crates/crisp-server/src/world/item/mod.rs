@@ -1,4 +1,5 @@
 pub mod alchemy;
+pub mod banner_item;
 pub mod block_item;
 pub mod bucket_item;
 pub mod bone_meal_item;
@@ -169,6 +170,10 @@ impl Inventory {
 
     pub fn is_hotbar_slot(index: usize) -> bool {
         index < 9
+    }
+
+    pub fn is_usable_for_crafting(item_stack: &ItemStack) -> bool {
+        !item_stack.is_damaged() && !item_stack.is_enchanted() && !item_stack.has(component::CUSTOM_NAME)
     }
 
     pub fn find_slot_matching_item(&self, stack: &ItemStack) -> Option<usize> {

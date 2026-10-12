@@ -335,6 +335,28 @@ impl ServerLevel {
         }
     }
 
+    pub fn can_use_slot(&self, _id: EntityId, _slot: EquipmentSlot) -> bool {
+        true
+    }
+
+    pub fn get_equipment_slot_for_item(&self, id: EntityId, item_stack: &ItemStack) -> EquipmentSlot {
+        let equippable = item_stack.get(crate::world::item::component::EQUIPPABLE).map(crate::world::item::component::values::Equippable::from_nbt);
+        match equippable.and_then(|equippable| EquipmentSlot::by_name(&equippable.slot)) {
+            Some(slot) if self.can_use_slot(id, slot) => slot,
+            _ => EquipmentSlot::Mainhand,
+        }
+    }
+
+    pub fn is_equippable_in_slot(&self, id: EntityId, item_stack: &ItemStack, slot: EquipmentSlot) -> bool {
+        let Some(equippable) = item_stack.get(crate::world::item::component::EQUIPPABLE).map(crate::world::item::component::values::Equippable::from_nbt) else {
+            return slot == EquipmentSlot::Mainhand && self.can_use_slot(id, EquipmentSlot::Mainhand);
+        };
+        let entity_type = self.entity_ref(id).map_or(-1, |e| e.entity_type);
+        let can_be_equipped_by =
+            equippable.allowed_entities.as_ref().is_none_or(|allowed| entity_type >= 0 && allowed.contains("minecraft:entity_type", crisp_data::registry::ENTITY_TYPE[entity_type as usize], entity_type));
+        EquipmentSlot::by_name(&equippable.slot) == Some(slot) && self.can_use_slot(id, slot) && can_be_equipped_by
+    }
+
     pub fn living_set_item_slot(&mut self, id: EntityId, slot: EquipmentSlot, item_stack: ItemStack) {
         let old_stack = self.item_by_slot(id, slot).unwrap_or_else(ItemStack::empty);
         self.set_item_slot(id, slot, item_stack.clone());
@@ -349,7 +371,6 @@ impl ServerLevel {
         let Some(index) = self.equipment_inventory_slot(id, slot) else { return };
         let p = self.player_mut(id);
         p.inventory.slots[index] = Some(item_stack).filter(|s| !s.is_empty());
-        p.dirty_slots.push(index);
     }
 
     pub fn set_last_hurt_mob(&mut self, id: EntityId, target: EntityId) {

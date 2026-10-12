@@ -8,9 +8,11 @@ use crate::server::level::ServerLevel;
 use crate::server::level::events::SOUND_BREWING_STAND_BREW;
 use crate::world::item::ItemStack;
 use crate::world::item::component as dc;
-use crate::world::item::crafting::brewing_recipe::{self, brewing_recipes};
+use crate::world::item::crafting::brewing_input::BrewingInput;
 use crate::world::item::crafting::potion_ingredient::PotionIngredient;
-use crate::world::item::crafting::recipe_property_set::{BREWING_REAGENTS, RecipePropertySet};
+use crate::world::item::crafting::recipe_holder::RecipeHolder;
+use crate::world::item::crafting::recipe_manager::RecipeManager;
+use crate::world::item::crafting::recipe_property_set::BREWING_REAGENTS;
 use crate::world::level::block::brewing_stand_block::HAS_BOTTLE;
 use crate::world::level::storage::loot::providers::number::floats::resolvable_float::ResolvableFloat;
 use crate::world::level::storage::loot::providers::number::ints::resolvable_int::ResolvableInt;
@@ -36,7 +38,7 @@ pub struct BrewingStandBlockEntity {
     fuel: i32,
     total_fuel: i32,
     speed_multiplier: f32,
-    last_recipe: Option<usize>,
+    last_recipe: Option<&'static str>,
 }
 
 impl Default for BrewingStandBlockEntity {
@@ -70,10 +72,10 @@ impl BrewingStandBlockEntity {
         std::array::from_fn(|potion| !self.base.items[potion].is_empty())
     }
 
-    fn get_recipe_for(&mut self, input: &ItemStack, reagent: &ItemStack) -> Option<usize> {
-        let found = brewing_recipe::get_recipe_for(input, reagent, self.last_recipe);
-        if found.is_some() {
-            self.last_recipe = found;
+    fn get_recipe_for(&mut self, input: &ItemStack, reagent: &ItemStack) -> Option<&'static RecipeHolder> {
+        let found = RecipeManager::get().get_brewing_recipe_for(&BrewingInput { input, reagent }, self.last_recipe);
+        if let Some(found) = found {
+            self.last_recipe = Some(found.id);
         }
         found
     }
@@ -83,7 +85,7 @@ impl BrewingStandBlockEntity {
         if ingredient.is_empty() {
             return false;
         }
-        if !RecipePropertySet::get(BREWING_REAGENTS).test(&ingredient) {
+        if !RecipeManager::get().property_set(BREWING_REAGENTS).test(&ingredient) {
             return false;
         }
         for dest in 0..3 {
@@ -123,7 +125,7 @@ impl BrewingStandBlockEntity {
             return item_stack.has(dc::BREWING_FUEL);
         }
         if slot == INGREDIENT_SLOT {
-            RecipePropertySet::get(BREWING_REAGENTS).test(item_stack)
+            RecipeManager::get().property_set(BREWING_REAGENTS).test(item_stack)
         } else {
             PotionIngredient::is_potion_input(item_stack) && self.base.items[slot].is_empty()
         }
@@ -227,8 +229,8 @@ impl ServerLevel {
         for dest in 0..3 {
             let container = entity.base.items[dest].clone();
             let recipe = entity.get_recipe_for(&container, &ingredient);
-            entity.base.items[dest] = match recipe {
-                Some(recipe) => brewing_recipes()[recipe].assemble(),
+            entity.base.items[dest] = match recipe.and_then(RecipeHolder::brewing) {
+                Some(recipe) => recipe.assemble(),
                 None => container,
             };
         }

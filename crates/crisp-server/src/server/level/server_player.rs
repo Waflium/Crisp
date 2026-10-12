@@ -30,8 +30,8 @@ use crate::world::scores::criteria::ObjectiveCriteria;
 use crate::world::scores::score_holder::ScoreHolder;
 use crate::world::scores::team::Visibility;
 use crisp_data::{MobEffect, game_rule};
-use crate::world::inventory::{Drag, Menu, SLOT_COUNT, Window};
-use crate::world::item::{Inventory, ItemStack, OFFHAND, protocol_slot, storage_slot, write_slot};
+use crate::world::inventory::abstract_container_menu::AbstractContainerMenu;
+use crate::world::item::{Inventory, ItemStack, OFFHAND, protocol_slot, storage_slot};
 use crate::world::entity::player::abilities::Abilities;
 use crate::world::level::storage::RespawnData;
 use crate::world::InteractionHand;
@@ -93,13 +93,9 @@ pub struct ServerPlayer {
     pub last_death_location: Option<(String, BlockPos)>,
     pub inventory: Inventory,
     pub ender_chest_inventory: crate::world::inventory::player_ender_chest_container::PlayerEnderChestContainer,
-    pub inventory_state: i32,
-    pub dirty_slots: Vec<usize>,
-    pub window: Window,
-    pub container_menu: Option<crate::world::inventory::abstract_container_menu::AbstractContainerMenu>,
-    pub menu_container: crate::world::simple_container::SimpleContainer,
+    pub inventory_menu: Option<AbstractContainerMenu>,
+    pub container_menu: Option<AbstractContainerMenu>,
     pub carried: Option<ItemStack>,
-    pub drag: Drag,
     pub last_window_id: i32,
     pub living: LivingEntity,
     pub movement: PlayerMovement,
@@ -166,13 +162,9 @@ impl ServerPlayer {
             last_death_location: None,
             inventory: Inventory::new(),
             ender_chest_inventory: Default::default(),
-            inventory_state: 1,
-            dirty_slots: Vec::new(),
-            window: Window::inventory(),
+            inventory_menu: Some(AbstractContainerMenu::inventory()),
             container_menu: None,
-            menu_container: Default::default(),
             carried: None,
-            drag: Drag::default(),
             drop_spam_throttler: TickThrottler::new(20, 1480),
             last_window_id: 0,
             living: LivingEntity::player(),
@@ -251,7 +243,6 @@ impl ServerPlayer {
     pub fn set_item_in_hand(&mut self, hand: InteractionHand, stack: Option<ItemStack>) {
         let slot = self.hand_slot(hand);
         self.inventory.slots[slot] = stack.filter(|s| s.count > 0 && s.item != items::AIR);
-        self.dirty_slots.push(slot);
     }
 
     pub fn update_item_in_hand(&mut self, hand: InteractionHand, item_stack: &ItemStack) {
@@ -441,46 +432,7 @@ impl ServerPlayer {
     }
 
     pub fn pick_up(&mut self, stack: ItemStack) -> i32 {
-        let (changed, left) = self.inventory.add(stack);
-        self.dirty_slots.extend(changed);
-        left
-    }
-
-    pub fn sync_inventory(&mut self) {
-        if self.container_menu.is_some() {
-            self.dirty_slots.retain(|&slot| !(9..=44).contains(&slot));
-            return;
-        }
-        for slot in std::mem::take(&mut self.dirty_slots) {
-            if let Some(window_slot) = self.window.window_slot(slot) {
-                self.send_slot(window_slot);
-            }
-        }
-    }
-
-    pub fn send_slot(&mut self, slot: usize) {
-        self.inventory_state += 1;
-        let stack = self.window.slot(&self.inventory, slot);
-        self.connection.send(clientbound::CONTAINER_SET_SLOT, |p| {
-            p.varint(self.window.id);
-            p.varint(self.inventory_state);
-            p.i16(slot as i16);
-            write_slot(p, stack.as_ref());
-        });
-    }
-
-    pub fn send_window_content(&self) {
-        self.connection.send(clientbound::CONTAINER_SET_CONTENT, |p| {
-            p.varint(self.window.id);
-            p.varint(self.inventory_state);
-            p.varint(SLOT_COUNT as i32);
-            (0..SLOT_COUNT).for_each(|s| write_slot(p, self.window.slot(&self.inventory, s).as_ref()));
-            write_slot(p, self.carried.as_ref());
-        });
-    }
-
-    pub fn menu(&mut self) -> Menu<'_> {
-        Menu { window: &mut self.window, inventory: &mut self.inventory, carried: &mut self.carried }
+        self.inventory.add(stack).1
     }
 
     pub fn reset_last_action_time(&mut self) {

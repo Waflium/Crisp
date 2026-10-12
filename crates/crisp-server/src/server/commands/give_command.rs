@@ -41,8 +41,7 @@ fn give_item(server: &mut Server, source: &CommandSourceStack, input: &ItemInput
             let level = &mut server.level;
             let p = level.player_mut(player);
             let infinite_materials = p.abilities.instabuild;
-            let (added, changed) = p.inventory.add_stack(&mut copy_to_drop, infinite_materials);
-            p.dirty_slots.extend(changed);
+            let (added, _) = p.inventory.add_stack(&mut copy_to_drop, infinite_materials);
             if added && copy_to_drop.is_empty() {
                 let mut drop = level.create_item_stack_to_drop(player, prototype.clone(), false, false);
                 drop.make_fake_item();
@@ -52,7 +51,7 @@ fn give_item(server: &mut Server, source: &CommandSourceStack, input: &ItemInput
                 let pitch = ((p.entity.random.next_float() - p.entity.random.next_float()) * 0.7 + 1.0) * 2.0;
                 let sound = crisp_data::registry_id(registry::SOUND_EVENT, "minecraft:entity.item.pickup");
                 level.play_sound_at(None, x, y, z, sound, SoundSource::Players, 0.2, pitch);
-                level.player_mut(player).sync_inventory();
+                level.broadcast_container_menu_changes(player);
             } else if !copy_to_drop.is_empty() {
                 let mut drop = level.create_item_stack_to_drop(player, copy_to_drop, false, false);
                 drop.set_no_pickup_delay();

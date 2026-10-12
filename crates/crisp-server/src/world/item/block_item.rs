@@ -69,7 +69,6 @@ pub fn place(item: &dyn BlockItemBehaviour, level: &mut ServerLevel, ctx: BlockP
                     p.inventory.slots[slot] = None;
                 }
             }
-            p.dirty_slots.push(slot);
         }
     }
     InteractionResult::SUCCESS

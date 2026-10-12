@@ -98,14 +98,16 @@ fn chests_side_by_side_open_as_one() {
     click(&mut level, player, a, Direction::Up, Vec3::new(0.5, -59.0, 0.5));
     let menu = level.player(player).container_menu.as_ref().expect("an open menu");
     assert_eq!(menu.slots.len(), 54 + 36);
-    let ContainerRef::Compound { first, second } = menu.container else { panic!("a double chest") };
+    let Some(ContainerRef::Compound { first, second }) = menu.container else { panic!("a double chest") };
     assert_eq!((first.0, second.0), (a, b));
-    let shown = level.slot_get(player, &level.player(player).container_menu.as_ref().unwrap().slots[27].clone());
+    let menu = level.player_mut(player).container_menu.take().unwrap();
+    let shown = level.slot_get(&menu, player, 27);
+    level.player_mut(player).container_menu = Some(menu);
     assert_eq!(shown, ItemStack::new(items::DIRT, 7));
     for pos in [a, b] {
         assert!(matches!(level.get_block_entity(pos).map(|e| &e.kind), Some(BlockEntityKind::Chest(chest)) if chest.openers_counter.open_count == 1));
     }
-    level.close_container(player, false);
+    level.do_close_container(player);
     assert!(matches!(level.get_block_entity(a).map(|e| &e.kind), Some(BlockEntityKind::Chest(chest)) if chest.openers_counter.open_count == 0));
 }
 
@@ -129,7 +131,7 @@ fn shift_clicks_move_stacks_between_chest_and_inventory() {
     level.handle_container_menu_click(player, state_id, 1, 0, PICKUP, Vec::new(), HashedStack::Empty).unwrap();
     assert_eq!((level.get_item(c, 0).count, level.get_item(c, 1).count), (5, 5));
     level.player_mut(player).carried = Some(ItemStack::new(items::STONE, 2));
-    level.close_container(player, true);
+    level.close_container(player);
     assert_eq!(level.player(player).carried, None);
     assert!(level.player(player).inventory.slots.iter().flatten().any(|s| *s == ItemStack::new(items::STONE, 2)));
 }

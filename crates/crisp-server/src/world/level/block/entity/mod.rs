@@ -53,7 +53,7 @@ pub use shulker_box_block_entity::{AnimationStatus, ShulkerBoxBlockEntity};
 
 use crate::world::item::component::{self as dc, DataComponentMap, DataComponentPatch, DataComponentType, PatchedDataComponentMap};
 use crate::world::item::ItemStack;
-use crate::world::item::crafting::CookingRecipeType;
+use crate::world::item::crafting::recipe_type::RecipeType;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum BlockEntityTicker {
@@ -132,9 +132,9 @@ impl BlockEntity {
             types::CHEST | types::TRAPPED_CHEST => BlockEntityKind::Chest(ChestBlockEntity::default()),
             types::BARREL => BlockEntityKind::Barrel(BarrelBlockEntity::default()),
             types::SHULKER_BOX => BlockEntityKind::ShulkerBox(ShulkerBoxBlockEntity::default()),
-            types::FURNACE => BlockEntityKind::Furnace(AbstractFurnaceBlockEntity::new(CookingRecipeType::Smelting)),
-            types::BLAST_FURNACE => BlockEntityKind::Furnace(AbstractFurnaceBlockEntity::new(CookingRecipeType::Blasting)),
-            types::SMOKER => BlockEntityKind::Furnace(AbstractFurnaceBlockEntity::new(CookingRecipeType::Smoking)),
+            types::FURNACE => BlockEntityKind::Furnace(AbstractFurnaceBlockEntity::new(RecipeType::Smelting)),
+            types::BLAST_FURNACE => BlockEntityKind::Furnace(AbstractFurnaceBlockEntity::new(RecipeType::Blasting)),
+            types::SMOKER => BlockEntityKind::Furnace(AbstractFurnaceBlockEntity::new(RecipeType::Smoking)),
             types::HOPPER => BlockEntityKind::Hopper(HopperBlockEntity::new(state)),
             types::DISPENSER | types::DROPPER => BlockEntityKind::Dispenser(DispenserBlockEntity::default()),
             types::BEEHIVE => BlockEntityKind::Beehive(BeehiveBlockEntity::default()),

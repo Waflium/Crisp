@@ -370,10 +370,11 @@ fn clear() {
     assert_eq!(run(&mut server, "clear Alice *[count=3] 0"), ["Found 3 matching item(s) on player Alice"]);
     assert_eq!(run(&mut server, "clear Alice #minecraft:swords 0"), ["Found 1 matching item(s) on player Alice"]);
     server.level.player_mut(alice).carried = Some(ItemStack::new(items::DIRT, 4));
-    server.level.player_mut(alice).inventory.slots[1] = Some(ItemStack::new(items::DIRT, 1));
+    *server.level.player_mut(alice).inventory_menu.as_mut().unwrap().containers[0].get_item_mut(0) = ItemStack::new(items::DIRT, 1);
     assert_eq!(run(&mut server, "clear Alice"), ["Removed 9 item(s) from player Alice"]);
     let player = server.level.player(alice);
     assert!(player.carried.is_none() && player.inventory.slots.iter().all(Option::is_none));
+    assert!(player.inventory_menu.as_ref().unwrap().containers[0].get_item(0).is_empty());
 }
 
 #[test]

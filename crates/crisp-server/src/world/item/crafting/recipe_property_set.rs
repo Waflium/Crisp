@@ -1,48 +1,81 @@
-use std::sync::OnceLock;
-
 use crisp_data::Item;
 
-use super::brewing_recipe::brewing_recipes;
+use super::ingredient::Ingredient;
 use crate::world::item::ItemStack;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum RecipePropertySetKey {
+    SmithingBase,
+    SmithingTemplate,
+    SmithingAddition,
+    FurnaceInput,
+    BlastFurnaceInput,
+    SmokerInput,
+    CampfireInput,
     BrewingInputs,
     BrewingReagents,
 }
 
+impl RecipePropertySetKey {
+    pub const VALUES: [RecipePropertySetKey; 9] = [
+        RecipePropertySetKey::SmithingBase,
+        RecipePropertySetKey::SmithingTemplate,
+        RecipePropertySetKey::SmithingAddition,
+        RecipePropertySetKey::FurnaceInput,
+        RecipePropertySetKey::BlastFurnaceInput,
+        RecipePropertySetKey::SmokerInput,
+        RecipePropertySetKey::CampfireInput,
+        RecipePropertySetKey::BrewingInputs,
+        RecipePropertySetKey::BrewingReagents,
+    ];
+
+    pub fn name(self) -> &'static str {
+        match self {
+            RecipePropertySetKey::SmithingBase => "minecraft:smithing_base",
+            RecipePropertySetKey::SmithingTemplate => "minecraft:smithing_template",
+            RecipePropertySetKey::SmithingAddition => "minecraft:smithing_addition",
+            RecipePropertySetKey::FurnaceInput => "minecraft:furnace_input",
+            RecipePropertySetKey::BlastFurnaceInput => "minecraft:blast_furnace_input",
+            RecipePropertySetKey::SmokerInput => "minecraft:smoker_input",
+            RecipePropertySetKey::CampfireInput => "minecraft:campfire_input",
+            RecipePropertySetKey::BrewingInputs => "minecraft:brewing_input",
+            RecipePropertySetKey::BrewingReagents => "minecraft:brewing_reagent",
+        }
+    }
+}
+
+pub const SMITHING_BASE: RecipePropertySetKey = RecipePropertySetKey::SmithingBase;
+pub const SMITHING_TEMPLATE: RecipePropertySetKey = RecipePropertySetKey::SmithingTemplate;
+pub const SMITHING_ADDITION: RecipePropertySetKey = RecipePropertySetKey::SmithingAddition;
+pub const FURNACE_INPUT: RecipePropertySetKey = RecipePropertySetKey::FurnaceInput;
+pub const BLAST_FURNACE_INPUT: RecipePropertySetKey = RecipePropertySetKey::BlastFurnaceInput;
+pub const SMOKER_INPUT: RecipePropertySetKey = RecipePropertySetKey::SmokerInput;
+pub const CAMPFIRE_INPUT: RecipePropertySetKey = RecipePropertySetKey::CampfireInput;
 pub const BREWING_INPUTS: RecipePropertySetKey = RecipePropertySetKey::BrewingInputs;
 pub const BREWING_REAGENTS: RecipePropertySetKey = RecipePropertySetKey::BrewingReagents;
 
 pub struct RecipePropertySet {
-    items: Vec<Item>,
+    items: Vec<bool>,
 }
 
 impl RecipePropertySet {
-    fn create(items: impl Iterator<Item = Item>) -> RecipePropertySet {
-        let mut collected: Vec<Item> = Vec::new();
-        for item in items {
-            if !collected.contains(&item) {
-                collected.push(item);
-            }
-        }
-        RecipePropertySet { items: collected }
-    }
-
-    pub fn get(id: RecipePropertySetKey) -> &'static RecipePropertySet {
-        static BREWING_INPUTS_SET: OnceLock<RecipePropertySet> = OnceLock::new();
-        static BREWING_REAGENTS_SET: OnceLock<RecipePropertySet> = OnceLock::new();
-        match id {
-            RecipePropertySetKey::BrewingInputs => {
-                BREWING_INPUTS_SET.get_or_init(|| RecipePropertySet::create(brewing_recipes().iter().flat_map(|r| r.get_input().ingredient.iter().copied())))
-            }
-            RecipePropertySetKey::BrewingReagents => {
-                BREWING_REAGENTS_SET.get_or_init(|| RecipePropertySet::create(brewing_recipes().iter().flat_map(|r| r.get_reagent().ingredient.iter().copied())))
-            }
-        }
+    pub fn empty() -> RecipePropertySet {
+        RecipePropertySet { items: vec![false; Item::count()] }
     }
 
     pub fn test(&self, item_stack: &ItemStack) -> bool {
-        self.items.contains(&item_stack.item)
+        self.items[item_stack.get_item().0 as usize]
+    }
+
+    pub fn create(ingredients: &[Ingredient]) -> RecipePropertySet {
+        let mut set = RecipePropertySet::empty();
+        for item in ingredients.iter().flat_map(Ingredient::items) {
+            set.items[item.0 as usize] = true;
+        }
+        set
+    }
+
+    pub fn items(&self) -> impl Iterator<Item = Item> + '_ {
+        self.items.iter().enumerate().filter(|&(_, present)| *present).map(|(id, _)| Item(id as u16))
     }
 }

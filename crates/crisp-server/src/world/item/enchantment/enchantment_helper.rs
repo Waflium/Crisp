@@ -46,6 +46,10 @@ pub fn for_each_modifier(item_stack: &ItemStack, slot: EquipmentSlot, mut consum
     });
 }
 
+pub fn has_prevent_armor_change(item_stack: &ItemStack) -> bool {
+    enchantments(item_stack).iter().any(|(enchantment, _)| enchantment.effects.prevent_armor_change)
+}
+
 pub fn get_item_enchantment_level(enchantment: &str, piece: &ItemStack) -> i32 {
     piece.enchantments().level(enchantment)
 }

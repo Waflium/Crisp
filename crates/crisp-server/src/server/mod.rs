@@ -856,7 +856,8 @@ impl Server {
         level.send_active_player_effects(id);
         let player = level.player_mut(id);
         player.connection.send(clientbound::POST_EFFECTS, |p| p.varint(0));
-        player.send_window_content();
+        level.init_inventory_menu(id);
+        let player = level.player_mut(id);
         if let Some(values) = player.entity.data.pack_dirty() {
             player.connection.send(clientbound::SET_ENTITY_DATA, |p| crate::world::entity::data::write_values(p, id, &values));
         }
@@ -1140,7 +1141,8 @@ impl Server {
         if self.level.is_sleeping(id) {
             self.level.stop_sleep_in_bed(id, true, false);
         }
-        self.level.close_container(id, false);
+        self.level.player_mut(id).disconnected = true;
+        self.level.remove_player_menus(id);
         let Some(player) = self.level.remove_player(id) else { return };
         self.custom_boss_events.on_player_disconnect(&self.level, id);
         let reason = player.disconnect_reason.clone().or_else(|| reason.map(|r| r.get_string())).unwrap_or_else(|| "Disconnected".into());

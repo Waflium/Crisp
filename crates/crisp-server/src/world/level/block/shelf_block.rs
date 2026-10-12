@@ -29,7 +29,6 @@ fn swap_single_item(level: &mut ServerLevel, item_stack: ItemStack, player: Enti
     let p = level.player_mut(player);
     let selected = p.inventory.selected_slot();
     p.inventory.slots[selected] = (!new_inventory_item.is_empty()).then_some(new_inventory_item);
-    p.dirty_slots.push(selected);
     level.shelf_set_changed(pos);
     !removed_item.is_empty()
 }
@@ -56,7 +55,6 @@ impl ShelfBlock {
                     if !placed_was_empty || !removed_shelf_item.is_empty() {
                         let p = level.player_mut(player);
                         p.inventory.slots[window_slot] = (!removed_shelf_item.is_empty()).then_some(removed_shelf_item);
-                        p.dirty_slots.push(window_slot);
                         any_swapped = true;
                     }
                 }

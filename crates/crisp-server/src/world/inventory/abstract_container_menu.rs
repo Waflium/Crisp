@@ -1,19 +1,23 @@
-use crisp_data::packets::play::clientbound;
-use crisp_data::{registry, registry_id};
-
 use crisp_core::BlockPos;
+use crisp_data::packets::play::clientbound;
+use crisp_data::{EquipmentSlot, registry, registry_id};
 
 use super::beacon_menu::PAYMENT_SLOT;
 use super::enchantment_menu::EnchantmentMenu;
+use super::result_container::ResultContainer;
 use super::slot::{Slot, SlotContainer, SlotKind, brewing_stand_fuel_may_place_item, is_fuel};
+use super::transient_crafting_container::TransientCraftingContainer;
 use crate::network::hashed_stack::HashedStack;
 use crate::server::level::ServerLevel;
 use crate::util::Prediction;
 use crate::world::container::ContainerRef;
 use crate::world::entity::EntityId;
 use crate::world::item::crafting::potion_ingredient::PotionIngredient;
-use crate::world::item::crafting::{self, CookingRecipeType};
+use crate::world::item::crafting::recipe_manager::RecipeManager;
+use crate::world::item::crafting::recipe_property_set::{BLAST_FURNACE_INPUT, CAMPFIRE_INPUT, FURNACE_INPUT, RecipePropertySetKey, SMOKER_INPUT};
+use crate::world::item::crafting::recipe_type::RecipeType;
 use crate::world::item::{ItemStack, write_slot};
+use crate::world::simple_container::{SimpleContainer, SimpleContainerKind};
 
 pub const PICKUP: i32 = 0;
 pub const QUICK_MOVE: i32 = 1;
@@ -26,9 +30,11 @@ pub const SLOT_CLICKED_OUTSIDE: i32 = -999;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum MenuKind {
+    Inventory,
+    Crafting,
     Chest { rows: usize },
     ShulkerBox,
-    Furnace(CookingRecipeType),
+    Furnace(RecipeType),
     Hopper,
     Dispenser,
     BrewingStand,
@@ -40,20 +46,89 @@ pub enum MenuKind {
 impl MenuKind {
     pub fn menu_type(self) -> &'static str {
         match self {
+            MenuKind::Inventory => "",
+            MenuKind::Crafting => "minecraft:crafting",
             MenuKind::Chest { rows: 3 } => "minecraft:generic_9x3",
             MenuKind::Chest { rows: 6 } => "minecraft:generic_9x6",
             MenuKind::Chest { .. } => "minecraft:generic_9x1",
             MenuKind::ShulkerBox => "minecraft:shulker_box",
-            MenuKind::Furnace(CookingRecipeType::Smelting) => "minecraft:furnace",
-            MenuKind::Furnace(CookingRecipeType::Blasting) => "minecraft:blast_furnace",
-            MenuKind::Furnace(CookingRecipeType::Smoking) => "minecraft:smoker",
-            MenuKind::Furnace(CookingRecipeType::CampfireCooking) => unreachable!("campfires have no menu"),
+            MenuKind::Furnace(RecipeType::Blasting) => "minecraft:blast_furnace",
+            MenuKind::Furnace(RecipeType::Smoking) => "minecraft:smoker",
+            MenuKind::Furnace(_) => "minecraft:furnace",
             MenuKind::Hopper => "minecraft:hopper",
             MenuKind::Dispenser => "minecraft:generic_3x3",
             MenuKind::BrewingStand => "minecraft:brewing_stand",
             MenuKind::Lectern => "minecraft:lectern",
             MenuKind::Beacon => "minecraft:beacon",
             MenuKind::Enchantment => "minecraft:enchantment",
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub enum MenuContainer {
+    Simple(SimpleContainer),
+    Crafting(TransientCraftingContainer),
+    Result(ResultContainer),
+}
+
+impl MenuContainer {
+    pub fn get_container_size(&self) -> usize {
+        match self {
+            MenuContainer::Simple(container) => container.items.len(),
+            MenuContainer::Crafting(container) => container.items.len(),
+            MenuContainer::Result(_) => 1,
+        }
+    }
+
+    pub fn get_item(&self, slot: usize) -> &ItemStack {
+        match self {
+            MenuContainer::Simple(container) => &container.items[slot],
+            MenuContainer::Crafting(container) => &container.items[slot],
+            MenuContainer::Result(container) => &container.item,
+        }
+    }
+
+    pub fn get_item_mut(&mut self, slot: usize) -> &mut ItemStack {
+        match self {
+            MenuContainer::Simple(container) => &mut container.items[slot],
+            MenuContainer::Crafting(container) => &mut container.items[slot],
+            MenuContainer::Result(container) => &mut container.item,
+        }
+    }
+
+    pub fn get_max_stack_size(&self) -> i32 {
+        match self {
+            MenuContainer::Simple(container) => container.get_max_stack_size(),
+            _ => 99,
+        }
+    }
+
+    pub fn clear_content(&mut self) {
+        match self {
+            MenuContainer::Simple(container) => container.items.iter_mut().for_each(|item| *item = ItemStack::empty()),
+            MenuContainer::Crafting(container) => container.items.iter_mut().for_each(|item| *item = ItemStack::empty()),
+            MenuContainer::Result(container) => container.item = ItemStack::empty(),
+        }
+    }
+
+    pub fn award_used_recipes(&mut self) {
+        if let MenuContainer::Result(container) = self {
+            container.award_used_recipes();
+        }
+    }
+
+    pub fn crafting(&self) -> &TransientCraftingContainer {
+        match self {
+            MenuContainer::Crafting(container) => container,
+            _ => panic!("not a crafting container"),
+        }
+    }
+
+    pub fn result(&mut self) -> &mut ResultContainer {
+        match self {
+            MenuContainer::Result(container) => container,
+            _ => panic!("not a result container"),
         }
     }
 }
@@ -98,14 +173,23 @@ impl RemoteSlot {
             }
         }
     }
+
+    fn copy_from(&mut self, other: &RemoteSlot) {
+        if let (RemoteSlot::Synchronized { remote_stack, remote_hash }, RemoteSlot::Synchronized { remote_stack: other_stack, remote_hash: other_hash }) = (self, other) {
+            remote_stack.clone_from(other_stack);
+            remote_hash.clone_from(other_hash);
+        }
+    }
 }
 
 pub struct AbstractContainerMenu {
     pub container_id: i32,
     pub kind: MenuKind,
-    pub container: ContainerRef,
+    pub container: Option<ContainerRef>,
     pub access: Option<BlockPos>,
+    pub containers: Vec<MenuContainer>,
     pub enchantment: Option<EnchantmentMenu>,
+    pub placing_recipe: bool,
     pub slots: Vec<Slot>,
     last_slots: Vec<ItemStack>,
     remote_slots: Vec<RemoteSlot>,
@@ -120,14 +204,18 @@ pub struct AbstractContainerMenu {
     has_synchronizer: bool,
 }
 
+const ARMOR_SLOTS: [(EquipmentSlot, usize); 4] = [(EquipmentSlot::Head, 39), (EquipmentSlot::Chest, 38), (EquipmentSlot::Legs, 37), (EquipmentSlot::Feet, 36)];
+
 impl AbstractContainerMenu {
-    pub fn new(container_id: i32, kind: MenuKind, container: ContainerRef) -> AbstractContainerMenu {
+    pub fn new(container_id: i32, kind: MenuKind, container: Option<ContainerRef>) -> AbstractContainerMenu {
         let mut menu = AbstractContainerMenu {
             container_id,
             kind,
             container,
             access: None,
+            containers: Vec::new(),
             enchantment: None,
+            placing_recipe: false,
             slots: Vec::new(),
             last_slots: Vec::new(),
             remote_slots: Vec::new(),
@@ -141,8 +229,24 @@ impl AbstractContainerMenu {
             suppress_remote_updates: false,
             has_synchronizer: false,
         };
-        let c = SlotContainer::Container(container);
+        let c = container.map_or(SlotContainer::Menu(0), SlotContainer::Container);
         match kind {
+            MenuKind::Inventory | MenuKind::Crafting => {
+                let size = if kind == MenuKind::Inventory { 2 } else { 3 };
+                menu.containers.push(MenuContainer::Crafting(TransientCraftingContainer::new(size, size)));
+                menu.containers.push(MenuContainer::Result(ResultContainer::default()));
+                menu.add_slot(Slot::new(SlotContainer::Menu(1), 0, SlotKind::Result { remove_count: 0, craft_slots: 0 }));
+                for y in 0..size {
+                    for x in 0..size {
+                        menu.add_slot(Slot::new(SlotContainer::Menu(0), x + y * size, SlotKind::Normal));
+                    }
+                }
+                if kind == MenuKind::Inventory {
+                    for (equipment_slot, index) in ARMOR_SLOTS {
+                        menu.add_slot(Slot::new(SlotContainer::Inventory, index, SlotKind::Armor(equipment_slot)));
+                    }
+                }
+            }
             MenuKind::Chest { rows } => (0..rows * 9).for_each(|i| menu.add_slot(Slot::new(c, i, SlotKind::Normal))),
             MenuKind::ShulkerBox => (0..27).for_each(|i| menu.add_slot(Slot::new(c, i, SlotKind::ShulkerBox))),
             MenuKind::Furnace(_) => {
@@ -164,13 +268,15 @@ impl AbstractContainerMenu {
                 return menu;
             }
             MenuKind::Beacon => {
-                menu.add_slot(Slot::new(c, PAYMENT_SLOT, SlotKind::BeaconPayment));
+                menu.containers.push(MenuContainer::Simple(SimpleContainer::new(SimpleContainerKind::BeaconPayment, 1)));
+                menu.add_slot(Slot::new(SlotContainer::Menu(0), PAYMENT_SLOT, SlotKind::BeaconPayment));
                 menu.data_prev = vec![0; 3];
                 menu.remote_data_slots = vec![0; 3];
             }
             MenuKind::Enchantment => {
-                menu.add_slot(Slot::new(c, 0, SlotKind::EnchantmentItem));
-                menu.add_slot(Slot::new(c, 1, SlotKind::EnchantmentLapis));
+                menu.containers.push(MenuContainer::Simple(SimpleContainer::new(SimpleContainerKind::Plain, 2)));
+                menu.add_slot(Slot::new(SlotContainer::Menu(0), 0, SlotKind::EnchantmentItem));
+                menu.add_slot(Slot::new(SlotContainer::Menu(0), 1, SlotKind::EnchantmentLapis));
                 menu.data_prev = vec![0; 10];
                 menu.remote_data_slots = vec![0; 10];
             }
@@ -180,6 +286,9 @@ impl AbstractContainerMenu {
         }
         for i in 0..9 {
             menu.add_slot(Slot::new(SlotContainer::Inventory, i, SlotKind::Normal));
+        }
+        if kind == MenuKind::Inventory {
+            menu.add_slot(Slot::new(SlotContainer::Inventory, 40, SlotKind::Offhand));
         }
         if let MenuKind::Furnace(_) | MenuKind::BrewingStand = kind {
             menu.data_prev = vec![0; 4];
@@ -196,20 +305,24 @@ impl AbstractContainerMenu {
     }
 
     pub fn chest_container(&self) -> Option<ContainerRef> {
-        matches!(self.kind, MenuKind::Chest { .. }).then_some(self.container)
+        if let MenuKind::Chest { .. } = self.kind { self.container } else { None }
     }
 
     pub fn state_id(&self) -> i32 {
         self.state_id
     }
 
-    fn increment_state_id(&mut self) -> i32 {
+    pub fn increment_state_id(&mut self) -> i32 {
         self.state_id = (self.state_id + 1) & 32767;
         self.state_id
     }
 
     pub fn is_valid_slot_index(&self, slot: i32) -> bool {
         slot == -1 || slot == SLOT_CLICKED_OUTSIDE || slot < self.slots.len() as i32
+    }
+
+    pub fn set_remote_slot(&mut self, slot: usize, stack: &ItemStack) {
+        self.remote_slots[slot].force(stack);
     }
 
     pub fn set_remote_slot_unsafe(&mut self, slot: i32, stack: HashedStack) {
@@ -233,6 +346,37 @@ impl AbstractContainerMenu {
 
     fn data_count(&self) -> usize {
         self.data_prev.len()
+    }
+
+    pub fn transfer_state(&mut self, other_container: &AbstractContainerMenu) {
+        for slot_index in 0..self.slots.len() {
+            let slot = &self.slots[slot_index];
+            if slot.container != SlotContainer::Inventory {
+                continue;
+            }
+            let Some(other_slot_index) = other_container.slots.iter().position(|other| other.container == SlotContainer::Inventory && other.slot == slot.slot) else { continue };
+            self.last_slots[slot_index] = other_container.last_slots[other_slot_index].clone();
+            self.remote_slots[slot_index].copy_from(&other_container.remote_slots[other_slot_index]);
+        }
+    }
+}
+
+fn furnace_allowed_inputs(recipe_type: RecipeType) -> RecipePropertySetKey {
+    match recipe_type {
+        RecipeType::Blasting => BLAST_FURNACE_INPUT,
+        RecipeType::Smoking => SMOKER_INPUT,
+        RecipeType::CampfireCooking => CAMPFIRE_INPUT,
+        _ => FURNACE_INPUT,
+    }
+}
+
+fn humanoid_armor_index(slot: EquipmentSlot) -> Option<usize> {
+    match slot {
+        EquipmentSlot::Feet => Some(0),
+        EquipmentSlot::Legs => Some(1),
+        EquipmentSlot::Chest => Some(2),
+        EquipmentSlot::Head => Some(3),
+        _ => None,
     }
 }
 
@@ -266,13 +410,17 @@ impl ServerLevel {
         ty == 0 || ty == 1 || ty == 2 && self.player(player).abilities.instabuild
     }
 
-    fn can_item_quick_replace(&mut self, player: EntityId, slot: &Slot, stack: &ItemStack, ignore_size: bool) -> bool {
-        let item = self.slot_get(player, slot);
+    fn can_item_quick_replace(&mut self, menu: &AbstractContainerMenu, player: EntityId, index: usize, stack: &ItemStack, ignore_size: bool) -> bool {
+        let item = self.slot_get(menu, player, index);
         if !item.is_empty() && ItemStack::is_same_item_same_components(stack, &item) {
             item.count + if ignore_size { 0 } else { stack.count } <= stack.max_stack_size()
         } else {
             item.is_empty()
         }
+    }
+
+    fn can_take_item_for_pick_all(menu: &AbstractContainerMenu, index: usize) -> bool {
+        !matches!(menu.slots[index].kind, SlotKind::Result { .. })
     }
 
     pub(super) fn menu_data(&mut self, menu: &AbstractContainerMenu, id: usize) -> i32 {
@@ -282,14 +430,69 @@ impl ServerLevel {
         if let Some(enchantment) = &menu.enchantment {
             return enchantment.get(id);
         }
-        if let ContainerRef::Lectern { pos, .. } = menu.container {
+        if let Some(ContainerRef::Lectern { pos, .. }) = menu.container {
             return if id == crate::world::level::block::entity::lectern_block_entity::DATA_PAGE { self.lectern(pos).map_or(0, |lectern| lectern.get_page()) } else { 0 };
         }
-        let Some(pos) = menu.container.single_block() else { return 0 };
+        let Some(pos) = menu.container.and_then(ContainerRef::single_block) else { return 0 };
         match self.get_block_entity(pos).map(|e| &e.kind) {
             Some(crate::world::level::block::entity::BlockEntityKind::Furnace(furnace)) => furnace.data(id),
             Some(crate::world::level::block::entity::BlockEntityKind::BrewingStand(brewing_stand)) => brewing_stand.data(id),
             _ => 0,
+        }
+    }
+
+    pub fn menu_container_set_item(&mut self, menu: &mut AbstractContainerMenu, player: EntityId, c: usize, slot: usize, mut stack: ItemStack) {
+        match &mut menu.containers[c] {
+            MenuContainer::Simple(container) => {
+                stack.limit_size(container.get_max_stack_size().min(stack.max_stack_size()));
+                container.items[slot] = stack;
+                self.menu_container_set_changed(menu, player, c);
+            }
+            MenuContainer::Crafting(container) => {
+                container.items[slot] = stack;
+                self.menu_slots_changed(menu, player, c);
+            }
+            MenuContainer::Result(container) => container.item = stack,
+        }
+    }
+
+    pub fn menu_container_remove_item(&mut self, menu: &mut AbstractContainerMenu, player: EntityId, c: usize, slot: usize, count: i32) -> ItemStack {
+        if let MenuContainer::Result(container) = &mut menu.containers[c] {
+            return std::mem::replace(&mut container.item, ItemStack::empty());
+        }
+        let item = menu.containers[c].get_item_mut(slot);
+        let result = if !item.is_empty() && count > 0 { item.split(count) } else { ItemStack::empty() };
+        if !result.is_empty() {
+            match menu.containers[c] {
+                MenuContainer::Simple(_) => self.menu_container_set_changed(menu, player, c),
+                _ => self.menu_slots_changed(menu, player, c),
+            }
+        }
+        result
+    }
+
+    pub fn menu_container_remove_item_no_update(&mut self, menu: &mut AbstractContainerMenu, c: usize, slot: usize) -> ItemStack {
+        std::mem::replace(menu.containers[c].get_item_mut(slot), ItemStack::empty())
+    }
+
+    pub fn menu_container_set_changed(&mut self, menu: &mut AbstractContainerMenu, player: EntityId, c: usize) {
+        if let MenuContainer::Simple(_) = menu.containers[c]
+            && menu.kind == MenuKind::Enchantment
+        {
+            self.menu_slots_changed(menu, player, c);
+        }
+    }
+
+    pub fn menu_slots_changed(&mut self, menu: &mut AbstractContainerMenu, player: EntityId, _c: usize) {
+        match menu.kind {
+            MenuKind::Enchantment => self.enchantment_menu_slots_changed(menu, player),
+            MenuKind::Inventory => self.slot_changed_crafting_grid(menu, player, None),
+            MenuKind::Crafting => {
+                if !menu.placing_recipe && menu.access.is_some() {
+                    self.slot_changed_crafting_grid(menu, player, None);
+                }
+            }
+            _ => self.menu_broadcast_changes(menu, player),
         }
     }
 
@@ -312,10 +515,9 @@ impl ServerLevel {
                 }
             } else if menu.quickcraft_status == 1 {
                 let i = slot_at(menu, slot_index)?;
-                let slot = menu.slots[i].clone();
                 let carried = self.carried(player);
-                if self.can_item_quick_replace(player, &slot, &carried, true)
-                    && self.slot_may_place(&slot, &carried)
+                if self.can_item_quick_replace(menu, player, i, &carried, true)
+                    && self.slot_may_place(menu, player, i, &carried)
                     && (menu.quickcraft_type == 2 || carried.count > menu.quickcraft_slots.len() as i32)
                     && !menu.quickcraft_slots.contains(&i)
                 {
@@ -335,19 +537,18 @@ impl ServerLevel {
                     }
                     let mut remaining = self.carried(player).count;
                     let size = menu.quickcraft_slots.len();
-                    for &i in &menu.quickcraft_slots.clone() {
-                        let slot = menu.slots[i].clone();
+                    for i in menu.quickcraft_slots.clone() {
                         let carried = self.carried(player);
-                        if self.can_item_quick_replace(player, &slot, &carried, true)
-                            && self.slot_may_place(&slot, &carried)
+                        if self.can_item_quick_replace(menu, player, i, &carried, true)
+                            && self.slot_may_place(menu, player, i, &carried)
                             && (menu.quickcraft_type == 2 || carried.count >= size as i32)
                         {
-                            let current = self.slot_get(player, &slot);
+                            let current = self.slot_get(menu, player, i);
                             let carry = if current.is_empty() { 0 } else { current.count };
-                            let max_size = source.max_stack_size().min(self.slot_max_stack_size(&slot, &source));
+                            let max_size = source.max_stack_size().min(self.slot_max_stack_size(menu, i, &source));
                             let new_count = (quick_craft_place_count(size, menu.quickcraft_type, &source) + carry).min(max_size);
                             remaining -= new_count - carry;
-                            self.slot_set_by_player(player, &slot, source.copy_with_count(new_count));
+                            self.slot_set_by_player(menu, player, i, source.copy_with_count(new_count));
                         }
                     }
                     let mut source = source;
@@ -380,11 +581,11 @@ impl ServerLevel {
                     return Ok(());
                 }
                 let i = slot_at(menu, slot_index)?;
-                if !self.slot_may_pickup(player, &menu.slots[i]) {
+                if !self.slot_may_pickup(menu, player, i) {
                     return Ok(());
                 }
                 let mut clicked = self.quick_move_stack(menu, player, i);
-                while !clicked.is_empty() && ItemStack::is_same_item(&self.slot_get(player, &menu.slots[i].clone()), &clicked) {
+                while !clicked.is_empty() && ItemStack::is_same_item(&self.slot_get(menu, player, i), &clicked) {
                     clicked = self.quick_move_stack(menu, player, i);
                 }
             } else {
@@ -392,133 +593,127 @@ impl ServerLevel {
                     return Ok(());
                 }
                 let i = slot_at(menu, slot_index)?;
-                let mut slot = menu.slots[i].clone();
-                let clicked = self.slot_get(player, &slot);
+                let clicked = self.slot_get(menu, player, i);
                 let mut carried = self.carried(player);
                 if clicked.is_empty() {
                     if !carried.is_empty() {
                         let amount = if primary { carried.count } else { 1 };
-                        let rest = self.slot_safe_insert(player, &slot, carried, amount);
+                        let rest = self.slot_safe_insert(menu, player, i, carried, amount);
                         self.set_carried(player, rest);
                     }
-                } else if self.slot_may_pickup(player, &slot) {
+                } else if self.slot_may_pickup(menu, player, i) {
                     if carried.is_empty() {
                         let amount = if primary { clicked.count } else { (clicked.count + 1) / 2 };
-                        if let Some(taken) = self.slot_try_remove(player, &mut slot, amount, i32::MAX) {
+                        if let Some(taken) = self.slot_try_remove(menu, player, i, amount, i32::MAX) {
                             self.set_carried(player, taken.clone());
-                            self.slot_on_take(player, &mut slot, &taken);
+                            self.slot_on_take(menu, player, i, &taken);
                         }
-                    } else if self.slot_may_place(&slot, &carried) {
+                    } else if self.slot_may_place(menu, player, i, &carried) {
                         if ItemStack::is_same_item_same_components(&clicked, &carried) {
                             let amount = if primary { carried.count } else { 1 };
-                            let rest = self.slot_safe_insert(player, &slot, carried, amount);
+                            let rest = self.slot_safe_insert(menu, player, i, carried, amount);
                             self.set_carried(player, rest);
-                        } else if carried.count <= self.slot_max_stack_size(&slot, &carried) {
+                        } else if carried.count <= self.slot_max_stack_size(menu, i, &carried) {
                             self.set_carried(player, clicked);
-                            self.slot_set_by_player(player, &slot, carried);
+                            self.slot_set_by_player(menu, player, i, carried);
                         }
-                    } else if ItemStack::is_same_item_same_components(&clicked, &carried) {
-                        if let Some(taken) = self.slot_try_remove(player, &mut slot, clicked.count, carried.max_stack_size() - carried.count) {
-                            carried.grow(taken.count);
-                            self.set_carried(player, carried);
-                            self.slot_on_take(player, &mut slot, &taken);
-                        }
+                    } else if ItemStack::is_same_item_same_components(&clicked, &carried)
+                        && let Some(taken) = self.slot_try_remove(menu, player, i, clicked.count, carried.max_stack_size() - carried.count)
+                    {
+                        carried.grow(taken.count);
+                        self.set_carried(player, carried);
+                        self.slot_on_take(menu, player, i, &taken);
                     }
                 }
-                self.slot_set_changed(&slot);
-                menu.slots[i] = slot;
+                self.slot_set_changed(menu, player, i);
             }
         } else if input == SWAP && (0..9).contains(&button) || input == SWAP && button == 40 {
             let inventory_slot = crate::world::item::inventory_slot(button as usize);
             let source = self.player(player).inventory.slots[inventory_slot].clone().unwrap_or_else(ItemStack::empty);
             let i = slot_at(menu, slot_index)?;
-            let mut target = menu.slots[i].clone();
-            let target_stack = self.slot_get(player, &target);
+            let target_stack = self.slot_get(menu, player, i);
             if !source.is_empty() || !target_stack.is_empty() {
                 let set_inventory = |level: &mut ServerLevel, stack: ItemStack| {
                     level.player_mut(player).inventory.slots[inventory_slot] = (!stack.is_empty()).then_some(stack);
                 };
                 if source.is_empty() {
-                    if self.slot_may_pickup(player, &target) {
+                    if self.slot_may_pickup(menu, player, i) {
                         set_inventory(self, target_stack.clone());
-                        self.slot_set_by_player(player, &target, ItemStack::empty());
-                        self.slot_on_take(player, &mut target, &target_stack);
+                        self.slot_on_swap_craft(menu, i, target_stack.count);
+                        self.slot_set_by_player(menu, player, i, ItemStack::empty());
+                        self.slot_on_take(menu, player, i, &target_stack);
                     }
                 } else if target_stack.is_empty() {
-                    if self.slot_may_place(&target, &source) {
-                        let max = self.slot_max_stack_size(&target, &source);
+                    if self.slot_may_place(menu, player, i, &source) {
+                        let max = self.slot_max_stack_size(menu, i, &source);
                         if source.count > max {
                             let mut source = source;
                             let piece = source.split(max);
                             set_inventory(self, source);
-                            self.slot_set_by_player(player, &target, piece);
+                            self.slot_set_by_player(menu, player, i, piece);
                         } else {
                             set_inventory(self, ItemStack::empty());
-                            self.slot_set_by_player(player, &target, source);
+                            self.slot_set_by_player(menu, player, i, source);
                         }
                     }
-                } else if self.slot_may_pickup(player, &target) && self.slot_may_place(&target, &source) {
-                    let max = self.slot_max_stack_size(&target, &source);
+                } else if self.slot_may_pickup(menu, player, i) && self.slot_may_place(menu, player, i, &source) {
+                    let max = self.slot_max_stack_size(menu, i, &source);
                     if source.count > max {
                         let mut source = source;
                         let piece = source.split(max);
                         set_inventory(self, source);
-                        self.slot_set_by_player(player, &target, piece);
-                        self.slot_on_take(player, &mut target, &target_stack);
+                        self.slot_set_by_player(menu, player, i, piece);
+                        self.slot_on_take(menu, player, i, &target_stack);
                         let mut rest = target_stack;
                         let infinite_materials = self.player(player).abilities.instabuild;
-                        let p = self.player_mut(player);
-                        let (_, changed) = p.inventory.add_stack(&mut rest, infinite_materials);
-                        p.dirty_slots.extend(changed);
+                        self.player_mut(player).inventory.add_stack(&mut rest, infinite_materials);
                         self.drop_from_player_if_any(player, rest);
                     } else {
                         set_inventory(self, target_stack.clone());
-                        self.slot_set_by_player(player, &target, source);
-                        self.slot_on_take(player, &mut target, &target_stack);
+                        self.slot_set_by_player(menu, player, i, source);
+                        self.slot_on_take(menu, player, i, &target_stack);
                     }
                 }
             }
-            menu.slots[i] = target;
         } else if input == CLONE && self.player(player).abilities.instabuild && self.carried(player).is_empty() && slot_index >= 0 {
             let i = slot_at(menu, slot_index)?;
-            let slot = menu.slots[i].clone();
-            if self.slot_has_item(player, &slot) {
-                let clone = self.slot_safe_clone(player, &slot);
+            if self.slot_has_item(menu, player, i) {
+                let clone = self.slot_safe_clone(menu, player, i);
                 self.set_carried(player, clone);
             }
         } else if input == THROW && self.carried(player).is_empty() && slot_index >= 0 {
             let i = slot_at(menu, slot_index)?;
-            let mut slot = menu.slots[i].clone();
-            let amount = if button == 0 { 1 } else { self.slot_get(player, &slot).count };
-            let mut stack = self.slot_safe_take(player, &mut slot, amount, i32::MAX);
+            let amount = if button == 0 { 1 } else { self.slot_get(menu, player, i).count };
+            let mut stack = self.slot_safe_take(menu, player, i, amount, i32::MAX);
             self.drop_from_player_if_any(player, stack.clone());
             if button == 1 {
-                while !stack.is_empty() && ItemStack::is_same_item(&self.slot_get(player, &slot), &stack) {
-                    stack = self.slot_safe_take(player, &mut slot, amount, i32::MAX);
+                while !stack.is_empty() && ItemStack::is_same_item(&self.slot_get(menu, player, i), &stack) {
+                    stack = self.slot_safe_take(menu, player, i, amount, i32::MAX);
                     self.drop_from_player_if_any(player, stack.clone());
                 }
             }
-            menu.slots[i] = slot;
         } else if input == PICKUP_ALL && slot_index >= 0 {
             let i = slot_at(menu, slot_index)?;
-            let slot = menu.slots[i].clone();
             let mut carried = self.carried(player);
-            if !carried.is_empty() && (!self.slot_has_item(player, &slot) || !self.slot_may_pickup(player, &slot)) {
+            if !carried.is_empty() && (!self.slot_has_item(menu, player, i) || !self.slot_may_pickup(menu, player, i)) {
                 let len = menu.slots.len() as i32;
                 let (start, step) = if button == 0 { (0, 1) } else { (len - 1, -1) };
                 for pass in 0..2 {
                     let mut j = start;
                     while j >= 0 && j < len && carried.count < carried.max_stack_size() {
-                        let mut target = menu.slots[j as usize].clone();
-                        if self.slot_has_item(player, &target) && self.can_item_quick_replace(player, &target, &carried, true) && self.slot_may_pickup(player, &target) {
-                            let stack = self.slot_get(player, &target);
+                        let target = j as usize;
+                        if self.slot_has_item(menu, player, target)
+                            && self.can_item_quick_replace(menu, player, target, &carried, true)
+                            && self.slot_may_pickup(menu, player, target)
+                            && ServerLevel::can_take_item_for_pick_all(menu, target)
+                        {
+                            let stack = self.slot_get(menu, player, target);
                             if pass != 0 || stack.count != stack.max_stack_size() {
-                                let removed = self.slot_safe_take(player, &mut target, stack.count, carried.max_stack_size() - carried.count);
+                                let removed = self.slot_safe_take(menu, player, target, stack.count, carried.max_stack_size() - carried.count);
                                 carried.grow(removed.count);
                                 self.set_carried(player, carried.clone());
                             }
                         }
-                        menu.slots[j as usize] = target;
                         j += step;
                     }
                 }
@@ -531,7 +726,7 @@ impl ServerLevel {
         self.player_drop(player, stack, true, Prediction::Predicted);
     }
 
-    fn move_item_stack_to(&mut self, menu: &AbstractContainerMenu, player: EntityId, stack: &mut ItemStack, start: usize, end: usize, backwards: bool) -> bool {
+    fn move_item_stack_to(&mut self, menu: &mut AbstractContainerMenu, player: EntityId, stack: &mut ItemStack, start: usize, end: usize, backwards: bool) -> bool {
         let mut anything_changed = false;
         let order: Vec<usize> = if backwards { (start..end).rev().collect() } else { (start..end).collect() };
         if stack.is_stackable() {
@@ -539,22 +734,21 @@ impl ServerLevel {
                 if stack.is_empty() {
                     break;
                 }
-                let slot = &menu.slots[i];
-                let mut target = self.slot_get(player, slot);
+                let mut target = self.slot_get(menu, player, i);
                 if !target.is_empty() && ItemStack::is_same_item_same_components(stack, &target) {
                     let total = target.count + stack.count;
-                    let max = self.slot_max_stack_size(slot, &target);
+                    let max = self.slot_max_stack_size(menu, i, &target);
                     if total <= max {
                         stack.count = 0;
                         target.count = total;
-                        self.slot_put(player, slot, target);
-                        self.slot_set_changed(slot);
+                        self.slot_put(menu, player, i, target);
+                        self.slot_set_changed(menu, player, i);
                         anything_changed = true;
                     } else if target.count < max {
                         stack.shrink(max - target.count);
                         target.count = max;
-                        self.slot_put(player, slot, target);
-                        self.slot_set_changed(slot);
+                        self.slot_put(menu, player, i, target);
+                        self.slot_set_changed(menu, player, i);
                         anything_changed = true;
                     }
                 }
@@ -562,13 +756,12 @@ impl ServerLevel {
         }
         if !stack.is_empty() {
             for &i in &order {
-                let slot = &menu.slots[i];
-                let target = self.slot_get(player, slot);
-                if target.is_empty() && self.slot_may_place(slot, stack) {
-                    let max = self.slot_max_stack_size(slot, stack);
+                let target = self.slot_get(menu, player, i);
+                if target.is_empty() && self.slot_may_place(menu, player, i, stack) {
+                    let max = self.slot_max_stack_size(menu, i, stack);
                     let piece = stack.split(stack.count.min(max));
-                    self.slot_set_by_player(player, slot, piece);
-                    self.slot_set_changed(slot);
+                    self.slot_set_by_player(menu, player, i, piece);
+                    self.slot_set_changed(menu, player, i);
                     anything_changed = true;
                     break;
                 }
@@ -578,14 +771,52 @@ impl ServerLevel {
     }
 
     fn quick_move_stack(&mut self, menu: &mut AbstractContainerMenu, player: EntityId, index: usize) -> ItemStack {
-        let mut slot = menu.slots[index].clone();
-        let mut stack = self.slot_get(player, &slot);
+        let mut stack = self.slot_get(menu, player, index);
         if stack.is_empty() {
             return ItemStack::empty();
         }
         let clicked = stack.copy();
         let total = menu.slots.len();
         let moved = match menu.kind {
+            MenuKind::Inventory => {
+                let equipment_slot = self.get_equipment_slot_for_item(player, &clicked);
+                let armor_slot = humanoid_armor_index(equipment_slot).map(|armor_index| 8 - armor_index);
+                if index == 0 {
+                    let moved = self.move_item_stack_to(menu, player, &mut stack, 9, 45, true);
+                    if moved {
+                        self.slot_put(menu, player, index, stack.clone());
+                        self.slot_on_quick_craft(menu, player, index, &stack, &clicked);
+                    }
+                    moved
+                } else if (1..9).contains(&index) {
+                    self.move_item_stack_to(menu, player, &mut stack, 9, 45, false)
+                } else if let Some(pos) = armor_slot.filter(|&pos| !self.slot_has_item(menu, player, pos)) {
+                    self.move_item_stack_to(menu, player, &mut stack, pos, pos + 1, false)
+                } else if equipment_slot == EquipmentSlot::Offhand && !self.slot_has_item(menu, player, 45) {
+                    self.move_item_stack_to(menu, player, &mut stack, 45, 46, false)
+                } else if (9..36).contains(&index) {
+                    self.move_item_stack_to(menu, player, &mut stack, 36, 45, false)
+                } else if (36..45).contains(&index) {
+                    self.move_item_stack_to(menu, player, &mut stack, 9, 36, false)
+                } else {
+                    self.move_item_stack_to(menu, player, &mut stack, 9, 45, false)
+                }
+            }
+            MenuKind::Crafting => {
+                if index == 0 {
+                    let moved = self.move_item_stack_to(menu, player, &mut stack, 10, 46, true);
+                    if moved {
+                        self.slot_put(menu, player, index, stack.clone());
+                        self.slot_on_quick_craft(menu, player, index, &stack, &clicked);
+                    }
+                    moved
+                } else if (10..46).contains(&index) {
+                    self.move_item_stack_to(menu, player, &mut stack, 1, 10, false)
+                        || if index < 37 { self.move_item_stack_to(menu, player, &mut stack, 37, 46, false) } else { self.move_item_stack_to(menu, player, &mut stack, 10, 37, false) }
+                } else {
+                    self.move_item_stack_to(menu, player, &mut stack, 10, 46, false)
+                }
+            }
             MenuKind::Chest { rows } => {
                 let size = rows * 9;
                 if index < size { self.move_item_stack_to(menu, player, &mut stack, size, total, true) } else { self.move_item_stack_to(menu, player, &mut stack, 0, size, false) }
@@ -602,12 +833,12 @@ impl ServerLevel {
                 if index == 2 {
                     let moved = self.move_item_stack_to(menu, player, &mut stack, 3, 39, true);
                     if moved {
-                        self.slot_put(player, &slot, stack.clone());
-                        self.slot_on_quick_craft(player, &mut slot, &stack, &clicked);
+                        self.slot_put(menu, player, index, stack.clone());
+                        self.slot_on_quick_craft(menu, player, index, &stack, &clicked);
                     }
                     moved
                 } else if index != 1 && index != 0 {
-                    if crafting::property_set_contains(recipe_type, stack.get_item()) {
+                    if RecipeManager::get().property_set(furnace_allowed_inputs(recipe_type)).test(&stack) {
                         self.move_item_stack_to(menu, player, &mut stack, 0, 1, false)
                     } else if is_fuel(&stack) {
                         self.move_item_stack_to(menu, player, &mut stack, 1, 2, false)
@@ -624,12 +855,11 @@ impl ServerLevel {
                 if index > 2 && index != 3 && index != 4 {
                     if brewing_stand_fuel_may_place_item(&clicked) {
                         if self.move_item_stack_to(menu, player, &mut stack, 4, 5, false) {
-                            self.slot_put(player, &slot, stack);
-                            menu.slots[index] = slot;
+                            self.slot_put(menu, player, index, stack);
                             return ItemStack::empty();
                         }
-                        !(self.slot_may_place(&menu.slots[3], &stack) && !self.move_item_stack_to(menu, player, &mut stack, 3, 4, false))
-                    } else if self.slot_may_place(&menu.slots[3], &stack) {
+                        !(self.slot_may_place(menu, player, 3, &stack) && !self.move_item_stack_to(menu, player, &mut stack, 3, 4, false))
+                    } else if self.slot_may_place(menu, player, 3, &stack) {
                         self.move_item_stack_to(menu, player, &mut stack, 3, 4, false)
                     } else if PotionIngredient::is_potion_input(&clicked) {
                         self.move_item_stack_to(menu, player, &mut stack, 0, 3, false)
@@ -643,21 +873,22 @@ impl ServerLevel {
                 } else {
                     let moved = self.move_item_stack_to(menu, player, &mut stack, 5, 41, true);
                     if moved {
-                        self.slot_on_quick_craft(player, &mut slot, &stack, &clicked);
+                        self.slot_put(menu, player, index, stack.clone());
+                        self.slot_on_quick_craft(menu, player, index, &stack, &clicked);
                     }
                     moved
                 }
             }
             MenuKind::Lectern => false,
             MenuKind::Beacon => {
-                let payment_slot = menu.slots[PAYMENT_SLOT].clone();
                 if index == PAYMENT_SLOT {
                     let moved = self.move_item_stack_to(menu, player, &mut stack, 1, 37, true);
                     if moved {
-                        self.slot_on_quick_craft(player, &mut slot, &stack, &clicked);
+                        self.slot_put(menu, player, index, stack.clone());
+                        self.slot_on_quick_craft(menu, player, index, &stack, &clicked);
                     }
                     moved
-                } else if !self.slot_has_item(player, &payment_slot) && self.slot_may_place(&payment_slot, &stack) && stack.count == 1 {
+                } else if !self.slot_has_item(menu, player, PAYMENT_SLOT) && self.slot_may_place(menu, player, PAYMENT_SLOT, &stack) && stack.count == 1 {
                     self.move_item_stack_to(menu, player, &mut stack, 0, 1, false)
                 } else if (1..28).contains(&index) {
                     self.move_item_stack_to(menu, player, &mut stack, 28, 37, false)
@@ -672,43 +903,41 @@ impl ServerLevel {
                     self.move_item_stack_to(menu, player, &mut stack, 2, 38, true)
                 } else if stack.is(crisp_data::items::LAPIS_LAZULI) {
                     self.move_item_stack_to(menu, player, &mut stack, 1, 2, true)
+                } else if self.slot_has_item(menu, player, 0) || !self.slot_may_place(menu, player, 0, &stack) {
+                    false
                 } else {
-                    let item_slot = menu.slots[0].clone();
-                    if self.slot_has_item(player, &item_slot) || !self.slot_may_place(&item_slot, &stack) {
-                        false
-                    } else {
-                        let single_item = stack.copy_with_count(1);
-                        stack.shrink(1);
-                        self.slot_set_by_player(player, &item_slot, single_item);
-                        true
-                    }
+                    let single_item = stack.copy_with_count(1);
+                    stack.shrink(1);
+                    self.slot_put(menu, player, index, stack.clone());
+                    self.slot_set_by_player(menu, player, 0, single_item);
+                    true
                 }
             }
         };
         if !moved {
-            menu.slots[index] = slot;
             return ItemStack::empty();
         }
-        self.slot_put(player, &slot, stack.clone());
+        self.slot_put(menu, player, index, stack.clone());
         if stack.is_empty() {
-            self.slot_set_by_player(player, &slot, ItemStack::empty());
+            self.slot_set_by_player(menu, player, index, ItemStack::empty());
         } else {
-            self.slot_set_changed(&slot);
+            self.slot_set_changed(menu, player, index);
         }
-        if matches!(menu.kind, MenuKind::Furnace(_) | MenuKind::Dispenser | MenuKind::BrewingStand | MenuKind::Beacon | MenuKind::Enchantment) {
+        if matches!(menu.kind, MenuKind::Inventory | MenuKind::Crafting | MenuKind::Furnace(_) | MenuKind::Dispenser | MenuKind::BrewingStand | MenuKind::Beacon | MenuKind::Enchantment) {
             if stack.count == clicked.count {
-                menu.slots[index] = slot;
                 return ItemStack::empty();
             }
-            self.slot_on_take(player, &mut slot, &stack);
+            self.slot_on_take(menu, player, index, &stack);
+            if index == 0 && let MenuKind::Inventory | MenuKind::Crafting = menu.kind {
+                self.player_drop(player, stack, false, Prediction::Predicted);
+            }
         }
-        menu.slots[index] = slot;
         clicked
     }
 
     pub fn menu_broadcast_changes(&mut self, menu: &mut AbstractContainerMenu, player: EntityId) {
         for i in 0..menu.slots.len() {
-            let current = self.slot_get(player, &menu.slots[i]);
+            let current = self.slot_get(menu, player, i);
             if !ItemStack::matches(&menu.last_slots[i], &current) {
                 menu.last_slots[i] = current.copy();
             }
@@ -716,13 +945,7 @@ impl ServerLevel {
                 menu.remote_slots[i].force(&current);
                 if menu.has_synchronizer {
                     let state_id = menu.increment_state_id();
-                    let container_id = menu.container_id;
-                    self.player(player).connection.send(clientbound::CONTAINER_SET_SLOT, |w| {
-                        w.varint(container_id);
-                        w.varint(state_id);
-                        w.i16(i as i16);
-                        write_slot(w, Some(&current));
-                    });
+                    self.send_container_set_slot(player, menu.container_id, state_id, i, &current);
                 }
             }
         }
@@ -747,9 +970,18 @@ impl ServerLevel {
         }
     }
 
+    pub fn send_container_set_slot(&self, player: EntityId, container_id: i32, state_id: i32, slot: usize, stack: &ItemStack) {
+        self.player(player).connection.send(clientbound::CONTAINER_SET_SLOT, |w| {
+            w.varint(container_id);
+            w.varint(state_id);
+            w.i16(slot as i16);
+            write_slot(w, Some(stack));
+        });
+    }
+
     pub fn menu_broadcast_full_state(&mut self, menu: &mut AbstractContainerMenu, player: EntityId) {
         for i in 0..menu.slots.len() {
-            let current = self.slot_get(player, &menu.slots[i]);
+            let current = self.slot_get(menu, player, i);
             if !ItemStack::matches(&menu.last_slots[i], &current) {
                 menu.last_slots[i] = current.copy();
             }
@@ -768,7 +1000,7 @@ impl ServerLevel {
     }
 
     pub fn menu_send_all_data_to_remote(&mut self, menu: &mut AbstractContainerMenu, player: EntityId) {
-        let items: Vec<ItemStack> = (0..menu.slots.len()).map(|i| self.slot_get(player, &menu.slots[i])).collect();
+        let items: Vec<ItemStack> = (0..menu.slots.len()).map(|i| self.slot_get(menu, player, i)).collect();
         for (i, item) in items.iter().enumerate() {
             menu.remote_slots[i].force(item);
         }
@@ -802,13 +1034,13 @@ impl ServerLevel {
     }
 
     pub fn menu_still_valid(&mut self, menu: &AbstractContainerMenu, player: EntityId) -> bool {
-        if menu.kind == MenuKind::Beacon {
-            return self.still_valid_access(menu.access, player, crisp_data::blocks::BEACON);
+        match menu.kind {
+            MenuKind::Inventory => true,
+            MenuKind::Crafting => self.still_valid_access(menu.access, player, crisp_data::blocks::CRAFTING_TABLE),
+            MenuKind::Beacon => self.still_valid_access(menu.access, player, crisp_data::blocks::BEACON),
+            MenuKind::Enchantment => self.still_valid_access(menu.access, player, crisp_data::blocks::ENCHANTING_TABLE),
+            _ => menu.container.is_none_or(|container| self.container_still_valid(container, player)),
         }
-        if menu.kind == MenuKind::Enchantment {
-            return self.still_valid_access(menu.access, player, crisp_data::blocks::ENCHANTING_TABLE);
-        }
-        self.container_still_valid(menu.container, player)
     }
 
     fn still_valid_access(&mut self, access: Option<BlockPos>, player: EntityId, block: crisp_data::Block) -> bool {
@@ -822,8 +1054,19 @@ impl ServerLevel {
             self.drop_or_place_in_inventory(player, carried);
             self.set_carried(player, ItemStack::empty());
         }
-        self.container_stop_open(menu.container, player);
+        if let Some(container) = menu.container {
+            self.container_stop_open(container, player);
+        }
         match menu.kind {
+            MenuKind::Inventory => {
+                menu.containers[1].clear_content();
+                self.clear_container(menu, player, 0);
+            }
+            MenuKind::Crafting => {
+                if menu.access.is_some() {
+                    self.clear_container(menu, player, 0);
+                }
+            }
             MenuKind::Beacon => self.beacon_menu_removed(menu, player),
             MenuKind::Enchantment => self.enchantment_menu_removed(menu, player),
             _ => {}
@@ -831,26 +1074,18 @@ impl ServerLevel {
     }
 
     fn drop_or_place_in_inventory(&mut self, player: EntityId, carried: ItemStack) {
-        if self.player(player).disconnected {
+        let player_removed_not_changing_dimension = self.entity(player).removal.is_some_and(|reason| reason != crate::world::entity::RemovalReason::ChangedDimension);
+        if player_removed_not_changing_dimension || self.player(player).disconnected {
             self.player_drop(player, carried, false, Prediction::ServerOnly);
         } else {
             self.place_item_back_in_inventory(player, carried);
         }
     }
 
-    pub fn clear_container(&mut self, player: EntityId, container: ContainerRef) {
-        for i in 0..self.container_size(container) {
-            let stack = self.remove_item_no_update(container, i);
+    pub fn clear_container(&mut self, menu: &mut AbstractContainerMenu, player: EntityId, c: usize) {
+        for i in 0..menu.containers[c].get_container_size() {
+            let stack = self.menu_container_remove_item_no_update(menu, c, i);
             self.drop_or_place_in_inventory(player, stack);
-        }
-    }
-
-    pub fn menu_container_slots_changed(&mut self, menu: &mut AbstractContainerMenu, player: EntityId) {
-        if !std::mem::take(&mut self.player_mut(player).menu_container.changed) {
-            return;
-        }
-        if menu.kind == MenuKind::Enchantment {
-            self.enchantment_menu_slots_changed(menu, player);
         }
     }
 

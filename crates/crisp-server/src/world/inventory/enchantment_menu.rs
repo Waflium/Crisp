@@ -4,13 +4,13 @@ use crisp_data::{items, registry, registry_id};
 
 use super::abstract_container_menu::{AbstractContainerMenu, MenuKind};
 use crate::server::level::{ServerLevel, SoundSource};
-use crate::world::container::ContainerRef;
 use crate::world::entity::EntityId;
 use crate::world::item::ItemStack;
 use crate::world::item::component::codec;
 use crate::world::item::enchantment::enchantment_helper::{self, EnchantmentInstance};
 use crate::world::level::block::enchanting_table_block::{BOOKSHELF_OFFSETS, is_valid_book_shelf};
-use crate::world::simple_container::{SimpleContainer, SimpleContainerKind};
+
+const ENCHANT_SLOTS: usize = 0;
 
 pub struct EnchantmentMenu {
     random: LegacyRandomSource,
@@ -48,8 +48,8 @@ impl EnchantmentMenu {
 }
 
 impl AbstractContainerMenu {
-    pub fn enchantment(container_id: i32, player: EntityId, pos: BlockPos, enchantment_seed: i32) -> AbstractContainerMenu {
-        let mut menu = AbstractContainerMenu::new(container_id, MenuKind::Enchantment, ContainerRef::MenuContainer(player));
+    pub fn enchantment(container_id: i32, pos: BlockPos, enchantment_seed: i32) -> AbstractContainerMenu {
+        let mut menu = AbstractContainerMenu::new(container_id, MenuKind::Enchantment, None);
         menu.access = Some(pos);
         menu.enchantment = Some(EnchantmentMenu::new(enchantment_seed));
         menu
@@ -57,12 +57,8 @@ impl AbstractContainerMenu {
 }
 
 impl ServerLevel {
-    pub fn enchantment_menu_create_container(&mut self, player: EntityId) {
-        self.player_mut(player).menu_container = SimpleContainer::new(SimpleContainerKind::Plain, 2);
-    }
-
     pub fn enchantment_menu_slots_changed(&mut self, menu: &mut AbstractContainerMenu, player: EntityId) {
-        let item_stack = self.get_item(menu.container, 0);
+        let item_stack = menu.containers[ENCHANT_SLOTS].get_item(0).clone();
         if !item_stack.is_empty() && item_stack.is_enchantable() {
             let Some(pos) = menu.access else { return };
             let mut bookcases = 0;
@@ -107,8 +103,8 @@ impl ServerLevel {
             return false;
         }
         let button = button_id as usize;
-        let item_stack = self.get_item(menu.container, 0);
-        let mut currency = self.get_item(menu.container, 1);
+        let item_stack = menu.containers[ENCHANT_SLOTS].get_item(0).clone();
+        let mut currency = menu.containers[ENCHANT_SLOTS].get_item(1).clone();
         let enchantment_cost = button_id + 1;
         let has_infinite_materials = self.has_infinite_materials(player);
         if (currency.is_empty() || currency.count < enchantment_cost) && !has_infinite_materials {
@@ -126,24 +122,23 @@ impl ServerLevel {
             let mut enchantment_item = item_stack;
             if enchantment_item.is(items::BOOK) {
                 enchantment_item = enchantment_item.transmute_copy(items::ENCHANTED_BOOK, enchantment_item.count);
-                self.set_item(menu.container, 0, enchantment_item.clone());
+                self.menu_container_set_item(menu, player, ENCHANT_SLOTS, 0, enchantment_item.clone());
             }
             for enchantment in &new_enchantment {
                 enchantment_helper::enchant(&mut enchantment_item, &enchantment.enchantment, enchantment.level);
             }
-            self.put_item(menu.container, 0, enchantment_item);
+            *menu.containers[ENCHANT_SLOTS].get_item_mut(0) = enchantment_item;
             currency.consume(enchantment_cost, self, Some(player));
             if currency.is_empty() {
-                self.set_item(menu.container, 1, ItemStack::empty());
+                self.menu_container_set_item(menu, player, ENCHANT_SLOTS, 1, ItemStack::empty());
             } else {
-                self.put_item(menu.container, 1, currency);
+                *menu.containers[ENCHANT_SLOTS].get_item_mut(1) = currency;
             }
-            self.container_set_changed(menu.container);
+            self.menu_container_set_changed(menu, player, ENCHANT_SLOTS);
             let enchantment_seed = self.player(player).experience.enchantment_seed;
             if let Some(state) = menu.enchantment.as_mut() {
                 state.enchantment_seed = enchantment_seed;
             }
-            self.player_mut(player).menu_container.changed = false;
             self.enchantment_menu_slots_changed(menu, player);
             let pitch = self.random.next_float() * 0.1 + 0.9;
             self.play_sound(None, pos, registry_id(registry::SOUND_EVENT, "minecraft:block.enchantment_table.use"), SoundSource::Blocks, 1.0, pitch);
@@ -153,7 +148,7 @@ impl ServerLevel {
 
     pub fn enchantment_menu_removed(&mut self, menu: &mut AbstractContainerMenu, player: EntityId) {
         if menu.access.is_some() {
-            self.clear_container(player, menu.container);
+            self.clear_container(menu, player, ENCHANT_SLOTS);
         }
     }
 }

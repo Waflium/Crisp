@@ -48,7 +48,6 @@ fn consume_one(level: &mut ServerLevel, player: EntityId, hand: InteractionHand)
             p.inventory.slots[slot] = None;
         }
     }
-    p.dirty_slots.push(slot);
 }
 
 impl BlockBehaviour for FlowerPotBlock {

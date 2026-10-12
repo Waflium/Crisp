@@ -2,7 +2,6 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use crisp_core::{BlockPos, Direction, Vec3, mth};
 use crisp_data::packets::play::{clientbound, serverbound};
-use crisp_data::{registry, registry_id};
 use crisp_protocol::Reader;
 
 use crate::network::configuration::read_client_information;
@@ -13,10 +12,9 @@ use crate::server::level::game_mode::{BlockBreakAction, GameType};
 use crate::server::network::movement::Input;
 use crate::util::Prediction;
 use crate::world::entity::EntityId;
-use crate::world::inventory::{Kind, SLOT_COUNT, Window, craft};
 use crate::network::hashed_stack::HashedStack;
 use crate::world::item::component::swing_animation::SwingAnimation;
-use crate::world::item::{ItemStack, read_slot, validate_encodable, write_slot};
+use crate::world::item::{ItemStack, read_slot, validate_encodable};
 use crate::world::level::BlockGetter;
 use crate::world::level::block::BlockHitResult;
 use crate::world::level::block::entity::sign_block_entity::{FilteredText, SignTextSlot};
@@ -162,10 +160,8 @@ impl ServerLevel {
                 self.handle_set_creative_mode_slot(id, slot, stack);
             }
             serverbound::CONTAINER_CLOSE => {
-                let window_id = r.varint()?;
-                if self.player(id).container_menu.is_some() || window_id == self.player(id).window.id {
-                    self.close_container(id, false);
-                }
+                r.varint()?;
+                self.do_close_container(id);
             }
             serverbound::PICK_ITEM_FROM_BLOCK => {
                 let pos = r.position()?;
@@ -226,7 +222,6 @@ impl ServerLevel {
                 if held.count <= 0 {
                     p.inventory.slots[slot] = None;
                 }
-                p.dirty_slots.push(slot);
                 self.player_drop(id, dropped, true, Prediction::Predicted);
             }
             RELEASE_USE_ITEM => self.release_using_item(id),
@@ -406,45 +401,12 @@ impl ServerLevel {
             claims.push((slot as usize, HashedStack::read(r)?));
         }
         let carried_claim = HashedStack::read(r)?;
-        if let Some(menu) = &self.player(id).container_menu {
-            if menu.container_id != window_id {
-                return Ok(());
-            }
-            let claims = claims.into_iter().map(|(s, h)| (s as i16 as i32, h)).collect();
-            return self
-                .handle_container_menu_click(id, state_id, slot as i32, button as i32, mode, claims, carried_claim)
-                .map_err(|()| anyhow::anyhow!("Container click on slot {slot} failed"));
-        }
-        if window_id != self.player(id).window.id {
+        if self.container_menu_id(id) != window_id {
             return Ok(());
         }
-        let p = self.player_mut(id);
-        let before: Vec<Option<ItemStack>> = (0..SLOT_COUNT).map(|s| p.window.slot(&p.inventory, s)).collect();
-        let mut drag = std::mem::take(&mut p.drag);
-        let drops = p.menu().click(slot, button, mode, &mut drag);
-        p.drag = drag;
-        for stack in drops {
-            self.player_drop(id, stack, true, Prediction::Predicted);
-        }
-        let p = self.player_mut(id);
-        if state_id != p.inventory_state {
-            p.send_window_content();
-            return Ok(());
-        }
-        for s in 0..SLOT_COUNT {
-            let now = p.window.slot(&p.inventory, s);
-            let client_right = match claims.iter().find(|(c, _)| *c == s) {
-                Some((_, claim)) => claim.matches(now.as_ref()),
-                None => before[s] == now,
-            };
-            if !client_right {
-                p.send_slot(s);
-            }
-        }
-        if !carried_claim.matches(p.carried.as_ref()) {
-            p.connection.send(clientbound::SET_CURSOR_ITEM, |w| write_slot(w, p.carried.as_ref()));
-        }
-        Ok(())
+        let claims = claims.into_iter().map(|(s, h)| (s as i16 as i32, h)).collect();
+        self.handle_container_menu_click(id, state_id, slot as i32, button as i32, mode, claims, carried_claim)
+            .map_err(|()| anyhow::anyhow!("Container click on slot {slot} failed"))
     }
 
     fn handle_set_creative_mode_slot(&mut self, id: EntityId, slot: i16, stack: Option<ItemStack>) {
@@ -457,15 +419,14 @@ impl ServerLevel {
         let valid_data = stack.as_ref().is_none_or(|s| s.is_empty() || s.count <= s.max_stack_size());
         if valid_slot && valid_data {
             let slot = slot as usize;
-            p.inventory.slots[slot] = stack.filter(|s| !s.is_empty());
-            if (1..=4).contains(&slot) {
-                let slots = &mut p.inventory.slots;
-                slots[0] = craft(&slots[1..=4], 2);
-                if p.window.kind == Kind::Inventory {
-                    p.send_slot(0);
-                }
-            }
+            let stack = stack.unwrap_or_else(ItemStack::empty);
+            let Some(mut menu) = self.player_mut(id).inventory_menu.take() else { return };
+            self.slot_set_by_player(&mut menu, id, slot, stack.clone());
+            menu.set_remote_slot(slot, &stack);
+            self.menu_broadcast_changes(&mut menu, id);
+            self.restore_container_menu(id, menu);
         } else if drop && valid_data {
+            let p = self.player_mut(id);
             if p.drop_spam_throttler.is_under_threshold() {
                 p.drop_spam_throttler.increment();
                 if let Some(stack) = stack.filter(|s| !s.is_empty()) {
@@ -477,41 +438,6 @@ impl ServerLevel {
         }
     }
 
-    pub fn close_container(&mut self, id: EntityId, notify: bool) {
-        if let Some(container_id) = self.close_container_menu(id) {
-            if notify {
-                self.player(id).connection.send(clientbound::CONTAINER_CLOSE, |w| w.varint(container_id));
-            }
-            return;
-        }
-        let p = self.player_mut(id);
-        let leftovers = p.menu().close();
-        if notify && p.window.id != 0 {
-            p.connection.send(clientbound::CONTAINER_CLOSE, |w| w.varint(p.window.id));
-        }
-        p.window = Window::inventory();
-        p.dirty_slots.clear();
-        p.send_window_content();
-        for stack in leftovers {
-            self.player_drop(id, stack, false, Prediction::ServerOnly);
-        }
-    }
-
-    pub fn open_crafting_table(&mut self, id: EntityId, pos: BlockPos) {
-        if self.player(id).window.id != 0 {
-            self.close_container(id, false);
-        }
-        let p = self.player_mut(id);
-        p.last_window_id = p.last_window_id % 100 + 1;
-        p.window = Window::crafting_table(p.last_window_id, pos);
-        let title = crate::network::chat::translate("container.crafting");
-        p.connection.send(clientbound::OPEN_SCREEN, |w| {
-            w.varint(p.window.id);
-            w.varint(registry_id(registry::MENU, "minecraft:crafting"));
-            title.write(w);
-        });
-        p.send_window_content();
-    }
 
     pub fn tick_connection(&mut self, id: EntityId) -> bool {
         let p = self.player_mut(id);
@@ -709,19 +635,19 @@ impl ServerLevel {
 
     fn try_pick_item(&mut self, id: EntityId, stack: ItemStack) {
         let p = self.player_mut(id);
-        let changed: Vec<usize> = match p.inventory.find_slot_matching_item(&stack) {
-            Some(slot) if crate::world::item::Inventory::is_hotbar_slot(slot) => {
-                p.inventory.selected = slot;
-                Vec::new()
+        match p.inventory.find_slot_matching_item(&stack) {
+            Some(slot) if crate::world::item::Inventory::is_hotbar_slot(slot) => p.inventory.selected = slot,
+            Some(slot) => {
+                p.inventory.pick_slot(slot);
             }
-            Some(slot) => p.inventory.pick_slot(slot).to_vec(),
-            None if p.abilities.instabuild => p.inventory.add_and_pick_item(stack),
-            None => Vec::new(),
-        };
+            None if p.abilities.instabuild => {
+                p.inventory.add_and_pick_item(stack);
+            }
+            None => {}
+        }
         let selected = p.inventory.selected as i32;
         p.connection.send(clientbound::SET_HELD_SLOT, |w| w.varint(selected));
-        p.dirty_slots.extend(changed);
-        p.sync_inventory();
+        self.broadcast_inventory_menu_changes(id);
     }
 }
 

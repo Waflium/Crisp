@@ -468,7 +468,6 @@ impl ServerLevel {
         for index in storage.chain(equipment) {
             let p = self.player_mut(id);
             let Some(stack) = p.inventory.slots[index].take() else { continue };
-            p.dirty_slots.push(index);
             if !stack.is_empty() {
                 self.drop_from_player(id, stack, true);
             }
@@ -486,17 +485,7 @@ impl ServerLevel {
         self.living_entity_remove(id, reason);
         self.player_left_level(id);
         self.recheck_combat_status(id);
-        let p = self.player_mut(id);
-        let mut dropped: Vec<ItemStack> = p.carried.take().into_iter().collect();
-        for index in 1..5 {
-            if let Some(stack) = p.inventory.slots[index].take() {
-                p.dirty_slots.push(index);
-                dropped.push(stack);
-            }
-        }
-        for stack in dropped {
-            self.player_drop(id, stack, false, Prediction::ServerOnly);
-        }
+        self.remove_player_menus(id);
     }
 
     pub fn player_drop(&mut self, player: EntityId, stack: ItemStack, thrown_from_hand: bool, prediction: Prediction) {

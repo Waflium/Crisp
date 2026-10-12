@@ -13,12 +13,11 @@ pub enum SimpleContainerKind {
 pub struct SimpleContainer {
     pub kind: SimpleContainerKind,
     pub items: Vec<ItemStack>,
-    pub changed: bool,
 }
 
 impl SimpleContainer {
     pub fn new(kind: SimpleContainerKind, size: usize) -> SimpleContainer {
-        SimpleContainer { kind, items: vec![ItemStack::empty(); size], changed: false }
+        SimpleContainer { kind, items: vec![ItemStack::empty(); size] }
     }
 
     pub fn get_max_stack_size(&self) -> i32 {
@@ -33,9 +32,5 @@ impl SimpleContainer {
             SimpleContainerKind::Plain => true,
             SimpleContainerKind::BeaconPayment => stack.get_item().is(&item_tags::BEACON_PAYMENT_ITEMS),
         }
-    }
-
-    pub fn set_changed(&mut self) {
-        self.changed = true;
     }
 }

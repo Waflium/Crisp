@@ -255,6 +255,44 @@ impl ItemStackTemplate {
         let patch = super::custom::patch_of(&self.components);
         crate::world::item::ItemStack::from_template(item, self.count, &patch)
     }
+
+    pub fn decode(tag: &Nbt) -> Result<ItemStackTemplate, String> {
+        if let Nbt::String(id) = tag {
+            let item = crate::commands::arguments::parse_identifier(id).filter(|id| crisp_data::Item::by_name(id).is_some()).ok_or_else(|| format!("Unknown item: {id}"))?;
+            return Ok(ItemStackTemplate { item, count: 1, components: Nbt::Compound(Vec::new()) });
+        }
+        let id = string(tag.get("id")).ok_or("No key id in MapLike")?;
+        let item = crate::commands::arguments::parse_identifier(&id).filter(|id| crisp_data::Item::by_name(id).is_some()).ok_or_else(|| format!("Unknown item: {id}"))?;
+        let count = i32_or(tag.get("count"), 1);
+        if !(1..=99).contains(&count) {
+            return Err(format!("Value {count} outside of range [1:99]"));
+        }
+        Ok(ItemStackTemplate { item, count, components: tag.get("components").cloned().unwrap_or(Nbt::Compound(Vec::new())) })
+    }
+
+    pub fn item(&self) -> crisp_data::Item {
+        crisp_data::Item::by_name(&self.item).unwrap_or(crisp_data::items::AIR)
+    }
+
+    pub fn apply(&self, count: i32, additional_patch: &crate::world::item::component::DataComponentPatch) -> crate::world::item::ItemStack {
+        let mut result = crate::world::item::ItemStack::with_patch(self.item(), count, additional_patch);
+        result.apply_components(&super::custom::patch_of(&self.components));
+        self.validate(result)
+    }
+
+    fn validate(&self, result: crate::world::item::ItemStack) -> crate::world::item::ItemStack {
+        match result.validate_strict() {
+            Ok(()) => result,
+            Err(error) => {
+                warn!("Can't create item stack with properties {:?}, error: {error}", self);
+                crate::world::item::ItemStack::empty()
+            }
+        }
+    }
+
+    pub fn from_non_empty_stack(item_stack: &crate::world::item::ItemStack, new_count: i32) -> ItemStackTemplate {
+        ItemStackTemplate { item: item_stack.get_item().name().to_string(), count: new_count, components: item_stack.components_patch().to_nbt() }
+    }
 }
 
 pub fn container_slots(v: &Nbt) -> Vec<(i32, ItemStackTemplate)> {
@@ -454,4 +492,27 @@ pub fn text(v: &Nbt) -> Component {
 
 pub fn dyed_color(v: &Nbt) -> i32 {
     as_i32(v)
+}
+
+pub fn apply_dyes(current_dye: Option<i32>, dyes: &[crate::world::item::dye_color::DyeColor]) -> i32 {
+    use crate::util::argb;
+    let (mut red_total, mut green_total, mut blue_total, mut intensity_total, mut color_count) = (0, 0, 0, 0, 0);
+    let colors = current_dye.into_iter().chain(dyes.iter().map(|dye| dye.texture_diffuse_color()));
+    for color in colors {
+        let (red, green, blue) = (argb::red(color), argb::green(color), argb::blue(color));
+        intensity_total += red.max(green.max(blue));
+        red_total += red;
+        green_total += green;
+        blue_total += blue;
+        color_count += 1;
+    }
+    let red = red_total / color_count;
+    let green = green_total / color_count;
+    let blue = blue_total / color_count;
+    let average_intensity = intensity_total as f32 / color_count as f32;
+    let result_intensity = red.max(green.max(blue)) as f32;
+    let red = (red as f32 * average_intensity / result_intensity) as i32;
+    let green = (green as f32 * average_intensity / result_intensity) as i32;
+    let blue = (blue as f32 * average_intensity / result_intensity) as i32;
+    argb::color(0, red, green, blue)
 }

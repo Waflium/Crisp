@@ -860,8 +860,8 @@ pub struct CraftingTableBlock;
 
 impl BlockBehaviour for CraftingTableBlock {
     fn use_without_item(&self, _state: BlockState, level: &mut ServerLevel, pos: BlockPos, player: EntityId, _hit: &BlockHitResult) -> InteractionResult {
-        level.open_crafting_table(player, pos);
-        InteractionResult::SUCCESS_SERVER
+        level.open_menu(player, crate::world::inventory::menu_provider::MenuProvider::Crafting(pos));
+        InteractionResult::SUCCESS
     }
 }
 

@@ -445,12 +445,11 @@ impl ServerLevel {
         if result_stack.as_ref() != Some(&item_stack) {
             self.player_mut(player).set_item_in_hand(hand, result_stack);
         }
-        let using = self.is_using_item(player);
-        let p = self.player_mut(player);
-        if !using && p.window.id == 0 {
-            p.dirty_slots.clear();
-            p.inventory_state += 1;
-            p.send_window_content();
+        if !self.is_using_item(player)
+            && let Some(mut inventory_menu) = self.player_mut(player).inventory_menu.take()
+        {
+            self.menu_send_all_data_to_remote(&mut inventory_menu, player);
+            self.restore_container_menu(player, inventory_menu);
         }
         result
     }
