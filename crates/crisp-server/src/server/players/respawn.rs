@@ -219,6 +219,9 @@ impl Server {
         if !transition.missing_respawn_block {
             player.respawn_config = old.respawn_config.clone();
         }
+        for post_effect in &old.post_effects {
+            player.add_post_effect(post_effect);
+        }
         let e = &mut player.entity;
         e.set_pos_raw(transition.position);
         e.set_y_rot(transition.y_rot);
@@ -245,7 +248,7 @@ impl Server {
         for effect in &player.living.active_effects {
             out.send_raw(update_mob_effect(id, effect, false));
         }
-        out.send(clientbound::POST_EFFECTS, |p| p.varint(0));
+        player.send_post_effects();
         self.send_level_info(&out, level_index);
         self.send_player_permission_level_to(level_index, &player);
         self.levels[level_index].add_player(player);

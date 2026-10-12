@@ -127,6 +127,9 @@ pub struct ServerPlayer {
     pub disconnected: bool,
     pub disconnect_reason: Option<String>,
     pub command_suggestions: crate::server::network::server_command_suggestions_provider::ServerCommandSuggestionsProvider,
+    pub post_effects: Vec<String>,
+    pub post_effects_dirty: bool,
+    pub camera: Option<EntityId>,
 }
 
 impl ServerPlayer {
@@ -201,6 +204,9 @@ impl ServerPlayer {
             disconnected: false,
             disconnect_reason: None,
             command_suggestions: Default::default(),
+            post_effects: Vec::new(),
+            post_effects_dirty: true,
+            camera: None,
         };
         player.update_options(client);
         player
@@ -336,6 +342,7 @@ impl ServerPlayer {
             }
             nbt.push(("respawn".into(), Nbt::Compound(fields)));
         }
+        nbt.push(("post_effects".into(), Nbt::List(self.post_effects.iter().map(|p| s(p)).collect())));
         Nbt::Compound(nbt)
     }
 
@@ -360,6 +367,11 @@ impl ServerPlayer {
             Some(Vec3::new(p[0].as_f64()?, p[1].as_f64()?, p[2].as_f64()?))
         });
         self.seen_credits = number("seenCredits").is_some_and(|v| v != 0.0);
+        if let Some(post_effects) = nbt.get("post_effects").and_then(|list| {
+            list.as_list().iter().map(|p| p.as_str().and_then(crate::commands::arguments::parse_identifier)).collect::<Option<Vec<String>>>()
+        }) {
+            self.post_effects.extend(post_effects);
+        }
         if let Some(attributes) = nbt.get("attributes") {
             self.living.attributes.load(attributes);
         }
@@ -449,6 +461,50 @@ impl ServerPlayer {
                     instance.remove_modifier(&modifier.id);
                 }
             }
+        }
+    }
+
+    pub fn send_post_effects(&mut self) {
+        self.post_effects_dirty = false;
+        let post_effects = &self.post_effects;
+        self.connection.send(clientbound::POST_EFFECTS, |w| {
+            w.varint(post_effects.len() as i32);
+            for post_effect in post_effects {
+                w.string(post_effect);
+            }
+        });
+    }
+
+    pub fn add_post_effect(&mut self, post_effect: &str) -> bool {
+        if self.post_effects.iter().any(|p| p == post_effect) {
+            return false;
+        }
+        self.post_effects.push(post_effect.to_string());
+        self.post_effects_dirty = true;
+        true
+    }
+
+    pub fn clear_post_effects(&mut self) -> bool {
+        if self.post_effects.is_empty() {
+            return false;
+        }
+        self.post_effects.clear();
+        self.post_effects_dirty = true;
+        true
+    }
+
+    pub fn get_post_effects(&self) -> &[String] {
+        &self.post_effects
+    }
+
+    pub fn remove_post_effect(&mut self, post_effect: &str) -> bool {
+        match self.post_effects.iter().position(|p| p == post_effect) {
+            Some(index) => {
+                self.post_effects.remove(index);
+                self.post_effects_dirty = true;
+                true
+            }
+            None => false,
         }
     }
 
@@ -717,14 +773,91 @@ impl ServerLevel {
             w.bool(false);
         });
     }
+
+    pub fn get_camera(&self, id: EntityId) -> EntityId {
+        self.player(id).camera.unwrap_or(id)
+    }
+
+    pub fn set_camera(&mut self, id: EntityId, new_camera: Option<EntityId>) {
+        let old_camera = self.get_camera(id);
+        let camera = new_camera.unwrap_or(id);
+        self.player_mut(id).camera = Some(camera);
+        if old_camera != camera {
+            if let Some(pos) = self.entity_ref(camera).map(Entity::position) {
+                self.server_player_teleport_in_level(id, pos);
+            }
+            self.on_camera_changed(id, camera, new_camera.is_some());
+        }
+    }
+
+    fn server_player_teleport_in_level(&mut self, id: EntityId, pos: Vec3) {
+        if self.is_sleeping(id) {
+            self.stop_sleep_in_bed(id, true, true);
+        }
+        let player = self.player_mut(id);
+        let (y_rot, x_rot) = (player.entity.y_rot, player.entity.x_rot);
+        let destination = crate::world::entity::relative::PositionMoveRotation { position: pos, delta_movement: Vec3::ZERO, y_rot, x_rot };
+        player.teleport_relative(destination, 0);
+        player.reset_position();
+        player.entity.y_head_rot = y_rot;
+        player.movement.above_ground_tick_count = 0;
+    }
+
+    pub(crate) fn on_camera_changed(&mut self, id: EntityId, camera: EntityId, moved: bool) {
+        if moved {
+            self.move_player(id);
+        }
+        let player = self.player_mut(id);
+        player.connection.send(clientbound::SET_CAMERA, |w| w.varint(camera));
+        player.reset_position();
+    }
+
+    pub fn tick_camera(&mut self, id: EntityId) {
+        let camera = self.get_camera(id);
+        if camera == id {
+            return;
+        }
+        if self.entity_ref(camera).is_some() && self.is_alive(camera) {
+            let e = self.entity(camera);
+            let (pos, y_rot, x_rot) = (e.position(), e.y_rot, e.x_rot);
+            let player = &mut self.player_mut(id).entity;
+            player.abs_snap_to(pos.x, pos.y, pos.z);
+            player.abs_snap_rotation_to(y_rot, x_rot);
+            self.move_player(id);
+            if self.player(id).entity.is_shift_key_down() {
+                self.set_camera(id, Some(id));
+            }
+        } else {
+            self.set_camera(id, Some(id));
+        }
+    }
 }
 
 impl crate::server::Server {
+    pub fn set_camera(&mut self, id: EntityId, new_camera: Option<EntityId>) {
+        let level = self.level_of(id).expect("player on this server");
+        let camera = new_camera.unwrap_or(id);
+        match self.level_of(camera) {
+            Some(camera_level) if camera_level != level && self.levels[level].get_camera(id) != camera => {
+                self.player_mut(id).camera = Some(camera);
+                let pos = self.levels[camera_level].entity(camera).position();
+                let (y_rot, x_rot) = (self.player(id).entity.y_rot, self.player(id).entity.x_rot);
+                self.teleport_to(id, camera_level, pos, 0, y_rot, x_rot, false);
+                let level = self.level_of(id).expect("player on this server");
+                self.levels[level].on_camera_changed(id, camera, new_camera.is_some());
+            }
+            _ => self.levels[level].set_camera(id, new_camera),
+        }
+    }
+
     #[allow(clippy::too_many_arguments)]
-    pub fn server_player_teleport_to(&mut self, id: EntityId, level: usize, pos: Vec3, relatives: u16, y_rot: f32, x_rot: f32, _reset_camera: bool) -> bool {
+    pub fn server_player_teleport_to(&mut self, id: EntityId, level: usize, pos: Vec3, relatives: u16, y_rot: f32, x_rot: f32, reset_camera: bool) -> bool {
         let current = self.level_of(id).expect("player on this server");
         if self.levels[current].is_sleeping(id) {
             self.levels[current].stop_sleep_in_bed(id, true, true);
+        }
+        if reset_camera {
+            self.set_camera(id, Some(id));
         }
         let transition = TeleportTransition::with_relatives(level, pos, Vec3::ZERO, y_rot, x_rot, relatives, PostTeleportTransition::DO_NOTHING);
         let success = self.server_player_teleport(id, transition).is_some();
@@ -784,13 +917,22 @@ impl crate::server::Server {
         self.send_all_player_info(id);
         let level = &mut self.levels[new_level];
         level.send_active_player_effects(id);
-        out.send(clientbound::POST_EFFECTS, |w| w.varint(0));
+        level.player_mut(id).send_post_effects();
         transition.post_teleport_transition.on_transition(level, id);
         let player = level.player_mut(id);
         player.last_sent_exp = -1;
         player.last_sent_health = -1.0;
         player.last_sent_food = -1;
+        self.teleport_spectators(id, transition, old_level);
         Some(id)
+    }
+
+    pub fn teleport_spectators(&mut self, entity: EntityId, transition: TeleportTransition, old_level: usize) {
+        let spectators: Vec<EntityId> = self.levels[old_level].players.values().filter(|p| p.camera == Some(entity)).map(|p| p.entity.id).collect();
+        for spectator in spectators {
+            self.teleport(spectator, transition);
+            self.set_camera(spectator, None);
+        }
     }
 
     fn trigger_dimension_change_triggers(&mut self, id: EntityId) {

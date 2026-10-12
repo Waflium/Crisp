@@ -167,6 +167,8 @@ impl ServerLevel {
         });
         if game_type == GameType::Spectator {
             self.stop_using_item(player);
+        } else {
+            self.set_camera(player, Some(player));
         }
         self.on_update_abilities(player);
         self.update_effect_visibility(player);

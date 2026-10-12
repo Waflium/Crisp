@@ -31,7 +31,6 @@ fn resources() -> Arc<BTreeMap<String, Resource>> {
     RESOURCES.read().expect("structure resources").clone().unwrap_or_else(|| VANILLA_RESOURCES.clone())
 }
 
-#[cfg(test)]
 pub fn list_templates() -> Vec<String> {
     resources()
         .keys()
@@ -40,6 +39,14 @@ pub fn list_templates() -> Vec<String> {
             format!("{namespace}:{}", &path[STRUCTURE_DIRECTORY.len() + 1..path.len() - STRUCTURE_FILE_EXTENSION.len()])
         })
         .collect()
+}
+
+pub fn get(id: &str) -> Option<&'static StructureTemplate> {
+    if let Some(&template) = STRUCTURE_REPOSITORY.read().expect("structure repository").get(id) {
+        return Some(template);
+    }
+    let template: &'static StructureTemplate = Box::leak(Box::new(try_load(id)?));
+    Some(*STRUCTURE_REPOSITORY.write().expect("structure repository").entry(id.to_string()).or_insert(template))
 }
 
 pub fn get_or_create(id: &str) -> &'static StructureTemplate {

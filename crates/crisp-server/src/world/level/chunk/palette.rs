@@ -266,6 +266,10 @@ impl<T: PaletteValue> PalettedContainer<T> {
         }
     }
 
+    pub fn recreate(&self) -> PalettedContainer<T> {
+        PalettedContainer::new(self.data.palette.value_for(0), self.strategy)
+    }
+
     pub fn get(&self, x: usize, y: usize, z: usize) -> T {
         self.get_index(self.strategy.index(x, y, z))
     }

@@ -136,7 +136,29 @@ pub fn feature(name: &str) -> Option<&'static Feature> {
     feature_index(name).map(|index| &FEATURES[index as usize])
 }
 
+fn nbt_to_json(nbt: &crisp_protocol::nbt::Nbt) -> Value {
+    use crisp_protocol::nbt::Nbt;
+    match nbt {
+        Nbt::Byte(b) => Value::Bool(*b != 0),
+        Nbt::Short(v) => Value::from(*v),
+        Nbt::Int(v) => Value::from(*v),
+        Nbt::Long(v) => Value::from(*v),
+        Nbt::Float(v) => Value::from(*v),
+        Nbt::Double(v) => Value::from(*v),
+        Nbt::String(s) => Value::String(s.clone()),
+        Nbt::ByteArray(a) => Value::Array(a.iter().map(|&v| Value::from(v)).collect()),
+        Nbt::IntArray(a) => Value::Array(a.iter().map(|&v| Value::from(v)).collect()),
+        Nbt::LongArray(a) => Value::Array(a.iter().map(|&v| Value::from(v)).collect()),
+        Nbt::List(items) => Value::Array(items.iter().map(nbt_to_json).collect()),
+        Nbt::Compound(fields) => Value::Object(fields.iter().map(|(k, v)| (k.clone(), nbt_to_json(v))).collect()),
+    }
+}
+
 impl Feature {
+    pub fn parse_nbt(tag: &crisp_protocol::nbt::Nbt) -> Result<Feature, String> {
+        Feature::parse(&nbt_to_json(tag))
+    }
+
     pub fn parse(json: &Value) -> Result<Feature, String> {
         let ty = json.get("type").and_then(Value::as_str).ok_or("feature without type")?;
         Ok(match ty.strip_prefix("minecraft:").unwrap_or(ty) {

@@ -269,6 +269,10 @@ impl ChunkCache {
         if self.is_full(pos.pack()) { self.chunks.get(&pos) } else { None }
     }
 
+    pub fn loaded_chunk_mut(&mut self, pos: ChunkPos) -> Option<&mut LevelChunk> {
+        if self.is_full(pos.pack()) { self.chunks.get_mut(&pos) } else { None }
+    }
+
     pub fn chunk(&mut self, pos: ChunkPos) -> &mut LevelChunk {
         if !self.last_chunk_pos.contains(&Some(pos)) {
             let future = self.chunk_future_main_thread(pos, ChunkStatus::Full, true);

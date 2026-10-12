@@ -156,6 +156,10 @@ impl Services {
     }
 
     pub fn fetch_profile(&self, id: u128) -> Option<NameAndId> {
+        self.fetch_game_profile(id).map(|profile| NameAndId { id: profile.uuid, name: profile.name })
+    }
+
+    pub fn fetch_game_profile(&self, id: u128) -> Option<crate::network::login::Profile> {
         let (http, runtime) = self.http.as_ref()?;
         runtime.block_on(async {
             let endpoint = self.url_async("session", "getProfileById").await?.replace("{profileId}", &format!("{id:032x}"));
@@ -173,7 +177,20 @@ impl Services {
             }
             let found = response.json::<serde_json::Value>().await.ok()?;
             let id = u128::from_str_radix(found["id"].as_str()?, 16).ok()?;
-            Some(NameAndId { id, name: found["name"].as_str()?.to_string() })
+            let properties = found["properties"]
+                .as_array()
+                .map(Vec::as_slice)
+                .unwrap_or_default()
+                .iter()
+                .filter_map(|property| {
+                    Some(crate::network::login::ProfileProperty {
+                        name: property["name"].as_str()?.to_string(),
+                        value: property["value"].as_str()?.to_string(),
+                        signature: property["signature"].as_str().map(str::to_string),
+                    })
+                })
+                .collect();
+            Some(crate::network::login::Profile { uuid: id, name: found["name"].as_str()?.to_string(), properties })
         })
     }
 

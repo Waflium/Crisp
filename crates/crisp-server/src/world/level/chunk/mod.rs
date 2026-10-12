@@ -348,6 +348,23 @@ impl LevelChunk {
         self.sections[self.section_index(y << 2)].biomes.get((quart_x & 3) as usize, (y & 3) as usize, (quart_z & 3) as usize)
     }
 
+    pub fn fill_biomes_from_noise(&mut self, biome_resolver: &mut impl FnMut(&LevelChunk, i32, i32, i32) -> Biome) {
+        let quart_min_x = self.pos.min_block_x() >> 2;
+        let quart_min_z = self.pos.min_block_z() >> 2;
+        for index in 0..self.sections.len() {
+            let quart_min_y = (self.min_y >> 2) + index as i32 * 4;
+            let mut biomes = self.sections[index].biomes.recreate();
+            for x in 0..4 {
+                for y in 0..4 {
+                    for z in 0..4 {
+                        biomes.get_and_set(x, y, z, biome_resolver(self, quart_min_x + x as i32, quart_min_y + y as i32, quart_min_z + z as i32));
+                    }
+                }
+            }
+            self.sections[index].biomes = biomes;
+        }
+    }
+
     pub fn height_at(&self, kind: HeightmapType, x: i32, z: i32) -> i32 {
         self.heightmap(kind).highest_taken((x & 15) as usize, (z & 15) as usize)
     }

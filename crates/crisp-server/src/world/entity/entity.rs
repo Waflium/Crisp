@@ -2260,6 +2260,7 @@ impl crate::server::Server {
         if is_item {
             level.merge_with_neighbours(new_id);
         }
+        self.teleport_spectators(old_entity.id, transition, old_level);
         Some(new_id)
     }
 

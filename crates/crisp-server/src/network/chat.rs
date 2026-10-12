@@ -478,7 +478,18 @@ impl Component {
             }
             Contents::Keybind(keybind) => out.push_str(keybind),
             Contents::Selector { pattern, .. } => out.push_str(pattern),
-            Contents::Score { .. } | Contents::Other(_) => {}
+            Contents::Other(fields) => {
+                let field = |name: &str| fields.iter().find(|(k, _)| k == name).map(|(_, v)| v);
+                if let Some(fallback) = field("fallback") {
+                    Component::from_nbt(fallback).append_string(out);
+                } else if let Some(player) = field("player") {
+                    match player.as_str().or_else(|| player.get("name").and_then(Nbt::as_str)) {
+                        Some(name) => out.push_str(&format!("[{name} head]")),
+                        None => out.push_str("[unknown player head]"),
+                    }
+                }
+            }
+            Contents::Score { .. } => {}
         }
         for sibling in &self.siblings {
             sibling.append_string(out);

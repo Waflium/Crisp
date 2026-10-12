@@ -121,3 +121,29 @@ pub fn int_provider(reader: &mut StringReader) -> Result<ResourceOrId<ContextInt
 pub fn slot_source(reader: &mut StringReader) -> Result<ResourceOrId<SlotSource>, CommandSyntaxException> {
     parse(reader, SlotSource::decode_direct)
 }
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum RawResourceOrId {
+    Reference(String),
+    Inline(Nbt),
+}
+
+pub fn parse_raw(
+    reader: &mut StringReader,
+    registry: &str,
+    contains: impl Fn(&str) -> bool,
+    codec: impl Fn(&Nbt) -> Result<(), String>,
+) -> Result<RawResourceOrId, CommandSyntaxException> {
+    let mark = reader.cursor;
+    reader.skip_whitespace();
+    if let Some(id) = read_non_empty_identifier(reader) {
+        if !contains(&id) {
+            return Err(ERROR_NO_SUCH_ELEMENT.create_with_context(reader, id, registry));
+        }
+        return Ok(RawResourceOrId::Reference(id));
+    }
+    reader.cursor = mark;
+    let value = crate::nbt::parse_as_argument(reader)?;
+    codec(&value).map_err(|message| ERROR_FAILED_TO_PARSE.create_with_context(reader, message))?;
+    Ok(RawResourceOrId::Inline(value))
+}

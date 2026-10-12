@@ -2,7 +2,7 @@ pub mod attack_range;
 pub mod bundle_contents;
 pub mod charged_projectiles;
 pub mod codec;
-mod custom;
+pub(crate) mod custom;
 pub mod growable_mutable_container;
 pub mod item_container_contents;
 pub mod map_post_processing;
@@ -11,8 +11,8 @@ pub mod simple_mutable_container;
 mod oracle_data;
 #[cfg(test)]
 mod oracle_tests;
-mod text;
-mod types;
+pub(crate) mod text;
+pub(crate) mod types;
 pub mod swing_animation;
 pub mod values;
 

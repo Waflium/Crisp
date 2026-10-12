@@ -207,6 +207,20 @@ impl Enchantment {
         self.definition.max_cost.calculate(level)
     }
 
+    pub fn get_fullname(enchantment: &str, level: i32) -> crate::network::chat::Component {
+        use crate::network::chat::{ChatFormatting, Component, Style, component_utils};
+        let this = Enchantment::by_id(enchantment).expect("registered enchantment");
+        let is_curse = crate::world::item::component::codec::registry_id(Self::REGISTRY, enchantment)
+            .is_ok_and(|id| crisp_data::tag(Self::REGISTRY, "minecraft:curse").contains(&id));
+        let color = if is_curse { ChatFormatting::Red } else { ChatFormatting::Gray };
+        let style = Style { color: Some(color.color()), ..Style::default() };
+        let mut result = component_utils::merge_styles(Component::from_nbt(&this.description), &style);
+        if level != 1 || this.max_level() != 1 {
+            result = result.append(Component::literal(" ")).append(Component::translatable(&format!("enchantment.level.{level}")));
+        }
+        result
+    }
+
     pub fn are_compatible(enchantment: &str, other: &str) -> bool {
         let id = |name: &str| crate::world::item::component::codec::registry_id("minecraft:enchantment", name).unwrap_or(-1);
         let (Some(a), Some(b)) = (Enchantment::by_id(enchantment), Enchantment::by_id(other)) else { return enchantment != other };

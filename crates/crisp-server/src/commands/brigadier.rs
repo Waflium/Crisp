@@ -332,6 +332,14 @@ impl Dynamic3CommandExceptionType {
     }
 }
 
+pub struct Dynamic4CommandExceptionType(pub fn(Arg, Arg, Arg, Arg) -> Component);
+
+impl Dynamic4CommandExceptionType {
+    pub fn create(&self, a: impl Into<Arg>, b: impl Into<Arg>, c: impl Into<Arg>, d: impl Into<Arg>) -> CommandSyntaxException {
+        CommandSyntaxException::new((self.0)(a.into(), b.into(), c.into(), d.into()))
+    }
+}
+
 pub fn tr(key: &str, args: Vec<Arg>) -> Component {
     Component::translatable_with(key, args)
 }

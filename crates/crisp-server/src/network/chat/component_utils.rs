@@ -10,6 +10,18 @@ use crate::world::scores::score_holder::ScoreHolder;
 
 const DEPTH_LIMIT: i32 = 100;
 
+pub fn merge_styles(mut component: Component, style: &Style) -> Component {
+    if style.is_empty() {
+        return component;
+    }
+    if component.style.is_empty() {
+        component.style = style.clone();
+    } else if component.style != *style {
+        component.style = component.style.apply_to(style);
+    }
+    component
+}
+
 pub fn resolve(server: &Server, source: &CommandSourceStack, component: &Component) -> Result<Component, CommandSyntaxException> {
     resolve_depth(server, source, source.entity, component, 0)
 }

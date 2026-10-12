@@ -201,11 +201,6 @@ impl ServerLevel {
                 let include_data = r.bool()?;
                 self.handle_pick_item_from_block(id, BlockPos::new(pos.0, pos.1, pos.2), include_data);
             }
-            serverbound::PICK_ITEM_FROM_ENTITY => {
-                let target = r.varint()?;
-                let _include_data = r.bool()?;
-                self.handle_pick_item_from_entity(id, target);
-            }
             serverbound::SET_CARRIED_ITEM => {
                 let slot = r.i16()?;
                 if (0..9).contains(&slot) {
@@ -728,14 +723,15 @@ impl ServerLevel {
         }
     }
 
-    fn handle_pick_item_from_entity(&mut self, id: EntityId, target: EntityId) {
+    pub(crate) fn handle_pick_item_from_entity(&mut self, id: EntityId, target: EntityId) -> bool {
         let exists = self.players.contains_key(&target) || self.entities.contains_key(&target);
         if !exists || !self.is_within_entity_interaction_range(id, target, 3.0) {
-            return;
+            return false;
         }
         if let Some(stack) = self.pick_result(target) {
             self.try_pick_item(id, stack);
         }
+        true
     }
 
     fn pick_result(&self, _entity: EntityId) -> Option<ItemStack> {
@@ -761,6 +757,18 @@ impl ServerLevel {
 }
 
 impl crate::server::Server {
+    pub(in crate::server) fn handle_pick_item_from_entity(&mut self, id: EntityId, packet: &Packet) -> anyhow::Result<()> {
+        let mut r = packet.reader();
+        let target = r.varint()?;
+        let include_data = r.bool()?;
+        let level = self.entity_level_mut(id);
+        if level.handle_pick_item_from_entity(id, target) && include_data && level.can_use_game_master_blocks(id) && level.is_player(target) {
+            let source = crate::commands::source::CommandSourceStack::player(self, id);
+            crate::server::commands::fetch_profile_command::print_for_avatar(self, &source, target);
+        }
+        Ok(())
+    }
+
     pub(in crate::server) fn handle_change_game_mode(&mut self, id: EntityId, packet: &Packet) -> anyhow::Result<()> {
         let mode = GameType::by_id(packet.reader().varint()?);
         let player = self.player(id);

@@ -11,9 +11,10 @@ pub mod message_argument;
 pub mod objective_argument;
 pub mod objective_criteria_argument;
 pub mod operation_argument;
+pub mod particle_argument;
+pub mod resource_or_id_argument;
 pub mod resource_key_argument;
 pub mod score_holder_argument;
-pub mod resource_or_id_argument;
 pub mod scoreboard_slot_argument;
 pub mod selector;
 pub mod slot_argument;
@@ -120,6 +121,11 @@ pub enum ArgumentType {
     ContextIntProvider,
     SlotSource,
     ItemSlot,
+    Particle,
+    Feature,
+    Dialog,
+    TemplateRotation,
+    TemplateMirror,
     Unsupported(&'static str),
 }
 
@@ -165,6 +171,10 @@ pub enum ArgumentValue {
     FloatProvider(ResourceOrId<ContextFloatProvider>),
     IntProvider(ResourceOrId<ContextIntProvider>),
     SlotSource(SlotSourceResult),
+    Particle(crate::core::particles::particle_options::ParticleOptions),
+    ResourceOrId(resource_or_id_argument::RawResourceOrId),
+    Rotation(crate::world::level::block::rotation::Rotation),
+    Mirror(crate::world::level::block::mirror::Mirror),
 }
 
 impl ArgumentType {
@@ -229,6 +239,11 @@ impl ArgumentType {
             "minecraft:context_int_provider" => ArgumentType::ContextIntProvider,
             "minecraft:slot_source" => ArgumentType::SlotSource,
             "minecraft:item_slot" => ArgumentType::ItemSlot,
+            "minecraft:particle" => ArgumentType::Particle,
+            "minecraft:feature" => ArgumentType::Feature,
+            "minecraft:dialog" => ArgumentType::Dialog,
+            "minecraft:template_rotation" => ArgumentType::TemplateRotation,
+            "minecraft:template_mirror" => ArgumentType::TemplateMirror,
             other => ArgumentType::Unsupported(other),
         }
     }
@@ -369,6 +384,33 @@ impl ArgumentType {
             ArgumentType::ContextIntProvider => ArgumentValue::IntProvider(resource_or_id_argument::int_provider(reader)?),
             ArgumentType::SlotSource => ArgumentValue::SlotSource(slot_source_argument::parse(reader)?),
             ArgumentType::ItemSlot => ArgumentValue::Int(slot_argument::parse(reader)?),
+            ArgumentType::Particle => ArgumentValue::Particle(particle_argument::read_particle(reader)?),
+            ArgumentType::Feature => ArgumentValue::ResourceOrId(resource_or_id_argument::parse_raw(
+                reader,
+                "minecraft:worldgen/feature",
+                |id| crate::world::level::levelgen::feature::feature::feature_index(id).is_some(),
+                |value| crate::world::level::levelgen::feature::feature::Feature::parse_nbt(value).map(drop),
+            )?),
+            ArgumentType::Dialog => ArgumentValue::ResourceOrId(resource_or_id_argument::parse_raw(
+                reader,
+                "minecraft:dialog",
+                |id| crisp_data::SyncedRegistry::get("minecraft:dialog").id_of(id).is_some(),
+                crate::server::dialog::validate,
+            )?),
+            ArgumentType::TemplateRotation => {
+                let id = reader.read_unquoted_string();
+                match crate::world::level::block::rotation::Rotation::by_name(&id) {
+                    Some(rotation) => ArgumentValue::Rotation(rotation),
+                    None => return Err(ERROR_INVALID_ENUM_VALUE.create_with_context(reader, id)),
+                }
+            }
+            ArgumentType::TemplateMirror => {
+                let id = reader.read_unquoted_string();
+                match crate::world::level::block::mirror::Mirror::by_name(&id) {
+                    Some(mirror) => ArgumentValue::Mirror(mirror),
+                    None => return Err(ERROR_INVALID_ENUM_VALUE.create_with_context(reader, id)),
+                }
+            }
             ArgumentType::Unsupported(parser) => {
                 return Err(super::brigadier::DISPATCHER_PARSE_EXCEPTION.create_with_context(reader, format!("{parser} arguments are not supported yet")));
             }
@@ -408,6 +450,7 @@ pub static ERROR_UNKNOWN_RESOURCE: Dynamic2CommandExceptionType =
     Dynamic2CommandExceptionType(|id, registry| tr("argument.resource.not_found", vec![id, registry]));
 pub static ERROR_UNKNOWN_TAG: Dynamic2CommandExceptionType =
     Dynamic2CommandExceptionType(|id, registry| tr("argument.resource_tag.not_found", vec![id, registry]));
+pub static ERROR_INVALID_ENUM_VALUE: DynamicCommandExceptionType = DynamicCommandExceptionType(|value| tr("argument.enum.invalid", vec![value]));
 pub static ERROR_INVALID_DIMENSION: DynamicCommandExceptionType = DynamicCommandExceptionType(|value| tr("argument.dimension.invalid", vec![value]));
 
 fn parse_time(reader: &mut StringReader, minimum: i32) -> Result<i32, CommandSyntaxException> {
@@ -492,13 +535,15 @@ pub fn java_uuid_from_string(s: &str) -> Option<u128> {
 }
 
 static TYPES: LazyLock<Vec<Option<ArgumentType>>> = LazyLock::new(|| {
-    crisp_data::commands::CommandNode::all()
+    let mut types: Vec<Option<ArgumentType>> = crisp_data::commands::CommandNode::all()
         .iter()
         .map(|n| {
             (n.kind == CommandNodeKind::Argument)
                 .then(|| ArgumentType::of(n.parser.unwrap(), &serde_json::from_str(n.properties).unwrap_or(Value::Null)))
         })
-        .collect()
+        .collect();
+    types[super::node_at("particle name pos delta").id as usize] = Some(ArgumentType::Vec3 { center_correct: false });
+    types
 });
 
 pub fn type_of(node: &CommandNode) -> &'static ArgumentType {
@@ -658,9 +703,23 @@ impl CommandContext {
         }
     }
 
+    pub fn get_resource_or_id(&self, name: &str) -> &resource_or_id_argument::RawResourceOrId {
+        match self.argument(name) {
+            ArgumentValue::ResourceOrId(v) => v,
+            other => panic!("{name} is {other:?}"),
+        }
+    }
+
     pub fn get_loot_predicate(&self, name: &str) -> &ResourceOrId<LootItemCondition> {
         match self.argument(name) {
             ArgumentValue::LootPredicate(v) => v,
+            other => panic!("{name} is {other:?}"),
+        }
+    }
+
+    pub fn get_rotation(&self, name: &str) -> crate::world::level::block::rotation::Rotation {
+        match self.argument(name) {
+            ArgumentValue::Rotation(v) => *v,
             other => panic!("{name} is {other:?}"),
         }
     }
@@ -672,9 +731,23 @@ impl CommandContext {
         }
     }
 
+    pub fn get_mirror(&self, name: &str) -> crate::world::level::block::mirror::Mirror {
+        match self.argument(name) {
+            ArgumentValue::Mirror(v) => *v,
+            other => panic!("{name} is {other:?}"),
+        }
+    }
+
     pub fn get_float_provider(&self, name: &str) -> &ResourceOrId<ContextFloatProvider> {
         match self.argument(name) {
             ArgumentValue::FloatProvider(v) => v,
+            other => panic!("{name} is {other:?}"),
+        }
+    }
+
+    pub fn get_uuid(&self, name: &str) -> u128 {
+        match self.argument(name) {
+            ArgumentValue::Uuid(v) => *v,
             other => panic!("{name} is {other:?}"),
         }
     }
@@ -689,6 +762,13 @@ impl CommandContext {
     pub fn get_slot_source(&self, name: &str) -> &SlotSourceResult {
         match self.argument(name) {
             ArgumentValue::SlotSource(v) => v,
+            other => panic!("{name} is {other:?}"),
+        }
+    }
+
+    pub fn get_particle(&self, name: &str) -> &crate::core::particles::particle_options::ParticleOptions {
+        match self.argument(name) {
+            ArgumentValue::Particle(v) => v,
             other => panic!("{name} is {other:?}"),
         }
     }
@@ -770,6 +850,13 @@ pub fn list_suggestions(
         ArgumentType::ContextIntProvider => resource_or_id_argument::list_suggestions(reloadable_server_registries::CONTEXT_INT_PROVIDER, &mut builder),
         ArgumentType::SlotSource => slot_source_argument::list_suggestions(&mut builder),
         ArgumentType::ItemSlot => slot_argument::list_suggestions(&mut builder),
+        ArgumentType::Particle => shared_suggestion_provider::suggest_resource(crisp_data::registry::PARTICLE_TYPE.iter(), &mut builder),
+        ArgumentType::Feature => shared_suggestion_provider::suggest_resource(crisp_data::FEATURES.iter().map(|f| f.0), &mut builder),
+        ArgumentType::Dialog => shared_suggestion_provider::suggest_resource(crisp_data::SyncedRegistry::get("minecraft:dialog").entries.iter(), &mut builder),
+        ArgumentType::TemplateRotation => {
+            shared_suggestion_provider::suggest(["none", "clockwise_90", "180", "counterclockwise_90"], &mut builder)
+        }
+        ArgumentType::TemplateMirror => shared_suggestion_provider::suggest(["none", "left_right", "front_back"], &mut builder),
         _ => {}
     }
     builder.build()

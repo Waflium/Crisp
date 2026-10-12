@@ -1,6 +1,7 @@
 pub mod bossevents;
 pub mod commands;
 pub mod dedicated;
+pub mod dialog;
 pub mod level;
 pub mod network;
 pub mod packs;
@@ -212,7 +213,9 @@ pub struct Server {
     server_brands: Vec<String>,
     was_modded: bool,
     pub scheduled_events: TimerQueue,
-    pub name_to_id_cache: CachedUserNameToIdResolver,
+    pub name_to_id_cache: Arc<CachedUserNameToIdResolver>,
+    pub profile_resolver: Arc<players::profile_resolver::ProfileResolver>,
+    pub task_sender: Option<std::sync::mpsc::Sender<ServerTask>>,
     pub custom_boss_events: CustomBossEvents,
     pub stopwatches: Stopwatches,
     pub services: Services,
@@ -393,7 +396,9 @@ impl Server {
             server_brands,
             was_modded,
             scheduled_events: TimerQueue::load(world_dir.as_ref().map(WorldDir::data_folder)),
-            name_to_id_cache,
+            name_to_id_cache: Arc::new(name_to_id_cache),
+            profile_resolver: Arc::default(),
+            task_sender: None,
             custom_boss_events: CustomBossEvents::load(world_dir.as_ref().map(WorldDir::data_folder)),
             stopwatches: Stopwatches::load(world_dir.as_ref().map(WorldDir::data_folder)),
             services: Services::offline(),
@@ -800,6 +805,7 @@ impl Server {
                     serverbound::COMMAND_SUGGESTION => self.handle_custom_command_suggestions(id, &packet),
                     serverbound::CLIENT_COMMAND => self.handle_client_command(id, &packet),
                     serverbound::CHANGE_GAME_MODE => self.handle_change_game_mode(id, &packet),
+                    serverbound::PICK_ITEM_FROM_ENTITY => self.handle_pick_item_from_entity(id, &packet),
                     serverbound::RESOURCE_PACK => self.handle_resource_pack_response(id, &packet),
                     _ => self.entity_level_mut(id).handle_game_packet(id, &packet),
                 };
@@ -970,7 +976,7 @@ impl Server {
         }
         level.send_active_player_effects(id);
         let player = level.player_mut(id);
-        player.connection.send(clientbound::POST_EFFECTS, |p| p.varint(0));
+        player.send_post_effects();
         level.init_inventory_menu(id);
         let player = level.player_mut(id);
         if let Some(values) = player.entity.data.pack_dirty() {
@@ -1670,7 +1676,7 @@ pub fn run(
 ) -> anyhow::Result<()> {
     let (task_sender, tasks) = std::sync::mpsc::channel::<ServerTask>();
     if let Some(management_server) = &management_server {
-        management_server.set_server(task_sender);
+        management_server.set_server(task_sender.clone());
     }
     let notification_manager = NotificationManager::new(management_server.clone());
     let server_activity_monitor = Arc::new(ServerActivityMonitor::new(notification_manager.clone(), 30));
@@ -1736,6 +1742,7 @@ pub fn run(
     server.settings = settings;
     info!("Done ({:.3}s)! For help, type \"help\"", started.elapsed().as_secs_f64());
     server.services = services;
+    server.task_sender = Some(task_sender);
     server.status = status;
     server.player_names_array = player_names_array;
     let mut query_thread_gs4 = None;

@@ -982,6 +982,41 @@ impl ServerLevel {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
+    pub fn send_particles_to_player(
+        &self,
+        player: EntityId,
+        particle: &crate::core::particles::particle_options::ParticleOptions,
+        override_limiter: bool,
+        always_show: bool,
+        pos: Vec3,
+        count: i32,
+        dist: Vec3,
+        speed: f64,
+    ) -> bool {
+        let Some(player) = self.players.get(&player) else { return false };
+        if !Vec3::at_center_of(player.entity.block_position()).closer_than(pos, if override_limiter { 512.0 } else { 32.0 }) {
+            return false;
+        }
+        player.connection.send(clientbound::LEVEL_PARTICLES, |p| {
+            particle.write(p);
+            p.bool(override_limiter);
+            p.bool(always_show);
+            p.f64(pos.x);
+            p.f64(pos.y);
+            p.f64(pos.z);
+            p.f32(dist.x as f32);
+            p.f32(dist.y as f32);
+            p.f32(dist.z as f32);
+            for _ in 0..3 {
+                p.f32(speed as f32);
+            }
+            p.varint(count);
+            p.varint(0);
+        });
+        true
+    }
+
     pub fn add_world_gen_chunk_entities(&mut self, entities: &[Nbt]) {
         for nbt in entities {
             if let Some(entity) = self.load_entity(nbt) {
@@ -1480,11 +1515,15 @@ impl ServerLevel {
             living.damage_cooldown_time -= 1;
         }
         self.tick_container_menu(id);
+        self.tick_camera(id);
         let p = self.player_mut(id);
         if p.entity.fall_distance > 0.0 && p.starting_to_fall_position.is_none() {
             p.starting_to_fall_position = Some(p.entity.position());
         }
         p.update_player_attributes();
+        if p.post_effects_dirty {
+            p.send_post_effects();
+        }
     }
 
     fn tick_entity(&mut self, id: EntityId) {
@@ -1658,7 +1697,7 @@ impl crate::world::level::LevelAccessor for ServerLevel {
     }
 
     fn mark_pos_for_post_processing(&mut self, pos: BlockPos) {
-        self.chunks.chunk(ChunkPos::new(pos.x >> 4, pos.z >> 4)).mark_pos_for_post_processing(pos);
+        warn!("Trying to mark a block for post processing @ MutableBlockPos{{x={}, y={}, z={}}}, but this operation is not supported.", pos.x, pos.y, pos.z);
     }
 
     fn play_sound(&mut self, pos: BlockPos, sound: i32, source: SoundSource, volume: f32, pitch: f32) {
@@ -1707,8 +1746,8 @@ impl crate::world::level::world_gen_level::WorldGenLevel for ServerLevel {
 
     fn get_height(&mut self, kind: crate::world::level::chunk::HeightmapType, x: i32, z: i32) -> i32 {
         if (-30_000_000..30_000_000).contains(&x) && (-30_000_000..30_000_000).contains(&z) {
-            match self.chunks.loaded_chunk(ChunkPos::new(x >> 4, z >> 4)) {
-                Some(chunk) => chunk.height_at(kind, x, z) + 1,
+            match self.chunks.loaded_chunk_mut(ChunkPos::new(x >> 4, z >> 4)) {
+                Some(chunk) => chunk.get_height(kind, x, z) + 1,
                 None => self.chunks.min_y(),
             }
         } else {

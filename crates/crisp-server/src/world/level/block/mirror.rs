@@ -21,6 +21,18 @@ impl Mirror {
         }
     }
 
+    pub fn get_serialized_name(self) -> &'static str {
+        match self {
+            Mirror::None => "none",
+            Mirror::LeftRight => "left_right",
+            Mirror::FrontBack => "front_back",
+        }
+    }
+
+    pub fn by_name(name: &str) -> Option<Mirror> {
+        Mirror::VALUES.into_iter().find(|mirror| mirror.get_serialized_name() == name)
+    }
+
     pub fn by_legacy_name(name: &str) -> Option<Mirror> {
         Mirror::VALUES.into_iter().find(|mirror| mirror.legacy_name() == name)
     }

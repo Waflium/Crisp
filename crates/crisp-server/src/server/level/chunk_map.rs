@@ -8,6 +8,7 @@ use crate::util::FastIndexSet;
 
 use crisp_core::{BlockPos, ChunkPos, mth};
 use crisp_data::packets::play::clientbound;
+use crisp_protocol::Writer;
 
 use super::ServerLevel;
 use super::server_entity::{Audience, ServerEntity, UpdateInterval};
@@ -220,6 +221,33 @@ impl ServerLevel {
             .copied()
             .filter(|&p| if border_only { self.is_chunk_on_tracked_border(p, pos.x, pos.z) } else { self.is_chunk_tracked(p, pos.x, pos.z) })
             .collect()
+    }
+
+    pub fn resend_biomes_for_chunks(&self, chunks: &[ChunkPos]) {
+        let mut chunks_for_players: Vec<(EntityId, Vec<ChunkPos>)> = Vec::new();
+        for &pos in chunks {
+            for player in self.players_tracking_chunk(pos, false) {
+                match chunks_for_players.iter_mut().find(|(p, _)| *p == player) {
+                    Some((_, list)) => list.push(pos),
+                    None => chunks_for_players.push((player, vec![pos])),
+                }
+            }
+        }
+        for (player, chunk_list) in chunks_for_players {
+            self.player(player).connection.send(clientbound::CHUNKS_BIOMES, |w| {
+                w.varint(chunk_list.len() as i32);
+                for &pos in &chunk_list {
+                    let chunk = self.chunks.loaded_chunk(pos).expect("full chunk");
+                    w.i64(pos.pack());
+                    let mut buffer = Writer::new();
+                    for section in &chunk.sections {
+                        section.biomes.write(&mut buffer);
+                    }
+                    w.varint(buffer.as_slice().len() as i32);
+                    w.bytes(buffer.as_slice());
+                }
+            });
+        }
     }
 
     pub fn update_chunk_tracking(&mut self, player: EntityId) {

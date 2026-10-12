@@ -11,14 +11,18 @@ mod data_pack_command;
 mod command_response_tracker;
 mod data;
 mod de_op_commands;
+mod dialog_command;
 mod default_game_mode_commands;
 mod difficulty_command;
 mod effect_commands;
 #[cfg(test)]
 mod effect_command_tests;
 mod emote_commands;
+mod enchant_command;
 mod experience_command;
 mod execute_command;
+pub mod fetch_profile_command;
+mod fill_biome_command;
 mod fill_command;
 mod force_load_command;
 mod function_command;
@@ -40,7 +44,10 @@ mod loot_command_tests;
 mod loot_context_sources;
 mod msg_command;
 mod op_command;
+mod particle_command;
+mod place_command;
 mod play_sound_command;
+mod post_effect_command;
 mod random_command;
 mod recipe_command;
 mod reload_command;
@@ -57,6 +64,8 @@ mod set_block_command;
 mod set_player_idle_timeout_command;
 mod set_spawn_command;
 mod set_world_spawn_command;
+mod spectate_command;
+mod spread_players_command;
 mod stop_sound_command;
 mod stop_command;
 mod stopwatch_command;
@@ -306,6 +315,44 @@ static EXECUTORS: &[(&str, CommandFn)] = &[
     ("weather rain duration", weather_command::set_rain),
     ("weather thunder", weather_command::set_thunder),
     ("weather thunder duration", weather_command::set_thunder),
+    ("enchant targets enchantment", enchant_command::enchant_default),
+    ("enchant targets enchantment level", enchant_command::enchant_level),
+    ("dialog show targets dialog", dialog_command::show_dialog),
+    ("dialog clear targets", dialog_command::clear_dialog),
+    ("place feature feature", place_command::place_feature_here),
+    ("place feature feature pos", place_command::place_feature_at),
+    ("place jigsaw pool target max_depth", place_command::place_jigsaw_here),
+    ("place jigsaw pool target max_depth position", place_command::place_jigsaw_at),
+    ("place structure structure", place_command::place_structure_here),
+    ("place structure structure pos", place_command::place_structure_at),
+    ("place template template", place_command::place_template_here),
+    ("place template template pos", place_command::place_template_with),
+    ("place template template pos rotation", place_command::place_template_with),
+    ("place template template pos rotation mirror", place_command::place_template_with),
+    ("place template template pos rotation mirror integrity", place_command::place_template_with),
+    ("place template template pos rotation mirror integrity seed", place_command::place_template_with),
+    ("place template template pos rotation mirror integrity seed strict", place_command::place_template_with),
+    ("fetchprofile name name", fetch_profile_command::resolve_name),
+    ("fetchprofile id id", fetch_profile_command::resolve_id),
+    ("fetchprofile entity entity", fetch_profile_command::print_for_entity),
+    ("fillbiome from to biome", fill_biome_command::fill_all),
+    ("fillbiome from to biome replace filter", fill_biome_command::fill_replace),
+    ("particle name", particle_command::particle_here),
+    ("particle name pos", particle_command::particle_at),
+    ("particle name pos delta speed count", particle_command::particle_with_delta),
+    ("particle name pos delta speed count force", particle_command::particle_with_delta),
+    ("particle name pos delta speed count force viewers", particle_command::particle_with_delta),
+    ("particle name pos delta speed count normal", particle_command::particle_with_delta),
+    ("particle name pos delta speed count normal viewers", particle_command::particle_with_delta),
+    ("posteffect add targets posteffect", post_effect_command::add_post_effect),
+    ("posteffect clear targets", post_effect_command::clear_post_effect),
+    ("posteffect list target", post_effect_command::list_post_effects),
+    ("posteffect remove targets posteffect", post_effect_command::remove_post_effect),
+    ("spreadplayers center spreadDistance maxRange respectTeams targets", spread_players_command::spread),
+    ("spreadplayers center spreadDistance maxRange under maxHeight respectTeams targets", spread_players_command::spread_under),
+    ("spectate", spectate_command::spectate_stop),
+    ("spectate target", spectate_command::spectate_target),
+    ("spectate target player", spectate_command::spectate_target_player),
 ];
 
 pub fn modifiers() -> Vec<(String, ModifierFn)> {
@@ -513,6 +560,23 @@ mod tests {
     }
 
     #[test]
+    fn particle_and_fillbiome_match_vanilla_messages() {
+        let mut server = Server::new(crate::ServerConfig { level_type: crate::LevelType::Flat, ..crate::ServerConfig::default() }).unwrap();
+        assert_eq!(run(&mut server, "particle dust{color:[1,0,0]} 0 -59 0"), ["Can't parse particle options: No key scale in MapLike[{color:[1,0,0]}]"]);
+        assert_eq!(run(&mut server, "particle dust{color:[1,0,0],scale:5} 0 -59 0"), ["Can't parse particle options: Value must be within range [0.01;4.0]: 5.0"]);
+        assert_eq!(
+            run(&mut server, "particle block{block_state:\"nope\"} 0 -59 0"),
+            ["Can't parse particle options: Failed to parse either. First: Failed to parse either. First: Unknown registry key in ResourceKey[minecraft:root / minecraft:block]: minecraft:nope; Second: Not a map: \"nope\"; Second: Unknown registry key in ResourceKey[minecraft:root / minecraft:block]: minecraft:nope"]
+        );
+        assert_eq!(run(&mut server, "particle flame 0 -59 0"), ["The particle was not visible for anybody"]);
+        assert_eq!(run(&mut server, "fillbiome 0 -64 0 15 0 15 desert"), ["272 biome entry/entries set between 0, -64, 0 and 12, 0, 12"]);
+        assert_eq!(run(&mut server, "fillbiome 0 -64 0 15 0 15 desert"), ["No biome entries were changed"]);
+        assert_eq!(run(&mut server, "fillbiome 0 -64 0 15 0 15 plains replace #minecraft:is_ocean"), ["No biome entries were changed"]);
+        assert_eq!(run(&mut server, "fillbiome 10000 0 0 10001 0 0 plains"), ["That position is not loaded"]);
+        assert_eq!(server.levels[0].chunks.loaded_chunk(crisp_core::ChunkPos::new(0, 0)).unwrap().noise_biome(1, -16, 1).name(), "minecraft:desert");
+    }
+
+    #[test]
     fn summon() {
         let mut server = Server::new(crate::ServerConfig { level_type: crate::LevelType::Flat, ..crate::ServerConfig::default() }).unwrap();
         assert_eq!(run(&mut server, "summon tnt 0 -60 0 {fuse:5}"), ["Summoned new Primed TNT"]);
@@ -601,6 +665,7 @@ pub fn suggestion_providers() -> Vec<(String, crate::commands::SuggestFn)> {
     all.push(("time of clock set timemarker".into(), time_markers));
     all.push(("time query timeline".into(), timelines));
     all.push(("time of clock query timeline".into(), timelines));
+    all.push(("place template template".into(), place_command::suggest_templates));
     all.push(("tick rate rate".into(), tick_command::suggest_rate));
     all.push(("tick step time".into(), tick_command::suggest_step));
     all.push(("tick sprint time".into(), tick_command::suggest_sprint));

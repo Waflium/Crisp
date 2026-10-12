@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use chrono::{DateTime, FixedOffset, Local, Months};
 use serde_json::{Map, Value};
@@ -38,7 +39,7 @@ impl Profiles {
 pub struct CachedUserNameToIdResolver {
     file: Option<PathBuf>,
     profiles: Mutex<Profiles>,
-    resolve_offline_users: bool,
+    resolve_offline_users: AtomicBool,
 }
 
 impl CachedUserNameToIdResolver {
@@ -54,11 +55,11 @@ impl CachedUserNameToIdResolver {
                 Err(e) => warn!("Failed to load profile cache {}: {e}", file.display()),
             }
         }
-        CachedUserNameToIdResolver { file, profiles: Mutex::new(profiles), resolve_offline_users: true }
+        CachedUserNameToIdResolver { file, profiles: Mutex::new(profiles), resolve_offline_users: AtomicBool::new(true) }
     }
 
-    pub fn set_resolve_offline_users(&mut self, value: bool) {
-        self.resolve_offline_users = value;
+    pub fn set_resolve_offline_users(&self, value: bool) {
+        self.resolve_offline_users.store(value, Ordering::Relaxed);
     }
 
     pub fn add(&self, name_and_id: NameAndId) {
@@ -122,7 +123,7 @@ impl CachedUserNameToIdResolver {
     }
 
     fn create_unknown_profile(&self, name: &str) -> Option<NameAndId> {
-        self.resolve_offline_users.then(|| NameAndId { id: offline_uuid(name), name: name.to_string() })
+        self.resolve_offline_users.load(Ordering::Relaxed).then(|| NameAndId { id: offline_uuid(name), name: name.to_string() })
     }
 
     fn write(&self, profiles: &Profiles) {
@@ -175,7 +176,7 @@ mod tests {
         cache.add(NameAndId { id: 7, name: "Rozqn".into() });
         assert_eq!(cache.get(&services, "ROZQN"), Some(NameAndId { id: 7, name: "Rozqn".into() }));
         assert_eq!(cache.get(&services, "Other"), Some(NameAndId { id: offline_uuid("other"), name: "other".into() }));
-        let mut reloaded = CachedUserNameToIdResolver::load(Some(dir.clone()));
+        let reloaded = CachedUserNameToIdResolver::load(Some(dir.clone()));
         assert_eq!(reloaded.get_by_id(7).map(|p| p.name), Some("Rozqn".into()));
         reloaded.set_resolve_offline_users(false);
         assert_eq!(reloaded.get(&services, "nobody"), None);

@@ -512,8 +512,9 @@ fn decode_dispatch(d: &Dispatch, tag: &Nbt) -> Result<Nbt, String> {
         }
     };
     let (_, fields) = d.cases.iter().find(|(n, _)| *n == name).unwrap();
-    let mut out = vec![(d.key.to_string(), Nbt::String(name))];
+    let mut out = Vec::new();
     decode_fields(fields, tag, input, &mut out)?;
+    out.push((d.key.to_string(), Nbt::String(name)));
     Ok(Nbt::Compound(out))
 }
 

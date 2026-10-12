@@ -93,6 +93,10 @@ pub fn update_enchantments(item_stack: &mut ItemStack, consumer: impl FnOnce(&mu
     mutable
 }
 
+pub fn is_enchantment_compatible<'a>(enchants: impl IntoIterator<Item = &'a str>, target: &str) -> bool {
+    enchants.into_iter().all(|existing| Enchantment::are_compatible(existing, target))
+}
+
 pub fn enchant(item_stack: &mut ItemStack, enchantment: &str, level: i32) {
     update_enchantments(item_stack, |enchantments| enchantments.upgrade(enchantment, level));
 }
