@@ -404,6 +404,19 @@ public final class WorldgenOracle {
         }
 
         @Override
+        public void playSound(
+            final net.minecraft.world.entity.Entity except,
+            final double x,
+            final double y,
+            final double z,
+            final net.minecraft.sounds.SoundEvent sound,
+            final net.minecraft.sounds.SoundSource source,
+            final float volume,
+            final float pitch
+        ) {
+        }
+
+        @Override
         public long getOverworldClockTime() {
             return 0L;
         }

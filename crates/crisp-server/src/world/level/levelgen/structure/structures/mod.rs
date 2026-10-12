@@ -2,6 +2,8 @@ pub mod buried_treasure_pieces;
 pub mod buried_treasure_structure;
 pub mod desert_pyramid_piece;
 pub mod desert_pyramid_structure;
+pub mod end_city_pieces;
+pub mod end_city_structure;
 pub mod igloo_pieces;
 pub mod igloo_structure;
 pub mod jigsaw_structure;
@@ -10,6 +12,8 @@ pub mod mineshaft_pieces;
 pub mod mineshaft_structure;
 pub mod nether_fortress_pieces;
 pub mod nether_fortress_structure;
+pub mod nether_fossil_pieces;
+pub mod nether_fossil_structure;
 pub mod ocean_ruin_pieces;
 pub mod ocean_ruin_structure;
 pub mod shipwreck_pieces;
@@ -32,11 +36,14 @@ use serde_json::Value;
 
 use buried_treasure_pieces::BuriedTreasurePiece;
 use desert_pyramid_piece::DesertPyramidPiece;
+use end_city_pieces::EndCityPiece;
 use igloo_pieces::IglooPiece;
 use jungle_temple_piece::JungleTemplePiece;
 use mineshaft_pieces::{MineShaftCorridor, MineShaftCrossing, MineShaftRoom, MineShaftStairs};
 use mineshaft_structure::MineshaftStructure;
 use nether_fortress_pieces::NetherBridgePieceKind;
+use nether_fossil_pieces::NetherFossilPiece;
+use nether_fossil_structure::NetherFossilStructure;
 use ocean_ruin_pieces::OceanRuinPiece;
 use ocean_ruin_structure::OceanRuinStructure;
 use shipwreck_pieces::ShipwreckPiece;
@@ -58,11 +65,13 @@ use crate::world::level::world_gen_level::WorldGenLevel;
 pub enum StructureType {
     BuriedTreasure,
     DesertPyramid,
+    EndCity,
     Igloo,
     Jigsaw(Box<jigsaw_structure::JigsawStructure>),
     JungleTemple,
     Mineshaft(MineshaftStructure),
     NetherFortress,
+    NetherFossil(NetherFossilStructure),
     OceanRuin(OceanRuinStructure),
     Shipwreck { is_beached: bool },
     Stronghold,
@@ -79,11 +88,13 @@ impl StructureType {
         Ok(match ty.strip_prefix("minecraft:").unwrap_or(ty) {
             "buried_treasure" => StructureType::BuriedTreasure,
             "desert_pyramid" => StructureType::DesertPyramid,
+            "end_city" => StructureType::EndCity,
             "igloo" => StructureType::Igloo,
             "jigsaw" => StructureType::Jigsaw(Box::new(jigsaw_structure::JigsawStructure::parse(json)?)),
             "jungle_temple" => StructureType::JungleTemple,
             "mineshaft" => StructureType::Mineshaft(MineshaftStructure::parse(json)?),
             "fortress" => StructureType::NetherFortress,
+            "nether_fossil" => StructureType::NetherFossil(NetherFossilStructure::parse(json)?),
             "ocean_ruin" => StructureType::OceanRuin(OceanRuinStructure::parse(json)?),
             "shipwreck" => StructureType::Shipwreck { is_beached: json.get("is_beached").and_then(Value::as_bool).ok_or("missing is_beached")? },
             "stronghold" => StructureType::Stronghold,
@@ -101,6 +112,7 @@ impl StructureType {
             StructureType::DesertPyramid => {
                 single_piece_structure::find_generation_point(context, |random, x, z| Piece::DesertPyramid(DesertPyramidPiece::new(random, x, z)), 21, 21)
             }
+            StructureType::EndCity => end_city_structure::find_generation_point(context),
             StructureType::Igloo => igloo_structure::find_generation_point(context),
             StructureType::Jigsaw(structure) => structure.find_generation_point(context),
             StructureType::JungleTemple => {
@@ -108,6 +120,7 @@ impl StructureType {
             }
             StructureType::Mineshaft(structure) => structure.find_generation_point(context),
             StructureType::NetherFortress => nether_fortress_structure::find_generation_point(context),
+            StructureType::NetherFossil(structure) => structure.find_generation_point(context),
             StructureType::OceanRuin(structure) => structure.find_generation_point(context),
             StructureType::Shipwreck { is_beached } => shipwreck_structure::find_generation_point(context, *is_beached),
             StructureType::Stronghold => stronghold_structure::find_generation_point(context),
@@ -133,6 +146,7 @@ impl StructureType {
 pub enum Piece {
     BuriedTreasure(BuriedTreasurePiece),
     DesertPyramid(DesertPyramidPiece),
+    EndCity(EndCityPiece),
     Igloo(IglooPiece),
     Jigsaw(PoolElementStructurePiece),
     JungleTemple(JungleTemplePiece),
@@ -141,6 +155,7 @@ pub enum Piece {
     MineShaftRoom(MineShaftRoom),
     MineShaftStairs(MineShaftStairs),
     NetherFortress(NetherBridgePieceKind),
+    NetherFossil(NetherFossilPiece),
     OceanRuin(OceanRuinPiece),
     Shipwreck(ShipwreckPiece),
     Stronghold(StrongholdPieceKind),
@@ -155,6 +170,7 @@ impl Piece {
         match self {
             Piece::BuriedTreasure(piece) => &piece.piece,
             Piece::DesertPyramid(piece) => &piece.scattered.piece,
+            Piece::EndCity(piece) => &piece.template.piece,
             Piece::Igloo(piece) => &piece.template.piece,
             Piece::Jigsaw(piece) => &piece.piece,
             Piece::JungleTemple(piece) => &piece.scattered.piece,
@@ -163,6 +179,7 @@ impl Piece {
             Piece::MineShaftRoom(piece) => &piece.mine_shaft.piece,
             Piece::MineShaftStairs(piece) => &piece.mine_shaft.piece,
             Piece::NetherFortress(piece) => piece.piece(),
+            Piece::NetherFossil(piece) => &piece.template.piece,
             Piece::OceanRuin(piece) => &piece.template.piece,
             Piece::Shipwreck(piece) => &piece.template.piece,
             Piece::Stronghold(piece) => piece.piece(),
@@ -177,6 +194,7 @@ impl Piece {
         match self {
             Piece::BuriedTreasure(piece) => &mut piece.piece,
             Piece::DesertPyramid(piece) => &mut piece.scattered.piece,
+            Piece::EndCity(piece) => &mut piece.template.piece,
             Piece::Igloo(piece) => &mut piece.template.piece,
             Piece::Jigsaw(piece) => &mut piece.piece,
             Piece::JungleTemple(piece) => &mut piece.scattered.piece,
@@ -185,6 +203,7 @@ impl Piece {
             Piece::MineShaftRoom(piece) => &mut piece.mine_shaft.piece,
             Piece::MineShaftStairs(piece) => &mut piece.mine_shaft.piece,
             Piece::NetherFortress(piece) => piece.piece_mut(),
+            Piece::NetherFossil(piece) => &mut piece.template.piece,
             Piece::OceanMonumentBuilding(piece) => &mut piece.monument.piece,
             Piece::OceanRuin(piece) => &mut piece.template.piece,
             Piece::RuinedPortal(piece) => &mut piece.template.piece,
@@ -199,6 +218,7 @@ impl Piece {
         match self {
             Piece::BuriedTreasure(piece) => piece.piece.move_by(dx, dy, dz),
             Piece::DesertPyramid(piece) => piece.scattered.piece.move_by(dx, dy, dz),
+            Piece::EndCity(piece) => piece.template.move_by(dx, dy, dz),
             Piece::Igloo(piece) => piece.template.move_by(dx, dy, dz),
             Piece::Jigsaw(piece) => piece.move_by(dx, dy, dz),
             Piece::JungleTemple(piece) => piece.scattered.piece.move_by(dx, dy, dz),
@@ -207,6 +227,7 @@ impl Piece {
             Piece::MineShaftRoom(piece) => piece.move_by(dx, dy, dz),
             Piece::MineShaftStairs(piece) => piece.mine_shaft.piece.move_by(dx, dy, dz),
             Piece::NetherFortress(piece) => piece.piece_mut().move_by(dx, dy, dz),
+            Piece::NetherFossil(piece) => piece.template.move_by(dx, dy, dz),
             Piece::OceanMonumentBuilding(piece) => piece.monument.piece.move_by(dx, dy, dz),
             Piece::OceanRuin(piece) => piece.template.move_by(dx, dy, dz),
             Piece::RuinedPortal(piece) => piece.template.move_by(dx, dy, dz),
@@ -221,6 +242,7 @@ impl Piece {
         Some(match piece_id {
             buried_treasure_pieces::BURIED_TREASURE_PIECE => Piece::BuriedTreasure(BuriedTreasurePiece::load(tag)?),
             desert_pyramid_piece::DESERT_PYRAMID_PIECE => Piece::DesertPyramid(DesertPyramidPiece::load(tag)?),
+            end_city_pieces::END_CITY_PIECE => Piece::EndCity(EndCityPiece::load(tag)?),
             igloo_pieces::IGLOO => Piece::Igloo(IglooPiece::load(tag)?),
             pool_element_structure_piece::JIGSAW => Piece::Jigsaw(PoolElementStructurePiece::load(tag)?),
             jungle_temple_piece::JUNGLE_PYRAMID_PIECE => Piece::JungleTemple(JungleTemplePiece::load(tag)?),
@@ -243,6 +265,7 @@ impl Piece {
             | nether_fortress_pieces::NETHER_FORTRESS_ROOM_CROSSING
             | nether_fortress_pieces::NETHER_FORTRESS_STAIRS_ROOM
             | nether_fortress_pieces::NETHER_FORTRESS_START => Piece::NetherFortress(NetherBridgePieceKind::load(piece_id, tag)?),
+            nether_fossil_pieces::NETHER_FOSSIL => Piece::NetherFossil(NetherFossilPiece::load(tag)?),
             ocean_ruin_pieces::OCEAN_RUIN => Piece::OceanRuin(OceanRuinPiece::load(tag)?),
             shipwreck_pieces::SHIPWRECK_PIECE => Piece::Shipwreck(ShipwreckPiece::load(tag)?),
             stronghold_pieces::STRONGHOLD_CHEST_CORRIDOR
@@ -271,6 +294,7 @@ impl Piece {
         match self {
             Piece::BuriedTreasure(_) | Piece::OceanMonumentBuilding(_) => {}
             Piece::DesertPyramid(piece) => piece.add_additional_save_data(&mut additional),
+            Piece::EndCity(piece) => piece.add_additional_save_data(&mut additional),
             Piece::Igloo(piece) => piece.add_additional_save_data(&mut additional),
             Piece::Jigsaw(piece) => piece.add_additional_save_data(&mut additional),
             Piece::JungleTemple(piece) => piece.add_additional_save_data(&mut additional),
@@ -279,6 +303,7 @@ impl Piece {
             Piece::MineShaftRoom(piece) => piece.add_additional_save_data(&mut additional),
             Piece::MineShaftStairs(piece) => piece.mine_shaft.add_additional_save_data(&mut additional),
             Piece::NetherFortress(piece) => piece.add_additional_save_data(&mut additional),
+            Piece::NetherFossil(piece) => piece.add_additional_save_data(&mut additional),
             Piece::OceanRuin(piece) => piece.add_additional_save_data(&mut additional),
             Piece::Shipwreck(piece) => piece.add_additional_save_data(&mut additional),
             Piece::Stronghold(piece) => piece.add_additional_save_data(&mut additional),
@@ -293,6 +318,7 @@ impl Piece {
         match self {
             Piece::BuriedTreasure(piece) => piece.post_process(level, random, chunk_bb),
             Piece::DesertPyramid(piece) => piece.post_process(level, random, chunk_bb),
+            Piece::EndCity(piece) => piece.post_process(level, random, chunk_bb, reference_pos),
             Piece::Igloo(piece) => piece.post_process(level, random, chunk_bb, reference_pos),
             Piece::Jigsaw(piece) => piece.post_process(level, random, chunk_bb, reference_pos),
             Piece::JungleTemple(piece) => piece.post_process(level, random, chunk_bb),
@@ -301,6 +327,7 @@ impl Piece {
             Piece::MineShaftRoom(piece) => piece.post_process(level, chunk_bb),
             Piece::MineShaftStairs(piece) => piece.post_process(level, chunk_bb),
             Piece::NetherFortress(piece) => piece.post_process(level, random, chunk_bb),
+            Piece::NetherFossil(piece) => piece.post_process(level, random, chunk_bb, reference_pos),
             Piece::OceanRuin(piece) => piece.post_process(level, random, chunk_bb, reference_pos),
             Piece::Shipwreck(piece) => piece.post_process(level, random, chunk_bb, reference_pos),
             Piece::Stronghold(piece) => piece.post_process(level, random, chunk_bb),

@@ -148,6 +148,12 @@ impl StructureTemplate {
         }
     }
 
+    pub fn calculate_connected_position(&self, settings1: &StructurePlaceSettings, connection1: BlockPos, settings2: &StructurePlaceSettings, connection2: BlockPos) -> BlockPos {
+        let marker_pos1 = StructureTemplate::calculate_relative_position(settings1, connection1);
+        let marker_pos2 = StructureTemplate::calculate_relative_position(settings2, connection2);
+        marker_pos1.offset(-marker_pos2.x, -marker_pos2.y, -marker_pos2.z)
+    }
+
     pub fn calculate_relative_position(settings: &StructurePlaceSettings, pos: BlockPos) -> BlockPos {
         transform(pos, settings.mirror, settings.rotation, settings.rotation_pivot)
     }
