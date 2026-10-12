@@ -12,6 +12,7 @@ use super::loom_menu::{self, LoomMenu};
 use super::smithing_menu::{self, SmithingMenu};
 use super::stonecutter_menu::{self, StonecutterMenu};
 use super::enchantment_menu::EnchantmentMenu;
+use super::inventory_menu::CONTAINER_ID;
 use super::result_container::ResultContainer;
 use super::slot::{Slot, SlotContainer, SlotKind, brewing_stand_fuel_may_place_item, is_fuel};
 use super::transient_crafting_container::TransientCraftingContainer;
@@ -1107,25 +1108,43 @@ impl ServerLevel {
         clicked
     }
 
-    fn trigger_slot_listeners(&mut self, menu: &mut AbstractContainerMenu, player: EntityId, i: usize, current: &ItemStack) {
-        if !ItemStack::matches(&menu.last_slots[i], current) {
-            menu.last_slots[i] = current.copy();
-            if menu.kind == MenuKind::Crafter {
-                self.crafter_menu_slot_changed(menu);
-            }
-            if menu.has_synchronizer {
-                let slot = &menu.slots[i];
-                if !matches!(slot.kind, SlotKind::Result { .. }) && slot.container == SlotContainer::Inventory {
-                    criteria_triggers::INVENTORY_CHANGED.trigger(self, player, current);
-                }
+    fn trigger_slot_listeners(&mut self, menu: &mut AbstractContainerMenu, player: EntityId, i: usize, current: &ItemStack) -> bool {
+        if ItemStack::matches(&menu.last_slots[i], current) {
+            return false;
+        }
+        menu.last_slots[i] = current.copy();
+        if menu.kind == MenuKind::Crafter {
+            self.crafter_menu_slot_changed(menu);
+        }
+        let slot = &menu.slots[i];
+        if !menu.has_synchronizer || matches!(slot.kind, SlotKind::Result { .. }) || slot.container != SlotContainer::Inventory {
+            return false;
+        }
+        let p = self.player(player);
+        let menu_was_taken = if menu.container_id == CONTAINER_ID { p.inventory_menu.is_none() } else { p.container_menu.is_none() };
+        if !menu_was_taken {
+            criteria_triggers::INVENTORY_CHANGED.trigger(self, player, current);
+            return false;
+        }
+        let container_id = menu.container_id;
+        let taken = std::mem::replace(menu, AbstractContainerMenu::inventory());
+        self.restore_container_menu(player, taken);
+        criteria_triggers::INVENTORY_CHANGED.trigger(self, player, current);
+        if let Some(p) = self.players.get_mut(&player) {
+            let restored = if container_id == CONTAINER_ID { p.inventory_menu.take() } else { p.container_menu.take() };
+            if let Some(restored) = restored {
+                *menu = restored;
             }
         }
+        true
     }
 
     pub fn menu_broadcast_changes(&mut self, menu: &mut AbstractContainerMenu, player: EntityId) {
         for i in 0..menu.slots.len() {
-            let current = self.slot_get(menu, player, i);
-            self.trigger_slot_listeners(menu, player, i, &current);
+            let mut current = self.slot_get(menu, player, i);
+            if self.trigger_slot_listeners(menu, player, i, &current) {
+                current = self.slot_get(menu, player, i);
+            }
             if !menu.suppress_remote_updates && !menu.remote_slots[i].matches(&current) {
                 menu.remote_slots[i].force(&current);
                 if menu.has_synchronizer {
