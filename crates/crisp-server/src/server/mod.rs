@@ -610,13 +610,8 @@ impl Server {
         for &id in &ids {
             self.save_player(self.level.player(id));
         }
-        let mut i = 0;
-        while let Some(&id) = self.level.players.keys().nth(i) {
+        for id in ids {
             self.level.player_mut(id).disconnect("multiplayer.disconnect.server_shutdown");
-            if let Some(conn) = self.connections.iter().find(|(_, player)| **player == id).map(|(&conn, _)| conn) {
-                self.remove_player(conn, None);
-            }
-            i += 1;
         }
         info!("Saving worlds");
         self.level.no_save = false;

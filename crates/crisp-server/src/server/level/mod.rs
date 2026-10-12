@@ -1432,6 +1432,10 @@ impl crate::world::level::LevelAccessor for ServerLevel {
     fn mark_pos_for_post_processing(&mut self, pos: BlockPos) {
         self.chunks.chunk(ChunkPos::new(pos.x >> 4, pos.z >> 4)).mark_pos_for_post_processing(pos);
     }
+
+    fn play_sound(&mut self, pos: BlockPos, sound: i32, source: SoundSource, volume: f32, pitch: f32) {
+        ServerLevel::play_sound(self, None, pos, sound, source, volume, pitch);
+    }
 }
 
 impl ServerLevel {

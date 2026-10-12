@@ -38,7 +38,10 @@ mod block_set_type;
 mod bubble_column_block;
 mod button_block;
 pub mod campfire_block;
-mod candle_cake_block;
+pub mod abstract_candle_block;
+mod cake_block;
+pub mod candle_block;
+pub mod candle_cake_block;
 mod carpet_block;
 mod cauldron_block;
 mod cartography_table_block;
@@ -593,6 +596,8 @@ fn for_class(class: &str, block: Block) -> Option<Box<dyn BlockBehaviour>> {
         "BambooSaplingBlock" => Box::new(bamboo_sapling_block::BambooSaplingBlock),
         "BambooStalkBlock" => Box::new(bamboo_stalk_block::BambooStalkBlock),
         "CandleCakeBlock" => Box::new(candle_cake_block::CandleCakeBlock),
+        "CandleBlock" => Box::new(candle_block::CandleBlock),
+        "CakeBlock" => Box::new(cake_block::CakeBlock),
         "PistonHeadBlock" => Box::new(piston_head_block::PistonHeadBlock),
         "LightBlock" => Box::new(light_block::LightBlock),
         "BeehiveBlock" => Box::new(beehive_block::BeehiveBlock),
