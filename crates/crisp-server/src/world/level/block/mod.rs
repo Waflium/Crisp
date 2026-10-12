@@ -208,6 +208,9 @@ mod banner_block;
 mod base_coral_plant_type_block;
 mod base_coral_wall_fan_block;
 mod coral_block;
+mod frogspawn_block;
+mod sniffer_egg_block;
+mod turtle_egg_block;
 mod chorus_flower_block;
 mod chorus_plant_block;
 mod pipe_block;
@@ -795,6 +798,9 @@ fn for_class(class: &str, block: Block) -> Option<Box<dyn BlockBehaviour>> {
         "CoralFanBlock" => Box::new(coral_fan_block::CoralFanBlock::new(block)),
         "CoralWallFanBlock" => Box::new(coral_wall_fan_block::CoralWallFanBlock::new(block)),
         "CoralBlock" => Box::new(coral_block::CoralBlock::new(block)),
+        "TurtleEggBlock" => Box::new(turtle_egg_block::TurtleEggBlock::new(block)),
+        "SnifferEggBlock" => Box::new(sniffer_egg_block::SnifferEggBlock::new(block)),
+        "FrogspawnBlock" => Box::new(frogspawn_block::FrogspawnBlock::new(block)),
         "ChorusPlantBlock" => Box::new(chorus_plant_block::ChorusPlantBlock::new(block)),
         "ChorusFlowerBlock" => Box::new(chorus_flower_block::ChorusFlowerBlock::new(block)),
         "BellBlock" => Box::new(bell_block::BellBlock),
