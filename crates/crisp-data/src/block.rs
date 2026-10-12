@@ -24,6 +24,7 @@ pub struct SoundType {
 
 pub struct BlockInfo {
     pub name: &'static str,
+    pub description_id: &'static str,
     pub destroy_time: f32,
     pub explosion_resistance: f32,
     pub friction: f32,

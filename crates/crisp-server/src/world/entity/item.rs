@@ -1,3 +1,5 @@
+pub mod falling_block_entity;
+
 use crisp_core::random::RandomSource;
 use crisp_core::{AABB, Vec3, mth};
 use crisp_data::{fluid_tags, game_rule, registry, registry_id};

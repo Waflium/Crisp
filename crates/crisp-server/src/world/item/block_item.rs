@@ -198,9 +198,10 @@ impl ServerLevel {
             return true;
         }
         let boxes: Vec<crisp_core::AABB> = shape.iter().map(|b| b.move_to_block(pos)).collect();
-        !self.players.values().any(|p| {
-            let bb = p.entity.bounding_box();
-            boxes.iter().any(|b| b.intersects(&bb))
+        let bounds = boxes.iter().skip(1).fold(boxes[0], |a, b| a.minmax(b));
+        !self.get_entities(None, &bounds).into_iter().any(|id| {
+            let bb = self.entity(id).bounding_box();
+            self.blocks_building(id) && boxes.iter().any(|b| b.intersects(&bb))
         })
     }
 

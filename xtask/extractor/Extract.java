@@ -240,6 +240,7 @@ public final class Extract {
             b.addProperty("item", BuiltInRegistries.ITEM.getKey(block.asItem()).toString());
             b.addProperty("default_state", Block.getId(block.defaultBlockState()));
             b.addProperty("dynamic_shape", block.hasDynamicShape());
+            b.addProperty("description_id", block.getDescriptionId());
             b.add("loot_table", block.getLootTable().map(k -> (JsonElement) new JsonPrimitive(k.identifier().toString())).orElse(JsonNull.INSTANCE));
             b.add("behaviour", behaviourFields(block));
 

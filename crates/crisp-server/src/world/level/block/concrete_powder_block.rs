@@ -1,7 +1,9 @@
 use crisp_core::{BlockPos, Direction};
 use crisp_data::{Block, BlockState, SupportType, fluid_tags};
 
-use super::BlockBehaviour;
+use super::{BlockBehaviour, falling_block};
+use crate::world::entity::EntityId;
+use crate::world::level::update_flags::UPDATE_ALL;
 use crate::server::level::ServerLevel;
 use crate::world::item::context::BlockPlaceContext;
 use crate::world::level::{BlockGetter, LevelAccessor, LevelReader};
@@ -42,6 +44,20 @@ fn can_solidify(state: BlockState) -> bool {
 }
 
 impl BlockBehaviour for ConcretePowderBlock {
+    fn on_place(&self, state: BlockState, level: &mut ServerLevel, pos: BlockPos, _old_state: BlockState, _moved_by_piston: bool) {
+        falling_block::on_place(level, pos, state.block(), falling_block::DEFAULT_DELAY_AFTER_PLACE);
+    }
+
+    fn tick(&self, state: BlockState, level: &mut ServerLevel, pos: BlockPos) {
+        falling_block::tick(state, level, pos, |_| {});
+    }
+
+    fn on_land(&self, level: &mut ServerLevel, pos: BlockPos, _state: BlockState, replaced_block: BlockState, _entity: EntityId) {
+        if should_solidify(level, pos, replaced_block) {
+            level.set_block(pos, self.concrete.default_state(), UPDATE_ALL);
+        }
+    }
+
     fn get_state_for_placement(&self, block: Block, ctx: &BlockPlaceContext, level: &mut ServerLevel) -> Option<BlockState> {
         let pos = ctx.clicked_pos();
         let replaced_block = level.block_state(pos);
@@ -57,7 +73,7 @@ impl BlockBehaviour for ConcretePowderBlock {
         _neighbour_pos: BlockPos,
         _neighbour_state: BlockState,
     ) -> BlockState {
-        if touches_liquid(level, pos) { self.concrete.default_state() } else { state }
+        if touches_liquid(level, pos) { self.concrete.default_state() } else { falling_block::update_shape(state, level, pos, falling_block::DEFAULT_DELAY_AFTER_PLACE) }
     }
 }
 

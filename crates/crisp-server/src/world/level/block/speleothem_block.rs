@@ -1,11 +1,14 @@
 use crisp_core::random::RandomSource;
 use crisp_core::{AxisDirection, BlockPos, Direction};
 use crisp_data::properties::{EnumProperty, SPELEOTHEM_THICKNESS, SpeleothemThickness, VERTICAL_DIRECTION, WATERLOGGED};
-use crisp_data::{Block, BlockState, Fluid, SupportType, block_tags, blocks};
+use crisp_data::{Block, BlockState, Fluid, SupportType, block_tags, blocks, damage_types};
 
 use super::simple_waterlogged_block::schedule_water_tick;
 use super::vegetation_block::fields;
 use crate::server::level::ServerLevel;
+use crate::world::damagesource::DamageSource;
+use crate::world::entity::EntityId;
+use crate::world::entity::item::falling_block_entity;
 use crate::world::item::context::BlockPlaceContext;
 use crate::world::level::{BlockGetter, LevelAccessor, LevelReader};
 use crate::world::level::update_flags::{UPDATE_ALL, UPDATE_LIMIT};
@@ -34,6 +37,8 @@ pub trait SpeleothemBlock {
     fn get_max_growth_length(&self) -> i32 {
         MAX_GROWTH_LENGTH
     }
+
+    fn get_stalactite_landing_sound(&self) -> i32;
 }
 
 pub fn block_to_grow_on(block: Block) -> BlockState {
@@ -123,7 +128,35 @@ fn is_speleothem_with_direction(block_state: BlockState, tip_direction: Directio
 pub fn tick(this: &(impl SpeleothemBlock + ?Sized), state: BlockState, level: &mut ServerLevel, pos: BlockPos) {
     if is_stalagmite(state) && !can_survive(this, state, level, pos) {
         level.destroy_block(pos, true, None, UPDATE_LIMIT);
+    } else {
+        spawn_falling_stalactite(state, level, pos);
     }
+}
+
+fn spawn_falling_stalactite(state: BlockState, level: &mut ServerLevel, pos: BlockPos) {
+    let mut fall_pos = pos;
+    let mut fall_state = state;
+    while is_stalactite(fall_state) {
+        let entity = falling_block_entity::fall(level, fall_pos, fall_state);
+        if is_tip(fall_state, true) {
+            let size = (1 + pos.y - fall_pos.y).max(6);
+            let damage_per_fall_distance = 1.0 * size as f32;
+            level.falling_block(entity).set_hurts_entities(damage_per_fall_distance, 40);
+            break;
+        }
+        fall_pos = fall_pos.below();
+        fall_state = level.block_state(fall_pos);
+    }
+}
+
+pub fn on_broken_after_fall(this: &(impl SpeleothemBlock + ?Sized), level: &mut ServerLevel, pos: BlockPos, entity: EntityId) {
+    if !level.entity(entity).is_silent() {
+        level.level_event(None, this.get_stalactite_landing_sound(), pos, 0);
+    }
+}
+
+pub fn get_fall_damage_source(entity: EntityId) -> DamageSource {
+    DamageSource::entity(damage_types::FALLING_STALACTITE, entity)
 }
 
 fn is_stalagmite(state: BlockState) -> bool {

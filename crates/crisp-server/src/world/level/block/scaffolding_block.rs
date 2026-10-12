@@ -74,7 +74,9 @@ impl BlockBehaviour for ScaffoldingBlock {
         let distance = get_distance(level, pos);
         let new_state = state.set(STABILITY_DISTANCE, distance).set(BOTTOM, is_bottom(state.block(), level, pos, distance));
         if new_state.get(STABILITY_DISTANCE) == STABILITY_MAX_DISTANCE {
-            if state.get(STABILITY_DISTANCE) != STABILITY_MAX_DISTANCE {
+            if state.get(STABILITY_DISTANCE) == STABILITY_MAX_DISTANCE {
+                crate::world::entity::item::falling_block_entity::fall(level, pos, new_state);
+            } else {
                 level.destroy_block(pos, true, None, crate::world::level::update_flags::UPDATE_LIMIT);
             }
         } else if state != new_state {

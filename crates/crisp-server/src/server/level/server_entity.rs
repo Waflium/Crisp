@@ -371,7 +371,7 @@ impl ServerEntity {
         }
     }
 
-    pub fn pairing_packets(&self, entity: &Entity) -> Vec<Vec<u8>> {
+    pub fn pairing_packets(&self, entity: &Entity, data: i32) -> Vec<Vec<u8>> {
         let mut packets = vec![encode(clientbound::ADD_ENTITY, |p| {
             p.varint(entity.id);
             p.uuid(entity.uuid);
@@ -381,7 +381,7 @@ impl ServerEntity {
             p.u8(mth::pack_degrees(mth::unpack_degrees(self.last_sent_x_rot)) as u8);
             p.u8(mth::pack_degrees(mth::unpack_degrees(self.last_sent_y_rot)) as u8);
             p.u8(mth::pack_degrees(mth::unpack_degrees(self.last_sent_y_head_rot)) as u8);
-            p.varint(0);
+            p.varint(data);
         })];
         if let Some(values) = &self.tracked_data_values {
             packets.push(encode(clientbound::SET_ENTITY_DATA, |p| write_values(p, entity.id, values)));

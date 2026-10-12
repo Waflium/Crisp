@@ -1,6 +1,8 @@
 mod abstract_cauldron_block;
 mod abstract_furnace_block;
-mod anvil_block;
+pub mod anvil_block;
+mod dragon_egg_block;
+pub mod falling_block;
 mod bamboo_sapling_block;
 mod bamboo_stalk_block;
 mod barrel_block;
@@ -432,6 +434,14 @@ pub trait BlockBehaviour: Send + Sync {
     }
 
     fn receive_stalactite_drip(&self, state: BlockState, level: &mut ServerLevel, pos: BlockPos, fluid: Fluid) {}
+
+    fn on_land(&self, level: &mut ServerLevel, pos: BlockPos, state: BlockState, replaced_block: BlockState, entity: EntityId) {}
+
+    fn on_broken_after_fall(&self, level: &mut ServerLevel, pos: BlockPos, entity: EntityId) {}
+
+    fn get_fall_damage_source(&self, entity: EntityId) -> crate::world::damagesource::DamageSource {
+        crate::world::damagesource::DamageSource::entity(crisp_data::damage_types::FALLING_BLOCK, entity)
+    }
 }
 
 pub fn block_fall_on(level: &mut ServerLevel, state: BlockState, _pos: BlockPos, entity: EntityId, fall_distance: f64) {
@@ -569,6 +579,8 @@ fn for_class(class: &str, block: Block) -> Option<Box<dyn BlockBehaviour>> {
         "FrostedIceBlock" => Box::new(frosted_ice_block::FrostedIceBlock),
         "ConcretePowderBlock" => Box::new(concrete_powder_block::ConcretePowderBlock::new(block)),
         "AnvilBlock" => Box::new(anvil_block::AnvilBlock),
+        "DragonEggBlock" => Box::new(dragon_egg_block::DragonEggBlock),
+        "FallingBlock" => Box::new(falling_block::FallingBlock),
         "CarpetBlock" => Box::new(carpet_block::CarpetBlock),
         "CartographyTableBlock" => Box::new(cartography_table_block::CartographyTableBlock),
         "CarvedPumpkinBlock" => Box::new(carved_pumpkin_block::CarvedPumpkinBlock),

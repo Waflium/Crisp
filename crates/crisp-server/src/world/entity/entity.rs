@@ -1182,6 +1182,9 @@ impl ServerLevel {
     }
 
     pub fn cause_fall_damage(&mut self, id: EntityId, fall_distance: f64, damage_modifier: f32, damage_source: crate::world::damagesource::DamageSource) -> bool {
+        if let Some(LevelEntity::FallingBlock(_)) = self.entities.get(&id) {
+            return self.falling_block_cause_fall_damage(id, fall_distance);
+        }
         if entity_type_tags::FALL_DAMAGE_IMMUNE.contains(self.entity(id).entity_type as usize) {
             return false;
         }
@@ -1794,6 +1797,7 @@ impl ServerLevel {
         match self.entities.get(&id) {
             Some(LevelEntity::ExperienceOrb(_)) => self.experience_orb_hurt_server(id, &source, damage),
             Some(LevelEntity::Item(_)) => self.item_entity_hurt_server(id, source, damage),
+            Some(LevelEntity::FallingBlock(_)) => self.falling_block_hurt_server(id, source),
             _ => false,
         }
     }
@@ -1847,8 +1851,12 @@ impl ServerLevel {
         InteractionResult::Pass
     }
 
+    pub fn blocks_building(&self, id: EntityId) -> bool {
+        self.is_living(id) || matches!(self.entities.get(&id), Some(LevelEntity::PrimedTnt(_) | LevelEntity::FallingBlock(_)))
+    }
+
     pub fn is_attackable(&self, id: EntityId) -> bool {
-        !matches!(self.entities.get(&id), Some(LevelEntity::Item(_) | LevelEntity::ExperienceOrb(_)))
+        !matches!(self.entities.get(&id), Some(LevelEntity::Item(_) | LevelEntity::ExperienceOrb(_) | LevelEntity::FallingBlock(_)))
     }
 
     pub fn is_allied_to(&self, id: EntityId, other: EntityId) -> bool {

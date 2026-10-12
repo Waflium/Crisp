@@ -13,7 +13,7 @@ static ERROR_DUPLICATE_UUID: SimpleCommandExceptionType = SimpleCommandException
 static INVALID_POSITION: SimpleCommandExceptionType = SimpleCommandExceptionType("commands.summon.invalidPosition");
 static ERROR_NOT_SUMMONABLE_ENTITY: DynamicCommandExceptionType = DynamicCommandExceptionType(|value| tr("entity.not_summonable", vec![value]));
 
-const MODELLED: &[&str] = &["minecraft:item", "minecraft:tnt", "minecraft:lightning_bolt", "minecraft:experience_orb", "minecraft:chicken"];
+const MODELLED: &[&str] = &["minecraft:item", "minecraft:tnt", "minecraft:falling_block", "minecraft:lightning_bolt", "minecraft:experience_orb", "minecraft:chicken"];
 
 pub fn summonable_entity_type(context: &CommandContext, name: &str) -> Result<String, CommandSyntaxException> {
     let id = context.get_identifier(name).to_string();

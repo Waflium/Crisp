@@ -22,6 +22,10 @@ impl DamageSource {
         DamageSource { ty, causing_entity: None, direct_entity: None, damage_source_position: None }
     }
 
+    pub fn entity(ty: DamageType, entity: EntityId) -> DamageSource {
+        DamageSource { ty, causing_entity: Some(entity), direct_entity: Some(entity), damage_source_position: None }
+    }
+
     pub fn food_exhaustion(&self) -> f32 {
         self.ty.info().exhaustion
     }

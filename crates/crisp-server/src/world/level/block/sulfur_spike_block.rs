@@ -4,6 +4,9 @@ use crisp_data::{Block, BlockState};
 use super::speleothem_block::{self, SpeleothemBlock};
 use super::BlockBehaviour;
 use crate::server::level::ServerLevel;
+use crate::server::level::events::SOUND_SULFUR_SPIKE_LAND;
+use crate::world::damagesource::DamageSource;
+use crate::world::entity::EntityId;
 use crate::world::item::context::BlockPlaceContext;
 use crate::world::level::{LevelAccessor, LevelReader};
 
@@ -32,6 +35,10 @@ impl SpeleothemBlock for SulfurSpikeBlock {
     fn get_max_growth_length(&self) -> i32 {
         MAX_GROWING_LENGTH
     }
+
+    fn get_stalactite_landing_sound(&self) -> i32 {
+        SOUND_SULFUR_SPIKE_LAND
+    }
 }
 
 impl BlockBehaviour for SulfurSpikeBlock {
@@ -49,6 +56,14 @@ impl BlockBehaviour for SulfurSpikeBlock {
 
     fn tick(&self, state: BlockState, level: &mut ServerLevel, pos: BlockPos) {
         speleothem_block::tick(self, state, level, pos);
+    }
+
+    fn on_broken_after_fall(&self, level: &mut ServerLevel, pos: BlockPos, entity: EntityId) {
+        speleothem_block::on_broken_after_fall(self, level, pos, entity);
+    }
+
+    fn get_fall_damage_source(&self, entity: EntityId) -> DamageSource {
+        speleothem_block::get_fall_damage_source(entity)
     }
 
     fn random_tick(&self, state: BlockState, level: &mut ServerLevel, pos: BlockPos) {

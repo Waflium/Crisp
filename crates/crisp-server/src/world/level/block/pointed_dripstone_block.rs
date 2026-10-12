@@ -9,7 +9,7 @@ use crisp_data::{Block, BlockState, Fluid, blocks, damage_types};
 use super::speleothem_block::{self, SpeleothemBlock, THICKNESS, TIP_DIRECTION};
 use super::BlockBehaviour;
 use crate::server::level::ServerLevel;
-use crate::server::level::events::DRIPSTONE_DRIP;
+use crate::server::level::events::{DRIPSTONE_DRIP, SOUND_POINTED_DRIPSTONE_LAND};
 use crate::world::attribute::environment_attributes;
 use crate::world::damagesource::DamageSource;
 use crate::world::entity::EntityId;
@@ -53,6 +53,10 @@ impl SpeleothemBlock for PointedDripstoneBlock {
     fn blocks_stalagmite_scan(&self, _level: &mut dyn LevelReader, _pos: BlockPos, state: BlockState) -> bool {
         !can_drip_through(state)
     }
+
+    fn get_stalactite_landing_sound(&self) -> i32 {
+        SOUND_POINTED_DRIPSTONE_LAND
+    }
 }
 
 impl BlockBehaviour for PointedDripstoneBlock {
@@ -83,6 +87,14 @@ impl BlockBehaviour for PointedDripstoneBlock {
 
     fn tick(&self, state: BlockState, level: &mut ServerLevel, pos: BlockPos) {
         speleothem_block::tick(self, state, level, pos);
+    }
+
+    fn on_broken_after_fall(&self, level: &mut ServerLevel, pos: BlockPos, entity: EntityId) {
+        speleothem_block::on_broken_after_fall(self, level, pos, entity);
+    }
+
+    fn get_fall_damage_source(&self, entity: EntityId) -> DamageSource {
+        speleothem_block::get_fall_damage_source(entity)
     }
 
     fn random_tick(&self, state: BlockState, level: &mut ServerLevel, pos: BlockPos) {

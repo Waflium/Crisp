@@ -1254,6 +1254,7 @@ impl ServerLevel {
             Some(LevelEntity::Item(_)) => self.tick_item(id),
             Some(LevelEntity::LightningBolt(_)) => self.tick_lightning_bolt(id),
             Some(LevelEntity::PrimedTnt(_)) => self.tick_primed_tnt(id),
+            Some(LevelEntity::FallingBlock(_)) => self.tick_falling_block(id),
             Some(LevelEntity::ExperienceOrb(_)) => self.tick_experience_orb(id),
             Some(LevelEntity::Mob(_)) => self.mob_tick(id),
             None => return,

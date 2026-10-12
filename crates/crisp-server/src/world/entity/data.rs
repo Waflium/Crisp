@@ -54,6 +54,7 @@ pub enum DataValue {
     OptionalComponent(Option<crisp_protocol::nbt::Nbt>),
     ItemStack(Option<ItemStack>),
     Boolean(bool),
+    BlockPos(BlockPos),
     OptionalBlockPos(Option<BlockPos>),
     Particles(Vec<ParticleOptions>),
     OptionalUnsignedInt(Option<u32>),
@@ -73,6 +74,7 @@ impl DataValue {
             DataValue::OptionalComponent(_) => 6,
             DataValue::ItemStack(_) => 7,
             DataValue::Boolean(_) => 8,
+            DataValue::BlockPos(_) => 10,
             DataValue::OptionalBlockPos(_) => 11,
             DataValue::Particles(_) => 17,
             DataValue::OptionalUnsignedInt(_) => 19,
@@ -97,6 +99,7 @@ impl DataValue {
             }
             DataValue::ItemStack(v) => write_slot(w, v.as_ref()),
             DataValue::Boolean(v) => w.bool(*v),
+            DataValue::BlockPos(p) => w.position(p.x, p.y, p.z),
             DataValue::OptionalBlockPos(v) => {
                 w.bool(v.is_some());
                 if let Some(p) = v {

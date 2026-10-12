@@ -25,15 +25,32 @@ pub struct BlockPlaceContext {
     pub hit: BlockHitResult,
     relative_pos: BlockPos,
     replace_clicked: bool,
+    direction: Option<Direction>,
 }
 
 impl BlockPlaceContext {
+    pub fn directional(level: &mut ServerLevel, pos: BlockPos, direction: Direction, dispensed: ItemStack, clicked_face: Direction) -> BlockPlaceContext {
+        let hit = BlockHitResult { location: Vec3::at_bottom_center_of(pos), direction: clicked_face, block_pos: pos, inside: false, world_border_hit: false };
+        let mut ctx = BlockPlaceContext {
+            player: None,
+            hand: InteractionHand::MainHand,
+            item: dispensed,
+            hit,
+            relative_pos: pos.relative(clicked_face),
+            replace_clicked: true,
+            direction: Some(direction),
+        };
+        let state = level.block_state(pos);
+        ctx.replace_clicked = block::of(state).can_be_replaced(state, &ctx);
+        ctx
+    }
+
     pub fn new(level: &mut ServerLevel, player: Option<EntityId>, hand: InteractionHand, item: ItemStack, hit: BlockHitResult) -> BlockPlaceContext {
         let player = player.map(|id| {
             let p = level.player(id);
             PlayerView { id, x_rot: p.entity.x_rot, y_rot: p.entity.y_rot, secondary_use_active: p.is_secondary_use_active(), position: p.entity.position() }
         });
-        let mut ctx = BlockPlaceContext { player, hand, item, hit, relative_pos: hit.block_pos.relative(hit.direction), replace_clicked: true };
+        let mut ctx = BlockPlaceContext { player, hand, item, hit, relative_pos: hit.block_pos.relative(hit.direction), replace_clicked: true, direction: None };
         let clicked = level.block_state(hit.block_pos);
         ctx.replace_clicked = block::of(clicked).can_be_replaced(clicked, &ctx);
         ctx
@@ -46,14 +63,14 @@ impl BlockPlaceContext {
             pos.z as f64 + 0.5 + direction.step_z() as f64 * 0.5,
         );
         let hit = BlockHitResult { location, direction, block_pos: pos, inside: false, world_border_hit: false };
-        let mut ctx = BlockPlaceContext { player: self.player, hand: self.hand, item: self.item.clone(), hit, relative_pos: pos.relative(direction), replace_clicked: true };
+        let mut ctx = BlockPlaceContext { player: self.player, hand: self.hand, item: self.item.clone(), hit, relative_pos: pos.relative(direction), replace_clicked: true, direction: None };
         let clicked = level.block_state(pos);
         ctx.replace_clicked = block::of(clicked).can_be_replaced(clicked, &ctx);
         ctx
     }
 
     pub fn clicked_pos(&self) -> BlockPos {
-        if self.replace_clicked { self.hit.block_pos } else { self.relative_pos }
+        if self.replace_clicked || self.direction.is_some() { self.hit.block_pos } else { self.relative_pos }
     }
 
     pub fn clicked_face(&self) -> Direction {
@@ -81,6 +98,9 @@ impl BlockPlaceContext {
     }
 
     pub fn horizontal_direction(&self) -> Direction {
+        if let Some(direction) = self.direction {
+            return if direction.axis() == Axis::Y { Direction::North } else { direction };
+        }
         self.player.map_or(Direction::North, |p| Direction::from_y_rot(p.y_rot as f64))
     }
 
@@ -89,6 +109,9 @@ impl BlockPlaceContext {
     }
 
     pub fn rotation(&self) -> f32 {
+        if let Some(direction) = self.direction {
+            return (direction.get_2d_data_value() * 90) as f32;
+        }
         self.player.map_or(0.0, |p| p.y_rot)
     }
 
@@ -98,6 +121,9 @@ impl BlockPlaceContext {
     }
 
     pub fn nearest_looking_direction(&self) -> Direction {
+        if self.direction.is_some() {
+            return Direction::Down;
+        }
         self.ordered_by_nearest()[0]
     }
 
@@ -107,6 +133,16 @@ impl BlockPlaceContext {
     }
 
     pub fn nearest_looking_directions(&self) -> [Direction; 6] {
+        use Direction::*;
+        match self.direction {
+            Some(Down) => return [Down, North, East, South, West, Up],
+            Some(Up) => return [Down, Up, North, East, South, West],
+            Some(North) => return [Down, North, East, West, Up, South],
+            Some(South) => return [Down, South, East, West, Up, North],
+            Some(West) => return [Down, West, South, Up, North, East],
+            Some(East) => return [Down, East, South, Up, North, West],
+            None => {}
+        }
         let mut directions = self.ordered_by_nearest();
         if self.replace_clicked {
             return directions;

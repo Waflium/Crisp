@@ -396,10 +396,11 @@ fn blocks(
         let behaviour = &block["behaviour"];
         writeln!(
             out,
-            "BlockInfo {{ name: {name:?}, destroy_time: {}, explosion_resistance: {}, friction: {}, speed_factor: {}, jump_factor: {}, \
+            "BlockInfo {{ name: {name:?}, description_id: {:?}, destroy_time: {}, explosion_resistance: {}, friction: {}, speed_factor: {}, jump_factor: {}, \
              bounce_restitution: {}, fall_distance_reduction: {}, has_collision: {}, dynamic_shape: {}, item: Item({}), first_state: {first}, \
              state_count: {}, default_state: BlockState({}), loot_table: {:?}, sound: SoundType {{ volume: {}, pitch: {}, break_sound: {}, \
              step_sound: {}, place_sound: {}, hit_sound: {}, fall_sound: {} }}, classes: &{:?}, fields: {:?}, properties: &[{}] }},",
+            block["description_id"].as_str().unwrap(),
             f32_literal(&block["hardness"]),
             f32_literal(&block["blast_resistance"]),
             f32_literal(&block["friction"]),

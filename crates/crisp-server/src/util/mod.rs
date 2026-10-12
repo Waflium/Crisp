@@ -1,5 +1,6 @@
 pub mod argb;
 pub mod basic_file_attributes;
+pub mod block_util;
 pub mod codec;
 pub mod dependency_sorter;
 pub mod ease;
