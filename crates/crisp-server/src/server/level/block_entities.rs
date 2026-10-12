@@ -71,6 +71,7 @@ impl ServerLevel {
             BlockEntityKind::Chest(_) | BlockEntityKind::Barrel(_) | BlockEntityKind::Hopper(_) | BlockEntityKind::Dispenser(_) | BlockEntityKind::BrewingStand(_) => (true, false),
             BlockEntityKind::Furnace(_) => (true, true),
             BlockEntityKind::Jukebox(_) => return self.jukebox_pop_out_the_item(pos),
+            BlockEntityKind::Campfire(_) => return self.campfire_pre_remove_side_effects(pos),
             _ => (false, false),
         };
         if is_container {
@@ -159,6 +160,8 @@ impl ServerLevel {
             BlockEntityTicker::Conduit => self.conduit_server_tick(pos, state),
             BlockEntityTicker::Beacon => self.beacon_tick(pos),
             BlockEntityTicker::BrewingStand => self.brewing_stand_server_tick(pos, state),
+            BlockEntityTicker::CampfireCook => self.campfire_cook_tick(pos, state),
+            BlockEntityTicker::CampfireCooldown => self.campfire_cooldown_tick(pos, state),
         }
     }
 

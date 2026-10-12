@@ -40,6 +40,7 @@ impl MenuKind {
             MenuKind::Furnace(CookingRecipeType::Smelting) => "minecraft:furnace",
             MenuKind::Furnace(CookingRecipeType::Blasting) => "minecraft:blast_furnace",
             MenuKind::Furnace(CookingRecipeType::Smoking) => "minecraft:smoker",
+            MenuKind::Furnace(CookingRecipeType::CampfireCooking) => unreachable!("campfires have no menu"),
             MenuKind::Hopper => "minecraft:hopper",
             MenuKind::Dispenser => "minecraft:generic_3x3",
             MenuKind::BrewingStand => "minecraft:brewing_stand",

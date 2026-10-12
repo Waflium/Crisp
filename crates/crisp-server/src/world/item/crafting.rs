@@ -16,6 +16,7 @@ pub enum CookingRecipeType {
     Smelting,
     Blasting,
     Smoking,
+    CampfireCooking,
 }
 
 impl CookingRecipeType {
@@ -24,6 +25,7 @@ impl CookingRecipeType {
             "minecraft:smelting" => CookingRecipeType::Smelting,
             "minecraft:blasting" => CookingRecipeType::Blasting,
             "minecraft:smoking" => CookingRecipeType::Smoking,
+            "minecraft:campfire_cooking" => CookingRecipeType::CampfireCooking,
             _ => return None,
         })
     }

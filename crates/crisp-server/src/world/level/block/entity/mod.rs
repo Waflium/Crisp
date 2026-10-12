@@ -5,6 +5,7 @@ pub mod beacon_block_entity;
 pub mod beehive_block_entity;
 pub mod brewing_stand_block_entity;
 pub mod brushable_block_entity;
+pub mod campfire_block_entity;
 pub mod chest_block_entity;
 pub mod comparator_block_entity;
 pub mod conduit_block_entity;
@@ -52,6 +53,8 @@ pub enum BlockEntityTicker {
     Conduit,
     Beacon,
     BrewingStand,
+    CampfireCook,
+    CampfireCooldown,
 }
 
 enum UpdateTag {
@@ -76,6 +79,7 @@ pub enum BlockEntityKind {
     Conduit(conduit_block_entity::ConduitBlockEntity),
     Beacon(beacon_block_entity::BeaconBlockEntity),
     EnchantingTable(enchanting_table_block_entity::EnchantingTableBlockEntity),
+    Campfire(campfire_block_entity::CampfireBlockEntity),
     BrewingStand(brewing_stand_block_entity::BrewingStandBlockEntity),
     Other(Vec<(String, Nbt)>),
 }
@@ -115,6 +119,7 @@ impl BlockEntity {
             types::CONDUIT => BlockEntityKind::Conduit(conduit_block_entity::ConduitBlockEntity::default()),
             types::BEACON => BlockEntityKind::Beacon(beacon_block_entity::BeaconBlockEntity::default()),
             types::ENCHANTING_TABLE => BlockEntityKind::EnchantingTable(enchanting_table_block_entity::EnchantingTableBlockEntity::default()),
+            types::CAMPFIRE => BlockEntityKind::Campfire(campfire_block_entity::CampfireBlockEntity::default()),
             types::BREWING_STAND => BlockEntityKind::BrewingStand(brewing_stand_block_entity::BrewingStandBlockEntity::default()),
             _ => BlockEntityKind::Other(Vec::new()),
         };
@@ -212,6 +217,7 @@ impl BlockEntity {
             BlockEntityKind::Conduit(conduit) => conduit.load_additional(input),
             BlockEntityKind::Beacon(beacon) => beacon.load_additional(input),
             BlockEntityKind::EnchantingTable(enchanting_table) => enchanting_table.load_additional(input),
+            BlockEntityKind::Campfire(campfire) => campfire.load_additional(input),
             BlockEntityKind::BrewingStand(brewing_stand) => brewing_stand.load_additional(input),
             BlockEntityKind::Other(data) => {
                 let _ = state;
@@ -241,6 +247,7 @@ impl BlockEntity {
             BlockEntityKind::Conduit(conduit) => conduit.save_additional(output),
             BlockEntityKind::Beacon(beacon) => beacon.save_additional(output),
             BlockEntityKind::EnchantingTable(enchanting_table) => enchanting_table.save_additional(output),
+            BlockEntityKind::Campfire(campfire) => campfire.save_additional(output),
             BlockEntityKind::BrewingStand(brewing_stand) => brewing_stand.save_additional(output),
             BlockEntityKind::Other(data) => output.extend(data.iter().cloned()),
         }
@@ -302,6 +309,9 @@ impl BlockEntity {
         if let BlockEntityKind::Brushable(brushable) = &self.kind {
             return brushable.get_update_tag();
         }
+        if let BlockEntityKind::Campfire(campfire) = &self.kind {
+            return campfire.get_update_tag();
+        }
         match self.update_tag_kind() {
             UpdateTag::CustomOnly => self.save_custom_only(),
             UpdateTag::WithoutMetadata => self.save_without_metadata(),
@@ -310,7 +320,7 @@ impl BlockEntity {
     }
 
     pub fn has_update_packet(&self) -> bool {
-        matches!(self.kind, BlockEntityKind::Spawner(_) | BlockEntityKind::Brushable(_)) || !matches!(self.update_tag_kind(), UpdateTag::None)
+        matches!(self.kind, BlockEntityKind::Spawner(_) | BlockEntityKind::Brushable(_) | BlockEntityKind::Campfire(_)) || !matches!(self.update_tag_kind(), UpdateTag::None)
     }
 
     fn update_tag_kind(&self) -> UpdateTag {
@@ -348,6 +358,8 @@ impl BlockEntity {
             beacon.apply_implicit_components(&mut get);
         } else if let BlockEntityKind::EnchantingTable(enchanting_table) = &mut self.kind {
             enchanting_table.apply_implicit_components(&mut get);
+        } else if let BlockEntityKind::Campfire(campfire) = &mut self.kind {
+            campfire.apply_implicit_components(&mut get);
         }
         let added: Vec<(DataComponentType, Nbt)> =
             patch.iter().filter(|(ty, _)| !implicit.contains(ty)).filter_map(|(ty, value)| value.map(|v| (ty, v.clone()))).collect();
@@ -362,6 +374,8 @@ impl BlockEntity {
             beacon.collect_implicit_components(&mut result);
         } else if let BlockEntityKind::EnchantingTable(enchanting_table) = &self.kind {
             enchanting_table.collect_implicit_components(&mut result);
+        } else if let BlockEntityKind::Campfire(campfire) = &self.kind {
+            campfire.collect_implicit_components(&mut result);
         }
         result
     }
@@ -384,6 +398,8 @@ impl BlockEntity {
             output.retain(|(k, _)| !matches!(k.as_str(), "CustomName" | "lock"));
         } else if let BlockEntityKind::EnchantingTable(_) = self.kind {
             output.retain(|(k, _)| k != "CustomName");
+        } else if let BlockEntityKind::Campfire(_) = self.kind {
+            output.retain(|(k, _)| k != "Items");
         }
     }
 
@@ -468,6 +484,9 @@ impl BlockEntity {
             types::CONDUIT if block.is_instance_of("ConduitBlock") => Some(BlockEntityTicker::Conduit),
             types::BEACON if block.is_instance_of("BeaconBlock") => Some(BlockEntityTicker::Beacon),
             types::BREWING_STAND if block.is_instance_of("BrewingStandBlock") => Some(BlockEntityTicker::BrewingStand),
+            types::CAMPFIRE if block.is_instance_of("CampfireBlock") => {
+                Some(if state.get(crisp_data::properties::LIT) { BlockEntityTicker::CampfireCook } else { BlockEntityTicker::CampfireCooldown })
+            }
             _ => None,
         }
     }

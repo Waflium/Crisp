@@ -14,6 +14,12 @@ pub fn drop_contents(level: &mut ServerLevel, pos: BlockPos, container: Containe
     }
 }
 
+pub fn drop_contents_list(level: &mut ServerLevel, pos: BlockPos, list: Vec<ItemStack>) {
+    for item_stack in list {
+        drop_item_stack(level, pos.x as f64, pos.y as f64, pos.z as f64, item_stack);
+    }
+}
+
 pub fn drop_item_stack(level: &mut ServerLevel, x: f64, y: f64, z: f64, mut stack: ItemStack) {
     let size = ItemEntity::DIMENSIONS.width as f64;
     let center_range = 1.0 - size;

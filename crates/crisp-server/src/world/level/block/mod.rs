@@ -816,7 +816,7 @@ fn for_class(class: &str, block: Block) -> Option<Box<dyn BlockBehaviour>> {
         "ChorusFlowerBlock" => Box::new(chorus_flower_block::ChorusFlowerBlock::new(block)),
         "BellBlock" => Box::new(bell_block::BellBlock),
         "CalibratedSculkSensorBlock" => Box::new(calibrated_sculk_sensor_block::CalibratedSculkSensorBlock),
-        "CampfireBlock" => Box::new(campfire_block::CampfireBlock),
+        "CampfireBlock" => Box::new(campfire_block::CampfireBlock::new(block)),
         "CeilingHangingSignBlock" => Box::new(ceiling_hanging_sign_block::CeilingHangingSignBlock),
         "ChiseledBookShelfBlock" => Box::new(chiseled_book_shelf_block::ChiseledBookShelfBlock),
         "CommandBlock" => Box::new(command_block::CommandBlock),
