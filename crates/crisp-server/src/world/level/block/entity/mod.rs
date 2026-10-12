@@ -19,6 +19,7 @@ mod dispenser_block_entity;
 pub mod enchanting_table_block_entity;
 pub mod ender_chest_block_entity;
 pub mod hopper_block_entity;
+pub mod jigsaw_block_entity;
 pub mod jukebox_block_entity;
 pub mod lectern_block_entity;
 #[cfg(test)]
@@ -113,6 +114,7 @@ pub enum BlockEntityKind {
     Empty,
     BrewingStand(brewing_stand_block_entity::BrewingStandBlockEntity),
     EndGateway(the_end_gateway_block_entity::TheEndGatewayBlockEntity),
+    Jigsaw(jigsaw_block_entity::JigsawBlockEntity),
     Other(Vec<(String, Nbt)>),
 }
 
@@ -166,6 +168,7 @@ impl BlockEntity {
             types::COPPER_GOLEM_STATUE | types::DAYLIGHT_DETECTOR | types::END_PORTAL => BlockEntityKind::Empty,
             types::BREWING_STAND => BlockEntityKind::BrewingStand(brewing_stand_block_entity::BrewingStandBlockEntity::default()),
             types::END_GATEWAY => BlockEntityKind::EndGateway(the_end_gateway_block_entity::TheEndGatewayBlockEntity::default()),
+            types::JIGSAW => BlockEntityKind::Jigsaw(jigsaw_block_entity::JigsawBlockEntity::default()),
             _ => BlockEntityKind::Other(Vec::new()),
         };
         Some(BlockEntity { ty, pos, block_state: state, remove: false, components: DataComponentMap::EMPTY, id: NEXT_ID.fetch_add(1, Ordering::Relaxed), kind })
@@ -275,6 +278,7 @@ impl BlockEntity {
             BlockEntityKind::Vault(vault) => vault.load_additional(input),
             BlockEntityKind::BrewingStand(brewing_stand) => brewing_stand.load_additional(input),
             BlockEntityKind::EndGateway(gateway) => gateway.load_additional(input),
+            BlockEntityKind::Jigsaw(jigsaw) => jigsaw.load_additional(input, state),
             BlockEntityKind::Other(data) => {
                 let _ = state;
                 *data = match input {
@@ -316,6 +320,7 @@ impl BlockEntity {
             BlockEntityKind::Vault(vault) => vault.save_additional(output),
             BlockEntityKind::BrewingStand(brewing_stand) => brewing_stand.save_additional(output),
             BlockEntityKind::EndGateway(gateway) => gateway.save_additional(output),
+            BlockEntityKind::Jigsaw(jigsaw) => jigsaw.save_additional(output),
             BlockEntityKind::Other(data) => output.extend(data.iter().cloned()),
         }
     }
