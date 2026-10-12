@@ -5,7 +5,7 @@ use crisp_data::DimensionType;
 
 use super::structure::StructureHolder;
 use super::structures::StructureType;
-use crate::world::level::chunk::ChunkStructures;
+use crate::world::level::chunk::{ChunkGenerator, ChunkStructures};
 use crate::world::level::chunk::chunk_generator_structure_state::ChunkGeneratorStructureState;
 use crate::world::level::levelgen::NoiseBasedChunkGenerator;
 
@@ -26,7 +26,7 @@ fn structure_starts_match_vanilla_dump() {
         .filter(|line| line.split(' ').nth(2).is_some_and(implemented))
         .map(str::to_owned)
         .collect();
-    let generator = NoiseBasedChunkGenerator::overworld(seed);
+    let generator = ChunkGenerator::Noise(std::sync::Arc::new(NoiseBasedChunkGenerator::overworld(seed)));
     let state = ChunkGeneratorStructureState::create_for_normal(&generator, seed);
     let mut actual = BTreeSet::new();
     for x in range[0]..=range[2] {

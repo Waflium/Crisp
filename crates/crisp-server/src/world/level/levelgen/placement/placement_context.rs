@@ -2,7 +2,6 @@ use crisp_core::BlockPos;
 use crisp_data::BlockState;
 
 use crate::server::level::world_gen_region::WorldGenRegion;
-use crate::world::level::biome::biome_generation_settings;
 use crate::world::level::chunk::HeightmapType;
 use crate::world::level::levelgen::material::WorldGenerationContext;
 
@@ -36,6 +35,6 @@ impl<'a, 'b> PlacementContext<'a, 'b> {
     pub fn biome_has_top_feature(&self, origin: BlockPos) -> bool {
         let feature = self.top_feature.expect("Tried to biome check an unregistered feature, or a feature that should not restrict the biome");
         let biome = self.level.get_biome(origin);
-        biome_generation_settings::get(biome).has_feature(feature)
+        self.level.generator().get_biome_generation_settings(biome).has_feature(feature)
     }
 }

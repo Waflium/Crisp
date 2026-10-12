@@ -4,7 +4,7 @@ use crisp_data::{Block, BlockState, Fluid, FluidState, blocks};
 use crate::world::difficulty::Difficulty;
 use crate::world::level::biome;
 use crate::world::level::block::entity::BlockEntity;
-use crate::world::level::chunk::{Biome, HeightmapType, LevelChunk};
+use crate::world::level::chunk::{Biome, ChunkGenerator, HeightmapType, LevelChunk};
 use crate::world::level::levelgen::AlgorithmRandom;
 use crate::world::level::levelgen::material::WorldGenerationContext;
 use crate::world::level::levelgen::random_state::RandomState;
@@ -30,6 +30,7 @@ pub struct WorldGenRegion<'a> {
     random: AlgorithmRandom,
     write_radius: i32,
     light_engine: &'a LevelLightEngine,
+    generator: &'a ChunkGenerator,
     difficulty: Difficulty,
     pub light_tasks: Vec<RegionLightTask>,
 }
@@ -46,6 +47,7 @@ impl<'a> WorldGenRegion<'a> {
         cache: [Option<&'a mut LevelChunk>; 9],
         writable: [bool; 9],
         lit: [bool; 9],
+        generator: &'a ChunkGenerator,
         random_state: &RandomState,
         min_y: i32,
         height: i32,
@@ -69,9 +71,14 @@ impl<'a> WorldGenRegion<'a> {
             random,
             write_radius: 1,
             light_engine,
+            generator,
             difficulty,
             light_tasks: Vec::new(),
         }
+    }
+
+    pub fn generator(&self) -> &'a ChunkGenerator {
+        self.generator
     }
 
     pub fn get_difficulty(&self) -> Difficulty {

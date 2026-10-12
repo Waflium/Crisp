@@ -1,10 +1,10 @@
-use std::sync::LazyLock;
+use std::sync::{LazyLock, Mutex};
 
 use serde_json::Value;
 
 use super::placement_modifier::PlacementModifier;
 use crate::world::level::levelgen::blockpredicates::block_predicate::resource;
-use crate::world::level::levelgen::feature::feature::FeatureHolder;
+use crate::world::level::levelgen::feature::feature::{Feature, FeatureHolder};
 
 pub struct PlacedFeature {
     pub feature: FeatureHolder,
@@ -26,8 +26,20 @@ pub fn placed_feature_index(name: &str) -> Option<u32> {
     crisp_data::PLACED_FEATURES.iter().position(|(n, _)| *n == name).map(|i| i as u32)
 }
 
+static INLINE_PLACED_FEATURES: Mutex<Vec<&'static PlacedFeature>> = Mutex::new(Vec::new());
+
+pub fn inline_placed(feature: Feature) -> u32 {
+    let placed: &'static PlacedFeature = Box::leak(Box::new(PlacedFeature { feature: FeatureHolder::Direct(Box::new(feature)), placement: Vec::new() }));
+    let mut inline = INLINE_PLACED_FEATURES.lock().unwrap();
+    inline.push(placed);
+    (PLACED_FEATURES.len() + inline.len() - 1) as u32
+}
+
 pub fn get(index: u32) -> &'static PlacedFeature {
-    &PLACED_FEATURES[index as usize]
+    match PLACED_FEATURES.get(index as usize) {
+        Some(feature) => feature,
+        None => INLINE_PLACED_FEATURES.lock().unwrap()[index as usize - PLACED_FEATURES.len()],
+    }
 }
 
 impl PlacedFeature {

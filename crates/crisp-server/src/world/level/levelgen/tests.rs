@@ -10,7 +10,7 @@ use std::sync::Arc;
 
 use super::structure::structure_start::StructureStart;
 use crate::world::level::chunk::chunk_generator_structure_state::ChunkGeneratorStructureState;
-use crate::world::level::chunk::{ChunkStructures, HeightmapType, LevelChunk};
+use crate::world::level::chunk::{ChunkGenerator, ChunkStructures, HeightmapType, LevelChunk};
 use crate::world::level::chunk::proto_chunk::ProtoChunk;
 use crate::world::level::lighting::level_light_engine::LevelLightEngine;
 
@@ -97,11 +97,12 @@ pub struct StructureHarness {
 }
 
 impl StructureHarness {
-    pub fn new(generator: &NoiseBasedChunkGenerator) -> StructureHarness {
-        StructureHarness { state: ChunkGeneratorStructureState::create_for_normal(generator, generator.seed()), starts: HashMap::new() }
+    pub fn new(generator: &ChunkGenerator) -> StructureHarness {
+        let ChunkGenerator::Noise(noise) = generator else { unreachable!() };
+        StructureHarness { state: ChunkGeneratorStructureState::create_for_normal(generator, noise.seed()), starts: HashMap::new() }
     }
 
-    fn starts_chunk(&mut self, generator: &NoiseBasedChunkGenerator, pos: ChunkPos) -> &ChunkStructures {
+    fn starts_chunk(&mut self, generator: &ChunkGenerator, pos: ChunkPos) -> &ChunkStructures {
         let state = &self.state;
         self.starts.entry(pos).or_insert_with(|| {
             let mut structures = ChunkStructures::default();
@@ -110,7 +111,7 @@ impl StructureHarness {
         })
     }
 
-    fn terrain_structures(&mut self, generator: &NoiseBasedChunkGenerator, pos: ChunkPos) -> ChunkStructures {
+    fn terrain_structures(&mut self, generator: &ChunkGenerator, pos: ChunkPos) -> ChunkStructures {
         let mut structures = ChunkStructures::default();
         for (&structure, start) in &self.starts_chunk(generator, pos).starts {
             structures.starts.insert(structure, start.clone());
@@ -135,7 +136,7 @@ impl StructureHarness {
         structures
     }
 
-    fn starts_for_center(&mut self, generator: &NoiseBasedChunkGenerator, center: &ChunkStructures) -> Vec<Vec<Arc<StructureStart>>> {
+    fn starts_for_center(&mut self, generator: &ChunkGenerator, center: &ChunkStructures) -> Vec<Vec<Arc<StructureStart>>> {
         let mut result = vec![Vec::new(); crisp_data::STRUCTURES.len()];
         for (&structure, references) in &center.references {
             for key in references.iter() {
@@ -148,10 +149,10 @@ impl StructureHarness {
     }
 }
 
-fn generate_chunk(generator: &NoiseBasedChunkGenerator, pos: ChunkPos, structures: &mut Option<&mut StructureHarness>) -> LevelChunk {
+fn generate_chunk(generator: &ChunkGenerator, pos: ChunkPos, structures: &mut Option<&mut StructureHarness>) -> LevelChunk {
     let dimension = overworld();
     let Some(harness) = structures else {
-        return generator.generate(pos, dimension).into_level_chunk(dimension);
+        return generator.generate(pos, dimension);
     };
     let chunk_structures = harness.terrain_structures(generator, pos);
     let adapted: Vec<Arc<StructureStart>> = harness
@@ -162,12 +163,12 @@ fn generate_chunk(generator: &NoiseBasedChunkGenerator, pos: ChunkPos, structure
         .flat_map(|(_, starts)| starts)
         .collect();
     let beardifier = super::beardifier::Beardifier::for_structures_in_chunk(&adapted, pos).map(Arc::new);
-    let mut chunk = generator.generate_with_beardifier(pos, dimension, beardifier).into_level_chunk(dimension);
+    let mut chunk = generator.generate_with_beardifier(pos, dimension, beardifier);
     chunk.structures = chunk_structures;
     chunk
 }
 
-pub fn decorate_with(generator: &NoiseBasedChunkGenerator, chunks: &mut HashMap<ChunkPos, LevelChunk>, center: ChunkPos, structures: &mut Option<&mut StructureHarness>) {
+pub fn decorate_with(generator: &ChunkGenerator, chunks: &mut HashMap<ChunkPos, LevelChunk>, center: ChunkPos, structures: &mut Option<&mut StructureHarness>) {
     let dimension = overworld();
     let mut taken: Vec<(ChunkPos, LevelChunk)> = Vec::new();
     for dz in -1..=1 {
@@ -190,13 +191,14 @@ pub fn decorate_with(generator: &NoiseBasedChunkGenerator, chunks: &mut HashMap<
             sea_level: generator.sea_level(),
         };
         let light_engine = LevelLightEngine::new(dimension.min_y, dimension.height as i32, true, dimension.has_skylight);
-        let mut region = WorldGenRegion::new(center, cache, [true; 9], [false; 9], &generator.state, dimension.min_y, dimension.height as i32, generation, &light_engine, crate::world::difficulty::Difficulty::Easy);
+        let ChunkGenerator::Noise(noise) = generator else { unreachable!() };
+        let mut region = WorldGenRegion::new(center, cache, [true; 9], [false; 9], generator, &noise.state, dimension.min_y, dimension.height as i32, generation, &light_engine, crate::world::difficulty::Difficulty::Easy);
         generator.apply_biome_decoration(&mut region, &structure_starts);
     }
     chunks.extend(taken);
 }
 
-pub fn decorate_like_oracle(generator: &NoiseBasedChunkGenerator, pos: ChunkPos) -> LevelChunk {
+pub fn decorate_like_oracle(generator: &ChunkGenerator, pos: ChunkPos) -> LevelChunk {
     let mut harness = std::env::var("CRISP_STRUCTURES").is_ok().then(|| StructureHarness::new(generator));
     let mut structures = harness.as_mut();
     let mut chunks: HashMap<ChunkPos, LevelChunk> = HashMap::new();
@@ -231,7 +233,7 @@ fn features_match_vanilla_dump() {
         let stem = path.file_stem().unwrap().to_str().unwrap().to_owned();
         let f: Vec<i64> = stem.split('_').map(|s| s.parse().unwrap()).collect();
         let (seed, pos) = (f[0], ChunkPos::new(f[1] as i32, f[2] as i32));
-        let generator = NoiseBasedChunkGenerator::overworld(seed);
+        let generator = ChunkGenerator::Noise(Arc::new(NoiseBasedChunkGenerator::overworld(seed)));
         let chunk = decorate_like_oracle(&generator, pos);
         let bytes = std::fs::read(&path).unwrap();
         let mut mismatches: HashMap<(String, String), usize> = HashMap::new();

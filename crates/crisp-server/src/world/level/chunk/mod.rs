@@ -1,5 +1,6 @@
 pub mod block_entities;
 pub mod carving_mask;
+pub mod chunk_generator;
 pub mod chunk_generator_structure_state;
 pub mod data_layer;
 mod heightmap;
@@ -299,7 +300,7 @@ impl LevelChunk {
     pub fn set_block_state(&mut self, pos: BlockPos, state: BlockState) -> Option<BlockState> {
         let i = self.section_index(pos.y);
         let section = &mut self.sections[i];
-        let skipped = state.is_air();
+        let skipped = if self.proto.is_some() { state.is_block(blocks::AIR) } else { state.is_air() };
         if section.has_only_air() && skipped {
             return None;
         }
@@ -451,6 +452,12 @@ impl ChunkGenerator {
     }
 }
 
+#[derive(Default)]
+pub struct FlatGeneration {
+    settings: std::sync::OnceLock<crate::world::level::biome::biome_generation_settings::BiomeGenerationSettings>,
+    features_per_step: std::sync::OnceLock<Vec<crate::world::level::biome::feature_sorter::StepFeatureData>>,
+}
+
 #[derive(Clone)]
 pub struct FlatLevelSource {
     pub layers: Vec<(BlockState, u32)>,
@@ -458,6 +465,7 @@ pub struct FlatLevelSource {
     pub structure_overrides: Option<crate::world::level::levelgen::flat::StructureOverrides>,
     pub lakes: bool,
     pub features: bool,
+    pub generation: std::sync::Arc<FlatGeneration>,
 }
 
 impl Default for FlatLevelSource {
@@ -471,34 +479,109 @@ impl Default for FlatLevelSource {
             ])),
             lakes: false,
             features: false,
+            generation: Default::default(),
         }
     }
 }
 
 impl FlatLevelSource {
+    const LAKES: usize = 1;
+    const UNDERGROUND_STRUCTURES: usize = 3;
+    const SURFACE_STRUCTURES: usize = 4;
+    const TOP_LAYER_MODIFICATION: usize = 10;
+
     pub fn sea_level(&self) -> i32 {
         -63
     }
 
-    pub fn generate(&self, pos: ChunkPos, dimension: &DimensionType) -> LevelChunk {
-        let mut chunk = LevelChunk::empty(pos, dimension, self.biome);
-        let mut y = chunk.min_y;
-        for &(state, height) in &self.layers {
-            for _ in 0..height {
-                if y >= chunk.min_y + chunk.height() {
-                    break;
+    pub fn get_layers(&self) -> Vec<Option<BlockState>> {
+        let adjusted = self.generation.settings.get().is_some();
+        self.layers
+            .iter()
+            .flat_map(|&(state, height)| std::iter::repeat_n(state, height as usize))
+            .map(|state| (!adjusted || HeightmapType::MotionBlocking.is_opaque(state)).then_some(state))
+            .collect()
+    }
+
+    pub fn adjust_generation_settings(&self, source_biome: Biome) -> &crate::world::level::biome::biome_generation_settings::BiomeGenerationSettings {
+        use crate::world::level::biome::biome_generation_settings::{self, BiomeGenerationSettings};
+        use crate::world::level::levelgen::placement::placed_feature;
+        if source_biome != self.biome {
+            return biome_generation_settings::get(source_biome);
+        }
+        self.generation.settings.get_or_init(|| {
+            let mut features: Vec<Vec<u32>> = Vec::new();
+            let mut add_feature = |step: usize, feature: u32| {
+                while features.len() <= step {
+                    features.push(Vec::new());
                 }
-                let section = chunk.section_index(y);
-                for z in 0..16 {
-                    for x in 0..16 {
-                        chunk.sections[section].set_block_state(x, (y & 15) as usize, z, state);
+                features[step].push(feature);
+            };
+            if self.lakes {
+                for lake in ["minecraft:lake_lava_underground", "minecraft:lake_lava_surface"] {
+                    add_feature(Self::LAKES, placed_feature::placed_feature_index(lake).expect("a lake placed feature"));
+                }
+            }
+            let layers: Vec<BlockState> = self.layers.iter().flat_map(|&(state, height)| std::iter::repeat_n(state, height as usize)).collect();
+            let void_gen = layers.iter().all(|state| state.is_block(blocks::AIR));
+            let biome_decoration = (!void_gen || Biome::by_name("minecraft:the_void") == Some(self.biome)) && self.features;
+            if biome_decoration {
+                for (step, step_features) in biome_generation_settings::get(self.biome).features().iter().enumerate() {
+                    if step != Self::UNDERGROUND_STRUCTURES && step != Self::SURFACE_STRUCTURES && (!self.lakes || step != Self::LAKES) {
+                        for &feature in step_features {
+                            add_feature(step, feature);
+                        }
                     }
                 }
-                y += 1;
+            }
+            for (i, &layer) in layers.iter().enumerate() {
+                if !HeightmapType::MotionBlocking.is_opaque(layer) {
+                    let fill_layer = crate::world::level::levelgen::feature::fill_layer_feature::FillLayerFeature { height: i as i32, state: layer };
+                    add_feature(Self::TOP_LAYER_MODIFICATION, placed_feature::inline_placed(crate::world::level::levelgen::feature::feature::Feature::FillLayer(fill_layer)));
+                }
+            }
+            BiomeGenerationSettings::new(features)
+        })
+    }
+
+    pub fn features_per_step(&self) -> &[crate::world::level::biome::feature_sorter::StepFeatureData] {
+        self.generation.features_per_step.get_or_init(|| crate::world::level::biome::feature_sorter::build_features_per_step(&[self.biome], |biome| self.adjust_generation_settings(biome)))
+    }
+
+    pub fn generate(&self, pos: ChunkPos, dimension: &DimensionType) -> LevelChunk {
+        let mut chunk = LevelChunk::empty(pos, dimension, self.biome);
+        let layers = self.get_layers();
+        for (layer_index, layer) in layers.iter().enumerate().take(chunk.height() as usize) {
+            let Some(state) = *layer else { continue };
+            let y = chunk.min_y + layer_index as i32;
+            let section = chunk.section_index(y);
+            for z in 0..16 {
+                for x in 0..16 {
+                    chunk.sections[section].set_block_state(x, (y & 15) as usize, z, state);
+                }
             }
         }
         chunk.prime_heightmaps();
         chunk
+    }
+
+    pub fn get_base_height(&self, kind: HeightmapType, min_y: i32, height: i32) -> i32 {
+        let layers = self.get_layers();
+        let max_y = min_y + height - 1;
+        let top = (layers.len() as i32 - 1).min(max_y);
+        for layer_index in (0..=top).rev() {
+            if let Some(state) = layers[layer_index as usize]
+                && kind.is_opaque(state)
+            {
+                return min_y + layer_index + 1;
+            }
+        }
+        min_y
+    }
+
+    pub fn get_base_column(&self, min_y: i32, height: i32) -> crate::world::level::noise_column::NoiseColumn {
+        let column = self.get_layers().into_iter().take(height.max(0) as usize).map(|state| state.unwrap_or(blocks::AIR.default_state())).collect();
+        crate::world::level::noise_column::NoiseColumn::new(min_y, column)
     }
 }
 

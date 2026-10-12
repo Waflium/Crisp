@@ -45,6 +45,11 @@ pub fn get(biome: Biome) -> &'static BiomeGenerationSettings {
 }
 
 impl BiomeGenerationSettings {
+    pub fn new(features: Vec<Vec<u32>>) -> BiomeGenerationSettings {
+        let feature_set = features.iter().flatten().copied().collect();
+        BiomeGenerationSettings { features, feature_set }
+    }
+
     pub fn features(&self) -> &[Vec<u32>] {
         &self.features
     }

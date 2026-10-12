@@ -6,6 +6,7 @@ use serde_json::Value;
 
 use super::abstract_huge_mushroom_feature::{AbstractHugeMushroomFeature, HugeMushroomType};
 use super::bamboo_feature::BambooFeature;
+use super::fill_layer_feature::FillLayerFeature;
 use super::block_blob_feature::BlockBlobFeature;
 use super::coral_claw_feature::CoralClawFeature;
 use super::coral_tree_feature::CoralTreeFeature;
@@ -74,6 +75,7 @@ pub enum Feature {
     Template(TemplateFeature),
     Fossil(Box<FossilFeature>),
     NoOp,
+    FillLayer(FillLayerFeature),
     SculkPatch(SculkPatchFeature),
     MultifaceGrowth(MultifaceGrowthFeature),
     Bamboo(BambooFeature),
@@ -136,6 +138,7 @@ impl Feature {
             "template" => Feature::Template(TemplateFeature::parse(json)?),
             "fossil" => Feature::Fossil(Box::new(FossilFeature::parse(json)?)),
             "no_op" => Feature::NoOp,
+            "fill_layer" => Feature::FillLayer(FillLayerFeature::parse(json)?),
             "sculk_patch" => Feature::SculkPatch(SculkPatchFeature::parse(json)?),
             "multiface_growth" => Feature::MultifaceGrowth(MultifaceGrowthFeature::parse(json)?),
             "bamboo" => Feature::Bamboo(BambooFeature::parse(json)?),
@@ -182,6 +185,7 @@ impl Feature {
             Feature::Template(feature) => feature.place(level, random, origin),
             Feature::Fossil(feature) => feature.place(level, random, origin),
             Feature::NoOp => true,
+            Feature::FillLayer(feature) => feature.place(level, origin),
             Feature::SculkPatch(feature) => feature.place(level, random, origin),
             Feature::MultifaceGrowth(feature) => feature.place(level, random, origin),
             Feature::Bamboo(feature) => feature.place(level, random, origin),

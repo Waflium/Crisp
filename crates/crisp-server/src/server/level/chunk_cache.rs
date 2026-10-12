@@ -32,6 +32,7 @@ use crate::world::level::levelgen::structure::terrain_adjustment::TerrainAdjustm
 use crate::world::level::levelgen::structure::structure_start::StructureStart;
 use std::sync::Arc;
 use crate::world::level::levelgen::material::WorldGenerationContext;
+use crate::world::level::levelgen::random_state::RandomState;
 use crate::world::level::light_layer::LightLayer;
 use crate::world::level::lighting::{self, section};
 use crate::world::ticks::{LevelChunkTicks, LevelTicks};
@@ -51,6 +52,7 @@ pub struct ChunkCache {
     structure_chunks: FastMap<ChunkPos, ChunkStructures>,
     loaded_structure_chunks: FastSet<ChunkPos>,
     structure_state: Option<Arc<ChunkGeneratorStructureState>>,
+    region_random_state: Option<Arc<RandomState>>,
     pub generate_structures: bool,
     pub seed: i64,
     pub difficulty: Difficulty,
@@ -84,10 +86,11 @@ pub struct ChunkCache {
 impl ChunkCache {
     pub fn new(dimension: &'static DimensionType, generator: impl Into<ChunkGenerator>, storage: Option<RegionStorage>) -> ChunkCache {
         let generator = generator.into();
-        let structure_state = match &generator {
-            ChunkGenerator::Noise(generator) => Some(Arc::new(ChunkGeneratorStructureState::create_for_normal(generator, generator.seed()))),
-            _ => None,
+        let seed = match &generator {
+            ChunkGenerator::Noise(noise) => noise.seed(),
+            ChunkGenerator::Flat(_) => 0,
         };
+        let structure_state = None;
         let mut cache = ChunkCache {
             dimension,
             generator,
@@ -96,6 +99,7 @@ impl ChunkCache {
             structure_chunks: FastMap::default(),
             loaded_structure_chunks: FastSet::default(),
             structure_state,
+            region_random_state: None,
             generate_structures: true,
             seed: 0,
             difficulty: Difficulty::Easy,
@@ -125,8 +129,22 @@ impl ChunkCache {
             tick_deadline: None,
             block_entity_tickers: BlockEntityTickers::default(),
         };
+        cache.set_seed(seed);
         cache.set_view_distance(10);
         cache
+    }
+
+    pub fn set_seed(&mut self, seed: i64) {
+        self.seed = seed;
+        let structure_state = match &self.generator {
+            ChunkGenerator::Noise(_) => ChunkGeneratorStructureState::create_for_normal(&self.generator, seed),
+            ChunkGenerator::Flat(flat) => ChunkGeneratorStructureState::create_for_flat(flat, seed),
+        };
+        self.structure_state = Some(Arc::new(structure_state));
+        self.region_random_state = match &self.generator {
+            ChunkGenerator::Noise(_) => None,
+            ChunkGenerator::Flat(_) => Some(Arc::new(RandomState::dummy(seed))),
+        };
     }
 
     pub fn min_y(&self) -> i32 {
@@ -852,7 +870,7 @@ impl ChunkCache {
         match job.status {
             ChunkStatus::Empty => self.schedule_chunk_load(job),
             ChunkStatus::StructureStarts if generate => match (&self.generator, &self.structure_state) {
-                (ChunkGenerator::Noise(generator), Some(state)) if self.generate_structures => {
+                (generator, Some(state)) if self.generate_structures => {
                     let (generator, state, dimension, results) = (generator.clone(), state.clone(), self.dimension, self.results.0.clone());
                     let token = self.new_token(job);
                     self.in_flight += 1;
@@ -1004,17 +1022,16 @@ impl ChunkCache {
     }
 
     fn generate_features(&mut self, center: ChunkPos) {
-        if let ChunkGenerator::Noise(generator) = &self.generator {
-            let generator = generator.clone();
-            self.apply_biome_decoration(&generator, center);
-        }
+        self.apply_biome_decoration(center);
         if let Some(chunk) = self.terrain_chunks.remove(&center) {
             self.chunks.insert(center, chunk);
         }
     }
 
-    fn apply_biome_decoration(&mut self, generator: &crate::world::level::levelgen::NoiseBasedChunkGenerator, center: ChunkPos) {
+    fn apply_biome_decoration(&mut self, center: ChunkPos) {
         let dimension = self.dimension;
+        let generator = self.generator.clone();
+        let region_random_state = self.region_random_state.clone();
         let mut structure_starts = Vec::new();
         if self.generate_structures {
             structure_starts.resize_with(crisp_data::STRUCTURES.len(), Vec::new);
@@ -1044,7 +1061,11 @@ impl ChunkCache {
                 gen_depth: (dimension.height as i32).min(generator.gen_depth()),
                 sea_level: generator.sea_level(),
             };
-            let mut region = WorldGenRegion::new(center, cache, writable, lit, &generator.state, dimension.min_y, dimension.height as i32, generation, &self.light_engine.engine, self.difficulty);
+            let random_state = match &generator {
+                ChunkGenerator::Noise(noise) => &noise.state,
+                ChunkGenerator::Flat(_) => region_random_state.as_deref().expect("a flat random state"),
+            };
+            let mut region = WorldGenRegion::new(center, cache, writable, lit, &generator, random_state, dimension.min_y, dimension.height as i32, generation, &self.light_engine.engine, self.difficulty);
             generator.apply_biome_decoration(&mut region, &structure_starts);
             std::mem::take(&mut region.light_tasks)
         };

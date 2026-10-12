@@ -14,7 +14,8 @@ use crate::world::level::chunk::{Biome, HeightmapType};
 use crate::world::level::levelgen::blockpredicates::block_predicate::resource;
 use crate::world::level::levelgen::density_function::SamplerContext;
 use crate::world::level::levelgen::worldgen_random::WorldgenRandom;
-use crate::world::level::levelgen::{NoiseBasedChunkGenerator, quart_pos};
+use crate::world::level::chunk::ChunkGenerator;
+use crate::world::level::levelgen::quart_pos;
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 pub struct StructureHolder(pub u16);
@@ -101,7 +102,7 @@ pub struct Structure {
 }
 
 pub struct GenerationContext<'a> {
-    pub chunk_generator: &'a NoiseBasedChunkGenerator,
+    pub chunk_generator: &'a ChunkGenerator,
     pub sampler_context: SamplerContext,
     pub random: WorldgenRandom,
     pub seed: i64,
@@ -127,7 +128,7 @@ impl GenerationStub<'_> {
 }
 
 impl<'a> GenerationContext<'a> {
-    pub fn new(chunk_generator: &'a NoiseBasedChunkGenerator, seed: i64, chunk_pos: ChunkPos, min_y: i32, height: i32, valid_biome: &'a HolderSet) -> GenerationContext<'a> {
+    pub fn new(chunk_generator: &'a ChunkGenerator, seed: i64, chunk_pos: ChunkPos, min_y: i32, height: i32, valid_biome: &'a HolderSet) -> GenerationContext<'a> {
         let mut random = WorldgenRandom::legacy(0);
         random.set_large_feature_seed(seed, chunk_pos.x, chunk_pos.z);
         GenerationContext { chunk_generator, sampler_context: SamplerContext::cached(), random, seed, chunk_pos, min_y, height, valid_biome }
@@ -243,7 +244,7 @@ impl Structure {
     pub fn generate(
         &self,
         selected: StructureHolder,
-        chunk_generator: &NoiseBasedChunkGenerator,
+        chunk_generator: &ChunkGenerator,
         seed: i64,
         source_chunk_pos: ChunkPos,
         references: i32,

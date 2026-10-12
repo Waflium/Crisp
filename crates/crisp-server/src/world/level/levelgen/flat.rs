@@ -81,7 +81,7 @@ pub fn parse_settings(json: &Value) -> Parsed {
     if total_height > Y_SIZE {
         errors.push(format!("Sum of layer heights is > {Y_SIZE}"));
     }
-    let value = FlatLevelSource { layers, biome, structure_overrides, lakes, features };
+    let value = FlatLevelSource { layers, biome, structure_overrides, lakes, features, generation: Default::default() };
     Parsed { value: Some(value), error: (!errors.is_empty()).then(|| errors.join("; ")) }
 }
 

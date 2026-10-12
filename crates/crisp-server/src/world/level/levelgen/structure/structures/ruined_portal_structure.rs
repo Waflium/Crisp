@@ -8,7 +8,7 @@ use crate::util::valueproviders::float;
 use crate::world::level::block::mirror::Mirror;
 use crate::world::level::block::rotation::Rotation;
 use crate::world::level::chunk::HeightmapType;
-use crate::world::level::levelgen::NoiseBasedChunkGenerator;
+use crate::world::level::chunk::ChunkGenerator;
 use crate::world::level::levelgen::quart_pos;
 use crate::world::level::levelgen::structure::BoundingBox;
 use crate::world::level::levelgen::structure::structure::{GenerationContext, GenerationStub};
@@ -161,7 +161,7 @@ fn is_cold(pos: BlockPos, biome: crate::world::level::chunk::Biome, sea_level: i
 #[allow(clippy::too_many_arguments)]
 fn find_suitable_y(
     random: &mut impl RandomSource,
-    generator: &NoiseBasedChunkGenerator,
+    generator: &ChunkGenerator,
     vertical_placement: VerticalPlacement,
     air_pocket: bool,
     surface_y_at_center: i32,

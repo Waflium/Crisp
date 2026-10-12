@@ -10,6 +10,7 @@ pub mod coral_claw_feature;
 pub mod coral_tree_feature;
 pub mod disk_feature;
 pub mod fallen_tree_feature;
+pub mod fill_layer_feature;
 pub mod feature;
 pub mod featuresize;
 pub mod foliageplacers;

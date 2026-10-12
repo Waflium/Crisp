@@ -257,6 +257,7 @@ impl WorldData {
                     structure_overrides: settings.get("structure_overrides").and_then(StructureOverrides::from_nbt),
                     lakes: settings.get("lakes").and_then(Nbt::as_i64).is_some_and(|v| v != 0),
                     features: settings.get("features").and_then(Nbt::as_i64).is_some_and(|v| v != 0),
+                    generation: Default::default(),
                 })
             }
             Some("minecraft:noise") => {

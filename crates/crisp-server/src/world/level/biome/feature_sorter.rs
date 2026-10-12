@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use crisp_core::hash_map::FastMap;
 
-use super::biome_generation_settings;
+use super::biome_generation_settings::BiomeGenerationSettings;
 use crate::world::level::chunk::Biome;
 
 pub struct StepFeatureData {
@@ -26,13 +26,13 @@ impl StepFeatureData {
 
 type FeatureData = (usize, usize);
 
-pub fn build_features_per_step(feature_sources: &[Biome]) -> Vec<StepFeatureData> {
+pub fn build_features_per_step<'a>(feature_sources: &[Biome], settings: impl Fn(Biome) -> &'a BiomeGenerationSettings) -> Vec<StepFeatureData> {
     let mut feature_index: FastMap<u32, usize> = FastMap::default();
     let mut features_by_index: Vec<u32> = Vec::new();
     let mut edges: BTreeMap<FeatureData, BTreeSet<FeatureData>> = BTreeMap::new();
     let mut max_step = 0;
     for &feature_source in feature_sources {
-        let features_for_step = biome_generation_settings::get(feature_source).features();
+        let features_for_step = settings(feature_source).features();
         max_step = max_step.max(features_for_step.len());
         let mut feature_list: Vec<FeatureData> = Vec::new();
         for (i, step) in features_for_step.iter().enumerate() {

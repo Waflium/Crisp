@@ -20,6 +20,19 @@ pub struct RandomState {
 }
 
 impl RandomState {
+    pub fn dummy(seed: i64) -> RandomState {
+        RandomState {
+            seed,
+            legacy: false,
+            random: AlgorithmRandom::new(false, seed).fork_positional(),
+            noises: RwLock::new(HashMap::new()),
+            positional_randoms: RwLock::new(HashMap::new()),
+            compiler: Mutex::new(DensityFunctionCompiler::default()),
+            by_address: RwLock::new(HashMap::new()),
+            material_system: None,
+        }
+    }
+
     pub fn new(settings: &NoiseGeneratorSettings, seed: i64) -> RandomState {
         let random = AlgorithmRandom::new(settings.legacy_random_source, seed).fork_positional();
         let mut state = RandomState {
