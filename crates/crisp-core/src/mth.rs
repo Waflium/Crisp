@@ -66,6 +66,28 @@ pub fn clamp_i(value: i32, min: i32, max: i32) -> i32 {
     value.max(min).min(max)
 }
 
+pub fn out_from_origin(origin: i32, lower_bound: i32, upper_bound: i32, step_size: i32) -> impl Iterator<Item = i32> {
+    assert!(lower_bound <= upper_bound, "upperBound {upper_bound} expected to be > lowerBound {lower_bound}");
+    assert!(step_size >= 1, "step size expected to be >= 1, was {step_size}");
+    let clamped_origin = clamp_i(origin, lower_bound, upper_bound);
+    std::iter::successors(Some(clamped_origin), move |&cursor| {
+        let previous_was_negative = cursor <= clamped_origin;
+        let current_distance = (clamped_origin - cursor).abs();
+        let can_move_positive = clamped_origin + current_distance + step_size <= upper_bound;
+        if !previous_was_negative || !can_move_positive {
+            let attempted_step = clamped_origin - current_distance - if previous_was_negative { step_size } else { 0 };
+            if attempted_step >= lower_bound {
+                return Some(attempted_step);
+            }
+        }
+        Some(clamped_origin + current_distance + step_size)
+    })
+    .take_while(move |&cursor| {
+        let current_distance = (clamped_origin - cursor).abs();
+        clamped_origin - current_distance >= lower_bound || clamped_origin + current_distance <= upper_bound
+    })
+}
+
 pub fn jmin(a: f64, b: f64) -> f64 {
     if a.is_nan() {
         a

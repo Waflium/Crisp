@@ -161,6 +161,8 @@ pub mod pools;
 pub mod scattered_feature_piece;
 pub mod single_piece_structure;
 pub mod structure;
+pub mod structure_check;
+pub mod structure_check_result;
 pub mod structure_piece;
 pub mod structure_set;
 pub mod structure_start;

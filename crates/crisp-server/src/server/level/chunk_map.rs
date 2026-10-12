@@ -280,6 +280,9 @@ impl ServerLevel {
     }
 
     pub fn process_chunk_events(&mut self) {
+        for (pos, starts) in self.chunks.take_structure_starts_available() {
+            self.structure_check.on_structure_load(pos, starts);
+        }
         for pos in self.chunks.take_ticking_ready() {
             self.post_process_generation(pos);
             self.chunks.start_ticking_chunk(pos);

@@ -82,7 +82,19 @@ impl StructureStart {
         !self.piece_container.lock().unwrap().is_empty()
     }
 
+    pub fn can_be_referenced(&self) -> bool {
+        self.get_references() < self.get_max_references()
+    }
+
+    pub fn add_reference(&self) {
+        self.references.fetch_add(1, Ordering::Relaxed);
+    }
+
     pub fn get_references(&self) -> i32 {
         self.references.load(Ordering::Relaxed)
+    }
+
+    fn get_max_references(&self) -> i32 {
+        1
     }
 }

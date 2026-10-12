@@ -30,6 +30,7 @@ mod help_command;
 mod kick_command;
 mod kill_command;
 pub mod list_players_command;
+mod locate_command;
 mod look_at;
 mod msg_command;
 mod op_command;
@@ -197,6 +198,8 @@ static EXECUTORS: &[(&str, CommandFn)] = &[
     ("teleport targets destination", teleport_command::teleport_targets_to_destination),
     ("list", list_players_command::list_players),
     ("list uuids", list_players_command::list_players_with_uuids),
+    ("locate structure structure", locate_command::locate_structure),
+    ("locate biome biome", locate_command::locate_biome),
     ("random roll range", random_command::roll),
     ("random roll range sequence", random_command::roll),
     ("random value range", random_command::value),

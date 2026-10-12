@@ -130,6 +130,27 @@ impl BlockPos {
         BlockPos::manhattan_ordered(origin, reach_x, reach_y, reach_z, reach_x + reach_y + reach_z)
     }
 
+    pub fn spiral_around(center: BlockPos, radius: i32, first_direction: Direction, second_direction: Direction) -> impl Iterator<Item = BlockPos> {
+        let directions = [first_direction, second_direction, first_direction.opposite(), second_direction.opposite()];
+        let legs = 4 * radius;
+        let mut last = center.relative(second_direction);
+        let (mut leg, mut leg_size, mut leg_index) = (-1, 0, 0);
+        std::iter::from_fn(move || {
+            let cursor = last.relative(directions[((leg + 4) % 4) as usize]);
+            last = cursor;
+            if leg_index >= leg_size {
+                if leg >= legs {
+                    return None;
+                }
+                leg += 1;
+                leg_index = 0;
+                leg_size = leg / 2 + 1;
+            }
+            leg_index += 1;
+            Some(cursor)
+        })
+    }
+
     fn manhattan_ordered(origin: BlockPos, reach_x: i32, reach_y: i32, reach_z: i32, max_depth: i32) -> impl Iterator<Item = BlockPos> {
         (0..=max_depth).flat_map(move |depth| {
             let max_x = reach_x.min(depth);

@@ -117,6 +117,7 @@ pub struct ServerLevel {
     pub dimension: &'static str,
     pub dimension_type_id: i32,
     pub chunks: ChunkCache,
+    pub structure_check: crate::world::level::levelgen::structure::structure_check::StructureCheck,
     pub chunk_map: ChunkMap,
     pub players: FastIndexMap<EntityId, ServerPlayer>,
     pub player_names_array: std::sync::Arc<std::sync::RwLock<std::sync::Arc<[String]>>>,
@@ -175,6 +176,7 @@ impl ServerLevel {
     ) -> ServerLevel {
         chunks.set_view_distance(view_distance);
         chunks.set_simulation_distance(simulation_distance);
+        let structure_check = crate::world::level::levelgen::structure::structure_check::StructureCheck::new(chunks.chunk_scan_access(), chunks.generator.clone(), chunks.dimension, chunks.seed);
         let mut level = ServerLevel {
             level_name: String::new(),
             seed: 0,
@@ -194,6 +196,7 @@ impl ServerLevel {
             dimension,
             dimension_type_id,
             chunks,
+            structure_check,
             chunk_map: ChunkMap::new(view_distance),
             players: FastIndexMap::default(),
             player_names_array: Default::default(),
@@ -950,6 +953,25 @@ impl ServerLevel {
         }
         self.update_sky_brightness();
         runs
+    }
+
+    pub fn find_closest_biome_3d(
+        &self,
+        biome_test: impl Fn(crate::world::level::chunk::Biome) -> bool,
+        origin: BlockPos,
+        max_search_radius: i32,
+        sample_resolution_horizontal: i32,
+        sample_resolution_vertical: i32,
+    ) -> Option<(BlockPos, crate::world::level::chunk::Biome)> {
+        self.chunks.generator.find_closest_biome_3d(
+            origin,
+            max_search_radius,
+            sample_resolution_horizontal,
+            sample_resolution_vertical,
+            biome_test,
+            self.chunks.min_y(),
+            self.chunks.max_y(),
+        )
     }
 
     pub fn tick_time(&mut self) -> i64 {

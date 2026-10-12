@@ -75,6 +75,7 @@ pub struct ChunkCache {
     waiting_unloads: IndexSet<i64>,
     ready_to_send: Vec<ChunkPos>,
     ticking_ready: Vec<ChunkPos>,
+    structure_starts_available: Vec<(ChunkPos, FastMap<StructureHolder, i32>)>,
     full_status_changes: VecDeque<(ChunkPos, FullChunkStatus)>,
     last_chunk_pos: [Option<ChunkPos>; 4],
     server_view_distance: i32,
@@ -122,6 +123,7 @@ impl ChunkCache {
             waiting_unloads: IndexSet::new(),
             ready_to_send: Vec::new(),
             ticking_ready: Vec::new(),
+            structure_starts_available: Vec::new(),
             full_status_changes: VecDeque::new(),
             last_chunk_pos: [None; 4],
             server_view_distance: 0,
@@ -263,6 +265,35 @@ impl ChunkCache {
             self.last_chunk_pos[0] = Some(pos);
         }
         self.chunks.get_mut(&pos).expect("full chunk")
+    }
+
+    pub fn get_chunk_structures(&mut self, pos: ChunkPos, status: ChunkStatus) -> &ChunkStructures {
+        let future = self.chunk_future_main_thread(pos, status, true);
+        self.managed_block(future);
+        if !self.holders.futures.is_success(future) {
+            panic!("Chunk not there when requested: {pos:?}");
+        }
+        self.chunk_structures(pos).expect("chunk structures")
+    }
+
+    pub fn get_generator_state(&self) -> Arc<ChunkGeneratorStructureState> {
+        self.structure_state.clone().expect("generator state")
+    }
+
+    pub fn chunk_scan_access(&self) -> Option<IoWorker> {
+        self.io.clone()
+    }
+
+    pub fn take_structure_starts_available(&mut self) -> Vec<(ChunkPos, FastMap<StructureHolder, i32>)> {
+        std::mem::take(&mut self.structure_starts_available)
+    }
+
+    fn on_structure_starts_available(&mut self, pos: ChunkPos) {
+        let starts = self
+            .chunk_structures(pos)
+            .map(|structures| structures.starts.iter().filter(|(_, start)| start.is_valid()).map(|(&structure, start)| (structure, start.get_references())).collect())
+            .unwrap_or_default();
+        self.structure_starts_available.push((pos, starts));
     }
 
     fn chunk_future_main_thread(&mut self, pos: ChunkPos, status: ChunkStatus, load_or_generate: bool) -> FutureId {
@@ -882,14 +913,19 @@ impl ChunkCache {
                 }
                 _ => {
                     self.structure_chunks.insert(pos, ChunkStructures::default());
+                    self.on_structure_starts_available(pos);
                     self.complete_step(job);
                 }
             },
+            ChunkStatus::StructureStarts => {
+                self.on_structure_starts_available(pos);
+                self.complete_step(job);
+            }
             ChunkStatus::StructureReferences if generate => {
                 self.create_references(pos);
                 self.complete_step(job);
             }
-            ChunkStatus::StructureStarts | ChunkStatus::StructureReferences | ChunkStatus::Biomes | ChunkStatus::Spawn => self.complete_step(job),
+            ChunkStatus::StructureReferences | ChunkStatus::Biomes | ChunkStatus::Spawn => self.complete_step(job),
             ChunkStatus::Terrain if generate => {
                 let beardifier = self.beardifier_for_structures_in_chunk(pos).map(Arc::new);
                 let token = self.new_token(job);
@@ -1180,6 +1216,7 @@ impl ChunkCache {
             }
             WorkResult::StructureStarts { structures, .. } => {
                 self.structure_chunks.insert(pos, structures);
+                self.on_structure_starts_available(pos);
                 self.complete_step(job);
             }
             WorkResult::Wake => {}

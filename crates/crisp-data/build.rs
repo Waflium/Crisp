@@ -114,7 +114,13 @@ fn main() -> anyhow::Result<()> {
     let synced = synced_registries(&mut out, &data)?;
     dimension_types(&mut out, &data, &synced["minecraft:dimension_type"])?;
     damage_types(&mut out, &data, &synced["minecraft:damage_type"])?;
-    tags(&mut out, &data, &builtin, &synced)?;
+    let mut tagged = synced.clone();
+    let mut structures = Vec::new();
+    for ns in namespaces(&data)? {
+        structures.extend(list_entries(&ns, &data.join(&ns).join("worldgen/structure"))?);
+    }
+    tagged.insert("minecraft:worldgen/structure".into(), structures);
+    tags(&mut out, &data, &builtin, &tagged)?;
     let lang = vanilla.join("assets/minecraft/lang/en_us.json").canonicalize()?;
     writeln!(out, "pub static LANGUAGE_EN_US: &str = include_str!({lang:?});")?;
     command_tree(&mut out, &read_json(&extracted.join("commands.json"))?)?;

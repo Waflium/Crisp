@@ -8,6 +8,7 @@ use super::{ChunkGenerator, FlatLevelSource};
 use crate::world::level::levelgen::flat::StructureOverrides;
 use crate::world::level::levelgen::structure::placement::concentric_rings_structure_placement::ConcentricRingsStructurePlacement;
 use crate::world::level::levelgen::structure::placement::structure_placement::StructurePlacement;
+use crate::world::level::levelgen::structure::structure::StructureHolder;
 use crate::world::level::levelgen::structure::structure_set::{StructureSet, StructureSetHolder};
 
 pub struct ChunkGeneratorStructureState {
@@ -15,6 +16,7 @@ pub struct ChunkGeneratorStructureState {
     concentric_rings_seed: i64,
     origin: OnceLock<ChunkPos>,
     possible_structure_sets: Vec<StructureSetHolder>,
+    placements_for_structure: OnceLock<Vec<Vec<StructureSetHolder>>>,
     ring_positions: Vec<OnceLock<Vec<ChunkPos>>>,
 }
 
@@ -29,6 +31,7 @@ impl ChunkGeneratorStructureState {
             concentric_rings_seed,
             origin: OnceLock::new(),
             possible_structure_sets,
+            placements_for_structure: OnceLock::new(),
             ring_positions: StructureSetHolder::all().map(|_| OnceLock::new()).collect(),
         }
     }
@@ -64,17 +67,26 @@ impl ChunkGeneratorStructureState {
 
     pub fn ensure_structures_generated(&self, generator: &ChunkGenerator) {
         self.origin.get_or_init(|| generator.origin());
+        self.placements_for_structure.get_or_init(|| self.generate_positions(generator));
+    }
+
+    fn generate_positions(&self, generator: &ChunkGenerator) -> Vec<Vec<StructureSetHolder>> {
         let possible_biomes = generator.possible_biomes();
+        let mut placements_for_structure = vec![Vec::new(); crisp_data::STRUCTURES.len()];
         for &set in &self.possible_structure_sets {
             let structure_set = set.value();
-            let has_any_placeable_structures = structure_set
-                .structures
-                .iter()
-                .any(|entry| entry.structure.value().biomes().contents().iter().any(|&id| possible_biomes.contains(&Biome(id as u16))));
+            let mut has_any_placeable_structures = false;
+            for entry in &structure_set.structures {
+                if entry.structure.value().biomes().contents().iter().any(|&id| possible_biomes.contains(&Biome(id as u16))) {
+                    placements_for_structure[entry.structure.0 as usize].push(set);
+                    has_any_placeable_structures = true;
+                }
+            }
             if has_any_placeable_structures && let StructurePlacement::ConcentricRings(placement) = &structure_set.placement {
                 self.ring_positions[set.0 as usize].get_or_init(|| self.generate_ring_positions(generator, placement));
             }
         }
+        placements_for_structure
     }
 
     fn generate_ring_positions(&self, generator: &ChunkGenerator, placement: &ConcentricRingsStructurePlacement) -> Vec<ChunkPos> {
@@ -131,6 +143,11 @@ impl ChunkGeneratorStructureState {
 
     pub fn get_ring_positions_for(&self, set: StructureSetHolder) -> Option<&Vec<ChunkPos>> {
         self.ring_positions[set.0 as usize].get()
+    }
+
+    pub fn get_placements_for_structure(&self, structure: StructureHolder, generator: &ChunkGenerator) -> &[StructureSetHolder] {
+        self.ensure_structures_generated(generator);
+        &self.placements_for_structure.get().expect("structure placements")[structure.0 as usize]
     }
 
     pub fn has_structure_chunk_in_range(&self, structure_set: StructureSetHolder, source_x: i32, source_z: i32, range: i32) -> bool {

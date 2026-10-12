@@ -75,6 +75,8 @@ pub enum ArgumentType {
     Dimension,
     Uuid,
     Resource { registry: String },
+    ResourceOrTag { registry: String },
+    ResourceOrTagKey { registry: String },
     CompoundTag,
     NbtTag,
     Function,
@@ -116,6 +118,7 @@ pub enum ArgumentValue {
     Identifier(String),
     Uuid(u128),
     Resource { registry: String, id: String },
+    ResourceOrTag { tag: bool, id: String },
     Nbt(Nbt),
     NbtPath(NbtPath),
     Function { tag: bool, id: String },
@@ -167,6 +170,8 @@ impl ArgumentType {
             "minecraft:dimension" => ArgumentType::Dimension,
             "minecraft:uuid" => ArgumentType::Uuid,
             "minecraft:resource" => ArgumentType::Resource { registry: registry() },
+            "minecraft:resource_or_tag" => ArgumentType::ResourceOrTag { registry: registry() },
+            "minecraft:resource_or_tag_key" => ArgumentType::ResourceOrTagKey { registry: registry() },
             "minecraft:nbt_compound_tag" => ArgumentType::CompoundTag,
             "minecraft:nbt_tag" => ArgumentType::NbtTag,
             "minecraft:function" => ArgumentType::Function,
@@ -269,6 +274,35 @@ impl ArgumentType {
                 }
                 ArgumentValue::Resource { registry: registry.clone(), id }
             }
+            ArgumentType::ResourceOrTag { ref registry } => {
+                if reader.can_read() && reader.peek() == b'#' as u16 {
+                    let cursor = reader.cursor;
+                    reader.skip();
+                    let tag_id = read_identifier(reader).inspect_err(|_| reader.cursor = cursor)?;
+                    if registry_tag(registry, &tag_id).is_none() {
+                        let error = ERROR_UNKNOWN_TAG.create_with_context(reader, tag_id, registry.as_str());
+                        reader.cursor = cursor;
+                        return Err(error);
+                    }
+                    ArgumentValue::ResourceOrTag { tag: true, id: tag_id }
+                } else {
+                    let id = read_identifier(reader)?;
+                    if !crisp_data::registry_entries(registry).is_some_and(|entries| entries.contains(&id.as_str())) {
+                        return Err(ERROR_UNKNOWN_RESOURCE.create_with_context(reader, id, registry.as_str()));
+                    }
+                    ArgumentValue::ResourceOrTag { tag: false, id }
+                }
+            }
+            ArgumentType::ResourceOrTagKey { .. } => {
+                if reader.can_read() && reader.peek() == b'#' as u16 {
+                    let cursor = reader.cursor;
+                    reader.skip();
+                    let tag_id = read_identifier(reader).inspect_err(|_| reader.cursor = cursor)?;
+                    ArgumentValue::ResourceOrTag { tag: true, id: tag_id }
+                } else {
+                    ArgumentValue::ResourceOrTag { tag: false, id: read_identifier(reader)? }
+                }
+            }
             ArgumentType::CompoundTag => ArgumentValue::Nbt(crate::nbt::parse_compound_as_argument(reader)?),
             ArgumentType::NbtTag => ArgumentValue::Nbt(crate::nbt::parse_as_argument(reader)?),
             ArgumentType::Function => function_argument::parse(reader)?,
@@ -329,6 +363,8 @@ pub static ERROR_INVALID_ID: SimpleCommandExceptionType = SimpleCommandException
 pub static ERROR_INVALID_UUID: SimpleCommandExceptionType = SimpleCommandExceptionType("argument.uuid.invalid");
 pub static ERROR_UNKNOWN_RESOURCE: Dynamic2CommandExceptionType =
     Dynamic2CommandExceptionType(|id, registry| tr("argument.resource.not_found", vec![id, registry]));
+pub static ERROR_UNKNOWN_TAG: Dynamic2CommandExceptionType =
+    Dynamic2CommandExceptionType(|id, registry| tr("argument.resource_tag.not_found", vec![id, registry]));
 pub static ERROR_INVALID_DIMENSION: DynamicCommandExceptionType = DynamicCommandExceptionType(|value| tr("argument.dimension.invalid", vec![value]));
 
 fn parse_time(reader: &mut StringReader, minimum: i32) -> Result<i32, CommandSyntaxException> {
@@ -523,6 +559,13 @@ impl CommandContext {
         }
     }
 
+    pub fn get_resource_or_tag(&self, name: &str) -> (bool, &str) {
+        match self.argument(name) {
+            ArgumentValue::ResourceOrTag { tag, id } => (*tag, id),
+            other => panic!("{name} is {other:?}"),
+        }
+    }
+
     pub fn get_nbt(&self, name: &str) -> &Nbt {
         match self.argument(name) {
             ArgumentValue::Nbt(v) => v,
@@ -613,6 +656,14 @@ pub fn list_suggestions(
         ArgumentType::Dimension => shared_suggestion_provider::suggest_resource([server.level.dimension], &mut builder),
         ArgumentType::Resource { registry } => {
             shared_suggestion_provider::suggest_resource(crisp_data::registry_entries(registry).unwrap_or_default().iter(), &mut builder)
+        }
+        ArgumentType::ResourceOrTag { registry } | ArgumentType::ResourceOrTagKey { registry } => {
+            let tags = crisp_data::TAGS.iter().find(|r| r.registry == registry).map_or(&[][..], |r| r.tags);
+            shared_suggestion_provider::suggest_resource_with_prefix(tags.iter().map(|t| t.0), &mut builder, "#");
+            match registry.as_str() {
+                "minecraft:worldgen/structure" => shared_suggestion_provider::suggest_resource(crisp_data::STRUCTURES.iter().map(|s| s.0), &mut builder),
+                _ => shared_suggestion_provider::suggest_resource(crisp_data::registry_entries(registry).unwrap_or_default().iter(), &mut builder),
+            }
         }
         ArgumentType::Entity { .. } | ArgumentType::GameProfile => {
             return selector_suggestions(&builder, source, |b| shared_suggestion_provider::suggest(player_names(), b));

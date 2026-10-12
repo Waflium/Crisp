@@ -78,6 +78,7 @@ enum IoRequest {
     Flush { flush: bool, reply: Sender<io::Result<()>> },
 }
 
+#[derive(Clone)]
 pub struct IoWorker {
     requests: Sender<IoRequest>,
 }
@@ -111,6 +112,12 @@ impl IoWorker {
 
     pub fn read(&self, pos: ChunkPos, reply: impl FnOnce(io::Result<Option<Nbt>>) + Send + 'static) {
         let _ = self.requests.send(IoRequest::Read { pos, reply: Box::new(reply) });
+    }
+
+    pub fn scan_chunk(&self, pos: ChunkPos) -> io::Result<Option<Nbt>> {
+        let (reply, result) = channel();
+        self.read(pos, move |read| drop(reply.send(read)));
+        result.recv().map_err(|_| io::Error::other("IO worker gone"))?
     }
 
     pub fn write(&self, pos: ChunkPos, nbt: Nbt) {
