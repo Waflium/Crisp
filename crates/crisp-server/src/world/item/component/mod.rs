@@ -2,6 +2,7 @@ pub mod attack_range;
 pub mod bundle_contents;
 pub mod codec;
 mod custom;
+pub mod map_post_processing;
 #[cfg(test)]
 mod oracle_data;
 #[cfg(test)]

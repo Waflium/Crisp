@@ -31,7 +31,9 @@ use crate::world::scores::score_holder::ScoreHolder;
 use crate::world::scores::team::Visibility;
 use crisp_data::{MobEffect, game_rule};
 use crate::world::inventory::abstract_container_menu::AbstractContainerMenu;
-use crate::world::item::{Inventory, ItemStack, OFFHAND, inventory_slot, protocol_slot};
+use crate::world::item::component as dc;
+use crate::world::item::{Inventory, ItemStack, OFFHAND, inventory_slot, map_item, protocol_slot};
+use crate::world::level::saveddata::maps::map_id::MapId;
 use crate::world::entity::player::abilities::Abilities;
 use crate::world::level::portal::teleport_transition::{PostTeleportTransition, TeleportTransition};
 use crate::world::level::storage::RespawnData;
@@ -477,10 +479,25 @@ impl ServerLevel {
         }
     }
 
+    fn synchronize_special_item_updates(&mut self, id: EntityId, map_id: Option<MapId>) {
+        let Some(data) = map_item::get_saved_data_by_id(map_id, self) else { return };
+        let Some(map_id) = map_id else { return };
+        if let Some(packet) = data.borrow_mut().get_update_packet(map_id, id) {
+            self.player(id).connection.send(clientbound::MAP_ITEM_DATA, |w| packet.write(w));
+        }
+    }
+
     pub fn server_player_do_tick(&mut self, id: EntityId) {
         if !self.is_spectator(id) || !self.touching_unloaded_chunk(id) {
             self.player_tick(id);
             self.tick_food(id);
+        }
+        for i in 0..41 {
+            let slot = crate::world::item::inventory_slot(i);
+            let map_id = self.player(id).inventory.slots[slot].as_ref().filter(|stack| !stack.is_empty()).and_then(|stack| stack.get(dc::MAP_ID)).and_then(MapId::from_nbt);
+            if map_id.is_some() {
+                self.synchronize_special_item_updates(id, map_id);
+            }
         }
         let p = self.player_mut(id);
         let food = p.food_data;

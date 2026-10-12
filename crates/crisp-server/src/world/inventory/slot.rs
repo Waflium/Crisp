@@ -1,7 +1,7 @@
 use crisp_data::{EquipmentSlot, items};
 
 use super::abstract_container_menu::{AbstractContainerMenu, MenuKind};
-use super::{grindstone_menu, loom_menu, smithing_menu};
+use super::{cartography_table_menu, grindstone_menu, loom_menu, smithing_menu};
 use crate::server::level::ServerLevel;
 use crate::world::container::ContainerRef;
 use crate::world::entity::EntityId;
@@ -44,6 +44,9 @@ pub enum SlotKind {
     LoomDye,
     LoomPattern,
     LoomResult,
+    CartographyMap,
+    CartographyAdditional,
+    CartographyResult,
 }
 
 #[derive(Clone, Debug)]
@@ -154,7 +157,10 @@ impl ServerLevel {
             | SlotKind::StonecutterResult
             | SlotKind::ItemCombinerResult
             | SlotKind::GrindstoneResult
-            | SlotKind::LoomResult => false,
+            | SlotKind::LoomResult
+            | SlotKind::CartographyResult => false,
+            SlotKind::CartographyMap => cartography_table_menu::map_slot_may_place(stack),
+            SlotKind::CartographyAdditional => cartography_table_menu::additional_slot_may_place(stack),
             SlotKind::GrindstoneInput => grindstone_menu::may_place(stack),
             SlotKind::LoomBanner => crate::world::item::banner_item::is_banner_item(stack.get_item()),
             SlotKind::LoomDye => loom_menu::is_dye_item(stack),
@@ -223,13 +229,17 @@ impl ServerLevel {
         }
     }
 
-    pub fn slot_on_take(&mut self, menu: &mut AbstractContainerMenu, player: EntityId, index: usize, carried: &ItemStack) {
+    pub fn slot_on_take(&mut self, menu: &mut AbstractContainerMenu, player: EntityId, index: usize, carried: &mut ItemStack) {
         match menu.slots[index].kind {
             SlotKind::FurnaceResult { .. } => {
                 self.check_take_achievements(menu, player, index, carried);
                 self.slot_set_changed(menu, player, index);
             }
-            SlotKind::Result { .. } => self.result_slot_on_take(menu, player, index),
+            SlotKind::Result { .. } => self.result_slot_on_take(menu, player, index, carried),
+            SlotKind::CartographyResult => {
+                self.cartography_table_result_slot_on_take(menu, player, carried);
+                self.slot_set_changed(menu, player, index);
+            }
             SlotKind::NonInteractiveResult => {}
             SlotKind::StonecutterResult => {
                 self.stonecutter_result_slot_on_take(menu, player);
@@ -251,7 +261,7 @@ impl ServerLevel {
             && let SlotKind::FurnaceResult { remove_count } | SlotKind::Result { remove_count, .. } = &mut menu.slots[index].kind
         {
             *remove_count += count;
-            self.check_take_achievements(menu, player, index, original);
+            self.check_take_achievements(menu, player, index, &mut original.clone());
         }
     }
 
@@ -261,7 +271,12 @@ impl ServerLevel {
         }
     }
 
-    fn check_take_achievements(&mut self, menu: &mut AbstractContainerMenu, player: EntityId, index: usize, _carried: &ItemStack) {
+    fn check_take_achievements(&mut self, menu: &mut AbstractContainerMenu, player: EntityId, index: usize, carried: &mut ItemStack) {
+        match menu.slots[index].kind {
+            SlotKind::FurnaceResult { remove_count } => carried.on_crafted_by(self, player, remove_count),
+            SlotKind::Result { remove_count, .. } if remove_count > 0 => carried.on_crafted_by(self, player, remove_count),
+            _ => {}
+        }
         match menu.slots[index].kind {
             SlotKind::FurnaceResult { .. } => {
                 if let SlotContainer::Container(c) = menu.slots[index].container
@@ -306,8 +321,8 @@ impl ServerLevel {
     }
 
     pub fn slot_safe_take(&mut self, menu: &mut AbstractContainerMenu, player: EntityId, index: usize, amount: i32, max_amount: i32) -> ItemStack {
-        let result = self.slot_try_remove(menu, player, index, amount, max_amount);
-        if let Some(taken) = &result {
+        let mut result = self.slot_try_remove(menu, player, index, amount, max_amount);
+        if let Some(taken) = &mut result {
             self.slot_on_take(menu, player, index, taken);
         }
         result.unwrap_or_else(ItemStack::empty)
@@ -336,6 +351,10 @@ impl ServerLevel {
     pub fn slot_safe_clone(&mut self, menu: &AbstractContainerMenu, player: EntityId, index: usize) -> ItemStack {
         let item = self.slot_get(menu, player, index);
         let max = item.max_stack_size();
-        item.copy_with_count(max)
+        let mut result = item.copy_with_count(max);
+        if let SlotKind::Result { .. } | SlotKind::CartographyResult = menu.slots[index].kind {
+            crate::world::item::on_crafted_by(&mut result, self, player);
+        }
+        result
     }
 }

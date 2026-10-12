@@ -8,6 +8,7 @@ pub mod context;
 pub mod crafting;
 pub mod dye_color;
 pub mod dye_item;
+pub mod empty_map_item;
 pub mod glow_ink_sac_item;
 pub mod ink_sac_item;
 pub mod sign_applicator;
@@ -20,6 +21,7 @@ pub mod item_utils;
 pub mod jukebox_playable;
 pub mod jukebox_song;
 pub mod jukebox_song_player;
+pub mod map_item;
 pub mod name_tag_item;
 pub mod scaffolding_block_item;
 pub mod slot;
@@ -65,6 +67,11 @@ pub fn use_on(level: &mut ServerLevel, player: EntityId, hand: InteractionHand, 
         Some(&"SpawnEggItem") => return spawn_egg_item::use_on(level, player, hand, hit, stack),
         Some(&"HoneycombItem") => return honeycomb_item::use_on(level, player, hand, hit, stack),
         Some(&"EnderEyeItem") => return ender_eye_item::use_on(level, player, hand, hit, stack),
+        Some(&"MapItem") => {
+            if let Some(result) = map_item::use_on(level, &hit, &stack) {
+                return result;
+            }
+        }
         _ => {}
     }
     match &BLOCK_ITEMS[stack.item.0 as usize] {
@@ -89,6 +96,9 @@ pub fn use_item(level: &mut ServerLevel, player: EntityId, hand: InteractionHand
     if stack.item.is_instance_of("EnderEyeItem") {
         return ender_eye_item::use_item(level, player, hand);
     }
+    if stack.item.is_instance_of("EmptyMapItem") {
+        return empty_map_item::use_item(level, player, hand);
+    }
     match bucket_item::BucketItem::for_item(stack.item) {
         Some(bucket) => bucket.use_item(level, player, hand),
         None => match &stack.item.info().consumable {
@@ -102,6 +112,24 @@ pub fn use_item(level: &mut ServerLevel, player: EntityId, hand: InteractionHand
             }
             None => (InteractionResult::Pass, None),
         },
+    }
+}
+
+pub fn inventory_tick(level: &mut ServerLevel, owner: EntityId, slot_index: usize, slot: Option<crisp_data::EquipmentSlot>) {
+    let Some(item_stack) = level.player(owner).inventory.slots[slot_index].as_ref().filter(|stack| !stack.is_empty()) else { return };
+    if item_stack.item.is_instance_of("MapItem") {
+        let item_stack = item_stack.clone();
+        map_item::inventory_tick(&item_stack, level, owner, slot);
+    }
+}
+
+pub fn on_crafted_by(item_stack: &mut ItemStack, level: &mut ServerLevel, _player: EntityId) {
+    on_crafted_post_process(item_stack, level);
+}
+
+pub fn on_crafted_post_process(item_stack: &mut ItemStack, level: &mut ServerLevel) {
+    if item_stack.item.is_instance_of("MapItem") {
+        map_item::on_crafted_post_process(item_stack, level);
     }
 }
 

@@ -10,6 +10,7 @@ use crate::server::level::{ServerLevel, SoundSource};
 use crate::world::entity::projectile::eye_of_ender::EyeOfEnder;
 use crate::world::entity::{LevelEntity, sound_event};
 use crate::world::level::clip::ClipFluid;
+use crate::world::level::levelgen::structure::structure::StructureHolder;
 use crate::server::level::events::{END_PORTAL_FRAME_FILL, SOUND_END_PORTAL_SPAWN};
 use crate::server::level::game_mode::GameType;
 use crate::world::entity::EntityId;
@@ -57,7 +58,10 @@ pub fn use_item(level: &mut ServerLevel, player: EntityId, hand: InteractionHand
     }
     level.start_using_item(player, hand);
     let player_pos = level.entity(player).block_position();
-    let Some(nearest_map_feature) = level.find_nearest_map_structure("minecraft:eye_of_ender_located", player_pos, 100, false) else {
+    let eye_of_ender_located: Vec<StructureHolder> = crate::commands::arguments::registry_tag("minecraft:worldgen/structure", "minecraft:eye_of_ender_located")
+        .map(|tag| tag.iter().map(|&id| StructureHolder(id as u16)).collect())
+        .unwrap_or_default();
+    let Some(nearest_map_feature) = level.find_nearest_map_structure(&eye_of_ender_located, player_pos, 100, false) else {
         return (InteractionResult::CONSUME, None);
     };
     let e = level.entity(player);

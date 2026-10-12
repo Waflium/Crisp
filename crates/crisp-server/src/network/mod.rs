@@ -6,5 +6,6 @@ pub mod encryption;
 pub mod hashed_stack;
 pub mod legacy_query_handler;
 pub mod login;
+pub mod protocol;
 pub mod server_connection_listener;
 pub mod server_status;

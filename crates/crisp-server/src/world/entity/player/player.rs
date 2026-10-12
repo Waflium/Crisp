@@ -323,8 +323,25 @@ impl ServerLevel {
         self.send_particles("minecraft:sweep_attack", |_| {}, x, y, z, 0, (dx, 0.0, dz), 0.0);
     }
 
+    pub fn inventory_tick(&mut self, id: EntityId) {
+        let selected = self.player(id).inventory.selected;
+        for i in 0..36 {
+            let slot = if i == selected { Some(EquipmentSlot::Mainhand) } else { None };
+            crate::world::item::inventory_tick(self, id, crate::world::item::inventory_slot(i), slot);
+        }
+    }
+
+    pub fn player_equipment_tick(&mut self, id: EntityId) {
+        for slot in [EquipmentSlot::Offhand, EquipmentSlot::Feet, EquipmentSlot::Legs, EquipmentSlot::Chest, EquipmentSlot::Head, EquipmentSlot::Body, EquipmentSlot::Saddle] {
+            if let Some(index) = self.equipment_inventory_slot(id, slot) {
+                crate::world::item::inventory_tick(self, id, index, Some(slot));
+            }
+        }
+    }
+
     pub fn player_ai_step(&mut self, id: EntityId) {
         self.tick_regeneration(id);
+        self.inventory_tick(id);
         if self.player(id).abilities_flying() {
             self.reset_fall_distance(id);
         }

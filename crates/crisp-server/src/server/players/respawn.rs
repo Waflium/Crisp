@@ -169,6 +169,7 @@ impl Server {
         let transition = self.find_respawn_position_and_use_spawn_block(id, !keep_all_player_data);
         let old_level = self.level_of(id).expect("respawning player");
         let old = self.levels[old_level].remove_player_immediately(id, removal_reason);
+        self.data_storage.borrow().player_removed(id);
         let level_index = transition.level;
         let old_score = old.score();
         let mut player = ServerPlayer::new(old.profile.clone(), old.client, old.connection.clone(), BlockPos::ZERO);

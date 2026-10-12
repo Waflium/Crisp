@@ -62,6 +62,7 @@ use crate::world::difficulty::Difficulty;
 use crate::world::level::storage::format_uuid;
 use crate::server::services::Services;
 use crate::world::level::storage::command_storage::CommandStorage;
+use crate::world::level::storage::saved_data_storage::SavedDataStorage;
 use crate::world::random_sequences::RandomSequences;
 use crate::world::level::timers::timer_queue::TimerQueue;
 use self::players::NameAndId;
@@ -175,6 +176,7 @@ pub struct Server {
     pub scoreboard: Rc<RefCell<Scoreboard>>,
     pub command_storage: Rc<RefCell<CommandStorage>>,
     pub random_sequences: Rc<RefCell<RandomSequences>>,
+    pub data_storage: Rc<RefCell<SavedDataStorage>>,
     pub ops: players::ServerOpList,
     pub bans: players::StoredUserList<players::UserBanEntry>,
     pub ip_bans: players::StoredUserList<players::IpBanEntry>,
@@ -319,6 +321,7 @@ impl Server {
         scoreboard.borrow_mut().load(scoreboard_save_data.data());
         let command_storage = Rc::new(RefCell::new(CommandStorage::new(world_dir.as_ref().map(WorldDir::data_folder))));
         let random_sequences = Rc::new(RefCell::new(RandomSequences::load(world_dir.as_ref().map(WorldDir::data_folder))));
+        let data_storage = Rc::new(RefCell::new(SavedDataStorage::new(world_dir.as_ref().map(WorldDir::data_folder))));
         let tick_rate_manager = ServerTickRateManager::default();
         let main_thread_wakeup = levels[0].chunks.main_thread_wakeup();
         for level in &mut levels {
@@ -328,6 +331,7 @@ impl Server {
             level.scoreboard = scoreboard.clone();
             level.command_storage = command_storage.clone();
             level.random_sequences = random_sequences.clone();
+            level.server_data_storage = data_storage.clone();
             level.tick_rate_manager = tick_rate_manager.shared();
             level.prepare_weather();
             level.sync_clocks(&clocks);
@@ -353,6 +357,7 @@ impl Server {
             scoreboard,
             command_storage,
             random_sequences,
+            data_storage,
             ops: lists.ops,
             bans: lists.bans,
             ip_bans: lists.ip_bans,
@@ -647,6 +652,7 @@ impl Server {
         log_save_failure("custom_boss_events.dat", self.custom_boss_events.save());
         log_save_failure("stopwatches.dat", self.stopwatches.save());
         log_save_failure("scoreboard.dat", self.scoreboard_save_data.save());
+        self.data_storage.borrow_mut().save();
         true
     }
 
@@ -1276,6 +1282,7 @@ impl Server {
         level.player_mut(id).disconnected = true;
         level.remove_player_menus(id);
         let Some(player) = level.remove_player(id) else { return };
+        self.data_storage.borrow().player_removed(id);
         self.player_list.retain(|&p| p != id);
         self.scoreboard.borrow_mut().server.remove_connection(id);
         self.update_player_names_array();

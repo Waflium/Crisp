@@ -65,8 +65,11 @@ impl ServerLevel {
         }
     }
 
-    pub fn result_slot_on_take(&mut self, menu: &mut AbstractContainerMenu, player: EntityId, index: usize) {
-        let SlotKind::Result { craft_slots, .. } = menu.slots[index].kind else { return };
+    pub fn result_slot_on_take(&mut self, menu: &mut AbstractContainerMenu, player: EntityId, index: usize, carried: &mut ItemStack) {
+        let SlotKind::Result { craft_slots, remove_count } = menu.slots[index].kind else { return };
+        if remove_count > 0 {
+            carried.on_crafted_by(self, player, remove_count);
+        }
         if let SlotContainer::Menu(c) = menu.slots[index].container {
             menu.containers[c].award_used_recipes(self, player);
         }

@@ -3,6 +3,7 @@ pub mod abstract_crafting_menu;
 pub mod abstract_furnace_menu;
 pub mod anvil_menu;
 pub mod beacon_menu;
+pub mod cartography_table_menu;
 pub mod crafter_menu;
 pub mod crafting_menu;
 pub mod enchantment_menu;

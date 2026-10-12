@@ -360,6 +360,34 @@ async fn main() -> anyhow::Result<()> {
                             })
                             .await?;
                         }
+                        ["use_item", hand] => {
+                            let hand: i32 = hand.parse()?;
+                            sequence += 1;
+                            send(&mut wr, codec, play::serverbound::USE_ITEM, |w| {
+                                w.varint(hand);
+                                w.varint(sequence);
+                                w.f32(0.0);
+                                w.f32(0.0);
+                            })
+                            .await?;
+                        }
+                        ["hotbar", slot] => {
+                            let slot: i16 = slot.parse()?;
+                            send(&mut wr, codec, play::serverbound::SET_CARRIED_ITEM, |w| w.i16(slot)).await?;
+                        }
+                        ["move", nx, ny, nz, y_rot] => {
+                            let (nx, ny, nz, y_rot): (f64, f64, f64, f32) = (nx.parse()?, ny.parse()?, nz.parse()?, y_rot.parse()?);
+                            (*x, *y, *z) = (nx, ny, nz);
+                            send(&mut wr, codec, play::serverbound::MOVE_PLAYER_POS_ROT, |w| {
+                                w.f64(nx);
+                                w.f64(ny);
+                                w.f64(nz);
+                                w.f32(y_rot);
+                                w.f32(0.0);
+                                w.u8(1);
+                            })
+                            .await?;
+                        }
                         ["use", x, y, z, face] => {
                             let (x, y, z, face): (i32, i32, i32, i32) = (x.parse()?, y.parse()?, z.parse()?, face.parse()?);
                             sequence += 1;

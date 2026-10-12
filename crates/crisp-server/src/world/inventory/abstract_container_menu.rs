@@ -5,6 +5,7 @@ use crisp_data::{EquipmentSlot, registry, registry_id};
 use super::beacon_menu::PAYMENT_SLOT;
 use super::crafter_menu::{INV_SLOT_START, SLOT_COUNT, USE_ROW_SLOT_END};
 use super::anvil_menu::{self, AnvilMenu};
+use super::cartography_table_menu::{self, CartographyTableMenu};
 use super::grindstone_menu;
 use super::item_combiner_menu;
 use super::loom_menu::{self, LoomMenu};
@@ -55,6 +56,7 @@ pub enum MenuKind {
     Anvil,
     Grindstone,
     Loom,
+    CartographyTable,
 }
 
 impl MenuKind {
@@ -81,6 +83,7 @@ impl MenuKind {
             MenuKind::Anvil => "minecraft:anvil",
             MenuKind::Grindstone => "minecraft:grindstone",
             MenuKind::Loom => "minecraft:loom",
+            MenuKind::CartographyTable => "minecraft:cartography_table",
         }
     }
 }
@@ -213,6 +216,7 @@ pub struct AbstractContainerMenu {
     pub smithing: Option<SmithingMenu>,
     pub anvil: Option<AnvilMenu>,
     pub loom: Option<LoomMenu>,
+    pub cartography_table: Option<CartographyTableMenu>,
     pub placing_recipe: bool,
     pub slots: Vec<Slot>,
     last_slots: Vec<ItemStack>,
@@ -243,6 +247,7 @@ impl AbstractContainerMenu {
             smithing: None,
             anvil: None,
             loom: None,
+            cartography_table: None,
             placing_recipe: false,
             slots: Vec::new(),
             last_slots: Vec::new(),
@@ -340,6 +345,13 @@ impl AbstractContainerMenu {
                 menu.add_slot(Slot::new(SlotContainer::Menu(loom_menu::INPUT_CONTAINER), 1, SlotKind::LoomDye));
                 menu.add_slot(Slot::new(SlotContainer::Menu(loom_menu::INPUT_CONTAINER), 2, SlotKind::LoomPattern));
                 menu.add_slot(Slot::new(SlotContainer::Menu(loom_menu::OUTPUT_CONTAINER), 0, SlotKind::LoomResult));
+            }
+            MenuKind::CartographyTable => {
+                menu.containers.push(MenuContainer::Simple(SimpleContainer::new(SimpleContainerKind::Plain, 2)));
+                menu.containers.push(MenuContainer::Result(ResultContainer::default()));
+                menu.add_slot(Slot::new(SlotContainer::Menu(cartography_table_menu::CONTAINER), 0, SlotKind::CartographyMap));
+                menu.add_slot(Slot::new(SlotContainer::Menu(cartography_table_menu::CONTAINER), 1, SlotKind::CartographyAdditional));
+                menu.add_slot(Slot::new(SlotContainer::Menu(cartography_table_menu::RESULT_CONTAINER), 2, SlotKind::CartographyResult));
             }
         }
         for i in 9..36 {
@@ -492,7 +504,7 @@ impl ServerLevel {
 
     fn can_take_item_for_pick_all(menu: &AbstractContainerMenu, index: usize) -> bool {
         match menu.slots[index].kind {
-            SlotKind::Result { .. } | SlotKind::StonecutterResult => false,
+            SlotKind::Result { .. } | SlotKind::StonecutterResult | SlotKind::CartographyResult => false,
             SlotKind::ItemCombinerResult => menu.kind != MenuKind::Smithing,
             _ => true,
         }
@@ -566,8 +578,10 @@ impl ServerLevel {
     pub fn menu_container_set_changed(&mut self, menu: &mut AbstractContainerMenu, player: EntityId, c: usize) {
         let slots_changed = match menu.containers[c] {
             MenuContainer::Simple(_) if menu.kind == MenuKind::Loom => c == loom_menu::INPUT_CONTAINER,
-            MenuContainer::Simple(_) => matches!(menu.kind, MenuKind::Enchantment | MenuKind::Stonecutter | MenuKind::Smithing | MenuKind::Anvil | MenuKind::Grindstone),
-            MenuContainer::Result(_) => matches!(menu.kind, MenuKind::Smithing | MenuKind::Anvil),
+            MenuContainer::Simple(_) => {
+                matches!(menu.kind, MenuKind::Enchantment | MenuKind::Stonecutter | MenuKind::Smithing | MenuKind::Anvil | MenuKind::Grindstone | MenuKind::CartographyTable)
+            }
+            MenuContainer::Result(_) => matches!(menu.kind, MenuKind::Smithing | MenuKind::Anvil | MenuKind::CartographyTable),
             MenuContainer::Crafting(_) => false,
         };
         if slots_changed {
@@ -581,6 +595,7 @@ impl ServerLevel {
             MenuKind::Anvil => self.item_combiner_menu_slots_changed(menu, player, c),
             MenuKind::Grindstone => self.grindstone_menu_slots_changed(menu, player, c),
             MenuKind::Loom => self.loom_menu_slots_changed(menu, player),
+            MenuKind::CartographyTable => self.cartography_table_menu_slots_changed(menu, player),
             MenuKind::Enchantment => self.enchantment_menu_slots_changed(menu, player),
             MenuKind::Stonecutter => self.stonecutter_menu_slots_changed(menu, player),
             MenuKind::Inventory => self.slot_changed_crafting_grid(menu, player, None),
@@ -701,9 +716,10 @@ impl ServerLevel {
                 } else if self.slot_may_pickup(menu, player, i) {
                     if carried.is_empty() {
                         let amount = if primary { clicked.count } else { (clicked.count + 1) / 2 };
-                        if let Some(taken) = self.slot_try_remove(menu, player, i, amount, i32::MAX) {
+                        if let Some(mut taken) = self.slot_try_remove(menu, player, i, amount, i32::MAX) {
                             self.set_carried(player, taken.clone());
-                            self.slot_on_take(menu, player, i, &taken);
+                            self.slot_on_take(menu, player, i, &mut taken);
+                            self.set_carried(player, taken);
                         }
                     } else if self.slot_may_place(menu, player, i, &carried) {
                         if ItemStack::is_same_item_same_components(&clicked, &carried) {
@@ -715,11 +731,11 @@ impl ServerLevel {
                             self.slot_set_by_player(menu, player, i, carried);
                         }
                     } else if ItemStack::is_same_item_same_components(&clicked, &carried)
-                        && let Some(taken) = self.slot_try_remove(menu, player, i, clicked.count, carried.max_stack_size() - carried.count)
+                        && let Some(mut taken) = self.slot_try_remove(menu, player, i, clicked.count, carried.max_stack_size() - carried.count)
                     {
                         carried.grow(taken.count);
                         self.set_carried(player, carried);
-                        self.slot_on_take(menu, player, i, &taken);
+                        self.slot_on_take(menu, player, i, &mut taken);
                     }
                 }
                 self.slot_set_changed(menu, player, i);
@@ -728,7 +744,7 @@ impl ServerLevel {
             let inventory_slot = crate::world::item::inventory_slot(button as usize);
             let source = self.player(player).inventory.slots[inventory_slot].clone().unwrap_or_else(ItemStack::empty);
             let i = slot_at(menu, slot_index)?;
-            let target_stack = self.slot_get(menu, player, i);
+            let mut target_stack = self.slot_get(menu, player, i);
             if !source.is_empty() || !target_stack.is_empty() {
                 let set_inventory = |level: &mut ServerLevel, stack: ItemStack| {
                     level.player_mut(player).inventory.slots[inventory_slot] = (!stack.is_empty()).then_some(stack);
@@ -738,7 +754,8 @@ impl ServerLevel {
                         set_inventory(self, target_stack.clone());
                         self.slot_on_swap_craft(menu, i, target_stack.count);
                         self.slot_set_by_player(menu, player, i, ItemStack::empty());
-                        self.slot_on_take(menu, player, i, &target_stack);
+                        self.slot_on_take(menu, player, i, &mut target_stack);
+                        set_inventory(self, target_stack);
                     }
                 } else if target_stack.is_empty() {
                     if self.slot_may_place(menu, player, i, &source) {
@@ -760,7 +777,7 @@ impl ServerLevel {
                         let piece = source.split(max);
                         set_inventory(self, source);
                         self.slot_set_by_player(menu, player, i, piece);
-                        self.slot_on_take(menu, player, i, &target_stack);
+                        self.slot_on_take(menu, player, i, &mut target_stack);
                         let mut rest = target_stack;
                         let infinite_materials = self.player(player).abilities.instabuild;
                         self.player_mut(player).inventory.add_stack(&mut rest, infinite_materials);
@@ -768,7 +785,8 @@ impl ServerLevel {
                     } else {
                         set_inventory(self, target_stack.clone());
                         self.slot_set_by_player(menu, player, i, source);
-                        self.slot_on_take(menu, player, i, &target_stack);
+                        self.slot_on_take(menu, player, i, &mut target_stack);
+                        set_inventory(self, target_stack);
                     }
                 }
             }
@@ -901,6 +919,7 @@ impl ServerLevel {
             }
             MenuKind::Crafting => {
                 if index == 0 {
+                    crate::world::item::on_crafted_by(&mut stack, self, player);
                     let moved = self.move_item_stack_to(menu, player, &mut stack, 10, 46, true);
                     if moved {
                         self.slot_put(menu, player, index, stack.clone());
@@ -980,6 +999,7 @@ impl ServerLevel {
             MenuKind::Smithing | MenuKind::Anvil => self.item_combiner_menu_quick_move_stack(menu, player, index, &mut stack),
             MenuKind::Grindstone => self.grindstone_menu_quick_move_stack(menu, player, index, &mut stack),
             MenuKind::Loom => self.loom_menu_quick_move_stack(menu, player, index, &mut stack),
+            MenuKind::CartographyTable => self.cartography_table_menu_quick_move_stack(menu, player, index, &mut stack),
             MenuKind::Stonecutter => {
                 if index == stonecutter_menu::RESULT_SLOT {
                     self.move_item_stack_to(menu, player, &mut stack, stonecutter_menu::INV_SLOT_START, stonecutter_menu::USE_ROW_SLOT_END, true)
@@ -1036,12 +1056,15 @@ impl ServerLevel {
             }
         };
         if !moved {
+            if matches!(menu.kind, MenuKind::Crafting | MenuKind::CartographyTable) {
+                self.slot_put(menu, player, index, stack);
+            }
             return ItemStack::empty();
         }
         self.slot_put(menu, player, index, stack.clone());
         if stack.is_empty() {
             self.slot_set_by_player(menu, player, index, ItemStack::empty());
-            if menu.kind == MenuKind::Stonecutter {
+            if matches!(menu.kind, MenuKind::Stonecutter | MenuKind::CartographyTable) {
                 self.slot_set_changed(menu, player, index);
             }
         } else {
@@ -1062,11 +1085,12 @@ impl ServerLevel {
                 | MenuKind::Anvil
                 | MenuKind::Grindstone
                 | MenuKind::Loom
+                | MenuKind::CartographyTable
         ) {
             if stack.count == clicked.count {
                 return ItemStack::empty();
             }
-            self.slot_on_take(menu, player, index, &stack);
+            self.slot_on_take(menu, player, index, &mut stack);
             match menu.kind {
                 MenuKind::Inventory | MenuKind::Crafting if index == 0 => self.player_drop(player, stack, false, Prediction::Predicted),
                 MenuKind::Stonecutter => {
@@ -1075,6 +1099,7 @@ impl ServerLevel {
                     }
                     self.menu_broadcast_changes(menu, player);
                 }
+                MenuKind::CartographyTable => self.menu_broadcast_changes(menu, player),
                 _ => {}
             }
         }
@@ -1194,6 +1219,7 @@ impl ServerLevel {
             MenuKind::Smithing => self.still_valid_access(menu.access, player, crisp_data::blocks::SMITHING_TABLE),
             MenuKind::Grindstone => self.still_valid_access(menu.access, player, crisp_data::blocks::GRINDSTONE),
             MenuKind::Loom => self.still_valid_access(menu.access, player, crisp_data::blocks::LOOM),
+            MenuKind::CartographyTable => self.still_valid_access(menu.access, player, crisp_data::blocks::CARTOGRAPHY_TABLE),
             MenuKind::Anvil => menu.access.is_none_or(|pos| {
                 crate::world::level::BlockGetter::block_state(self, pos).block().is(&crisp_data::block_tags::ANVIL) && self.is_within_block_interaction_range(player, pos, 4.0)
             }),
@@ -1231,6 +1257,7 @@ impl ServerLevel {
             MenuKind::Smithing | MenuKind::Anvil => self.item_combiner_menu_removed(menu, player),
             MenuKind::Grindstone => self.grindstone_menu_removed(menu, player),
             MenuKind::Loom => self.loom_menu_removed(menu, player),
+            MenuKind::CartographyTable => self.cartography_table_menu_removed(menu, player),
             _ => {}
         }
     }

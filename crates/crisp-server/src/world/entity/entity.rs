@@ -840,6 +840,28 @@ impl ServerLevel {
         self.broadcast_near(except, x, y, z, range, &packet);
     }
 
+    pub fn play_sound_from_entity(&mut self, except: Option<EntityId>, source_entity: EntityId, sound: i32, source: SoundSource, volume: f32, pitch: f32) {
+        let seed = self.thread_safe_random.next_long();
+        self.play_seeded_sound_from_entity(except, source_entity, sound, source, volume, pitch, seed);
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn play_seeded_sound_from_entity(&self, except: Option<EntityId>, source_entity: EntityId, sound: i32, source: SoundSource, volume: f32, pitch: f32, seed: i64) {
+        use crate::network::connection::encode;
+        use crisp_data::packets::play::clientbound;
+        let packet = encode(clientbound::SOUND_ENTITY, |p| {
+            p.varint(sound + 1);
+            p.varint(source as i32);
+            p.varint(source_entity);
+            p.f32(volume);
+            p.f32(pitch);
+            p.i64(seed);
+        });
+        let e = self.entity(source_entity);
+        let range = if volume > 1.0 { 16.0 * volume } else { 16.0 } as f64;
+        self.broadcast_near(except.filter(|&except| self.is_player(except)), e.x(), e.y(), e.z(), range, &packet);
+    }
+
     pub fn entity_play_sound(&mut self, id: EntityId, sound: i32, volume: f32, pitch: f32) {
         let source = self.sound_source(id);
         let e = self.entity(id);

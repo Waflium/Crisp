@@ -1312,10 +1312,14 @@ impl ServerLevel {
     pub fn living_entity_ai_step(&mut self, id: EntityId) {
         let player = self.is_player(id);
         let dead = self.is_dead_or_dying(id);
-        let (e, living) = self.entity_and_living_mut(id);
+        let living = self.living_mut(id);
         if living.no_jump_delay > 0 {
             living.no_jump_delay -= 1;
         }
+        if player {
+            self.player_equipment_tick(id);
+        }
+        let (e, living) = self.entity_and_living_mut(id);
         let movement = e.delta_movement;
         let (mut dx, mut dy, mut dz) = (movement.x, movement.y, movement.z);
         if player {

@@ -7,8 +7,10 @@ use super::transmute_recipe::create_with_original_components;
 use super::transmute_result::TransmuteResult;
 use crate::server::level::ServerLevel;
 use crate::util::codec::{self, DataResult};
-use crate::world::item::ItemStack;
 use crate::world::item::component as dc;
+use crate::world::item::component::map_post_processing::MapPostProcessing;
+use crate::world::item::{ItemStack, map_item};
+use crate::world::level::saveddata::maps::map_item_saved_data::MAX_SCALE;
 
 pub struct MapExtendingRecipe {
     pattern: ShapedRecipePattern,
@@ -28,18 +30,19 @@ impl MapExtendingRecipe {
         Ok(MapExtendingRecipe { pattern, result })
     }
 
-    pub fn matches(&self, input: &CraftingInput, _level: &mut ServerLevel) -> bool {
-        if !self.pattern.matches(input) || find_filled_map(input).is_none() {
+    pub fn matches(&self, input: &CraftingInput, level: &mut ServerLevel) -> bool {
+        if !self.pattern.matches(input) {
             return false;
         }
-        false
+        let Some(map) = find_filled_map(input) else { return false };
+        map_item::get_saved_data(map, level).is_some_and(|data| data.borrow().scale < MAX_SCALE)
     }
 
     pub fn assemble(&self, input: &CraftingInput) -> ItemStack {
         let empty = ItemStack::empty();
         let source_map = find_filled_map(input).unwrap_or(&empty);
         let mut map = create_with_original_components(&self.result.resolve(source_map.get_item()), source_map);
-        map.set(dc::MAP_POST_PROCESSING, Some(Nbt::String("scale".into())));
+        map.set(dc::MAP_POST_PROCESSING, Some(MapPostProcessing::Scale.to_nbt()));
         map
     }
 }

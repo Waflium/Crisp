@@ -45,7 +45,7 @@ fn dispense_from(state: BlockState, level: &mut ServerLevel, pos: BlockPos) {
         return;
     };
     let crafting_recipe = picked_recipe.crafting().expect("a crafting recipe");
-    let results = crafting_recipe.assemble(&craft_input);
+    let mut results = crafting_recipe.assemble(&craft_input);
     if results.is_empty() {
         level.level_event(None, SOUND_CRAFTER_FAIL, pos, 0);
         return;
@@ -54,6 +54,7 @@ fn dispense_from(state: BlockState, level: &mut ServerLevel, pos: BlockPos) {
         block_entity.set_crafting_ticks_remaining(MAX_CRAFTING_TICKS);
     }
     level.set_block(pos, state.set(CRAFTING, true), UPDATE_CLIENTS);
+    results.on_crafted_by_system(level);
     dispense_item(level, pos, &results, state);
     for remaining_item in crafting_recipe.get_remaining_items(&mut craft_input) {
         if !remaining_item.is_empty() {

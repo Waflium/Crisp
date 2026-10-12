@@ -48,6 +48,9 @@ use crate::world::level::entity::entity_tick_list::EntityTickList;
 use crate::world::level::gamerules::GameRules;
 use crate::world::level::pathfinder::path_type_cache::PathTypeCache;
 use crate::world::level::saveddata::weather_data::WeatherData;
+use crate::world::level::saveddata::maps::map_id::MapId;
+use crate::world::level::saveddata::maps::map_item_saved_data::MapItemSavedData;
+use crate::world::level::storage::saved_data_storage::SavedDataStorage;
 use crate::world::level::storage::{WorldDir, read_dat, write_dat};
 use crisp_protocol::nbt::Nbt;
 use crate::world::tick_rate_manager::TickRateManager;
@@ -106,6 +109,7 @@ pub struct ServerLevel {
     pub seed: i64,
     pub command_storage: Rc<RefCell<crate::world::level::storage::command_storage::CommandStorage>>,
     pub random_sequences: Rc<RefCell<crate::world::random_sequences::RandomSequences>>,
+    pub server_data_storage: Rc<RefCell<SavedDataStorage>>,
     pub game_rules: GameRules,
     pub spawn_protection: SpawnProtection,
     pub difficulty: crate::world::difficulty::Difficulty,
@@ -192,6 +196,7 @@ impl ServerLevel {
             seed: 0,
             command_storage: Rc::new(RefCell::new(crate::world::level::storage::command_storage::CommandStorage::new(None))),
             random_sequences: Rc::new(RefCell::new(crate::world::random_sequences::RandomSequences::load(None))),
+            server_data_storage: Rc::new(RefCell::new(SavedDataStorage::new(None))),
             game_rules: GameRules::default(),
             difficulty: crate::world::difficulty::Difficulty::Easy,
             no_save: false,
@@ -1132,6 +1137,18 @@ impl ServerLevel {
         self.weather.set(w);
     }
 
+    pub fn get_map_data(&self, id: MapId) -> Option<Rc<RefCell<MapItemSavedData>>> {
+        self.server_data_storage.borrow_mut().get_map_data(id)
+    }
+
+    pub fn set_map_data(&mut self, id: MapId, data: MapItemSavedData) {
+        self.server_data_storage.borrow_mut().set_map_data(id, data);
+    }
+
+    pub fn get_free_map_id(&mut self) -> MapId {
+        self.server_data_storage.borrow_mut().map_index().get_next_map_id()
+    }
+
     pub fn find_closest_biome_3d(
         &self,
         biome_test: impl Fn(crate::world::level::chunk::Biome) -> bool,
@@ -1322,14 +1339,18 @@ impl ServerLevel {
             .collect()
     }
 
-    pub fn find_nearest_map_structure(&mut self, structure_tag: &str, origin: BlockPos, max_search_radius: i32, create_reference: bool) -> Option<BlockPos> {
+    pub fn find_nearest_map_structure(
+        &mut self,
+        structure_tag: &[crate::world::level::levelgen::structure::structure::StructureHolder],
+        origin: BlockPos,
+        max_search_radius: i32,
+        create_reference: bool,
+    ) -> Option<BlockPos> {
         if !self.chunks.generate_structures {
             return None;
         }
-        let tag = crate::commands::arguments::registry_tag("minecraft:worldgen/structure", structure_tag)?;
-        let structures: Vec<_> = tag.iter().map(|&id| crate::world::level::levelgen::structure::structure::StructureHolder(id as u16)).collect();
         let generator = self.chunks.generator.clone();
-        generator.find_nearest_map_structure(self, &structures, origin, max_search_radius, create_reference).map(|(pos, _)| pos)
+        generator.find_nearest_map_structure(self, structure_tag, origin, max_search_radius, create_reference).map(|(pos, _)| pos)
     }
 
     pub fn is_spawning_monsters(&self) -> bool {

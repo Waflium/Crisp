@@ -335,6 +335,14 @@ impl ItemStack {
         ItemStack { count, ..self.clone() }
     }
 
+    pub fn on_crafted_by(&mut self, level: &mut ServerLevel, player: EntityId, _craft_count: i32) {
+        super::on_crafted_by(self, level, player);
+    }
+
+    pub fn on_crafted_by_system(&mut self, level: &mut ServerLevel) {
+        super::on_crafted_post_process(self, level);
+    }
+
     pub fn split(&mut self, amount: i32) -> ItemStack {
         let amount = amount.min(self.count);
         let result = self.copy_with_count(amount);

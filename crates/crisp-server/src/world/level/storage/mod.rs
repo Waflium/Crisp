@@ -1,5 +1,6 @@
 pub mod command_storage;
 pub mod loot;
+pub mod saved_data_storage;
 
 use std::fs::{self, File};
 use std::io::{self, Read, Write};

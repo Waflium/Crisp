@@ -1078,6 +1078,11 @@ impl ChunkCache {
             .collect()
     }
 
+    pub fn starts_for_structure_matching(&self, pos: ChunkPos, matcher: impl Fn(StructureHolder) -> bool) -> Vec<Arc<StructureStart>> {
+        let Some(structures) = self.chunk_structures(pos) else { return Vec::new() };
+        structures.references.keys().filter(|&&structure| matcher(structure)).flat_map(|&structure| self.starts_for_structure(pos, structure)).collect()
+    }
+
     fn beardifier_for_structures_in_chunk(&self, pos: ChunkPos) -> Option<Beardifier> {
         let references = self.chunk_structures(pos)?;
         let structure_starts: Vec<Arc<StructureStart>> = references
