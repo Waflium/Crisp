@@ -72,6 +72,9 @@ impl ServerLevel {
             BlockEntityKind::Furnace(_) => (true, true),
             BlockEntityKind::Jukebox(_) => return self.jukebox_pop_out_the_item(pos),
             BlockEntityKind::Campfire(_) => return self.campfire_pre_remove_side_effects(pos),
+            BlockEntityKind::ChiseledBookShelf(_) => {
+                return crate::world::containers::drop_contents(self, pos, ContainerRef::ChiseledBookShelf(pos));
+            }
             BlockEntityKind::Lectern(_) => {
                 let state = entity.block_state();
                 return self.lectern_pre_remove_side_effects(pos, state);
