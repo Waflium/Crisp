@@ -1,6 +1,3 @@
-use std::collections::HashMap;
-use std::sync::OnceLock;
-
 use crisp_core::mth;
 use crisp_core::random::RandomSource;
 use crisp_protocol::nbt::Nbt;
@@ -10,6 +7,7 @@ use super::loot_context::{LootContext, LootContextBuilder, LootDataType, Visited
 use super::loot_params::LootParams;
 use super::loot_pool::LootPool;
 use crate::core::holder::{Holder, RegistryElement};
+use crate::server::reloadable_server_registries;
 use crate::server::level::ServerLevel;
 use crate::util::codec::{self, DataResult};
 use crate::world::container::ContainerRef;
@@ -27,22 +25,11 @@ impl RegistryElement for LootTable {
     const REGISTRY: &'static str = "minecraft:loot_table";
 
     fn contains_key(key: &str) -> bool {
-        crisp_data::LOOT_TABLES.iter().any(|(name, _)| *name == key)
+        reloadable_server_registries::contains_key(Self::REGISTRY, key)
     }
 
     fn lookup(key: &str) -> Option<&'static LootTable> {
-        static LOOT_TABLES: OnceLock<HashMap<&'static str, LootTable>> = OnceLock::new();
-        LOOT_TABLES
-            .get_or_init(|| {
-                crisp_data::LOOT_TABLES
-                    .iter()
-                    .map(|&(name, json)| {
-                        let tag = crate::world::item::component::json_to_nbt(&serde_json::from_str(json).expect("vanilla JSON"));
-                        (name, LootTable::decode(&tag).unwrap_or_else(|e| panic!("{name}: {e}")))
-                    })
-                    .collect()
-            })
-            .get(key)
+        reloadable_server_registries::get().loot_tables.get(key)
     }
 }
 
@@ -184,32 +171,25 @@ mod tests {
 
     use super::LootTable;
     use crate::server::level::{ServerLevel, testing};
+    use crate::server::reloadable_server_registries;
+    use crate::world::item::crafting::tests::vanilla_data_files;
     use crate::world::damagesource::DamageSource;
     use crate::world::entity::animal::chicken::{self, Chicken};
     use crate::world::entity::data::DataValue;
     use crate::world::entity::{EntityId, LevelEntity};
     use crate::world::item::ItemStack;
-    use crate::world::item::component::{self as dc, json_to_nbt};
+    use crate::world::item::component as dc;
     use crate::world::level::block;
     use crate::world::level::storage::loot::loot_params::LootParams;
-    use crate::world::level::storage::loot::predicates::loot_item_condition::LootItemCondition;
 
     #[test]
     fn every_vanilla_loot_table_decodes() {
-        let errors: Vec<String> = crisp_data::LOOT_TABLES
-            .iter()
-            .filter_map(|&(name, json)| LootTable::decode(&json_to_nbt(&serde_json::from_str(json).unwrap())).err().map(|e| format!("{name}: {e}")))
-            .collect();
-        assert!(errors.is_empty(), "{errors:#?}");
+        assert_eq!(reloadable_server_registries::get().loot_tables.len(), vanilla_data_files("loot_table"));
     }
 
     #[test]
     fn every_vanilla_predicate_decodes() {
-        let errors: Vec<String> = crisp_data::PREDICATES
-            .iter()
-            .filter_map(|&(name, json)| LootItemCondition::decode(&json_to_nbt(&serde_json::from_str(json).unwrap())).err().map(|e| format!("{name}: {e}")))
-            .collect();
-        assert!(errors.is_empty(), "{errors:#?}");
+        assert_eq!(reloadable_server_registries::get().predicates.len(), vanilla_data_files("predicate"));
     }
 
     fn drops(level: &mut ServerLevel, state: BlockState, tool: &ItemStack) -> Vec<ItemStack> {

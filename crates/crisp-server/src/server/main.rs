@@ -243,8 +243,18 @@ pub fn main(args: Vec<String>) {
             .join()
             .expect("world data")
     });
-    let data_packs = ReloadableServerResources::load_resources(&resource_manager, postponed_tags, properties.function_permission_level);
-    data_packs.update_static_registry_tags();
+    let mut data_packs = match ReloadableServerResources::load_resources(&resource_manager, postponed_tags, properties.function_permission_level) {
+        Ok(data_packs) => data_packs,
+        Err(exception) => {
+            warn!(
+                "Failed to load datapacks, can't proceed with server load. You can either fix your datapacks or reset to vanilla with --safeMode\njava.util.concurrent.ExecutionException: {exception}"
+            );
+            runtime.shutdown_background();
+            return;
+        }
+    };
+    data_packs.update_components_and_static_registry_tags();
+    data_packs.finalize_recipe_loading();
     world_data.data_configuration = data_configuration;
     if let Err(e) = world_data.save_level_data(&world_dir) {
         error!("Failed to save level {}\n{e}", world_dir.root.display());

@@ -42,6 +42,6 @@ pub mod smithing_transform_recipe;
 pub mod smithing_trim_recipe;
 pub mod stonecutter_recipe;
 #[cfg(test)]
-mod tests;
+pub mod tests;
 pub mod transmute_recipe;
 pub mod transmute_result;

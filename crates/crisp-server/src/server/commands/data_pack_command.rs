@@ -116,7 +116,7 @@ fn enable_pack(
     inserter(server, &mut selected, unopened.clone())?;
     source.send_success(server, || tr("commands.datapack.modify.enable", vec![Arg::Component(unopened.chat_link(true))]), true);
     let ids: Vec<String> = selected.iter().map(|pack| pack.id().to_string()).collect();
-    reload_packs(server, &ids);
+    reload_packs(server, &ids, source);
     Ok(selected.len() as i32)
 }
 
@@ -174,7 +174,7 @@ fn disable_pack(server: &mut Server, context: &CommandContext, source: &CommandS
     }
     source.send_success(server, || tr("commands.datapack.modify.disable", vec![Arg::Component(unopened.chat_link(true))]), true);
     let ids: Vec<String> = selected.iter().map(|pack| pack.id().to_string()).collect();
-    reload_packs(server, &ids);
+    reload_packs(server, &ids, source);
     Ok(selected.len() as i32)
 }
 

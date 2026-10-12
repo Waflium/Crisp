@@ -1,3 +1,4 @@
+use std::cell::Cell;
 use std::sync::{LazyLock, RwLock};
 
 use crate::{BUILTIN_REGISTRIES, FEATURES, PACKET_NAMES, STRUCTURES, SYNCED_REGISTRIES, TAGS, TYPED_TAGS};
@@ -56,8 +57,23 @@ pub fn packet_name(state: &str, direction: &str, id: i32) -> Option<&'static str
 
 static BOUND_TAGS: RwLock<Option<&'static [RegistryTags]>> = RwLock::new(None);
 
-pub fn tags() -> &'static [RegistryTags] {
+thread_local! {
+    static PENDING_TAGS: Cell<Option<&'static [RegistryTags]>> = const { Cell::new(None) };
+}
+
+fn bound_tags() -> &'static [RegistryTags] {
     BOUND_TAGS.read().expect("bound tags").unwrap_or(TAGS)
+}
+
+pub fn tags() -> &'static [RegistryTags] {
+    PENDING_TAGS.with(Cell::get).unwrap_or_else(bound_tags)
+}
+
+pub fn with_pending_tags<R>(tags: &'static [RegistryTags], f: impl FnOnce() -> R) -> R {
+    let previous = PENDING_TAGS.with(|pending| pending.replace(Some(tags)));
+    let result = f();
+    PENDING_TAGS.with(|pending| pending.set(previous));
+    result
 }
 
 pub fn tag(registry: &str, name: &str) -> &'static [i32] {
@@ -73,18 +89,25 @@ fn same_tags(current: &[RegistryTags], tags: &[(String, Vec<(String, Vec<i32>)>)
         })
 }
 
-pub fn bind_tags(tags: Vec<(String, Vec<(String, Vec<i32>)>)>) {
-    if same_tags(self::tags(), &tags) {
-        return;
+pub fn prepare_tags(tags: Vec<(String, Vec<(String, Vec<i32>)>)>) -> &'static [RegistryTags] {
+    let current = bound_tags();
+    if same_tags(current, &tags) {
+        return current;
     }
-    let bound: Vec<RegistryTags> = tags
+    let prepared: Vec<RegistryTags> = tags
         .into_iter()
         .map(|(registry, tags)| {
             let tags: Vec<(&'static str, &'static [i32])> = tags.into_iter().map(|(name, values)| (&*name.leak(), &*values.leak())).collect();
             RegistryTags { registry: registry.leak(), tags: tags.leak() }
         })
         .collect();
-    let bound: &'static [RegistryTags] = bound.leak();
+    prepared.leak()
+}
+
+pub fn bind_tags(bound: &'static [RegistryTags]) {
+    if std::ptr::eq(bound, bound_tags()) {
+        return;
+    }
     for (registry, typed) in TYPED_TAGS {
         let registry_tags = bound.iter().find(|r| r.registry == *registry).map_or(&[][..], |r| r.tags);
         for tag in typed.iter() {

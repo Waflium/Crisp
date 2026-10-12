@@ -3,6 +3,7 @@ use crisp_protocol::nbt::Nbt;
 use super::slot_collection::SlotCollection;
 use crate::advancements::predicates::item_predicate::ItemPredicate;
 use crate::core::holder::{Holder, RegistryElement};
+use crate::server::reloadable_server_registries;
 use crate::util::codec::{self, DataResult};
 use crate::world::inventory::slot_ranges::{self, SlotRange};
 use crate::world::item::ItemStack;
@@ -24,12 +25,12 @@ pub enum SlotSource {
 impl RegistryElement for SlotSource {
     const REGISTRY: &'static str = "minecraft:slot_source";
 
-    fn contains_key(_key: &str) -> bool {
-        false
+    fn contains_key(key: &str) -> bool {
+        reloadable_server_registries::contains_key(Self::REGISTRY, key)
     }
 
-    fn lookup(_key: &str) -> Option<&'static SlotSource> {
-        None
+    fn lookup(key: &str) -> Option<&'static SlotSource> {
+        reloadable_server_registries::get().slot_sources.get(key)
     }
 }
 
@@ -58,7 +59,7 @@ impl SlotSource {
         codec::compact_list_of(tag, |t| Holder::decode(t, SlotSource::decode_typed))
     }
 
-    fn decode_typed(tag: &Nbt) -> DataResult<SlotSource> {
+    pub fn decode_typed(tag: &Nbt) -> DataResult<SlotSource> {
         codec::map(tag)?;
         let ty = codec::decode_field(tag, "type", codec::identifier)?;
         let slot_source = || codec::decode_field(tag, "slot_source", SlotSource::decode_holder);

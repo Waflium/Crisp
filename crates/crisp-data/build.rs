@@ -78,12 +78,7 @@ fn main() -> anyhow::Result<()> {
     items(&mut out, &read_json(&extracted.join("items.json"))?, &reports.join("minecraft/components/item"), &builtin)?;
     item_components(&mut out, &read_json(&extracted.join("items.json"))?, &reports.join("minecraft/components/item"))?;
     block_entity_types(&mut out, &read_json(&extracted.join("block_entity_types.json"))?, &builtin)?;
-    embed_json(&mut out, &data, "loot_table", "LOOT_TABLES")?;
-    embed_json(&mut out, &data, "predicate", "PREDICATES")?;
-    embed_json(&mut out, &data, "recipe", "RECIPES")?;
     embed_json(&mut out, &data, "enchantment", "ENCHANTMENTS")?;
-    embed_json(&mut out, &data, "context_int_provider", "CONTEXT_INT_PROVIDERS")?;
-    embed_json(&mut out, &data, "context_float_provider", "CONTEXT_FLOAT_PROVIDERS")?;
     embed_json(&mut out, &data, "jukebox_song", "JUKEBOX_SONGS")?;
     embed_json(&mut out, &data, "timeline", "TIMELINES")?;
     embed_json(&mut out, &data, "chicken_variant", "CHICKEN_VARIANTS")?;

@@ -1,8 +1,5 @@
 pub mod resolvable_float;
 
-use std::collections::HashMap;
-use std::sync::OnceLock;
-
 use crisp_core::mth;
 use crisp_protocol::nbt::Nbt;
 
@@ -10,6 +7,7 @@ use super::ints::ContextIntProvider;
 use super::stored_number_access::StoredNumberAccess;
 use super::{ArithmeticException, ArithmeticResult, Case, decode_holder_list, decode_weighted_list, get_random};
 use crate::core::holder::{Holder, RegistryElement};
+use crate::server::reloadable_server_registries;
 use crate::util::codec::{self, DataResult};
 use crate::util::{java_max_f, java_min_f};
 use crate::world::attribute::environment_attribute::EnvironmentAttributeInfo;
@@ -52,22 +50,11 @@ impl RegistryElement for ContextFloatProvider {
     const REGISTRY: &'static str = "minecraft:context_float_provider";
 
     fn contains_key(key: &str) -> bool {
-        crisp_data::CONTEXT_FLOAT_PROVIDERS.iter().any(|(name, _)| *name == key)
+        reloadable_server_registries::contains_key(Self::REGISTRY, key)
     }
 
     fn lookup(key: &str) -> Option<&'static ContextFloatProvider> {
-        static PROVIDERS: OnceLock<HashMap<&'static str, ContextFloatProvider>> = OnceLock::new();
-        PROVIDERS
-            .get_or_init(|| {
-                crisp_data::CONTEXT_FLOAT_PROVIDERS
-                    .iter()
-                    .map(|&(name, json)| {
-                        let tag = crate::world::item::component::json_to_nbt(&serde_json::from_str(json).expect("vanilla JSON"));
-                        (name, ContextFloatProvider::decode(&tag).unwrap_or_else(|e| panic!("{name}: {e}")))
-                    })
-                    .collect()
-            })
-            .get(key)
+        reloadable_server_registries::get().context_float_providers.get(key)
     }
 }
 

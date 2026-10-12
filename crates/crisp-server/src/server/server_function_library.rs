@@ -24,7 +24,7 @@ impl Default for ServerFunctionLibrary {
     }
 }
 
-fn worker_name() -> String {
+pub(crate) fn worker_name() -> String {
     format!("Worker-Main-{}", NEXT_WORKER.fetch_add(1, Ordering::Relaxed))
 }
 

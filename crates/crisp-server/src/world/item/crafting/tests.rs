@@ -21,9 +21,14 @@ fn craft(width: usize, grid: &[Option<Item>]) -> (Option<&'static str>, ItemStac
     }
 }
 
+pub fn vanilla_data_files(directory: &str) -> usize {
+    let archive = zip::ZipArchive::new(std::io::Cursor::new(crisp_data::VANILLA_DATA)).unwrap();
+    archive.file_names().filter(|name| name.starts_with(&format!("data/minecraft/{directory}/")) && name.ends_with(".json")).count()
+}
+
 #[test]
 fn every_vanilla_recipe_decodes() {
-    assert_eq!(RecipeManager::get().get_recipes().len(), crisp_data::RECIPES.len());
+    assert_eq!(RecipeManager::get().get_recipes().len(), vanilla_data_files("recipe"));
 }
 
 #[test]

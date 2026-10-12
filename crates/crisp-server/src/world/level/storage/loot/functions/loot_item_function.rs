@@ -42,6 +42,7 @@ use super::set_written_book_pages_function::SetWrittenBookPagesFunction;
 use super::smelt_item_function::SmeltItemFunction;
 use super::toggle_tooltips::ToggleTooltips;
 use crate::core::holder::{Holder, RegistryElement};
+use crate::server::reloadable_server_registries;
 use crate::util::codec::{self, DataResult};
 use crate::world::item::ItemStack;
 use crate::world::level::storage::loot::loot_context::LootContext;
@@ -100,12 +101,12 @@ pub struct LootItemFunction {
 impl RegistryElement for LootItemFunction {
     const REGISTRY: &'static str = "minecraft:item_modifier";
 
-    fn contains_key(_key: &str) -> bool {
-        false
+    fn contains_key(key: &str) -> bool {
+        reloadable_server_registries::contains_key(Self::REGISTRY, key)
     }
 
-    fn lookup(_key: &str) -> Option<&'static LootItemFunction> {
-        None
+    fn lookup(key: &str) -> Option<&'static LootItemFunction> {
+        reloadable_server_registries::get().item_modifiers.get(key)
     }
 }
 

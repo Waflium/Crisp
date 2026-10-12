@@ -1,6 +1,3 @@
-use std::collections::HashMap;
-use std::sync::OnceLock;
-
 use crisp_protocol::nbt::Nbt;
 
 use super::all_of_condition::AllOfCondition;
@@ -24,6 +21,7 @@ use super::match_tool::MatchTool;
 use super::time_check::TimeCheck;
 use super::weather_check::WeatherCheck;
 use crate::core::holder::{Holder, RegistryElement};
+use crate::server::reloadable_server_registries;
 use crate::util::codec::{self, DataResult};
 use crate::world::level::storage::loot::loot_context::LootContext;
 
@@ -54,22 +52,11 @@ impl RegistryElement for LootItemCondition {
     const REGISTRY: &'static str = "minecraft:predicate";
 
     fn contains_key(key: &str) -> bool {
-        crisp_data::PREDICATES.iter().any(|(name, _)| *name == key)
+        reloadable_server_registries::contains_key(Self::REGISTRY, key)
     }
 
     fn lookup(key: &str) -> Option<&'static LootItemCondition> {
-        static PREDICATES: OnceLock<HashMap<&'static str, LootItemCondition>> = OnceLock::new();
-        PREDICATES
-            .get_or_init(|| {
-                crisp_data::PREDICATES
-                    .iter()
-                    .map(|&(name, json)| {
-                        let tag = crate::world::item::component::json_to_nbt(&serde_json::from_str(json).expect("vanilla JSON"));
-                        (name, LootItemCondition::decode(&tag).unwrap_or_else(|e| panic!("{name}: {e}")))
-                    })
-                    .collect()
-            })
-            .get(key)
+        reloadable_server_registries::get().predicates.get(key)
     }
 }
 

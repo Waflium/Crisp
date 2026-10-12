@@ -19,17 +19,19 @@ impl Entry {
 
 pub struct RecipeCache {
     entries: Vec<Option<Entry>>,
+    cached_recipe_manager: Option<&'static RecipeManager>,
 }
 
 impl RecipeCache {
     pub fn new(capacity: usize) -> RecipeCache {
-        RecipeCache { entries: (0..capacity).map(|_| None).collect() }
+        RecipeCache { entries: (0..capacity).map(|_| None).collect(), cached_recipe_manager: None }
     }
 
     pub fn get(&mut self, level: &mut ServerLevel, input: &mut CraftingInput) -> Option<&'static RecipeHolder> {
         if input.is_empty() {
             return None;
         }
+        self.validate_recipe_manager();
         for i in 0..self.entries.len() {
             if self.entries[i].as_ref().is_some_and(|entry| entry.matches(input)) {
                 self.move_entry_to_front(i);
@@ -37,6 +39,14 @@ impl RecipeCache {
             }
         }
         self.compute(input, level)
+    }
+
+    fn validate_recipe_manager(&mut self) {
+        let recipe_manager = RecipeManager::get();
+        if !self.cached_recipe_manager.is_some_and(|cached| std::ptr::eq(cached, recipe_manager)) {
+            self.cached_recipe_manager = Some(recipe_manager);
+            self.entries.iter_mut().for_each(|entry| *entry = None);
+        }
     }
 
     fn compute(&mut self, input: &mut CraftingInput, level: &mut ServerLevel) -> Option<&'static RecipeHolder> {

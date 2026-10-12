@@ -1,4 +1,4 @@
-use std::sync::LazyLock;
+use std::sync::RwLock;
 
 use crisp_core::hash_map::FastMap;
 use crisp_protocol::Writer;
@@ -18,7 +18,7 @@ use super::recipe_type::RecipeType;
 use super::single_recipe_input::SingleRecipeInput;
 use super::smithing_recipe_input::SmithingRecipeInput;
 use crate::server::level::ServerLevel;
-use crate::world::item::component::json_to_nbt;
+use crate::server::reloadable_server_registries;
 
 pub struct ServerDisplayInfo {
     pub display: RecipeDisplayEntry,
@@ -60,7 +60,7 @@ fn unpack_recipe_info(recipes: &[RecipeHolder]) -> Vec<ServerDisplayInfo> {
     result
 }
 
-static RECIPE_MANAGER: LazyLock<RecipeManager> = LazyLock::new(RecipeManager::new);
+static RECIPE_MANAGER: RwLock<Option<&'static RecipeManager>> = RwLock::new(None);
 
 fn extract_ingredient(key: RecipePropertySetKey, recipe: &Recipe) -> Option<&Ingredient> {
     let for_single_input = |ty: RecipeType| match recipe {
@@ -114,24 +114,17 @@ pub fn write_update_recipes(w: &mut Writer) {
 
 impl RecipeManager {
     pub fn get() -> &'static RecipeManager {
-        &RECIPE_MANAGER
+        match *RECIPE_MANAGER.read().expect("recipe manager") {
+            Some(recipe_manager) => recipe_manager,
+            None => reloadable_server_registries::vanilla_recipe_manager(),
+        }
     }
 
-    fn new() -> RecipeManager {
-        let mut holders = Vec::new();
-        for &(id, json) in crisp_data::RECIPES {
-            let value: serde_json::Value = match serde_json::from_str(json) {
-                Ok(value) => value,
-                Err(error) => {
-                    error!("Couldn't parse data file '{id}': {error}");
-                    continue;
-                }
-            };
-            match Recipe::decode(&json_to_nbt(&value)) {
-                Ok(recipe) => holders.push(RecipeHolder { id, value: recipe }),
-                Err(error) => error!("Couldn't parse data file '{id}': {error}"),
-            }
-        }
+    pub fn bind(recipe_manager: RecipeManager) {
+        *RECIPE_MANAGER.write().expect("recipe manager") = Some(Box::leak(Box::new(recipe_manager)));
+    }
+
+    pub fn new(holders: Vec<RecipeHolder>) -> RecipeManager {
         let recipes = RecipeMap::create(holders);
         let learnable_recipes = recipes.values().iter().filter(|recipe| !recipe.value.is_special()).map(|recipe| recipe.id).collect();
         let mut manager = RecipeManager {

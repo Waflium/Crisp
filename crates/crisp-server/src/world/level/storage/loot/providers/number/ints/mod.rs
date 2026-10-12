@@ -1,8 +1,5 @@
 pub mod resolvable_int;
 
-use std::collections::HashMap;
-use std::sync::OnceLock;
-
 use crisp_core::mth;
 use crisp_core::random::RandomSource;
 use crisp_protocol::nbt::Nbt;
@@ -11,6 +8,7 @@ use super::floats::ContextFloatProvider;
 use super::stored_number_access::StoredNumberAccess;
 use super::{ArithmeticException, ArithmeticResult, Case, decode_holder_list, decode_weighted_list, get_random};
 use crate::core::holder::{Holder, RegistryElement};
+use crate::server::reloadable_server_registries;
 use crate::util::codec::{self, DataResult};
 use crate::world::attribute::environment_attribute::EnvironmentAttributeInfo;
 use crate::world::level::storage::loot::loot_context::LootContext;
@@ -47,22 +45,11 @@ impl RegistryElement for ContextIntProvider {
     const REGISTRY: &'static str = "minecraft:context_int_provider";
 
     fn contains_key(key: &str) -> bool {
-        crisp_data::CONTEXT_INT_PROVIDERS.iter().any(|(name, _)| *name == key)
+        reloadable_server_registries::contains_key(Self::REGISTRY, key)
     }
 
     fn lookup(key: &str) -> Option<&'static ContextIntProvider> {
-        static PROVIDERS: OnceLock<HashMap<&'static str, ContextIntProvider>> = OnceLock::new();
-        PROVIDERS
-            .get_or_init(|| {
-                crisp_data::CONTEXT_INT_PROVIDERS
-                    .iter()
-                    .map(|&(name, json)| {
-                        let tag = crate::world::item::component::json_to_nbt(&serde_json::from_str(json).expect("vanilla JSON"));
-                        (name, ContextIntProvider::decode(&tag).unwrap_or_else(|e| panic!("{name}: {e}")))
-                    })
-                    .collect()
-            })
-            .get(key)
+        reloadable_server_registries::get().context_int_providers.get(key)
     }
 }
 

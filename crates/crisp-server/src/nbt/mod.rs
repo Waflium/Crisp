@@ -3,6 +3,8 @@ pub mod snbt_grammar;
 pub mod tests;
 pub mod text_component_tag_visitor;
 
+use std::cell::Cell;
+
 use crisp_protocol::nbt::{Nbt, java_hash_map_order};
 
 use crate::commands::brigadier::{CommandSyntaxException, SimpleCommandExceptionType, StringReader};
@@ -46,10 +48,60 @@ pub fn merge(target: &mut Vec<(String, Nbt)>, other: &[(String, Nbt)]) {
     }
 }
 
+thread_local! {
+    static JSON_SOURCE: Cell<bool> = const { Cell::new(false) };
+}
+
+pub fn with_json_source<R>(f: impl FnOnce() -> R) -> R {
+    let previous = JSON_SOURCE.with(|json_source| json_source.replace(true));
+    let result = f();
+    JSON_SOURCE.with(|json_source| json_source.set(previous));
+    result
+}
+
 pub fn to_string(tag: &Nbt) -> String {
     let mut out = String::new();
-    write(tag, &mut out);
+    if JSON_SOURCE.with(Cell::get) {
+        write_json(tag, &mut out);
+    } else {
+        write(tag, &mut out);
+    }
     out
+}
+
+fn write_json(tag: &Nbt, out: &mut String) {
+    match tag {
+        Nbt::String(s) => out.push_str(&serde_json::to_string(s).expect("string")),
+        Nbt::Byte(v) => out.push_str(if *v != 0 { "true" } else { "false" }),
+        Nbt::Short(v) => out.push_str(&v.to_string()),
+        Nbt::Int(v) => out.push_str(&v.to_string()),
+        Nbt::Long(v) => out.push_str(&v.to_string()),
+        Nbt::Float(v) => out.push_str(&java_float_to_string(*v)),
+        Nbt::Double(v) => out.push_str(&java_double_to_string(*v)),
+        Nbt::ByteArray(_) | Nbt::IntArray(_) | Nbt::LongArray(_) => write(tag, out),
+        Nbt::List(items) => {
+            out.push('[');
+            for (i, item) in items.iter().enumerate() {
+                if i != 0 {
+                    out.push(',');
+                }
+                write_json(item, out);
+            }
+            out.push(']');
+        }
+        Nbt::Compound(fields) => {
+            out.push('{');
+            for (i, (key, value)) in fields.iter().enumerate() {
+                if i != 0 {
+                    out.push(',');
+                }
+                out.push_str(&serde_json::to_string(key).expect("key"));
+                out.push(':');
+                write_json(value, out);
+            }
+            out.push('}');
+        }
+    }
 }
 
 fn write(tag: &Nbt, out: &mut String) {
