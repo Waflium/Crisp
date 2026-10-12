@@ -55,6 +55,7 @@ pub fn use_on(level: &mut ServerLevel, player: EntityId, hand: InteractionHand, 
             return flint_and_steel_item::fire_charge_use_on(level, player, hand, &ctx);
         }
         Some(&"SpawnEggItem") => return spawn_egg_item::use_on(level, player, hand, hit, stack),
+        Some(&"HoneycombItem") => return honeycomb_item::use_on(level, player, hand, hit, stack),
         _ => {}
     }
     match &BLOCK_ITEMS[stack.item.0 as usize] {
