@@ -2,6 +2,7 @@ use crisp_core::shapes::{BooleanOp, VoxelShape, join_is_not_empty};
 use crisp_core::{Vec3, mth};
 use crisp_data::packets::play::clientbound;
 
+use crate::nbt::java_double_to_string;
 use crate::server::level::ServerLevel;
 use crate::server::level::game_mode::GameType;
 use crate::server::level::server_player::ServerPlayer;
@@ -205,7 +206,7 @@ impl ServerLevel {
                 let meters_per_tick = if is_fall_flying { 300.0f32 } else { 100.0 };
                 if moved_dist - expected_dist > (meters_per_tick * delta_packets as f32) as f64 {
                     let p = self.player(id);
-                    warn!("{} moved too quickly! {},{},{}", p.profile.name, x_dist, y_dist, z_dist);
+                    warn!("{} moved too quickly! {},{},{}", p.profile.name, java_double_to_string(x_dist), java_double_to_string(y_dist), java_double_to_string(z_dist));
                     let (y_rot, x_rot) = (p.entity.y_rot, p.entity.x_rot);
                     self.player_mut(id).teleport(start, y_rot, x_rot);
                     return;
