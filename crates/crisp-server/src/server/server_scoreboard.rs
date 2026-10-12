@@ -23,6 +23,16 @@ impl super::Server {
     pub fn score_holder_level(&self, holder: &crate::world::scores::score_holder::ScoreHolder) -> usize {
         holder.entity.and_then(|entity| self.level_of(entity)).unwrap_or(0)
     }
+
+    pub fn update_scoreboard_waypoints(&mut self) {
+        let players = self.scoreboard.borrow_mut().take_waypoint_updates();
+        for player in players {
+            if let Some(id) = self.player_by_name(&player) {
+                let level = self.entity_level(id);
+                level.get_waypoint_manager().remake_connections(level, id);
+            }
+        }
+    }
 }
 
 #[derive(Default)]
@@ -30,6 +40,7 @@ pub struct ServerScoreboard {
     tracked_objectives: HashSet<ObjectiveId>,
     dirty: bool,
     connections: IndexMap<EntityId, Outbound>,
+    waypoint_updates: Vec<String>,
 }
 
 impl ServerScoreboard {
@@ -118,6 +129,7 @@ impl Scoreboard {
     pub fn add_player_to_team(&mut self, player: &str, team: &str) -> bool {
         if self.add_player_to_team_base(player, team) {
             self.server.broadcast_all(set_player_team_player_packet(team, player, true));
+            self.update_player_waypoint(player);
             self.set_dirty();
             true
         } else {
@@ -128,6 +140,7 @@ impl Scoreboard {
     pub fn remove_player_from_team(&mut self, player: &str, team: &str) {
         self.remove_player_from_team_base(player, team);
         self.server.broadcast_all(set_player_team_player_packet(team, player, false));
+        self.update_player_waypoint(player);
         self.set_dirty();
     }
 
@@ -140,12 +153,23 @@ impl Scoreboard {
     pub(crate) fn on_team_changed(&mut self, team: &str) {
         let packet = set_player_team_add_or_modify_packet(self.get_player_team(team).unwrap(), false);
         self.server.broadcast_all(packet);
+        let players: Vec<String> = self.get_player_team(team).unwrap().players().map(String::from).collect();
+        self.server.waypoint_updates.extend(players);
         self.set_dirty();
     }
 
     pub(crate) fn on_team_removed(&mut self, team: &PlayerTeam) {
         self.server.broadcast_all(set_player_team_remove_packet(team));
+        self.server.waypoint_updates.extend(team.players().map(String::from));
         self.set_dirty();
+    }
+
+    fn update_player_waypoint(&mut self, player: &str) {
+        self.server.waypoint_updates.push(player.to_string());
+    }
+
+    pub fn take_waypoint_updates(&mut self) -> Vec<String> {
+        std::mem::take(&mut self.server.waypoint_updates)
     }
 
     fn set_dirty(&mut self) {

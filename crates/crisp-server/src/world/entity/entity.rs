@@ -130,6 +130,7 @@ pub struct Entity {
     pub next_step: f32,
     pub no_physics: bool,
     pub first_tick: bool,
+    pub pending_on_move: bool,
     pub remaining_fire_ticks: i32,
     pub invulnerable: bool,
     pub invulnerable_time: i32,
@@ -193,6 +194,7 @@ impl Entity {
             next_step: 1.0,
             no_physics: false,
             first_tick: true,
+            pending_on_move: false,
             remaining_fire_ticks: 0,
             invulnerable: false,
             invulnerable_time: 0,
@@ -247,6 +249,7 @@ impl Entity {
                 self.in_block_state = None;
             }
             self.pos = pos;
+            self.pending_on_move = true;
         }
     }
 
@@ -473,6 +476,13 @@ impl Entity {
 
     pub fn distance_to_sqr(&self, entity: &Entity) -> f64 {
         self.position().distance_to_sqr(entity.position())
+    }
+
+    pub fn distance_to(&self, entity: &Entity) -> f32 {
+        let xd = (self.x() - entity.x()) as f32;
+        let yd = (self.y() - entity.y()) as f32;
+        let zd = (self.z() - entity.z()) as f32;
+        mth::sqrt(xd * xd + yd * yd + zd * zd)
     }
 
     pub fn is_sprinting(&self) -> bool {
@@ -2112,6 +2122,9 @@ impl ServerLevel {
 
     fn remove_after_changing_dimensions(&mut self, id: EntityId) {
         self.entity_mut(id).removal = Some(RemovalReason::ChangedDimension);
+        if self.is_living(id) {
+            self.get_waypoint_manager().untrack_waypoint(self, id);
+        }
         self.remove_entity(id);
     }
 

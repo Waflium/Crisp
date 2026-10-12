@@ -34,6 +34,8 @@ use crate::world::level::clip::{ClipBlock, ClipContext, ClipFluid};
 use crate::world::level::storage::loot::loot_params::LootParams;
 use crate::world::level::storage::loot::loot_table::LootTable;
 use crate::world::scores::team::CollisionRule;
+use crate::world::waypoints::waypoint::Icon;
+use crate::world::waypoints::waypoint_transmitter::{self, Connection, EntityAzimuthConnection, EntityBlockConnection, EntityChunkConnection};
 
 const SPEED_MODIFIER_POWDER_SNOW_ID: &str = "minecraft:powder_snow";
 const TICKS_REQUIRED_TO_FREEZE: i32 = 140;
@@ -74,6 +76,7 @@ pub struct LivingEntity {
     pub active_effects: Vec<MobEffectInstance>,
     pub effects_dirty: bool,
     pub effects_mod_count: u32,
+    pub locator_bar_icon: Icon,
 }
 
 impl LivingEntity {
@@ -118,6 +121,7 @@ impl LivingEntity {
             active_effects: Vec::new(),
             effects_dirty: true,
             effects_mod_count: 0,
+            locator_bar_icon: Icon::new(),
         }
     }
 
@@ -1243,6 +1247,7 @@ impl ServerLevel {
             self.trigger_on_death_mob_effects(id, reason);
         }
         self.entity_mut(id).removal = Some(reason);
+        self.get_waypoint_manager().untrack_waypoint(self, id);
     }
 
     pub fn can_freeze(&self, id: EntityId) -> bool {
@@ -1329,18 +1334,64 @@ impl ServerLevel {
 
     pub fn refresh_dirty_attributes(&mut self, id: EntityId) {
         let updated = self.living_mut(id).attributes.take_to_update();
-        if updated & 1 << Attribute::MaxHealth as u64 != 0 {
+        for attribute in Attribute::ALL {
+            if updated & 1 << attribute as u64 != 0 {
+                self.on_attribute_updated(id, attribute);
+            }
+        }
+    }
+
+    fn on_attribute_updated(&mut self, id: EntityId, attribute: Attribute) {
+        if self.is_player(id) {
+            self.server_player_on_attribute_updated(id, attribute);
+        } else {
+            self.living_entity_on_attribute_updated(id, attribute);
+        }
+    }
+
+    pub fn living_entity_on_attribute_updated(&mut self, id: EntityId, attribute: Attribute) {
+        if attribute == Attribute::MaxHealth {
             let max_health = self.max_health(id);
             if self.health(id) > max_health {
                 self.set_health(id, max_health);
             }
-        }
-        if updated & 1 << Attribute::MaxAbsorption as u64 != 0 {
+        } else if attribute == Attribute::MaxAbsorption {
             let max_absorption = self.max_absorption(id);
             if self.absorption_amount(id) > max_absorption {
                 self.set_absorption_amount(id, max_absorption);
             }
+        } else if attribute == Attribute::WaypointTransmitRange {
+            if self.living(id).attributes.value(attribute) > 0.0 {
+                self.get_waypoint_manager().track_waypoint(self, id);
+            } else {
+                self.get_waypoint_manager().untrack_waypoint(self, id);
+            }
         }
+    }
+
+    pub fn is_transmitting_waypoint(&self, id: EntityId) -> bool {
+        self.attribute_value(id, Attribute::WaypointTransmitRange) > 0.0
+    }
+
+    pub fn make_waypoint_connection_with(&self, id: EntityId, player: EntityId) -> Option<Connection> {
+        if self.entity(id).first_tick || player == id {
+            return None;
+        }
+        if waypoint_transmitter::does_source_ignore_receiver(self, id, player) {
+            return None;
+        }
+        let icon = self.living(id).locator_bar_icon.clone_and_assign_style(self.team_of(id).and_then(|team| team.color()));
+        if waypoint_transmitter::is_really_far(self, id, player) {
+            Some(Connection::EntityAzimuth(EntityAzimuthConnection::new(self, id, icon, player)))
+        } else if !waypoint_transmitter::is_chunk_visible(self, self.entity(id).chunk_position(), player) {
+            Some(Connection::EntityChunk(EntityChunkConnection::new(self, id, icon, player)))
+        } else {
+            Some(Connection::EntityBlock(EntityBlockConnection::new(self, id, icon, player)))
+        }
+    }
+
+    pub fn waypoint_icon(&mut self, id: EntityId) -> &mut Icon {
+        &mut self.living_mut(id).locator_bar_icon
     }
 
     pub fn ai_step(&mut self, id: EntityId) {

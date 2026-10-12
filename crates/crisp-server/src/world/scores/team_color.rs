@@ -50,6 +50,10 @@ impl TeamColor {
         TextColor::named(self as usize)
     }
 
+    pub fn rgb(self) -> i32 {
+        self.text_color().value as i32
+    }
+
     pub fn display_slot(self) -> DisplaySlot {
         DisplaySlot::VALUES[3 + self as usize]
     }

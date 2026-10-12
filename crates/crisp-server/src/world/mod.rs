@@ -20,6 +20,7 @@ pub mod stopwatches;
 pub mod timeline;
 pub mod tick_rate_manager;
 pub mod ticks;
+pub mod waypoints;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum InteractionHand {

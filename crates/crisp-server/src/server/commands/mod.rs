@@ -85,6 +85,7 @@ mod title_command;
 mod transfer_command;
 mod trigger_command;
 mod version_command;
+mod waypoint_command;
 mod weather_command;
 mod whitelist_command;
 mod world_border_command;
@@ -322,6 +323,12 @@ static EXECUTORS: &[(&str, CommandFn)] = &[
     ("transfer hostname port players", transfer_command::transfer),
     ("trigger objective", trigger_command::simple_trigger),
     ("version", version_command::version),
+    ("waypoint list", waypoint_command::list_waypoints),
+    ("waypoint modify waypoint color color", waypoint_command::color),
+    ("waypoint modify waypoint color hex color", waypoint_command::color_hex),
+    ("waypoint modify waypoint color reset", waypoint_command::color_reset),
+    ("waypoint modify waypoint style reset", waypoint_command::style_reset),
+    ("waypoint modify waypoint style set style", waypoint_command::style_set),
     ("trigger objective add value", trigger_command::add_value),
     ("trigger objective set value", trigger_command::set_value),
     ("weather clear", weather_command::set_clear),

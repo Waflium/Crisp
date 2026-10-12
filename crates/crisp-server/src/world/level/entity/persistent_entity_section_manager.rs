@@ -129,6 +129,9 @@ impl ServerLevel {
         let (uuid, config) = (entity.entity().uuid, entity.tracking_config());
         self.entity_manager.visible_entity_storage.add(id, uuid);
         self.track_entity(id, config);
+        if self.is_living(id) && self.is_transmitting_waypoint(id) {
+            self.get_waypoint_manager().track_waypoint(self, id);
+        }
     }
 
     fn stop_tracking(&mut self, id: EntityId) {
@@ -340,6 +343,26 @@ impl ServerLevel {
     }
 
     pub fn entity_moved(&mut self, id: EntityId) {
+        self.on_move(id);
+        let e = match self.players.get_mut(&id) {
+            Some(player) => &mut player.entity,
+            None => match self.entities.get_mut(&id) {
+                Some(entity) => entity.entity_mut(),
+                None => return,
+            },
+        };
+        if !std::mem::take(&mut e.pending_on_move) || e.first_tick || e.is_removed() {
+            return;
+        }
+        if self.is_living(id) && self.is_transmitting_waypoint(id) {
+            self.get_waypoint_manager().update_waypoint(self, id);
+        }
+        if self.is_player(id) && self.is_receiving_waypoints(id) {
+            self.get_waypoint_manager().update_player(self, id);
+        }
+    }
+
+    fn on_move(&mut self, id: EntityId) {
         let Some(&current) = self.entity_manager.callbacks.get(&id) else { return };
         let Some(entity) = self.entity_ref(id) else { return };
         let new_key = section_key(entity.block_position());
@@ -395,6 +418,9 @@ impl ServerLevel {
         }
         if status.is_accessible() {
             self.stop_tracking(id);
+        }
+        if self.is_living(id) {
+            self.get_waypoint_manager().untrack_waypoint(self, id);
         }
         if reason.is_some_and(RemovalReason::should_destroy) {
             let name = self.scoreboard_name(id);

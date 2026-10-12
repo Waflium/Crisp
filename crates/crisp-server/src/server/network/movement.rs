@@ -112,6 +112,11 @@ impl ServerPlayer {
     }
 
     pub fn teleport_relative(&mut self, destination: PositionMoveRotation, relatives: u16) {
+        let id = self.teleport_set_position(destination, relatives);
+        self.send_teleport(id, destination, relatives);
+    }
+
+    pub fn teleport_set_position(&mut self, destination: PositionMoveRotation, relatives: u16) -> i32 {
         let m = &mut self.movement;
         m.awaiting_teleport_time = m.tick_count;
         m.awaiting_teleport += 1;
@@ -125,6 +130,10 @@ impl ServerPlayer {
         e.teleport_set_position(current, destination, relatives);
         e.y_head_rot = e.y_rot;
         self.movement.awaiting_position_from_client = Some(self.entity.position());
+        id
+    }
+
+    pub fn send_teleport(&self, id: i32, destination: PositionMoveRotation, relatives: u16) {
         self.connection.send(clientbound::PLAYER_POSITION, |p| {
             p.varint(id);
             destination.write(p);

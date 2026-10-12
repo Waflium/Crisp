@@ -1,1 +1,2 @@
 pub mod clientbound_map_item_data_packet;
+pub mod clientbound_tracked_waypoint_packet;

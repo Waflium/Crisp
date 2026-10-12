@@ -56,6 +56,7 @@ use crate::world::level::storage::{WorldDir, read_dat, write_dat};
 use crisp_protocol::nbt::Nbt;
 use crate::world::tick_rate_manager::TickRateManager;
 use crate::world::level::update_flags::*;
+use crate::server::waypoints::server_waypoint_manager::ServerWaypointManager;
 use crate::world::scores::scoreboard::Scoreboard;
 use crate::world::ticks::{ScheduledTick, TickPriority};
 use chunk_cache::ChunkCache;
@@ -140,6 +141,7 @@ pub struct ServerLevel {
     pub entities: FastIndexMap<EntityId, LevelEntity>,
     pub entity_manager: PersistentEntitySectionManager,
     pub(crate) tick_list: EntityTickList,
+    waypoint_manager: RefCell<ServerWaypointManager>,
     pub random: LegacyRandomSource,
     pub sleep_status: crate::server::players::sleep_status::SleepStatus,
     pub thread_safe_random: LegacyRandomSource,
@@ -221,6 +223,7 @@ impl ServerLevel {
             entities: FastIndexMap::default(),
             entity_manager: PersistentEntitySectionManager::new(entity_storage),
             tick_list: EntityTickList::default(),
+            waypoint_manager: RefCell::default(),
             random: LegacyRandomSource::create(),
             sleep_status: Default::default(),
             thread_safe_random: LegacyRandomSource::create(),
@@ -489,6 +492,10 @@ impl ServerLevel {
             self.chunks.chunk(pos);
         }
         updated
+    }
+
+    pub fn get_waypoint_manager(&self) -> std::cell::RefMut<'_, ServerWaypointManager> {
+        self.waypoint_manager.borrow_mut()
     }
 
     pub fn dimension_type(&self) -> &'static DimensionType {
@@ -1046,9 +1053,18 @@ impl ServerLevel {
         self.entity_manager.add_player_uuid(uuid);
         self.entity_manager.visible_entity_storage.add(id, uuid);
         self.add_player_to_section(id);
+        if self.is_transmitting_waypoint(id) {
+            self.get_waypoint_manager().track_waypoint(self, id);
+        }
         self.tick_list.add(id);
         let config = TrackingConfig { range: 32 * 16, update_interval: UpdateInterval::Periodic(2), track_deltas: false, stepped: true, is_item: false };
         self.track_entity(id, config);
+        if self.is_receiving_waypoints(id) {
+            self.get_waypoint_manager().add_player(self, id);
+        }
+        if self.is_transmitting_waypoint(id) {
+            self.get_waypoint_manager().track_waypoint(self, id);
+        }
         self.update_sleeping_player_list();
     }
 
@@ -1075,6 +1091,7 @@ impl ServerLevel {
     pub fn player_left_level(&mut self, id: EntityId) {
         let uuid = self.player(id).entity.uuid;
         self.untrack_entity(id);
+        self.get_waypoint_manager().remove_player(self, id);
         self.remove_player_from_section(id);
         self.entity_manager.visible_entity_storage.remove(id, uuid);
         self.entity_manager.remove_player_uuid(uuid);

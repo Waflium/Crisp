@@ -57,6 +57,10 @@ impl Vec3 {
         self.add(-v.x, -v.y, -v.z)
     }
 
+    pub fn rotate_clockwise_90(self) -> Vec3 {
+        Vec3::new(-self.z, self.y, self.x)
+    }
+
     pub fn add(self, x: f64, y: f64, z: f64) -> Vec3 {
         Vec3::new(self.x + x, self.y + y, self.z + z)
     }

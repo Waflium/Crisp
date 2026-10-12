@@ -484,6 +484,9 @@ impl ServerLevel {
             }
             self.update_chunk_tracking(player);
         }
+        if self.is_receiving_waypoints(player) {
+            self.get_waypoint_manager().update_player(self, player);
+        }
     }
 
     pub fn tick_chunk_map(&mut self) {

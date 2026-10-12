@@ -24,6 +24,7 @@ pub mod server_function_library;
 pub mod server_function_manager;
 pub mod server_links;
 pub mod server_scoreboard;
+pub mod waypoints;
 pub mod world_stem;
 
 use std::cell::{Cell, RefCell};
@@ -776,6 +777,17 @@ impl Server {
                     w.f32(if value != 0 { 1.0 } else { 0.0 });
                 });
             }
+        } else if rule == game_rule::LOCATOR_BAR {
+            for level in &self.levels {
+                let mut waypoint_manager = level.get_waypoint_manager();
+                if value != 0 {
+                    for &player in level.players.keys() {
+                        waypoint_manager.update_player(level, player);
+                    }
+                } else {
+                    waypoint_manager.break_all_connections(level);
+                }
+            }
         } else if rule == game_rule::ADVANCE_TIME {
             for p in self.players() {
                 p.connection.send(clientbound::SET_TIME, |w| self.full_time_sync(w));
@@ -976,13 +988,6 @@ impl Server {
         self.update_player_names_array();
         self.custom_boss_events.on_player_connect(&self.levels, id);
         let level = &mut self.levels[level_index];
-        let others: Vec<(EntityId, u128, BlockPos)> =
-            level.players.values().filter(|o| o.entity.id != id).map(|o| (o.entity.id, o.profile.uuid, o.entity.block_position())).collect();
-        let player = level.player_mut(id);
-        for (other, uuid, block) in others {
-            player.connection.send_raw(waypoint(0, uuid, Some(block)));
-            player.waypoints.insert(other, block);
-        }
         level.send_active_player_effects(id);
         let player = level.player_mut(id);
         player.send_post_effects();
@@ -1297,30 +1302,26 @@ impl Server {
         level.player_mut(id).disconnected = true;
         level.remove_player_menus(id);
         level.award_stat(id, crate::stats::stats::LEAVE_GAME, 1);
-        let Some(player) = level.remove_player(id) else { return };
-        self.data_storage.borrow().player_removed(id);
-        self.player_list.retain(|&p| p != id);
-        self.scoreboard.borrow_mut().server.remove_connection(id);
-        self.update_player_names_array();
-        self.custom_boss_events.on_player_disconnect(&self.levels, id);
-        let reason = player.disconnect_reason.clone().or_else(|| reason.map(|r| r.get_string())).unwrap_or_else(|| "Disconnected".into());
-        info!("{} lost connection: {reason}", player.profile.name);
+        let leaving = level.player(id);
+        let reason = leaving.disconnect_reason.clone().or_else(|| reason.map(|r| r.get_string())).unwrap_or_else(|| "Disconnected".into());
+        info!("{} lost connection: {reason}", leaving.profile.name);
+        let message = player_joined_or_left(level.player_display_name(&leaving.profile.name, leaving.profile.uuid), false);
         self.invalidate_status();
-        self.save_player_data(self.levels[level_index].dimension, &player);
-        self.notification_manager.player_left(&NameAndId { id: player.profile.uuid, name: player.profile.name.clone() });
-        let message = player_joined_or_left(self.levels[level_index].player_display_name(&player.profile.name, player.profile.uuid), false);
         self.send_system_message(&message);
-        for other in self.players() {
+        for other in self.players().filter(|other| other.entity.id != id) {
             other.connection.send(clientbound::SYSTEM_CHAT, |p| {
                 message.write(p);
                 p.bool(false);
             });
         }
-        for other in self.levels[level_index].players.values_mut() {
-            if other.waypoints.remove(&id).is_some() {
-                other.connection.send_raw(waypoint(1, player.profile.uuid, None));
-            }
-        }
+        let Some(player) = self.levels[level_index].remove_player(id) else { return };
+        self.data_storage.borrow().player_removed(id);
+        self.player_list.retain(|&p| p != id);
+        self.scoreboard.borrow_mut().server.remove_connection(id);
+        self.update_player_names_array();
+        self.custom_boss_events.on_player_disconnect(&self.levels, id);
+        self.save_player_data(self.levels[level_index].dimension, &player);
+        self.notification_manager.player_left(&NameAndId { id: player.profile.uuid, name: player.profile.name.clone() });
         for other in self.players() {
             other.connection.send(clientbound::PLAYER_INFO_REMOVE, |p| {
                 p.varint(1);
@@ -1393,7 +1394,7 @@ impl Server {
         self.tick_prepare_spawns();
         self.handle_console_inputs();
         self.tick_player_list();
-        self.update_waypoints();
+        self.update_scoreboard_waypoints();
         for id in self.player_ids() {
             self.entity_level_mut(id).send_next_chunks(id);
         }
@@ -1498,45 +1499,6 @@ impl Server {
     pub fn tick_times_nanos(&self) -> &[i64; 100] {
         &self.tick_times_nanos
     }
-
-    fn update_waypoints(&mut self) {
-        for level in &mut self.levels {
-            let positions: Vec<(EntityId, u128, BlockPos)> =
-                level.players.values().map(|p| (p.entity.id, p.profile.uuid, p.entity.block_position())).collect();
-            for viewer in level.players.values_mut() {
-                for &(id, uuid, block) in &positions {
-                    if id == viewer.entity.id {
-                        continue;
-                    }
-                    match viewer.waypoints.get(&id) {
-                        None => viewer.connection.send_raw(waypoint(0, uuid, Some(block))),
-                        Some(&old) if old != block => viewer.connection.send_raw(waypoint(2, uuid, Some(block))),
-                        Some(_) => continue,
-                    }
-                    viewer.waypoints.insert(id, block);
-                }
-            }
-        }
-    }
-}
-
-pub fn waypoint(op: i32, uuid: u128, block: Option<BlockPos>) -> Vec<u8> {
-    crate::network::connection::encode(clientbound::WAYPOINT, |p| {
-        p.varint(op);
-        p.bool(true);
-        p.uuid(uuid);
-        p.string("minecraft:default");
-        p.bool(false);
-        match block {
-            Some(b) => {
-                p.varint(1);
-                p.varint(b.x);
-                p.varint(b.y);
-                p.varint(b.z);
-            }
-            None => p.varint(0),
-        }
-    })
 }
 
 pub fn hashed_seed(seed: i64) -> i64 {

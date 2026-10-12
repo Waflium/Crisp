@@ -70,6 +70,7 @@ pub fn leave_team(server: &mut Server, context: &CommandContext, source: &Comman
     let mut tracker = CommandResponseTracker::new();
     for member in members {
         let left = server.scoreboard.borrow_mut().remove_player_from_team_any(member.scoreboard_name());
+        server.update_scoreboard_waypoints();
         tracker.track_value(member, left as i32);
     }
     tracker.send_feedback(
@@ -92,6 +93,7 @@ pub fn join_team(server: &mut Server, context: &CommandContext, source: &Command
     let mut tracker = CommandResponseTracker::new();
     for member in members {
         let joined = server.scoreboard.borrow_mut().add_player_to_team(member.scoreboard_name(), &team);
+        server.update_scoreboard_waypoints();
         tracker.track_value(member, joined as i32);
     }
     tracker.send_feedback(
@@ -110,6 +112,7 @@ pub fn set_name_tag_visibility(server: &mut Server, context: &CommandContext, so
         return Err(ERROR_TEAM_NAMETAG_VISIBLITY_UNCHANGED.create());
     }
     server.scoreboard.borrow_mut().set_name_tag_visibility(&team, visibility);
+    server.update_scoreboard_waypoints();
     source.send_success(
         server,
         || Component::translatable_with("commands.team.option.nametagVisibility.success", vec![formatted(server, &team).into(), visibility.display_name().into()]),
@@ -125,6 +128,7 @@ pub fn set_death_message_visibility(server: &mut Server, context: &CommandContex
         return Err(ERROR_TEAM_DEATH_MESSAGE_VISIBLITY_UNCHANGED.create());
     }
     server.scoreboard.borrow_mut().set_death_message_visibility(&team, visibility);
+    server.update_scoreboard_waypoints();
     source.send_success(
         server,
         || Component::translatable_with("commands.team.option.deathMessageVisibility.success", vec![formatted(server, &team).into(), visibility.display_name().into()]),
@@ -140,6 +144,7 @@ pub fn set_collision(server: &mut Server, context: &CommandContext, source: &Com
         return Err(ERROR_TEAM_COLLISION_UNCHANGED.create());
     }
     server.scoreboard.borrow_mut().set_collision_rule(&team, rule);
+    server.update_scoreboard_waypoints();
     source.send_success(server, || Component::translatable_with("commands.team.option.collisionRule.success", vec![formatted(server, &team).into(), rule.display_name().into()]), true);
     Ok(0)
 }
@@ -151,6 +156,7 @@ pub fn set_friendly_sight(server: &mut Server, context: &CommandContext, source:
         return Err(if allowed { ERROR_TEAM_ALREADY_FRIENDLYINVISIBLES_ENABLED.create() } else { ERROR_TEAM_ALREADY_FRIENDLYINVISIBLES_DISABLED.create() });
     }
     server.scoreboard.borrow_mut().set_see_friendly_invisibles(&team, allowed);
+    server.update_scoreboard_waypoints();
     let key = if allowed { "commands.team.option.seeFriendlyInvisibles.enabled" } else { "commands.team.option.seeFriendlyInvisibles.disabled" };
     source.send_success(server, || Component::translatable_with(key, vec![formatted(server, &team).into()]), true);
     Ok(0)
@@ -163,6 +169,7 @@ pub fn set_friendly_fire(server: &mut Server, context: &CommandContext, source: 
         return Err(if allowed { ERROR_TEAM_ALREADY_FRIENDLYFIRE_ENABLED.create() } else { ERROR_TEAM_ALREADY_FRIENDLYFIRE_DISABLED.create() });
     }
     server.scoreboard.borrow_mut().set_allow_friendly_fire(&team, allowed);
+    server.update_scoreboard_waypoints();
     let key = if allowed { "commands.team.option.friendlyfire.enabled" } else { "commands.team.option.friendlyfire.disabled" };
     source.send_success(server, || Component::translatable_with(key, vec![formatted(server, &team).into()]), true);
     Ok(0)
@@ -175,6 +182,7 @@ pub fn set_display_name(server: &mut Server, context: &CommandContext, source: &
         return Err(ERROR_TEAM_ALREADY_NAME.create());
     }
     server.scoreboard.borrow_mut().set_team_display_name(&team, display_name);
+    server.update_scoreboard_waypoints();
     source.send_success(server, || Component::translatable_with("commands.team.option.name.success", vec![formatted(server, &team).into()]), true);
     Ok(0)
 }
@@ -186,6 +194,7 @@ pub fn set_color(server: &mut Server, context: &CommandContext, source: &Command
         return Err(ERROR_TEAM_ALREADY_COLOR.create());
     }
     server.scoreboard.borrow_mut().set_color(&team, Some(color));
+    server.update_scoreboard_waypoints();
     source.send_success(server, || Component::translatable_with("commands.team.option.color.success", vec![formatted(server, &team).into(), color.serialized_name().into()]), true);
     Ok(0)
 }
@@ -196,6 +205,7 @@ pub fn clear_color(server: &mut Server, context: &CommandContext, source: &Comma
         return Err(ERROR_TEAM_ALREADY_COLOR.create());
     }
     server.scoreboard.borrow_mut().set_color(&team, None);
+    server.update_scoreboard_waypoints();
     source.send_success(server, || Component::translatable_with("commands.team.option.color.clear.success", vec![formatted(server, &team).into()]), true);
     Ok(0)
 }
@@ -208,6 +218,7 @@ pub fn empty_team(server: &mut Server, context: &CommandContext, source: &Comman
     }
     for member in &members {
         server.scoreboard.borrow_mut().remove_player_from_team(member, &team);
+        server.update_scoreboard_waypoints();
     }
     let count = members.len() as i32;
     source.send_success(server, || Component::translatable_with("commands.team.empty.success", vec![Arg::Int(count), formatted(server, &team).into()]), true);
@@ -218,6 +229,7 @@ pub fn delete_team(server: &mut Server, context: &CommandContext, source: &Comma
     let team = context.get_team(server, "team")?;
     let display = formatted(server, &team);
     server.scoreboard.borrow_mut().remove_player_team(&team);
+    server.update_scoreboard_waypoints();
     source.send_success(server, || Component::translatable_with("commands.team.remove.success", vec![display.into()]), true);
     Ok(server.scoreboard.borrow().team_count() as i32)
 }
@@ -233,6 +245,7 @@ pub fn create_team(server: &mut Server, context: &CommandContext, source: &Comma
         scoreboard.add_player_team(&name);
         scoreboard.set_team_display_name(&name, display_name);
     }
+    server.update_scoreboard_waypoints();
     source.send_success(server, || Component::translatable_with("commands.team.add.success", vec![formatted(server, &name).into()]), true);
     Ok(server.scoreboard.borrow().team_count() as i32)
 }
@@ -281,6 +294,7 @@ pub fn set_prefix(server: &mut Server, context: &CommandContext, source: &Comman
     let team = context.get_team(server, "team")?;
     let prefix = context.get_resolved_component(server, source, "prefix")?;
     server.scoreboard.borrow_mut().set_player_prefix(&team, prefix.clone());
+    server.update_scoreboard_waypoints();
     source.send_success(server, || Component::translatable_with("commands.team.option.prefix.success", vec![prefix.into()]), false);
     Ok(1)
 }
@@ -289,6 +303,7 @@ pub fn set_suffix(server: &mut Server, context: &CommandContext, source: &Comman
     let team = context.get_team(server, "team")?;
     let suffix = context.get_resolved_component(server, source, "suffix")?;
     server.scoreboard.borrow_mut().set_player_suffix(&team, suffix.clone());
+    server.update_scoreboard_waypoints();
     source.send_success(server, || Component::translatable_with("commands.team.option.suffix.success", vec![suffix.into()]), false);
     Ok(1)
 }

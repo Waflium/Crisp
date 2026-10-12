@@ -7,6 +7,7 @@ pub mod nbt_path_argument;
 pub mod entity_argument;
 pub mod function_argument;
 pub mod game_profile_argument;
+pub mod hex_color_argument;
 pub mod message_argument;
 pub mod objective_argument;
 pub mod objective_criteria_argument;
@@ -19,6 +20,7 @@ pub mod scoreboard_slot_argument;
 pub mod selector;
 pub mod slot_argument;
 pub mod slot_source_argument;
+pub mod waypoint_argument;
 
 use std::sync::LazyLock;
 
@@ -112,6 +114,7 @@ pub enum ArgumentType {
     ScoreboardSlot,
     Team,
     TeamColor,
+    HexColor,
     Component,
     Style,
     LootTable,
@@ -230,6 +233,7 @@ impl ArgumentType {
             "minecraft:scoreboard_slot" => ArgumentType::ScoreboardSlot,
             "minecraft:team" => ArgumentType::Team,
             "minecraft:team_color" => ArgumentType::TeamColor,
+            "minecraft:hex_color" => ArgumentType::HexColor,
             "minecraft:component" => ArgumentType::Component,
             "minecraft:style" => ArgumentType::Style,
             "minecraft:loot_table" => ArgumentType::LootTable,
@@ -375,6 +379,7 @@ impl ArgumentType {
             ArgumentType::Operation => ArgumentValue::Operation(operation_argument::parse(reader)?),
             ArgumentType::ScoreboardSlot => ArgumentValue::DisplaySlot(scoreboard_slot_argument::parse_display_slot(reader)?),
             ArgumentType::TeamColor => ArgumentValue::TeamColor(scoreboard_slot_argument::parse_team_color(reader)?),
+            ArgumentType::HexColor => ArgumentValue::Int(hex_color_argument::parse(reader)?),
             ArgumentType::Component => ArgumentValue::Component(component_argument::parse_component(reader)?),
             ArgumentType::Style => ArgumentValue::Style(component_argument::parse_style(reader)?),
             ArgumentType::LootTable => ArgumentValue::LootTable(resource_or_id_argument::loot_table(reader)?),
@@ -847,6 +852,7 @@ pub fn list_suggestions(
         ArgumentType::ScoreboardSlot => shared_suggestion_provider::suggest(DisplaySlot::VALUES.map(DisplaySlot::serialized_name), &mut builder),
         ArgumentType::Team => shared_suggestion_provider::suggest(server.scoreboard.borrow().player_teams().map(|t| t.name().to_string()), &mut builder),
         ArgumentType::TeamColor => shared_suggestion_provider::suggest(TeamColor::VALUES.map(TeamColor::serialized_name), &mut builder),
+        ArgumentType::HexColor => shared_suggestion_provider::suggest(hex_color_argument::EXAMPLES, &mut builder),
         ArgumentType::LootTable => resource_or_id_argument::list_suggestions(reloadable_server_registries::LOOT_TABLE, &mut builder),
         ArgumentType::LootPredicate => resource_or_id_argument::list_suggestions(reloadable_server_registries::PREDICATE, &mut builder),
         ArgumentType::LootModifier => resource_or_id_argument::list_suggestions(reloadable_server_registries::ITEM_MODIFIER, &mut builder),

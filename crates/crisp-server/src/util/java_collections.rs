@@ -58,6 +58,12 @@ impl JavaHashCode for BlockPos {
     }
 }
 
+impl JavaHashCode for i32 {
+    fn java_hash_code(&self) -> i32 {
+        *self
+    }
+}
+
 impl JavaHashCode for u128 {
     fn java_hash_code(&self) -> i32 {
         let hilo = (*self >> 64) as u64 ^ *self as u64;

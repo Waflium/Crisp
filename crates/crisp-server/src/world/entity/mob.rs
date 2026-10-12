@@ -327,6 +327,9 @@ impl Mob {
         if let Some(equipment) = self.save_equipment() {
             out.push(("equipment".into(), equipment));
         }
+        if living.locator_bar_icon.has_data() {
+            out.push(("locator_bar_icon".into(), living.locator_bar_icon.to_nbt()));
+        }
         out.push(("CanPickUpLoot".into(), Nbt::Byte(self.can_pick_up_loot as i8)));
         out.push(("PersistenceRequired".into(), Nbt::Byte(self.persistence_required as i8)));
         let drop_chances: Vec<(String, Nbt)> = EquipmentSlot::VALUES
@@ -401,6 +404,7 @@ impl Mob {
         self.living.last_hurt_by_player = nbt.get("last_hurt_by_player").and_then(uuid_from_nbt);
         self.living.last_hurt_by_player_memory_time = int("last_hurt_by_player_memory_time").unwrap_or(0);
         self.load_equipment(nbt.get("equipment"));
+        self.living.locator_bar_icon = nbt.get("locator_bar_icon").and_then(crate::world::waypoints::waypoint::Icon::from_nbt).unwrap_or_default();
         self.living.current_impulse_context_reset_grace_time = int("current_impulse_context_reset_grace_time").unwrap_or(0);
         self.living.current_impulse_impact_pos = match nbt.get("current_explosion_impact_pos") {
             Some(Nbt::List(v)) if v.len() == 3 => Some(crisp_core::Vec3::new(v[0].as_f64().unwrap_or(0.0), v[1].as_f64().unwrap_or(0.0), v[2].as_f64().unwrap_or(0.0))),

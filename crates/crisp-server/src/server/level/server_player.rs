@@ -1,5 +1,4 @@
 use std::borrow::Cow;
-use std::collections::HashMap;
 use std::time::Instant;
 
 use crisp_core::{BlockPos, Vec3, mth};
@@ -40,6 +39,7 @@ use crate::world::level::portal::teleport_transition::{PostTeleportTransition, T
 use crate::world::level::storage::RespawnData;
 use crate::world::InteractionHand;
 use crate::stats::server_stats_counter::ServerStatsCounter;
+use crate::world::waypoints::waypoint::Icon;
 use crate::stats::stat::Stat;
 use crate::stats::stats;
 use crate::stats::stats_counter::StatsCounter;
@@ -122,7 +122,6 @@ pub struct ServerPlayer {
     pub known_movement: Vec3,
     pub last_action_time: Instant,
     pub starting_to_fall_position: Option<Vec3>,
-    pub waypoints: HashMap<EntityId, BlockPos>,
     pub ack_block_changes_up_to: i32,
     pub drop_spam_throttler: TickThrottler,
     pub keep_alive_time: Instant,
@@ -204,7 +203,6 @@ impl ServerPlayer {
             known_movement: Vec3::ZERO,
             last_action_time: Instant::now(),
             starting_to_fall_position: None,
-            waypoints: HashMap::new(),
             ack_block_changes_up_to: -1,
             keep_alive_time: Instant::now(),
             keep_alive_challenge: None,
@@ -315,6 +313,9 @@ impl ServerPlayer {
             .collect();
         if !equipment.is_empty() || stack_at(self.inventory.selected_slot()).is_some() {
             nbt.push(("equipment".into(), Nbt::Compound(equipment)));
+        }
+        if self.living.locator_bar_icon.has_data() {
+            nbt.push(("locator_bar_icon".into(), self.living.locator_bar_icon.to_nbt()));
         }
         nbt.push(("DataVersion".into(), Nbt::Int(WORLD_VERSION)));
         let inventory = (0..36)
@@ -427,6 +428,7 @@ impl ServerPlayer {
                 }
             }
         }
+        self.living.locator_bar_icon = nbt.get("locator_bar_icon").and_then(Icon::from_nbt).unwrap_or_default();
         self.ender_chest_inventory.from_slots(nbt.get("EnderItems").map(Nbt::as_list).unwrap_or(&[]));
         if let Some(recipe_book) = nbt.get(crate::stats::server_recipe_book::RECIPE_BOOK_TAG) {
             self.recipe_book.load_untrusted(recipe_book);
@@ -635,6 +637,21 @@ impl ServerLevel {
         if self.entity(id).tick_count % 20 == 0 {
             criteria_triggers::LOCATION.trigger(self, id);
         }
+    }
+
+    pub fn is_receiving_waypoints(&self, id: EntityId) -> bool {
+        self.attribute_value(id, Attribute::WaypointReceiveRange) > 0.0
+    }
+
+    pub fn server_player_on_attribute_updated(&mut self, id: EntityId, attribute: Attribute) {
+        if attribute == Attribute::WaypointReceiveRange {
+            if self.living(id).attributes.value(attribute) > 0.0 {
+                self.get_waypoint_manager().add_player(self, id);
+            } else {
+                self.get_waypoint_manager().remove_player(self, id);
+            }
+        }
+        self.living_entity_on_attribute_updated(id, attribute);
     }
 
     pub fn server_player_hurt_server(&mut self, id: EntityId, source: DamageSource, damage: f32) -> bool {
@@ -1019,8 +1036,10 @@ impl crate::server::Server {
         let new_level = transition.new_level;
         if new_level == old_level {
             let level = &mut self.levels[old_level];
+            let teleport = level.player_mut(id).teleport_set_position(transition.position_move_rotation(), transition.relatives);
+            level.entity_moved(id);
             let player = level.player_mut(id);
-            player.teleport_relative(transition.position_move_rotation(), transition.relatives);
+            player.send_teleport(teleport, transition.position_move_rotation(), transition.relatives);
             player.reset_position();
             transition.post_teleport_transition.on_transition(level, id);
             return Some(id);
@@ -1040,9 +1059,15 @@ impl crate::server::Server {
         if self.levels[old_level].dimension == crate::server::OVERWORLD && self.levels[new_level].dimension == crate::server::THE_NETHER {
             player.entered_nether_position = Some(player.entity.position());
         }
-        player.teleport_relative(transition.position_move_rotation(), transition.relatives);
+        let level = &mut self.levels[new_level];
+        level.players.insert(id, player);
+        let teleport = level.player_mut(id).teleport_set_position(transition.position_move_rotation(), transition.relatives);
+        level.entity_moved(id);
+        let player = level.player_mut(id);
+        player.send_teleport(teleport, transition.position_move_rotation(), transition.relatives);
         player.reset_position();
-        self.levels[new_level].add_player(player);
+        let player = level.players.shift_remove(&id).expect("teleported player");
+        level.add_player(player);
         self.trigger_dimension_change_triggers(id, old_level);
         let level = &mut self.levels[new_level];
         level.stop_using_item(id);

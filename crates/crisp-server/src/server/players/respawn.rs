@@ -186,7 +186,6 @@ impl Server {
         player.entity.id = id;
         player.chunk_sender = old.chunk_sender;
         player.movement = old.movement;
-        player.waypoints = old.waypoints;
         player.ack_block_changes_up_to = old.ack_block_changes_up_to;
         player.keep_alive_time = old.keep_alive_time;
         player.keep_alive_challenge = old.keep_alive_challenge;
@@ -226,6 +225,7 @@ impl Server {
         player.last_sent_food = -1;
         player.chunk_tracking_view = old.chunk_tracking_view;
         player.last_death_location = old.last_death_location.clone();
+        player.living.locator_bar_icon.copy_from(&old.living.locator_bar_icon);
         if !transition.missing_respawn_block {
             player.respawn_config = old.respawn_config.clone();
         }
