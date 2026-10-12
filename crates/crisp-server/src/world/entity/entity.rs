@@ -1892,7 +1892,7 @@ impl ServerLevel {
     }
 
     pub fn is_attackable(&self, id: EntityId) -> bool {
-        !matches!(self.entities.get(&id), Some(LevelEntity::Item(_) | LevelEntity::ExperienceOrb(_) | LevelEntity::FallingBlock(_)))
+        !matches!(self.entities.get(&id), Some(LevelEntity::Item(_) | LevelEntity::ExperienceOrb(_) | LevelEntity::FallingBlock(_) | LevelEntity::EyeOfEnder(_)))
     }
 
     pub fn is_allied_to(&self, id: EntityId, other: EntityId) -> bool {

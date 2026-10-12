@@ -123,6 +123,7 @@ struct DataItem {
     value: DataValue,
     initial: DataValue,
     dirty: bool,
+    set_to_default: bool,
 }
 
 pub struct SynchedEntityData {
@@ -132,7 +133,10 @@ pub struct SynchedEntityData {
 
 impl SynchedEntityData {
     pub fn new(defaults: Vec<DataValue>) -> SynchedEntityData {
-        SynchedEntityData { items: defaults.into_iter().map(|v| DataItem { initial: v.clone(), value: v, dirty: false }).collect(), is_dirty: false }
+        SynchedEntityData {
+            items: defaults.into_iter().map(|v| DataItem { initial: v.clone(), value: v, dirty: false, set_to_default: true }).collect(),
+            is_dirty: false,
+        }
     }
 
     pub fn get(&self, id: usize) -> &DataValue {
@@ -141,7 +145,9 @@ impl SynchedEntityData {
 
     pub fn set(&mut self, id: usize, value: DataValue) {
         let item = &mut self.items[id];
-        if item.value != value {
+        let compared_by_identity = matches!(value, DataValue::ItemStack(Some(_)));
+        if compared_by_identity || item.value != value {
+            item.set_to_default = !compared_by_identity && value == item.initial;
             item.value = value;
             item.dirty = true;
             self.is_dirty = true;
@@ -168,7 +174,7 @@ impl SynchedEntityData {
     }
 
     pub fn non_default_values(&self) -> Option<Vec<(usize, DataValue)>> {
-        let values: Vec<_> = self.items.iter().enumerate().filter(|(_, i)| i.value != i.initial).map(|(id, i)| (id, i.value.clone())).collect();
+        let values: Vec<_> = self.items.iter().enumerate().filter(|(_, i)| !i.set_to_default).map(|(id, i)| (id, i.value.clone())).collect();
         (!values.is_empty()).then_some(values)
     }
 }

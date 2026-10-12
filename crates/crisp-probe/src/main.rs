@@ -349,6 +349,17 @@ async fn main() -> anyhow::Result<()> {
                             })
                             .await?;
                         }
+                        ["use_item", y_rot, x_rot] => {
+                            let (y_rot, x_rot): (f32, f32) = (y_rot.parse()?, x_rot.parse()?);
+                            sequence += 1;
+                            send(&mut wr, codec, play::serverbound::USE_ITEM, |w| {
+                                w.varint(0);
+                                w.varint(sequence);
+                                w.f32(y_rot);
+                                w.f32(x_rot);
+                            })
+                            .await?;
+                        }
                         ["use", x, y, z, face] => {
                             let (x, y, z, face): (i32, i32, i32, i32) = (x.parse()?, y.parse()?, z.parse()?, face.parse()?);
                             sequence += 1;

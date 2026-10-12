@@ -1312,6 +1312,16 @@ impl ServerLevel {
             .collect()
     }
 
+    pub fn find_nearest_map_structure(&mut self, structure_tag: &str, origin: BlockPos, max_search_radius: i32, create_reference: bool) -> Option<BlockPos> {
+        if !self.chunks.generate_structures {
+            return None;
+        }
+        let tag = crate::commands::arguments::registry_tag("minecraft:worldgen/structure", structure_tag)?;
+        let structures: Vec<_> = tag.iter().map(|&id| crate::world::level::levelgen::structure::structure::StructureHolder(id as u16)).collect();
+        let generator = self.chunks.generator.clone();
+        generator.find_nearest_map_structure(self, &structures, origin, max_search_radius, create_reference).map(|(pos, _)| pos)
+    }
+
     pub fn is_spawning_monsters(&self) -> bool {
         self.game_rules.get_bool(crisp_data::game_rule::SPAWN_MOBS) && self.game_rules.get_bool(crisp_data::game_rule::SPAWN_MONSTERS)
     }
@@ -1450,6 +1460,7 @@ impl ServerLevel {
         match self.entities.get(&id) {
             Some(LevelEntity::Item(_)) => self.tick_item(id),
             Some(LevelEntity::LightningBolt(_)) => self.tick_lightning_bolt(id),
+            Some(LevelEntity::EyeOfEnder(_)) => self.tick_eye_of_ender(id),
             Some(LevelEntity::PrimedTnt(_)) => self.tick_primed_tnt(id),
             Some(LevelEntity::FallingBlock(_)) => self.tick_falling_block(id),
             Some(LevelEntity::ExperienceOrb(_)) => self.tick_experience_orb(id),

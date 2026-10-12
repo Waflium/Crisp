@@ -143,6 +143,7 @@ impl LevelEntity {
             LevelEntity::FallingBlock(_) => Some("minecraft:falling_block"),
             LevelEntity::ExperienceOrb(_) => Some("minecraft:experience_orb"),
             LevelEntity::LightningBolt(_) => None,
+            LevelEntity::EyeOfEnder(_) => Some("minecraft:eye_of_ender"),
             LevelEntity::Mob(mob) => Some(crisp_data::registry::ENTITY_TYPE[mob.entity.entity_type as usize]),
         }
     }
@@ -192,6 +193,7 @@ impl LevelEntity {
             }
             LevelEntity::FallingBlock(falling) => falling.add_additional_save_data(out),
             LevelEntity::LightningBolt(_) => {}
+            LevelEntity::EyeOfEnder(eye) => out.push(("Item".into(), eye.get_item().to_nbt())),
             LevelEntity::Mob(mob) => mob.save(out),
         }
     }
@@ -226,6 +228,10 @@ impl LevelEntity {
             }
             LevelEntity::FallingBlock(falling) => falling.read_additional_save_data(nbt),
             LevelEntity::LightningBolt(_) => {}
+            LevelEntity::EyeOfEnder(eye) => {
+                let item = nbt.get("Item").and_then(|i| ItemStack::from_nbt(i).ok()).unwrap_or_else(ItemStack::empty);
+                eye.set_item(&item);
+            }
             LevelEntity::Mob(mob) => mob.load(nbt),
         }
         Ok(())
@@ -264,6 +270,7 @@ impl ServerLevel {
             "minecraft:falling_block" => LevelEntity::FallingBlock(super::item::falling_block_entity::FallingBlockEntity::of_type()),
             "minecraft:experience_orb" => LevelEntity::ExperienceOrb(super::experience_orb::ExperienceOrb::of_type()),
             "minecraft:lightning_bolt" => LevelEntity::LightningBolt(super::lightning_bolt::LightningBolt::new(Vec3::ZERO)),
+            "minecraft:eye_of_ender" => LevelEntity::EyeOfEnder(super::projectile::eye_of_ender::EyeOfEnder::of_type()),
             "minecraft:chicken" => LevelEntity::Mob(Box::new(super::animal::chicken::Chicken::create())),
             _ => return None,
         })

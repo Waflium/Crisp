@@ -86,6 +86,9 @@ pub fn use_item(level: &mut ServerLevel, player: EntityId, hand: InteractionHand
     if stack.item.is_instance_of("SpawnEggItem") {
         return spawn_egg_item::use_item(level, player, hand);
     }
+    if stack.item.is_instance_of("EnderEyeItem") {
+        return ender_eye_item::use_item(level, player, hand);
+    }
     match bucket_item::BucketItem::for_item(stack.item) {
         Some(bucket) => bucket.use_item(level, player, hand),
         None => match &stack.item.info().consumable {
