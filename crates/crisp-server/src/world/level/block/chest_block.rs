@@ -147,6 +147,10 @@ impl ChestBlock {
         ChestBlock { block, trapped: block.is_instance_of("TrappedChestBlock"), copper }
     }
 
+    fn get_open_chest_stat(&self) -> crate::stats::stat::Stat {
+        if self.trapped { crate::stats::stats::TRIGGER_TRAPPED_CHEST } else { crate::stats::stats::OPEN_CHEST }
+    }
+
     fn chest_can_connect_to(&self, state: BlockState) -> bool {
         match self.copper {
             Copper::No => state.is_block(self.block),
@@ -286,6 +290,7 @@ impl BlockBehaviour for ChestBlock {
         };
         if let Some(provider) = provider {
             level.open_menu(player, provider);
+            level.award_stat(player, self.get_open_chest_stat(), 1);
         }
         InteractionResult::SUCCESS
     }

@@ -4,10 +4,11 @@ use crisp_data::{BlockState, Item, blocks, fluid_tags, item_tags, items, registr
 use crisp_protocol::nbt::Nbt;
 
 use crate::server::level::{ServerLevel, SoundSource};
+use crate::stats::stats;
 use crate::world::entity::EntityId;
 use crate::world::item::ItemStack;
 use crate::world::item::component as dc;
-use crate::world::item::item_utils::create_filled_result;
+use crate::world::item::item_utils::{create_filled_result, has_infinite_materials};
 use crate::world::level::BlockGetter;
 use crate::world::level::update_flags::UPDATE_ALL;
 use crate::world::{InteractionHand, InteractionResult};
@@ -69,8 +70,11 @@ impl Dispatcher {
                 if !is_water_potion(&item_in_hand) {
                     return InteractionResult::TryWithEmptyHand;
                 }
+                let used_item = item_in_hand.get_item();
                 let result = create_filled_result(level, player, hand, item_in_hand, ItemStack::new(items::GLASS_BOTTLE, 1), true);
                 set_item_in_hand(level, player, hand, result);
+                level.award_stat(player, stats::USE_CAULDRON, 1);
+                level.award_stat(player, stats::ITEM_USED.get(used_item.0), 1);
                 level.set_block(pos, blocks::WATER_CAULDRON.default_state(), UPDATE_ALL);
                 level.play_sound(None, pos, sound("minecraft:item.bottle.empty"), SoundSource::Blocks, 1.0, 1.0);
                 InteractionResult::SUCCESS
@@ -80,8 +84,11 @@ impl Dispatcher {
                 fill_bucket(level, pos, player, hand, item_in_hand, ItemStack::new(items::WATER_BUCKET, 1), can_fill, "minecraft:item.bucket.fill")
             }
             Dispatcher::Water if item == items::GLASS_BOTTLE => {
+                let used_item = item_in_hand.get_item();
                 let result = create_filled_result(level, player, hand, item_in_hand, water_potion(), true);
                 set_item_in_hand(level, player, hand, result);
+                level.award_stat(player, stats::USE_CAULDRON, 1);
+                level.award_stat(player, stats::ITEM_USED.get(used_item.0), 1);
                 lower_fill_level(state, level, pos);
                 level.play_sound(None, pos, sound("minecraft:item.bottle.fill"), SoundSource::Blocks, 1.0, 1.0);
                 InteractionResult::SUCCESS
@@ -90,8 +97,12 @@ impl Dispatcher {
                 if state.get(LEVEL_CAULDRON) == 3 || !is_water_potion(&item_in_hand) {
                     return InteractionResult::TryWithEmptyHand;
                 }
+                let consumed = if has_infinite_materials(level, player) { 0 } else { 1 };
+                let item_in_hand_after = if item_in_hand.count - consumed > 0 { item_in_hand.get_item() } else { items::AIR };
                 let result = create_filled_result(level, player, hand, item_in_hand, ItemStack::new(items::GLASS_BOTTLE, 1), true);
                 set_item_in_hand(level, player, hand, result);
+                level.award_stat(player, stats::USE_CAULDRON, 1);
+                level.award_stat(player, stats::ITEM_USED.get(item_in_hand_after.0), 1);
                 level.set_block(pos, state.cycle(LEVEL_CAULDRON), UPDATE_ALL);
                 level.play_sound(None, pos, sound("minecraft:item.bottle.empty"), SoundSource::Blocks, 1.0, 1.0);
                 InteractionResult::SUCCESS
@@ -128,16 +139,22 @@ fn fill_bucket(
     if !can_fill {
         return InteractionResult::TryWithEmptyHand;
     }
+    let item_used = item_in_hand.get_item();
     let result = create_filled_result(level, player, hand, item_in_hand, new_item, true);
     set_item_in_hand(level, player, hand, result);
+    level.award_stat(player, stats::USE_CAULDRON, 1);
+    level.award_stat(player, stats::ITEM_USED.get(item_used.0), 1);
     level.set_block(pos, blocks::CAULDRON.default_state(), UPDATE_ALL);
     level.play_sound(None, pos, sound(sound_event), SoundSource::Blocks, 1.0, 1.0);
     InteractionResult::SUCCESS
 }
 
 fn empty_bucket(level: &mut ServerLevel, pos: BlockPos, player: EntityId, hand: InteractionHand, item_in_hand: ItemStack, new_state: BlockState, sound_event: &str) -> InteractionResult {
+    let item_used = item_in_hand.get_item();
     let result = create_filled_result(level, player, hand, item_in_hand, ItemStack::new(items::BUCKET, 1), true);
     set_item_in_hand(level, player, hand, result);
+    level.award_stat(player, stats::FILL_CAULDRON, 1);
+    level.award_stat(player, stats::ITEM_USED.get(item_used.0), 1);
     level.set_block(pos, new_state, UPDATE_ALL);
     level.play_sound(None, pos, sound(sound_event), SoundSource::Blocks, 1.0, 1.0);
     InteractionResult::SUCCESS
@@ -164,6 +181,7 @@ fn shulker_box_interaction(state: BlockState, level: &mut ServerLevel, pos: Bloc
     let cleaned_shulker_box = item_in_hand.transmute_copy(blocks::SHULKER_BOX.item(), 1);
     let result = create_filled_result(level, player, hand, item_in_hand, cleaned_shulker_box, false);
     set_item_in_hand(level, player, hand, result);
+    level.award_stat(player, stats::CLEAN_SHULKER_BOX, 1);
     lower_fill_level(state, level, pos);
     InteractionResult::SUCCESS
 }
@@ -181,6 +199,7 @@ fn banner_interaction(state: BlockState, level: &mut ServerLevel, pos: BlockPos,
     cleaned_banner.set(dc::BANNER_PATTERNS, Some(Nbt::List(layers)));
     let result = create_filled_result(level, player, hand, item_in_hand, cleaned_banner, false);
     set_item_in_hand(level, player, hand, result);
+    level.award_stat(player, stats::CLEAN_BANNER, 1);
     lower_fill_level(state, level, pos);
     InteractionResult::SUCCESS
 }
@@ -191,6 +210,7 @@ fn dyed_item_iteration(state: BlockState, level: &mut ServerLevel, pos: BlockPos
     }
     item_in_hand.remove(dc::DYED_COLOR);
     level.player_mut(player).update_item_in_hand(hand, &item_in_hand);
+    level.award_stat(player, stats::CLEAN_ARMOR, 1);
     lower_fill_level(state, level, pos);
     InteractionResult::SUCCESS
 }

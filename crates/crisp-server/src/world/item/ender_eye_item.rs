@@ -72,8 +72,10 @@ pub fn use_item(level: &mut ServerLevel, player: EntityId, hand: InteractionHand
     level.add_fresh_entity(LevelEntity::EyeOfEnder(eye_of_ender));
     let pitch = mth::lerp_f(level.random.next_float(), 0.33, 0.5);
     level.play_sound_at(None, x, y, z, sound_event("minecraft:entity.ender_eye.launch"), SoundSource::Neutral, 1.0, pitch);
+    let this = item_stack.item;
     if !has_infinite_materials(level, player) {
         item_stack.shrink(1);
     }
+    level.award_stat(player, crate::stats::stats::ITEM_USED.get(this.0), 1);
     (InteractionResult::SUCCESS, Some(item_stack))
 }

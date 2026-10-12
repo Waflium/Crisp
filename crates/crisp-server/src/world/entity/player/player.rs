@@ -267,6 +267,9 @@ impl ServerLevel {
     fn item_attack_interaction(&mut self, id: EntityId, entity: EntityId, attacking_item_stack: &ItemStack, damage_source: &DamageSource, apply_to_target: bool) {
         let hurt_target = entity;
         let item_hurt_enemy = self.is_living(hurt_target) && attacking_item_stack.has(dc::WEAPON);
+        if item_hurt_enemy {
+            self.award_stat(id, stats::ITEM_USED.get(attacking_item_stack.item.0), 1);
+        }
         if apply_to_target {
             self.do_post_attack_effects_with_item_source(entity, damage_source, Some(attacking_item_stack));
         }
@@ -525,8 +528,14 @@ impl ServerLevel {
             return;
         }
         self.swing(player, crate::world::InteractionHand::MainHand, crate::world::item::component::swing_animation::SwingAnimation::DEFAULT, prediction != Prediction::Predicted);
+        let count = stack.count;
         let item = self.create_item_stack_to_drop(player, stack, false, thrown_from_hand);
+        let dropped_item = (!item.item.is_empty()).then(|| item.item.get_item());
         self.add_fresh_entity(crate::world::entity::LevelEntity::Item(item));
+        if thrown_from_hand && let Some(dropped_item) = dropped_item {
+            self.award_stat(player, stats::ITEM_DROPPED.get(dropped_item.0), count);
+            self.award_stat(player, stats::DROP, 1);
+        }
     }
 
     pub fn equipment_inventory_slot(&self, id: EntityId, slot: EquipmentSlot) -> Option<usize> {

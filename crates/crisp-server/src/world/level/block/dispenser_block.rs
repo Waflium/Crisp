@@ -84,8 +84,10 @@ impl BlockBehaviour for DispenserBlock {
     }
 
     fn use_without_item(&self, _state: BlockState, level: &mut ServerLevel, pos: BlockPos, player: EntityId, _hit: &BlockHitResult) -> InteractionResult {
-        if matches!(level.get_block_entity(pos).map(|e| &e.kind), Some(BlockEntityKind::Dispenser(_))) {
+        if let Some(entity) = level.get_block_entity(pos).filter(|e| matches!(e.kind, BlockEntityKind::Dispenser(_))) {
+            let stat = if entity.ty() == crisp_data::block_entity_types::DROPPER { crate::stats::stats::INSPECT_DROPPER } else { crate::stats::stats::INSPECT_DISPENSER };
             level.open_menu(player, MenuProvider::BlockEntity(pos));
+            level.award_stat(player, stat, 1);
         }
         InteractionResult::SUCCESS
     }

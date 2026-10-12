@@ -9,8 +9,10 @@ use crate::world::{InteractionHand, InteractionResult};
 
 pub fn use_item(level: &mut ServerLevel, player: EntityId, hand: InteractionHand) -> (InteractionResult, Option<ItemStack>) {
     let Some(mut item_stack) = level.player(player).item_in_hand(hand) else { return (InteractionResult::Pass, None) };
+    let this = item_stack.item;
     item_stack.consume(1, level, Some(player));
     level.player_mut(player).set_item_in_hand(hand, Some(item_stack.clone()));
+    level.award_stat(player, crate::stats::stats::ITEM_USED.get(this.0), 1);
     let sound = registry_id(registry::SOUND_EVENT, "minecraft:ui.cartography_table.take_result");
     level.play_sound_from_entity(None, player, sound, SoundSource::Players, 1.0, 1.0);
     let block_pos = level.player(player).entity.block_position();

@@ -7,6 +7,9 @@ use crate::advancements::predicates::game_type_predicate::GameTypePredicate;
 use crate::advancements::predicates::input_predicate::InputPredicate;
 use crate::advancements::predicates::min_max_bounds::Ints;
 use crate::server::level::ServerLevel;
+use crate::stats::stat::Stat;
+use crate::stats::stat_type::StatType;
+use crate::stats::stats_counter::StatsCounter;
 use crate::util::codec::{self, DataResult};
 use crate::world::entity::EntityId;
 
@@ -14,19 +17,21 @@ pub const LOOKING_AT_RANGE: f64 = 100.0;
 
 #[derive(Debug)]
 struct StatMatcher {
+    stat: Stat,
     range: Ints,
 }
 
 impl StatMatcher {
     fn decode(tag: &Nbt) -> DataResult<StatMatcher> {
         let stat_type = codec::decode_field(tag, "type", codec::identifier)?;
-        crate::world::item::component::codec::registry_id("minecraft:stat_type", &stat_type)?;
-        codec::decode_field(tag, "stat", codec::identifier)?;
-        Ok(StatMatcher { range: codec::decode_or(tag, "value", Ints::ANY, Ints::decode)? })
+        let stat_type = StatType::by_id(crate::world::item::component::codec::registry_id("minecraft:stat_type", &stat_type)?).expect("a stat type");
+        let value = codec::decode_field(tag, "stat", codec::identifier)?;
+        let value = crate::world::item::component::codec::registry_id(stat_type.registry_key(), &value)?;
+        Ok(StatMatcher { stat: stat_type.get(value as u16), range: codec::decode_or(tag, "value", Ints::ANY, Ints::decode)? })
     }
 
-    fn matches(&self) -> bool {
-        self.range.matches(0)
+    fn matches(&self, counter: &impl StatsCounter) -> bool {
+        self.range.matches(counter.get_value(self.stat))
     }
 }
 
@@ -85,7 +90,7 @@ impl PlayerPredicate {
         if !self.game_type.matches(player.game_mode.game_type) {
             return false;
         }
-        if !self.stats.iter().all(StatMatcher::matches) {
+        if !self.stats.iter().all(|stat| stat.matches(&player.stats)) {
             return false;
         }
         if self.recipes.iter().any(|(_, present)| *present) {

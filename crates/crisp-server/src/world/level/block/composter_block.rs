@@ -39,6 +39,7 @@ impl BlockBehaviour for ComposterBlock {
             if fill_level < 7 {
                 let new_state = add_layer(Some(player), state, level, pos, &item);
                 level.level_event(None, COMPOSTER_FILL, pos, if state != new_state { 1 } else { 0 });
+                level.award_stat(player, crate::stats::stats::ITEM_USED.get(item.item.0), 1);
                 let mut item = item;
                 item.consume(1, level, Some(player));
                 level.player_mut(player).update_item_in_hand(hand, &item);

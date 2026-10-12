@@ -335,7 +335,8 @@ impl ItemStack {
         ItemStack { count, ..self.clone() }
     }
 
-    pub fn on_crafted_by(&mut self, level: &mut ServerLevel, player: EntityId, _craft_count: i32) {
+    pub fn on_crafted_by(&mut self, level: &mut ServerLevel, player: EntityId, craft_count: i32) {
+        level.award_stat(player, crate::stats::stats::ITEM_CRAFTED.get(self.get_item().0), craft_count);
         super::on_crafted_by(self, level, player);
     }
 

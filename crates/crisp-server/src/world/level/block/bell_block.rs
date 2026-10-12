@@ -31,7 +31,10 @@ impl BellBlock {
         let block_pos = hit_result.block_pos;
         let proper_hit = !require_hit_from_correct_side || self.is_proper_hit(state, direction, hit_result.location.y - block_pos.y as f64);
         if proper_hit {
-            self.attempt_to_ring(player, level, block_pos, Some(direction));
+            let did_ring = self.attempt_to_ring(player, level, block_pos, Some(direction));
+            if did_ring && let Some(player) = player {
+                level.award_stat(player, crate::stats::stats::BELL_RING, 1);
+            }
             true
         } else {
             false

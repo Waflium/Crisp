@@ -59,6 +59,7 @@ impl BlockBehaviour for DecoratedPotBlock {
         let pot_item = level.decorated_pot_get_the_item(pos);
         if !item_stack.is_empty() && (pot_item.is_empty() || ItemStack::is_same_item_same_components(&pot_item, &item_stack) && pot_item.count < pot_item.max_stack_size()) {
             level.decorated_pot_wobble(pos, WobbleStyle::Positive);
+            level.award_stat(player, crate::stats::stats::ITEM_USED.get(item_stack.item.0), 1);
             let mut item_stack = item_stack;
             let awarded_item = if level.has_infinite_materials(player) { item_stack.copy_with_count(1) } else { item_stack.split(1) };
             level.player_mut(player).set_item_in_hand(hand, Some(item_stack));

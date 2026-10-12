@@ -20,6 +20,7 @@ fn sound(name: &str) -> i32 {
 }
 
 fn add_book(level: &mut ServerLevel, pos: BlockPos, player: EntityId, hand: InteractionHand, mut item_stack: ItemStack, slot: usize) {
+    level.award_stat(player, crate::stats::stats::ITEM_USED.get(item_stack.item.0), 1);
     let sound_event = if item_stack.is(items::ENCHANTED_BOOK) { "minecraft:block.chiseled_bookshelf.insert.enchanted" } else { "minecraft:block.chiseled_bookshelf.insert" };
     let book = if level.has_infinite_materials(player) { item_stack.copy_with_count(1) } else { item_stack.split(1) };
     level.player_mut(player).set_item_in_hand(hand, Some(item_stack));

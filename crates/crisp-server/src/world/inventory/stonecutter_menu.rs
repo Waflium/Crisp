@@ -96,7 +96,9 @@ impl ServerLevel {
         self.menu_broadcast_changes(menu, player);
     }
 
-    pub fn stonecutter_result_slot_on_take(&mut self, menu: &mut AbstractContainerMenu, player: EntityId) {
+    pub fn stonecutter_result_slot_on_take(&mut self, menu: &mut AbstractContainerMenu, player: EntityId, carried: &mut ItemStack) {
+        let count = carried.count;
+        carried.on_crafted_by(self, player, count);
         menu.containers[RESULT_CONTAINER].award_used_recipes(self, player);
         let remaining = self.slot_remove(menu, player, INPUT_SLOT, 1);
         if !remaining.is_empty() {

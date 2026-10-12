@@ -1574,6 +1574,7 @@ impl ServerLevel {
             }
             let original = item.item.count;
             let stack = item.item.clone();
+            let picked_up_item = stack.get_item();
             let left = self.player_mut(player).pick_up(stack);
             if left == original {
                 continue;
@@ -1591,6 +1592,7 @@ impl ServerLevel {
                 item.item.count = original;
                 self.remove_entity(id);
             }
+            self.award_stat(player, crate::stats::stats::ITEM_PICKED_UP.get(picked_up_item.0), original);
         }
     }
 

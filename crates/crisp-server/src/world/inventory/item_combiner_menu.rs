@@ -41,7 +41,7 @@ impl ServerLevel {
         }
     }
 
-    pub fn item_combiner_menu_on_take(&mut self, menu: &mut AbstractContainerMenu, player: EntityId, carried: &ItemStack) {
+    pub fn item_combiner_menu_on_take(&mut self, menu: &mut AbstractContainerMenu, player: EntityId, carried: &mut ItemStack) {
         match menu.kind {
             MenuKind::Smithing => self.smithing_menu_on_take(menu, player, carried),
             _ => self.anvil_menu_on_take(menu, player, carried),

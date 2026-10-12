@@ -429,6 +429,9 @@ impl ServerLevel {
     pub fn on_equipped_item_broken(&mut self, id: EntityId, broken_item: &ItemStack, in_slot: EquipmentSlot) {
         self.broadcast_entity_event(id, entity_event_for_equipment_break(in_slot));
         self.stop_location_based_effects(id, broken_item, in_slot);
+        if self.is_player(id) {
+            self.award_stat(id, stats::ITEM_BROKEN.get(broken_item.get_item().0), 1);
+        }
     }
 
     pub fn max_health(&self, id: EntityId) -> f32 {
@@ -913,8 +916,12 @@ impl ServerLevel {
         for slot in [EquipmentSlot::Mainhand, EquipmentSlot::Offhand] {
             let Some(mut stack) = self.item_by_slot(id, slot) else { continue };
             let Some(death_effects) = stack.item.info().death_protection else { continue };
+            let protection_item = stack.get_item();
             stack.shrink(1);
             self.set_item_slot(id, slot, stack);
+            if self.is_player(id) {
+                self.award_stat(id, stats::ITEM_USED.get(protection_item.0), 1);
+            }
             self.set_health(id, 1.0);
             for effect in death_effects {
                 self.apply_consume_effect(id, effect);

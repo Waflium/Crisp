@@ -54,6 +54,7 @@ impl BlockBehaviour for CampfireBlock {
             if RecipeManager::get().property_set(CAMPFIRE_INPUT).test(&item_in_hand) {
                 if level.campfire_place_food(pos, Some(player), &mut item_in_hand) {
                     level.player_mut(player).set_item_in_hand(hand, Some(item_in_hand));
+                    level.award_stat(player, crate::stats::stats::INTERACT_WITH_CAMPFIRE, 1);
                     return InteractionResult::SUCCESS_SERVER;
                 }
                 return InteractionResult::CONSUME;

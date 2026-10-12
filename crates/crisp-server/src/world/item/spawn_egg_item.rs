@@ -43,7 +43,11 @@ pub fn use_item(level: &mut ServerLevel, player: EntityId, hand: InteractionHand
         return (InteractionResult::Pass, None);
     }
     if level.may_interact(player, pos) && may_use_item_at(level, player) {
+        let this = item_stack.item;
         let result = spawn_mob(level, entity_type, Some(player), &mut item_stack, pos, false, false);
+        if result == InteractionResult::SUCCESS {
+            level.award_stat(player, crate::stats::stats::ITEM_USED.get(this.0), 1);
+        }
         (result, Some(item_stack))
     } else {
         (InteractionResult::Fail, None)

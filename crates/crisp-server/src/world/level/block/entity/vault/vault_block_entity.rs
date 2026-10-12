@@ -112,6 +112,7 @@ pub mod server {
             } else {
                 let items_to_eject = resolve_items_to_eject(level, config, pos, player, stack_to_insert);
                 if !items_to_eject.is_empty() {
+                    level.award_stat(player, crate::stats::stats::ITEM_USED.get(stack_to_insert.get_item().0), 1);
                     stack_to_insert.consume(config.key_item.count, level, Some(player));
                     unlock(level, block_state, pos, config, server_data, shared_data, items_to_eject);
                     server_data.add_to_rewarded_players(uuid);

@@ -51,6 +51,7 @@ impl BucketItem {
         let place_pos =
             if block::of(clicked).is_liquid_block_container(clicked) && self.content == Fluid::Water { pos } else { direction_offset_pos };
         if self.empty_contents(level, Some(player), place_pos, Some(hit)) {
+            level.award_stat(player, crate::stats::stats::ITEM_USED.get(item_stack.item.0), 1);
             let empty_result = if has_infinite_materials(level, player) { item_stack.clone() } else { ItemStack::new(items::BUCKET, 1) };
             let result = item_utils::create_filled_result(level, player, hand, item_stack, empty_result, true);
             return (InteractionResult::SUCCESS, Some(result));
@@ -61,6 +62,7 @@ impl BucketItem {
             if behaviour.is_bucket_pickup(state)
                 && let Some(taken) = behaviour.pickup_block(Some(player), level, pos, state)
             {
+                level.award_stat(player, crate::stats::stats::ITEM_USED.get(item_stack.item.0), 1);
                 if let Some(sound) = behaviour.pickup_sound() {
                     let position = level.player(player).entity.position();
                     level.play_sound_at(Some(player), position.x, position.y, position.z, sound, SoundSource::Players, 1.0, 1.0);

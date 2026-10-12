@@ -64,6 +64,7 @@ impl LecternBlock {
     fn open_screen(&self, level: &mut ServerLevel, pos: BlockPos, player: EntityId) {
         if level.lectern(pos).is_some() {
             level.open_menu(player, MenuProvider::BlockEntity(pos));
+            level.award_stat(player, crate::stats::stats::INTERACT_WITH_LECTERN, 1);
         }
     }
 }

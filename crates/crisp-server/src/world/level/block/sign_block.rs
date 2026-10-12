@@ -54,6 +54,7 @@ pub fn use_item_on(item_stack: ItemStack, level: &mut ServerLevel, pos: BlockPos
     let can_apply = level.sign(pos).is_some_and(|sign| sign_applicator.can_apply_to_sign(sign.get_text(text_slot), text_filtering_enabled));
     if can_apply && sign_applicator.try_apply_to_sign(level, pos, text_slot, &item_stack) {
         level.sign_execute_click_commands_if_present(player, pos, text_slot);
+        level.award_stat(player, crate::stats::stats::ITEM_USED.get(item_stack.item.0), 1);
         if !level.has_infinite_materials(player) {
             let mut item_stack = item_stack;
             item_stack.shrink(1);

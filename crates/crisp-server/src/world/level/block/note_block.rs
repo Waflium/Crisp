@@ -132,15 +132,17 @@ impl BlockBehaviour for NoteBlock {
         }
     }
 
-    fn use_without_item(&self, state: BlockState, level: &mut ServerLevel, pos: BlockPos, _player: EntityId, _hit: &BlockHitResult) -> InteractionResult {
+    fn use_without_item(&self, state: BlockState, level: &mut ServerLevel, pos: BlockPos, player: EntityId, _hit: &BlockHitResult) -> InteractionResult {
         let state = state.cycle(NOTE);
         level.set_block_simple(pos, state);
         self.play_note(state, level, pos);
+        level.award_stat(player, crate::stats::stats::TUNE_NOTEBLOCK, 1);
         InteractionResult::SUCCESS
     }
 
-    fn attack(&self, state: BlockState, level: &mut ServerLevel, pos: BlockPos, _player: EntityId) {
+    fn attack(&self, state: BlockState, level: &mut ServerLevel, pos: BlockPos, player: EntityId) {
         self.play_note(state, level, pos);
+        level.award_stat(player, crate::stats::stats::PLAY_NOTEBLOCK, 1);
     }
 
     fn trigger_event(&self, state: BlockState, level: &mut ServerLevel, pos: BlockPos, _b0: i32, _b1: i32) -> bool {

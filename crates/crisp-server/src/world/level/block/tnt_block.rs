@@ -100,6 +100,7 @@ impl BlockBehaviour for TntBlock {
                     }
                 }
             }
+            level.award_stat(player, crate::stats::stats::ITEM_USED.get(item.item.0), 1);
         } else if !level.game_rules.get_bool(game_rule::TNT_EXPLODES) {
             level.send_overlay_message(player, &crate::network::chat::Component::translatable("block.minecraft.tnt.disabled"));
             return InteractionResult::Pass;

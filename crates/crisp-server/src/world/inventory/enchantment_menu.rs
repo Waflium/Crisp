@@ -134,6 +134,7 @@ impl ServerLevel {
             } else {
                 *menu.containers[ENCHANT_SLOTS].get_item_mut(1) = currency;
             }
+            self.award_stat(player, crate::stats::stats::ENCHANT_ITEM, 1);
             self.menu_container_set_changed(menu, player, ENCHANT_SLOTS);
             let enchantment_seed = self.player(player).experience.enchantment_seed;
             if let Some(state) = menu.enchantment.as_mut() {

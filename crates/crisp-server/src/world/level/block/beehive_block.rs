@@ -44,6 +44,7 @@ impl BlockBehaviour for BeehiveBlock {
         hand: InteractionHand,
         _hit: &BlockHitResult,
     ) -> InteractionResult {
+        let item = item_stack.get_item();
         let honey_level = state.get(LEVEL_HONEY);
         let mut hive_emptied = false;
         if honey_level >= 5 {
@@ -72,6 +73,9 @@ impl BlockBehaviour for BeehiveBlock {
                 }
                 hive_emptied = true;
             }
+        }
+        if hive_emptied {
+            level.award_stat(player, crate::stats::stats::ITEM_USED.get(item.0), 1);
         }
         if hive_emptied {
             if !campfire_block::is_smokey_pos(level, pos) {

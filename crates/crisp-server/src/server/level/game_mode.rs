@@ -384,6 +384,7 @@ impl ServerLevel {
         let can_destroy = self.has_correct_tool_for_drops(player, adjusted);
         self.mine_block_with_held_item(player, adjusted);
         if changed && can_destroy {
+            self.award_stat(player, crate::stats::stats::BLOCK_MINED.get(adjusted.block().0), 1);
             self.cause_food_exhaustion(player, crate::world::food::constants::EXHAUSTION_MINE);
             block::behaviour(adjusted.block()).player_destroy(self, player, pos, adjusted, block_entity.as_ref(), destroyed_with);
         }
@@ -392,11 +393,13 @@ impl ServerLevel {
 
     fn mine_block_with_held_item(&mut self, player: EntityId, state: BlockState) {
         let Some(held) = self.item_by_slot(player, crisp_data::EquipmentSlot::Mainhand) else { return };
+        let used_item = held.item;
         let Some(tool) = held.tool() else { return };
-        if state.destroy_speed() == 0.0 || tool.damage_per_block <= 0 {
-            return;
+        let damages_tool = if used_item == crisp_data::items::SHEARS { !state.is(&crisp_data::block_tags::FIRE) } else { state.destroy_speed() != 0.0 };
+        if damages_tool && tool.damage_per_block > 0 {
+            self.hurt_and_break(player, crisp_data::EquipmentSlot::Mainhand, tool.damage_per_block);
         }
-        self.hurt_and_break(player, crisp_data::EquipmentSlot::Mainhand, tool.damage_per_block);
+        self.award_stat(player, crate::stats::stats::ITEM_USED.get(used_item.0), 1);
     }
 
     pub fn use_item_on(&mut self, player: EntityId, hand: InteractionHand, hit: BlockHitResult) -> InteractionResult {
@@ -421,7 +424,14 @@ impl ServerLevel {
             }
         }
         match item {
-            Some(stack) if stack.count > 0 => item::use_on(self, player, hand, hit, stack),
+            Some(stack) if stack.count > 0 => {
+                let used_item = stack.item;
+                let result = item::use_on(self, player, hand, hit, stack);
+                if let InteractionResult::Success { was_item_interaction: true, .. } = result {
+                    self.award_stat(player, crate::stats::stats::ITEM_USED.get(used_item.0), 1);
+                }
+                result
+            }
             _ => InteractionResult::Pass,
         }
     }

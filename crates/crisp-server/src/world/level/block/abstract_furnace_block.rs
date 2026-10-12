@@ -1,11 +1,12 @@
 use crisp_core::{BlockPos, Direction};
 use crisp_data::properties::HORIZONTAL_FACING;
-use crisp_data::{Block, BlockState};
+use crisp_data::{Block, BlockState, block_entity_types};
 
 use super::mirror::Mirror;
 use super::rotation::Rotation;
 use super::{BlockBehaviour, BlockHitResult};
 use crate::server::level::ServerLevel;
+use crate::stats::stats;
 use crate::world::InteractionResult;
 use crate::world::entity::EntityId;
 use crate::world::inventory::menu_provider::MenuProvider;
@@ -24,8 +25,14 @@ impl BlockBehaviour for AbstractFurnaceBlock {
     }
 
     fn use_without_item(&self, _state: BlockState, level: &mut ServerLevel, pos: BlockPos, player: EntityId, _hit: &BlockHitResult) -> InteractionResult {
-        if matches!(level.get_block_entity(pos).map(|e| &e.kind), Some(BlockEntityKind::Furnace(_))) {
+        if let Some(entity) = level.get_block_entity(pos).filter(|e| matches!(e.kind, BlockEntityKind::Furnace(_))) {
+            let stat = match entity.ty() {
+                block_entity_types::BLAST_FURNACE => stats::INTERACT_WITH_BLAST_FURNACE,
+                block_entity_types::SMOKER => stats::INTERACT_WITH_SMOKER,
+                _ => stats::INTERACT_WITH_FURNACE,
+            };
             level.open_menu(player, MenuProvider::BlockEntity(pos));
+            level.award_stat(player, stat, 1);
         }
         InteractionResult::SUCCESS
     }

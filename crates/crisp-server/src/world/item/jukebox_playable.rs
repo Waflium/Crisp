@@ -20,6 +20,7 @@ pub fn try_insert_into_jukebox(level: &mut ServerLevel, pos: BlockPos, to_insert
         if level.jukebox(pos).is_some() {
             level.jukebox_set_the_item(pos, inserted);
         }
+        level.award_stat(player, crate::stats::stats::PLAY_RECORD, 1);
         InteractionResult::SUCCESS
     } else {
         InteractionResult::TryWithEmptyHand

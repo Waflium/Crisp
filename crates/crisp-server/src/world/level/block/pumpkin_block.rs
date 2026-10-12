@@ -41,6 +41,7 @@ impl BlockBehaviour for PumpkinBlock {
         level.set_block(pos, blocks::CARVED_PUMPKIN.default_state().set(HORIZONTAL_FACING, direction), 11);
         let slot = if hand == InteractionHand::MainHand { EquipmentSlot::Mainhand } else { EquipmentSlot::Offhand };
         level.hurt_and_break(player, slot, 1);
+        level.award_stat(player, crate::stats::stats::ITEM_USED.get(crisp_data::items::SHEARS.0), 1);
         InteractionResult::SUCCESS
     }
 }

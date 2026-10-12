@@ -109,7 +109,15 @@ impl ServerLevel {
         self.add_fresh_entity(LevelEntity::Mob(offspring));
     }
 
+    fn get_love_cause(&self, id: EntityId) -> Option<EntityId> {
+        let love_cause = self.mob(id)?.animal()?.love_cause?;
+        self.players.values().find(|p| p.profile.uuid == love_cause).map(|p| p.entity.id)
+    }
+
     pub fn finalize_spawn_child_from_breeding(&mut self, id: EntityId, partner: EntityId) {
+        if let Some(cause) = self.get_love_cause(id).or_else(|| self.get_love_cause(partner)) {
+            self.award_stat(cause, crate::stats::stats::ANIMALS_BRED, 1);
+        }
         self.set_age(id, 6000);
         self.set_age(partner, 6000);
         self.reset_love(id);

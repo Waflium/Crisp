@@ -23,6 +23,7 @@ pub fn eat(level: &mut ServerLevel, pos: BlockPos, state: BlockState, player: En
     if !level.can_eat(player, false) {
         return InteractionResult::Pass;
     }
+    level.award_stat(player, crate::stats::stats::EAT_CAKE_SLICE, 1);
     level.player_mut(player).food_data.eat_with_modifier(2, 0.1);
     let bites = state.get(BITES);
     if bites < MAX_BITES {
@@ -49,11 +50,13 @@ impl BlockBehaviour for CakeBlock {
             && let Some(candle_block) = item.item.info().block
             && candle_block.is_instance_of("CandleBlock")
         {
+            let used_item = item.item;
             let mut item = item;
             item.consume(1, level, Some(player));
             level.player_mut(player).update_item_in_hand(hand, &item);
             level.play_sound(None, pos, registry_id(registry::SOUND_EVENT, "minecraft:block.cake.add_candle"), SoundSource::Blocks, 1.0, 1.0);
             level.set_block(pos, candle_cake_block::by_candle(candle_block), UPDATE_ALL);
+            level.award_stat(player, crate::stats::stats::ITEM_USED.get(used_item.0), 1);
             InteractionResult::SUCCESS
         } else {
             InteractionResult::TryWithEmptyHand

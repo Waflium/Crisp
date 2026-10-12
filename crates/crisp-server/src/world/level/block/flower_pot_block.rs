@@ -78,6 +78,7 @@ impl BlockBehaviour for FlowerPotBlock {
             return InteractionResult::CONSUME;
         }
         level.set_block(pos, new_contents, UPDATE_ALL);
+        level.award_stat(player, crate::stats::stats::POT_FLOWER, 1);
         consume_one(level, player, hand);
         InteractionResult::SUCCESS
     }

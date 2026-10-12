@@ -28,6 +28,7 @@ impl BlockBehaviour for LoomBlock {
 
     fn use_without_item(&self, _state: BlockState, level: &mut ServerLevel, pos: BlockPos, player: EntityId, _hit: &BlockHitResult) -> InteractionResult {
         level.open_menu(player, crate::world::inventory::menu_provider::MenuProvider::Loom(pos));
+        level.award_stat(player, crate::stats::stats::INTERACT_WITH_LOOM, 1);
         InteractionResult::SUCCESS
     }
 }

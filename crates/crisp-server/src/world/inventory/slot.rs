@@ -242,7 +242,7 @@ impl ServerLevel {
             }
             SlotKind::NonInteractiveResult => {}
             SlotKind::StonecutterResult => {
-                self.stonecutter_result_slot_on_take(menu, player);
+                self.stonecutter_result_slot_on_take(menu, player, carried);
                 self.slot_set_changed(menu, player, index);
             }
             SlotKind::ItemCombinerResult => self.item_combiner_menu_on_take(menu, player, carried),

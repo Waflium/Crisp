@@ -50,6 +50,7 @@ impl BlockBehaviour for ShulkerBoxBlock {
             && can_open(state, level, pos, status)
         {
             level.open_menu(player, MenuProvider::BlockEntity(pos));
+            level.award_stat(player, crate::stats::stats::OPEN_SHULKER_BOX, 1);
         }
         InteractionResult::SUCCESS
     }
