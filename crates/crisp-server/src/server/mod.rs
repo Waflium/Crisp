@@ -614,9 +614,7 @@ impl Server {
         for &id in &ids {
             self.save_player(self.level.player(id));
         }
-        for id in ids {
-            self.level.player_mut(id).disconnect("multiplayer.disconnect.server_shutdown");
-        }
+        self.remove_all();
         info!("Saving worlds");
         self.level.no_save = false;
         while self.level.chunks.has_work() {
@@ -1140,6 +1138,17 @@ impl Server {
         });
         let source = CommandSourceStack::player(self, id);
         player.connection.send(clientbound::COMMANDS, |p| crate::commands::write_commands_packet(p, &source));
+    }
+
+    fn remove_all(&mut self) {
+        let mut i = 0;
+        while let Some(&id) = self.level.players.get_index(i).map(|(id, _)| id) {
+            self.level.player_mut(id).disconnect("multiplayer.disconnect.server_shutdown");
+            if let Some(conn) = self.connections.iter().find_map(|(&conn, &player)| (player == id).then_some(conn)) {
+                self.remove_player(conn, None);
+            }
+            i += 1;
+        }
     }
 
     fn remove_player(&mut self, conn: ConnId, reason: Option<Component>) {
