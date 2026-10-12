@@ -1232,6 +1232,10 @@ impl ServerLevel {
         if p.abilities_may_fly() {
             return false;
         }
+        if fall_distance >= 2.0 {
+            self.award_stat(id, crate::stats::stats::FALL_ONE_CM, mth::java_round(fall_distance * 100.0) as i32);
+        }
+        let p = self.players.get_mut(&id).expect("a player");
         let effective = match p.living.current_impulse_impact_pos {
             Some(impact) => {
                 let effective = fall_distance.min(impact.y - p.entity.y());

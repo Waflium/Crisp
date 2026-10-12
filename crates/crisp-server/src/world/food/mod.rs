@@ -1,5 +1,4 @@
-use crisp_core::mth;
-use crisp_data::{FoodProperties, fluid_tags};
+use crisp_data::FoodProperties;
 use crisp_data::damage_types;
 use crisp_data::game_rule;
 use crisp_protocol::nbt::Nbt;
@@ -128,32 +127,6 @@ impl ServerLevel {
         let p = self.player_mut(id);
         if !p.abilities.invulnerable {
             p.food_data.add_exhaustion(amount);
-        }
-    }
-
-    pub fn check_movement_statistics(&mut self, id: EntityId, dx: f64, dy: f64, dz: f64) {
-        if dx == 0.0 && dy == 0.0 && dz == 0.0 {
-            return;
-        }
-        let distance = |d: f64| mth::java_round_f32((d.sqrt() as f32) * 100.0);
-        let e = self.entity(id);
-        if e.is_swimming() || e.is_eye_in_fluid(&fluid_tags::WATER) {
-            let distance = distance(dx * dx + dy * dy + dz * dz);
-            if distance > 0 {
-                self.cause_food_exhaustion(id, constants::EXHAUSTION_SWIM * distance as f32 * 0.01);
-            }
-        } else if e.is_in_water() {
-            let horizontal = distance(dx * dx + dz * dz);
-            if horizontal > 0 {
-                self.cause_food_exhaustion(id, constants::EXHAUSTION_SWIM * horizontal as f32 * 0.01);
-            }
-        } else if self.on_climbable(id) {
-        } else if self.entity(id).on_ground {
-            let horizontal = distance(dx * dx + dz * dz);
-            if horizontal > 0 {
-                let rate = if self.entity(id).is_sprinting() { constants::EXHAUSTION_SPRINT } else { 0.0 };
-                self.cause_food_exhaustion(id, rate * horizontal as f32 * 0.01);
-            }
         }
     }
 

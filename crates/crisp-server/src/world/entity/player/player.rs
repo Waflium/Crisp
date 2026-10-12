@@ -4,6 +4,7 @@ use crisp_protocol::nbt::Nbt;
 
 use crate::server::level::ServerLevel;
 use crate::server::level::server_entity::set_entity_motion;
+use crate::stats::stats;
 use crate::util::Prediction;
 use crate::world::damagesource::DamageSource;
 use crate::world::difficulty::Difficulty;
@@ -205,7 +206,7 @@ impl ServerLevel {
                 self.attack_visual_effects(id, entity, critical_attack, sweep_attack, full_strength_attack, false, magic_boost);
                 self.set_last_hurt_mob(id, entity);
                 self.item_attack_interaction(id, entity, &attacking_item_stack, &damage_source, true);
-                self.damage_stats_and_hearts(entity, old_living_entity_health);
+                self.damage_stats_and_hearts(id, entity, old_living_entity_health);
                 self.cause_food_exhaustion(id, 0.1);
             } else {
                 self.play_server_side_sound(id, "minecraft:entity.player.attack.nodamage");
@@ -250,9 +251,10 @@ impl ServerLevel {
         }
     }
 
-    fn damage_stats_and_hearts(&mut self, entity: EntityId, old_living_entity_health: f32) {
+    fn damage_stats_and_hearts(&mut self, id: EntityId, entity: EntityId, old_living_entity_health: f32) {
         if self.is_living(entity) {
             let actual_damage = old_living_entity_health - self.health(entity);
+            self.award_stat(id, stats::DAMAGE_DEALT, crate::util::java_round_f(actual_damage * 10.0));
             if actual_damage > 2.0 {
                 let count = (actual_damage as f64 * 0.5) as i32;
                 let e = self.entity(entity);
@@ -463,11 +465,18 @@ impl ServerLevel {
         let absorption = self.absorption_amount(id);
         let damage = (damage - absorption).max(0.0);
         self.set_absorption_amount(id, absorption - (original_damage - damage));
+        let absorbed_damage = original_damage - damage;
+        if absorbed_damage > 0.0 && absorbed_damage < 3.4028235E37 {
+            self.award_stat(id, stats::DAMAGE_ABSORBED, crate::util::java_round_f(absorbed_damage * 10.0));
+        }
         if damage != 0.0 {
             self.cause_food_exhaustion(id, source.food_exhaustion());
             self.record_damage(id, *source, damage);
             let health = self.health(id);
             self.set_health(id, health - damage);
+            if damage < 3.4028235E37 {
+                self.award_stat(id, stats::DAMAGE_TAKEN, crate::util::java_round_f(damage * 10.0));
+            }
         }
     }
 
@@ -489,6 +498,12 @@ impl ServerLevel {
                 self.drop_from_player(id, stack, true);
             }
         }
+    }
+
+    pub fn player_killed_entity(&mut self, id: EntityId, entity: EntityId) -> bool {
+        let entity_type = self.entity(entity).entity_type;
+        self.award_stat(id, stats::ENTITY_KILLED.get(entity_type as u16), 1);
+        true
     }
 
     pub fn player_get_base_experience_reward(&self, id: EntityId) -> i32 {
@@ -534,7 +549,7 @@ impl ServerLevel {
         Ok(())
     }
 
-    pub fn start_sleep_in_bed(&mut self, id: EntityId, _kind: BedKind, bed_block_state: crisp_data::BlockState, rule: &BedRule, pos: BlockPos) -> Result<(), Option<Component>> {
+    pub fn start_sleep_in_bed(&mut self, id: EntityId, kind: BedKind, bed_block_state: crisp_data::BlockState, rule: &BedRule, pos: BlockPos) -> Result<(), Option<Component>> {
         let direction = bed_block_state.get(crisp_data::properties::HORIZONTAL_FACING);
         if self.is_sleeping(id) || !self.is_alive(id) {
             return Err(None);
@@ -556,6 +571,9 @@ impl ServerLevel {
             return Err(abstract_bed_block::error_message(rule));
         }
         let result = self.player_start_sleep_in_bed(id, pos);
+        if result.is_ok() {
+            self.award_stat(id, abstract_bed_block::get_slept_in_bed_stat_type(kind), 1);
+        }
         if !self.can_sleep_through_nights() {
             self.send_overlay_message(id, &Component::translatable("sleep.not_possible"));
         }
@@ -567,6 +585,7 @@ impl ServerLevel {
         if !self.living_entity_start_sleeping(id, bed_position) {
             return false;
         }
+        self.reset_stat(id, stats::TIME_SINCE_REST);
         let e = &self.player(id).entity;
         let (pos, y_rot, x_rot) = (e.position(), e.y_rot, e.x_rot);
         self.player_mut(id).teleport(pos, y_rot, x_rot);

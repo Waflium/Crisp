@@ -1,10 +1,48 @@
+use std::path::PathBuf;
+
 use crisp_data::packets::play::clientbound;
 
 use crate::commands::arguments::selector::entity_selector::java_equals_ignore_case;
 use crate::network::chat::Component;
 use crate::network::configuration::ChatVisibility;
+use crate::network::login::Profile;
+use crate::server::Server;
 use crate::server::level::ServerLevel;
+use crate::stats::server_stats_counter::ServerStatsCounter;
+use crate::util::file_util;
 use crate::world::entity::EntityId;
+use crate::world::level::storage::{WorldDir, format_uuid};
+
+impl Server {
+    pub fn get_player_stats(&self, profile: &Profile) -> ServerStatsCounter {
+        match &self.world_dir {
+            Some(dir) => ServerStatsCounter::new(locate_stats_file(dir, profile)),
+            None => ServerStatsCounter::default(),
+        }
+    }
+}
+
+fn locate_stats_file(dir: &WorldDir, profile: &Profile) -> PathBuf {
+    let stat_folder = dir.player_stats_dir();
+    let uuid_stats_file = stat_folder.join(format!("{}.json", format_uuid(profile.uuid)));
+    if uuid_stats_file.exists() {
+        return uuid_stats_file;
+    }
+    let player_name_stats_file = format!("{}.json", profile.name);
+    if file_util::is_valid_path_segment(&player_name_stats_file) {
+        let player_name_stats_path = stat_folder.join(&player_name_stats_file);
+        if player_name_stats_path.is_file() {
+            return match std::fs::rename(&player_name_stats_path, &uuid_stats_file) {
+                Ok(()) => uuid_stats_file,
+                Err(_) => {
+                    warn!("Failed to copy file {player_name_stats_file} to {}", uuid_stats_file.display());
+                    player_name_stats_path
+                }
+            };
+        }
+    }
+    uuid_stats_file
+}
 
 impl ServerLevel {
     pub fn broadcast_system_message(&self, message: &Component) {

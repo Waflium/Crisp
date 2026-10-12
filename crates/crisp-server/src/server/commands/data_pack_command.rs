@@ -15,6 +15,7 @@ use crate::server::Server;
 use crate::server::packs::metadata::PackFormat;
 use crate::server::packs::repository::Pack;
 use crate::server::packs::{PackSource, escape_if_required};
+use crate::util::file_util::is_valid_path_segment;
 use crate::world::flag::print_missing_flags;
 
 static ERROR_UNKNOWN_PACK: DynamicCommandExceptionType = DynamicCommandExceptionType(|id| tr("commands.datapack.unknown", vec![id]));
@@ -62,10 +63,6 @@ pub fn suggest_unselected_packs(server: &Server, _context: &CommandContext, _sou
         .map(escape_if_required);
     shared_suggestion_provider::suggest(unselected, &mut builder);
     Ok(builder.build())
-}
-
-fn is_valid_path_segment(segment: &str) -> bool {
-    segment != ".." && segment != "." && !segment.is_empty() && segment.bytes().all(|c| matches!(c, b'-' | b'.' | b'_' | b'a'..=b'z' | b'0'..=b'9'))
 }
 
 fn is_path_part_portable(name: &str) -> bool {

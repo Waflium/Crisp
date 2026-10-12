@@ -6,6 +6,7 @@ pub mod dependency_sorter;
 pub mod ease;
 pub mod easing_type;
 pub mod directory_lock;
+pub mod file_util;
 pub mod fraction;
 pub mod hash_ops;
 pub mod java_collections;

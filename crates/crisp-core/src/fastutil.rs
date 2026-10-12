@@ -661,6 +661,13 @@ impl<V> Object2ObjectOpenHashMap<V> {
         }
     }
 
+    pub fn try_capacity(&mut self, capacity: usize) {
+        let needed = (1usize << 30).min(2.max(next_power_of_two((capacity as f64 / self.f as f64).ceil() as i64) as usize));
+        if needed > self.mask + 1 {
+            self.rehash(needed);
+        }
+    }
+
     fn rehash(&mut self, new_n: usize) {
         let mask = new_n - 1;
         let mut slots: Vec<Option<(i32, String, V)>> = (0..new_n).map(|_| None).collect();

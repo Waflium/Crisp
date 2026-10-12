@@ -49,6 +49,13 @@ pub fn kind(block: Block) -> Option<BedKind> {
     }
 }
 
+pub fn get_slept_in_bed_stat_type(kind: BedKind) -> crate::stats::stat::Stat {
+    match kind {
+        BedKind::Bed => crate::stats::stats::SLEEP_IN_BED,
+        BedKind::StrawBed => crate::stats::stats::SLEEP_IN_STRAW_BED,
+    }
+}
+
 pub fn get_bed_orientation(level: &mut ServerLevel, pos: BlockPos) -> Option<Direction> {
     let block_state = level.block_state(pos);
     kind(block_state.block()).map(|_| block_state.get(FACING))

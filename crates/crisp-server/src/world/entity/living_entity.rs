@@ -12,6 +12,7 @@ use super::{Entity, EntityId, MoverType, RemovalReason, TOTAL_AIR_SUPPLY, comput
 use crate::core::holder_set::HolderSet;
 use crate::network::connection::encode;
 use crate::server::level::ServerLevel;
+use crate::stats::stats;
 use crate::world::difficulty::Difficulty;
 use crate::world::item::component::codec as component_codec;
 use crate::world::InteractionHand;
@@ -701,6 +702,13 @@ impl ServerLevel {
         let absorption = self.absorption_amount(id);
         let damage = (damage - absorption).max(0.0);
         self.set_absorption_amount(id, absorption - (original_damage - damage));
+        let absorbed_damage = original_damage - damage;
+        if absorbed_damage > 0.0
+            && absorbed_damage < 3.4028235E37
+            && let Some(attacker) = source.causing_entity.filter(|&e| self.is_player(e))
+        {
+            self.award_stat(attacker, stats::DAMAGE_DEALT_ABSORBED, crate::util::java_round_f(absorbed_damage * 10.0));
+        }
         if damage != 0.0 {
             self.record_damage(id, *source, damage);
             let health = self.health(id);
@@ -783,7 +791,17 @@ impl ServerLevel {
             && !source.is(&damage_type_tags::BYPASSES_RESISTANCE)
         {
             let absorb = 25 - (resistance.amplifier + 1) * 5;
+            let old_damage = damage;
             damage = (damage * absorb as f32 / 25.0).max(0.0);
+            let damage_resisted = old_damage - damage;
+            if damage_resisted > 0.0 && damage_resisted < 3.4028235E37 {
+                let amount = crate::util::java_round_f(damage_resisted * 10.0);
+                if self.is_player(id) {
+                    self.award_stat(id, stats::DAMAGE_RESISTED, amount);
+                } else if let Some(attacker) = source.causing_entity.filter(|&e| self.is_player(e)) {
+                    self.award_stat(attacker, stats::DAMAGE_DEALT_RESISTED, amount);
+                }
+            }
         }
         if damage <= 0.0 {
             return 0.0;
@@ -930,9 +948,18 @@ impl ServerLevel {
             info!("Named entity {} died: {}", self.entity_to_string(id), message.get_string());
         }
         self.living_mut(id).dead = true;
-        self.drop_all_death_loot(id, &source);
+        if source.causing_entity.is_none_or(|source_entity| self.killed_entity(source_entity, id)) {
+            self.drop_all_death_loot(id, &source);
+        }
         self.broadcast_entity_event(id, entity_event::DEATH);
         self.entity_mut(id).set_pose(Pose::Dying);
+    }
+
+    pub fn killed_entity(&mut self, id: EntityId, entity: EntityId) -> bool {
+        if self.is_player(id) {
+            return self.player_killed_entity(id, entity);
+        }
+        true
     }
 
     pub fn award_kill_score(&mut self, killer: EntityId, victim: EntityId) {

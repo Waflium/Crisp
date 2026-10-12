@@ -788,6 +788,7 @@ impl Server {
         if write_dat(&dir.player(player.profile.uuid), &player.to_nbt(dimension)).is_err() {
             warn!("Failed to save player data for {}", player.profile.name);
         }
+        player.stats.save();
     }
 
     fn handle(&mut self, event: Event) {
@@ -836,6 +837,7 @@ impl Server {
         let old_name = self.name_to_id_cache.get_by_id(profile.uuid).map_or_else(|| profile.name.clone(), |p| p.name);
         self.name_to_id_cache.add(NameAndId { id: profile.uuid, name: profile.name.clone() });
         let mut player = ServerPlayer::new(profile, cookie.client_information, out, self.effective_respawn_data.pos);
+        player.stats = self.get_player_stats(&player.profile);
         player.latency = cookie.latency;
         player.chat = ChatState::new(player.profile.uuid, &self.config);
         player.set_game_mode_for_player(self.calculate_game_mode_for_new_player(None), None);
@@ -907,6 +909,7 @@ impl Server {
             p.u8(EVENT_PERMISSION_LEVEL_ALL + permission as u8);
         });
         out.send(clientbound::COMMANDS, |p| crate::commands::write_commands_packet(p, &CommandSourceStack::for_new_player(self, level_index, &player)));
+        player.stats.mark_all_dirty();
         crate::stats::server_recipe_book::send_initial_recipe_book(&out, &player.recipe_book);
         level.scoreboard.borrow().update_entire_scoreboard(&out);
         let (pos, y_rot, x_rot) = (player.entity.position(), player.entity.y_rot, player.entity.x_rot);
@@ -1287,6 +1290,7 @@ impl Server {
         }
         level.player_mut(id).disconnected = true;
         level.remove_player_menus(id);
+        level.award_stat(id, crate::stats::stats::LEAVE_GAME, 1);
         let Some(player) = level.remove_player(id) else { return };
         self.data_storage.borrow().player_removed(id);
         self.player_list.retain(|&p| p != id);

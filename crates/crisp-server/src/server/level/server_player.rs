@@ -38,6 +38,11 @@ use crate::world::entity::player::abilities::Abilities;
 use crate::world::level::portal::teleport_transition::{PostTeleportTransition, TeleportTransition};
 use crate::world::level::storage::RespawnData;
 use crate::world::InteractionHand;
+use crate::stats::server_stats_counter::ServerStatsCounter;
+use crate::stats::stat::Stat;
+use crate::stats::stats;
+use crate::stats::stats_counter::StatsCounter;
+use crate::world::food::constants::{EXHAUSTION_SPRINT, EXHAUSTION_SWIM};
 
 pub const DIMENSIONS: EntityDimensions = EntityDimensions { width: 0.6, height: 1.8, eye_height: 1.62 };
 const GAME_EVENT_WIN_GAME: u8 = 4;
@@ -104,6 +109,7 @@ pub struct ServerPlayer {
     pub inventory_menu: Option<AbstractContainerMenu>,
     pub container_menu: Option<AbstractContainerMenu>,
     pub recipe_book: crate::stats::server_recipe_book::ServerRecipeBook,
+    pub stats: ServerStatsCounter,
     pub carried: Option<ItemStack>,
     pub last_window_id: i32,
     pub living: LivingEntity,
@@ -181,6 +187,7 @@ impl ServerPlayer {
             inventory_menu: Some(AbstractContainerMenu::inventory()),
             container_menu: None,
             recipe_book: Default::default(),
+            stats: ServerStatsCounter::default(),
             carried: None,
             drop_spam_throttler: TickThrottler::new(20, 1480),
             last_window_id: 0,
@@ -527,6 +534,10 @@ impl ServerPlayer {
     }
 }
 
+fn did_not_move(dx: f64, dy: f64, dz: f64) -> bool {
+    dx == 0.0 && dy == 0.0 && dz == 0.0
+}
+
 impl ServerLevel {
     pub fn handle_extra_items_created_on_use(&mut self, id: EntityId, extra_items: ItemStack) {
         let left = self.player_mut(id).pick_up(extra_items.clone());
@@ -547,6 +558,17 @@ impl ServerLevel {
         if !self.is_spectator(id) || !self.touching_unloaded_chunk(id) {
             self.player_tick(id);
             self.tick_food(id);
+            self.award_stat(id, stats::PLAY_TIME, 1);
+            self.award_stat(id, stats::TOTAL_WORLD_TIME, 1);
+            if self.is_alive(id) {
+                self.award_stat(id, stats::TIME_SINCE_DEATH, 1);
+            }
+            if self.entity(id).is_discrete() {
+                self.award_stat(id, stats::CROUCH_TIME, 1);
+            }
+            if !self.is_sleeping(id) {
+                self.award_stat(id, stats::TIME_SINCE_REST, 1);
+            }
         }
         for i in 0..41 {
             let slot = crate::world::item::inventory_slot(i);
@@ -654,9 +676,14 @@ impl ServerLevel {
             let _ = score.increment(level);
         });
         if let Some(killer) = self.kill_credit(id) {
+            let killer_type = self.entity(killer).entity_type;
+            self.award_stat(id, stats::ENTITY_KILLED_BY.get(killer_type as u16), 1);
             self.award_kill_score(killer, id);
         }
         self.broadcast_entity_event(id, entity_event::DEATH);
+        self.award_stat(id, stats::DEATHS, 1);
+        self.reset_stat(id, stats::TIME_SINCE_DEATH);
+        self.reset_stat(id, stats::TIME_SINCE_REST);
         self.clear_fire(id);
         self.entity_mut(id).set_ticks_frozen(0);
         self.entity_mut(id).set_shared_flag(flags::ON_FIRE, false);
@@ -677,9 +704,12 @@ impl ServerLevel {
             let _ = score.increment(level);
         });
         if self.is_player(victim) {
+            self.award_stat(id, stats::PLAYER_KILLS, 1);
             self.for_all_objectives(&ObjectiveCriteria::KILL_COUNT_PLAYERS, &holder, |level, score| {
                 let _ = score.increment(level);
             });
+        } else {
+            self.award_stat(id, stats::MOB_KILLS, 1);
         }
     }
 
@@ -714,8 +744,89 @@ impl ServerLevel {
         });
     }
 
+    pub fn check_movement_statistics(&mut self, id: EntityId, dx: f64, dy: f64, dz: f64) {
+        if did_not_move(dx, dy, dz) {
+            return;
+        }
+        let distance = |d: f64| mth::java_round_f32((d.sqrt() as f32) * 100.0);
+        let e = self.entity(id);
+        if e.is_swimming() {
+            let distance = distance(dx * dx + dy * dy + dz * dz);
+            if distance > 0 {
+                self.award_stat(id, stats::SWIM_ONE_CM, distance);
+                self.cause_food_exhaustion(id, EXHAUSTION_SWIM * distance as f32 * 0.01);
+            }
+        } else if e.is_eye_in_fluid(&crisp_data::fluid_tags::WATER) {
+            let distance = distance(dx * dx + dy * dy + dz * dz);
+            if distance > 0 {
+                self.award_stat(id, stats::WALK_UNDER_WATER_ONE_CM, distance);
+                self.cause_food_exhaustion(id, EXHAUSTION_SWIM * distance as f32 * 0.01);
+            }
+        } else if e.is_in_water() {
+            let horizontal_distance = distance(dx * dx + dz * dz);
+            if horizontal_distance > 0 {
+                self.award_stat(id, stats::WALK_ON_WATER_ONE_CM, horizontal_distance);
+                self.cause_food_exhaustion(id, EXHAUSTION_SWIM * horizontal_distance as f32 * 0.01);
+            }
+        } else if self.on_climbable(id) {
+            if dy > 0.0 {
+                self.award_stat(id, stats::CLIMB_ONE_CM, mth::java_round(dy * 100.0) as i32);
+            }
+        } else if self.entity(id).on_ground {
+            let horizontal_distance = distance(dx * dx + dz * dz);
+            if horizontal_distance > 0 {
+                let e = self.entity(id);
+                if e.is_sprinting() {
+                    self.award_stat(id, stats::SPRINT_ONE_CM, horizontal_distance);
+                    self.cause_food_exhaustion(id, EXHAUSTION_SPRINT * horizontal_distance as f32 * 0.01);
+                } else if e.is_crouching() {
+                    self.award_stat(id, stats::CROUCH_ONE_CM, horizontal_distance);
+                    self.cause_food_exhaustion(id, 0.0);
+                } else {
+                    self.award_stat(id, stats::WALK_ONE_CM, horizontal_distance);
+                    self.cause_food_exhaustion(id, 0.0);
+                }
+            }
+        } else if self.entity(id).is_fall_flying() {
+            let distance = distance(dx * dx + dy * dy + dz * dz);
+            self.award_stat(id, stats::AVIATE_ONE_CM, distance);
+        } else {
+            let horizontal_distance = distance(dx * dx + dz * dz);
+            if horizontal_distance > 25 {
+                self.award_stat(id, stats::FLY_ONE_CM, horizontal_distance);
+            }
+        }
+    }
+
+    pub fn award_stat(&mut self, id: EntityId, stat: Stat, count: i32) {
+        let Some(player) = self.players.get_mut(&id) else { return };
+        player.stats.increment(stat, count);
+        let criteria = stat.criteria();
+        if self.scoreboard.borrow().objectives_by_criteria(&criteria).is_empty() {
+            return;
+        }
+        let holder = ScoreHolder::for_entity(self, id);
+        self.for_all_objectives(&criteria, &holder, |level, score| {
+            let _ = score.add(level, count);
+        });
+    }
+
+    pub fn reset_stat(&mut self, id: EntityId, stat: Stat) {
+        let Some(player) = self.players.get_mut(&id) else { return };
+        player.stats.set_value(stat, 0);
+        let criteria = stat.criteria();
+        if self.scoreboard.borrow().objectives_by_criteria(&criteria).is_empty() {
+            return;
+        }
+        let holder = ScoreHolder::for_entity(self, id);
+        self.for_all_objectives(&criteria, &holder, |level, score| {
+            let _ = score.reset(level);
+        });
+    }
+
     pub fn server_player_jump_from_ground(&mut self, id: EntityId) {
         self.living_entity_jump_from_ground(id);
+        self.award_stat(id, stats::JUMP, 1);
         let exhaustion = if self.entity(id).is_sprinting() { crate::world::food::constants::EXHAUSTION_SPRINT_JUMP } else { crate::world::food::constants::EXHAUSTION_JUMP };
         self.cause_food_exhaustion(id, exhaustion);
     }

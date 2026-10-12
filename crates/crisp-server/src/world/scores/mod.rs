@@ -43,6 +43,10 @@ impl ScoreAccess {
         self.add(level, 1)
     }
 
+    pub fn reset(&mut self, level: &mut ServerLevel) -> Result<(), ReadOnlyScore> {
+        self.set(level, 0)
+    }
+
     pub fn locked(&self, level: &ServerLevel) -> bool {
         level.scoreboard.borrow().score_locked(self)
     }

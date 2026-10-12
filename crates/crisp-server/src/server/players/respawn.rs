@@ -22,6 +22,7 @@ use crisp_data::properties::{HORIZONTAL_FACING, RESPAWN_ANCHOR_CHARGES};
 use crate::world::level::border::border_change_listener::write_initialize_border;
 
 const PERFORM_RESPAWN: i32 = 0;
+const REQUEST_STATS: i32 = 1;
 const GAME_EVENT_NO_RESPAWN_BLOCK_AVAILABLE: u8 = 0;
 
 pub fn write_death_location(p: &mut Writer, location: &Option<(String, BlockPos)>) {
@@ -84,7 +85,13 @@ impl Server {
 
     pub(in crate::server) fn handle_client_command(&mut self, id: EntityId, packet: &Packet) -> anyhow::Result<()> {
         self.player_mut(id).reset_last_action_time();
-        if packet.reader().varint()? != PERFORM_RESPAWN {
+        let action = packet.reader().varint()?;
+        if action == REQUEST_STATS {
+            let player = self.player_mut(id);
+            player.stats.send_stats(&player.connection);
+            return Ok(());
+        }
+        if action != PERFORM_RESPAWN {
             return Ok(());
         }
         if self.player(id).won_game {
@@ -168,11 +175,12 @@ impl Server {
     pub fn respawn(&mut self, id: EntityId, keep_all_player_data: bool, removal_reason: RemovalReason) {
         let transition = self.find_respawn_position_and_use_spawn_block(id, !keep_all_player_data);
         let old_level = self.level_of(id).expect("respawning player");
-        let old = self.levels[old_level].remove_player_immediately(id, removal_reason);
+        let mut old = self.levels[old_level].remove_player_immediately(id, removal_reason);
         self.data_storage.borrow().player_removed(id);
         let level_index = transition.level;
         let old_score = old.score();
         let mut player = ServerPlayer::new(old.profile.clone(), old.client, old.connection.clone(), BlockPos::ZERO);
+        player.stats = std::mem::take(&mut old.stats);
         player.entity.id = id;
         player.chunk_sender = old.chunk_sender;
         player.movement = old.movement;
