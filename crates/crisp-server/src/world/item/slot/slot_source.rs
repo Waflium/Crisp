@@ -1,6 +1,9 @@
+use std::rc::Rc;
+
 use crisp_protocol::nbt::Nbt;
 
 use super::slot_collection::SlotCollection;
+use crate::world::entity::slot_access::LevelSlot;
 use crate::advancements::predicates::item_predicate::ItemPredicate;
 use crate::core::holder::{Holder, RegistryElement};
 use crate::server::reloadable_server_registries;
@@ -36,27 +39,38 @@ impl RegistryElement for SlotSource {
 
 const SOURCE_CODEC: ArgCodecBuilder = ArgCodecBuilder { any_entity: true, any_block_entity: true, any_item_stack: false, container: true };
 
-fn get_slots_from_range(context: &mut LootContext, slot_provider: SlotProvider, slots: &[i32]) -> SlotCollection {
-    let items = match slot_provider {
+fn get_slots_from_range<'s>(context: &mut LootContext, slot_provider: SlotProvider, slots: &[i32]) -> SlotCollection<'s> {
+    let slot_list = match slot_provider {
         SlotProvider::Entity(id) => slots.iter().filter_map(|&slot| context.params.level.get_slot(id, slot)).collect(),
         SlotProvider::BlockEntity(block_entity) => match block_entity.container_base() {
-            Some(container) => slots.iter().filter_map(|&slot| usize::try_from(slot).ok().and_then(|slot| container.items.get(slot)).cloned()).collect(),
-            None => return SlotCollection::EMPTY,
+            Some(container) => {
+                slots.iter().filter_map(|&slot| usize::try_from(slot).ok().and_then(|slot| container.items.get(slot)).cloned().map(LevelSlot::Detached)).collect()
+            }
+            None => return SlotCollection::Empty,
         },
+        SlotProvider::Container(container) => slots.iter().filter_map(|&slot| context.params.level.get_container_slot(container, slot)).collect(),
     };
-    SlotCollection::of(items)
+    SlotCollection::of(slot_list)
 }
 
 impl SlotSource {
     pub fn decode_holder(tag: &Nbt) -> DataResult<Holder<SlotSource>> {
-        Holder::decode(tag, |t| match codec::either(t, SlotSource::decode_typed, SlotSource::decode_list)? {
+        Holder::decode(tag, SlotSource::decode_direct)
+    }
+
+    pub fn decode_direct(tag: &Nbt) -> DataResult<SlotSource> {
+        match codec::either_or_partial(tag, SlotSource::decode_typed, SlotSource::decode_holder_set)? {
             Ok(source) => Ok(source),
             Err(terms) => Ok(SlotSource::Group(terms)),
-        })
+        }
     }
 
     fn decode_list(tag: &Nbt) -> DataResult<Vec<Holder<SlotSource>>> {
-        codec::compact_list_of(tag, |t| Holder::decode(t, SlotSource::decode_typed))
+        SlotSource::decode_holder_set(tag).map_err(|error| error.message)
+    }
+
+    fn decode_holder_set(tag: &Nbt) -> Result<Vec<Holder<SlotSource>>, codec::DecodeError> {
+        codec::holder_set(tag, Self::REGISTRY, |t| Holder::decode(t, SlotSource::decode_typed))
     }
 
     pub fn decode_typed(tag: &Nbt) -> DataResult<SlotSource> {
@@ -89,11 +103,11 @@ impl SlotSource {
         })
     }
 
-    pub fn provide(&self, context: &mut LootContext) -> SlotCollection {
+    pub fn provide(&self, context: &mut LootContext) -> SlotCollection<'_> {
         match self {
             SlotSource::Group(terms) => SlotCollection::concat(terms.iter().map(|term| term.value().provide(context)).collect()),
-            SlotSource::Filtered { slot_source, filter } => slot_source.value().provide(context).filter(|item| filter.test(item)),
-            SlotSource::LimitSlots { slot_source, limit } => slot_source.value().provide(context).limit(*limit as usize),
+            SlotSource::Filtered { slot_source, filter } => slot_source.value().provide(context).filter(Rc::new(|item: &ItemStack| filter.test(item))),
+            SlotSource::LimitSlots { slot_source, limit } => slot_source.value().provide(context).limit(*limit),
             SlotSource::SlotRange { source, slot_range } => {
                 let slot_provider = match *source {
                     LootContextArg::Entity(target) => target.get(&context.params).map(SlotProvider::Entity),
@@ -103,14 +117,11 @@ impl SlotSource {
                 };
                 match slot_provider {
                     Some(slot_provider) => get_slots_from_range(context, slot_provider, &slot_range.slots),
-                    None => SlotCollection::EMPTY,
+                    None => SlotCollection::Empty,
                 }
             }
-            SlotSource::Contents { slot_source, component } => slot_source.value().provide(context).flat_map(|item: ItemStack| match item.get(component.type_()) {
-                Some(contents) => SlotCollection::of(component.item_copies(contents)),
-                None => SlotCollection::EMPTY,
-            }),
-            SlotSource::Empty => SlotCollection::EMPTY,
+            SlotSource::Contents { slot_source, component } => slot_source.value().provide(context).flat_map(*component),
+            SlotSource::Empty => SlotCollection::Empty,
         }
     }
 }

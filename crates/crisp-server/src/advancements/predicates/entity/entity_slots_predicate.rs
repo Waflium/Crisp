@@ -16,6 +16,6 @@ impl EntitySlotsPredicate {
     }
 
     pub fn matches(&self, level: &ServerLevel, entity: EntityId) -> bool {
-        self.slots.matches(|slot| level.get_slot(entity, slot))
+        self.slots.matches(|slot| level.get_slot_item(entity, slot))
     }
 }

@@ -4,6 +4,7 @@ use crisp_data::commands::CommandNode;
 use crisp_protocol::nbt::Nbt;
 
 use self::data_accessor::{DataAccessor, KINDS};
+use super::loot_context_sources;
 use crate::commands::CommandFn;
 use crate::commands::arguments::nbt_path_argument::{ERROR_DATA_TOO_DEEP, NbtPath, is_too_deep};
 use crate::commands::brigadier::{CommandContext, CommandSyntaxException, Dynamic2CommandExceptionType, DynamicCommandExceptionType, SimpleCommandExceptionType, tr};
@@ -39,6 +40,10 @@ pub fn executors() -> Vec<(String, CommandFn)> {
                 out.push((format!("{node} string {source} source sourcePath start"), modify));
                 out.push((format!("{node} string {source} source sourcePath start end"), modify));
             }
+            for compute_source in ["default", "block computePos", "entity computeTarget"] {
+                out.push((format!("{node} compute {compute_source} float provider"), modify));
+                out.push((format!("{node} compute {compute_source} integer provider"), modify));
+            }
             out.push((format!("{node} value value"), modify));
         }
     }
@@ -72,6 +77,16 @@ fn substring(input: &str, start: i32, end: Option<i32>) -> Result<String, Comman
 fn source_tags(server: &mut Server, context: &CommandContext, source: &CommandSourceStack, mode: usize) -> Result<Vec<Nbt>, CommandSyntaxException> {
     if name(context, mode) == "value" {
         return Ok(vec![context.get_nbt("value").clone()]);
+    }
+    if name(context, mode) == "compute" {
+        let value = if name(context, context.nodes.len() - 2) == "float" {
+            let provider = context.get_float_provider("provider");
+            Nbt::Float(loot_context_sources::create_context(server, context, source, |loot_context| provider.value().get_float(loot_context))?)
+        } else {
+            let provider = context.get_int_provider("provider");
+            Nbt::Int(loot_context_sources::create_context(server, context, source, |loot_context| provider.value().get_int(loot_context))?)
+        };
+        return Ok(vec![value]);
     }
     let accessor = DataAccessor::access(server, context, source, mode + 1, "source")?;
     let data = accessor.get_data(server)?;

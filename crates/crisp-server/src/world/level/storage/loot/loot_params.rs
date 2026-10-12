@@ -3,6 +3,7 @@ use crisp_data::BlockState;
 
 use super::parameters::loot_context_params::LootContextParam;
 use crate::server::level::ServerLevel;
+use crate::world::container::ContainerRef;
 use crate::world::damagesource::DamageSource;
 use crate::world::entity::EntityId;
 use crate::world::item::ItemStack;
@@ -14,6 +15,7 @@ pub type DynamicDrop<'a> = Box<dyn Fn(&mut dyn FnMut(ItemStack)) + 'a>;
 pub enum SlotProvider<'a> {
     Entity(EntityId),
     BlockEntity(&'a BlockEntity),
+    Container(ContainerRef),
 }
 
 pub struct LootParams<'a> {

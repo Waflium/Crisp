@@ -1,4 +1,5 @@
 pub mod alchemy;
+pub mod array_item_provider;
 pub mod banner_item;
 pub mod block_item;
 pub mod bucket_item;
@@ -17,6 +18,7 @@ pub mod ender_eye_item;
 pub mod flint_and_steel_item;
 mod item_stack;
 pub mod honeycomb_item;
+pub mod item_provider;
 pub mod item_utils;
 pub mod jukebox_playable;
 pub mod jukebox_song;

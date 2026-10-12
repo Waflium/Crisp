@@ -1,8 +1,12 @@
 pub mod attack_range;
 pub mod bundle_contents;
+pub mod charged_projectiles;
 pub mod codec;
 mod custom;
+pub mod growable_mutable_container;
+pub mod item_container_contents;
 pub mod map_post_processing;
+pub mod simple_mutable_container;
 #[cfg(test)]
 mod oracle_data;
 #[cfg(test)]

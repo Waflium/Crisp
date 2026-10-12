@@ -1,9 +1,13 @@
 use std::sync::OnceLock;
 
+use crate::commands::brigadier::{CommandSyntaxException, DynamicCommandExceptionType, StringReader, tr};
+
+static ERROR_UNKNOWN: DynamicCommandExceptionType = DynamicCommandExceptionType(|id| tr("slot.unknown", vec![id]));
+
 pub const MOB_INVENTORY_SLOT_OFFSET: i32 = 300;
 pub const MOB_INVENTORY_SIZE: i32 = 8;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct SlotRange {
     pub name: String,
     pub slots: Vec<i32>,
@@ -49,4 +53,29 @@ fn slots() -> &'static [SlotRange] {
 
 pub fn name_to_ids(name: &str) -> Option<&'static SlotRange> {
     slots().iter().find(|range| range.name == name)
+}
+
+pub fn all_names() -> impl Iterator<Item = &'static str> {
+    slots().iter().map(|range| range.name.as_str())
+}
+
+pub fn single_slot_names() -> impl Iterator<Item = &'static str> {
+    slots().iter().filter(|range| range.slots.len() == 1).map(|range| range.name.as_str())
+}
+
+fn read_name(reader: &mut StringReader) -> String {
+    let start = reader.cursor;
+    while reader.can_read() && reader.peek() != b' ' as u16 {
+        reader.skip();
+    }
+    reader.substring(start, reader.cursor)
+}
+
+pub fn try_read(reader: &mut StringReader) -> Option<&'static SlotRange> {
+    name_to_ids(&read_name(reader))
+}
+
+pub fn read(reader: &mut StringReader) -> Result<&'static SlotRange, CommandSyntaxException> {
+    let name = read_name(reader);
+    name_to_ids(&name).ok_or_else(|| ERROR_UNKNOWN.create_with_context(reader, name))
 }

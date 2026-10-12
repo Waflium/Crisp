@@ -1,19 +1,19 @@
 use crisp_protocol::nbt::Nbt;
 
+use crate::server::level::ServerLevel;
 use crate::world::item::ItemStack;
-use crate::world::item::component::values::{self, ItemStackTemplate};
-use crate::world::item::component::{self as dc, DataComponentType, bundle_contents};
+use crate::world::item::component::growable_mutable_container;
+use crate::world::item::component::simple_mutable_container::{self, SlotConsumer};
+use crate::world::item::component::{self as dc, DataComponentType, bundle_contents, charged_projectiles, item_container_contents};
+use crate::world::item::item_provider::ItemProvider;
+use crate::world::item::slot::slot_selector::SlotSelector;
 use crate::world::level::block::entity::base_container_block_entity;
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum ContainerComponentManipulator {
     Container,
     BundleContents,
     ChargedProjectiles,
-}
-
-fn template_of(stack: &ItemStack) -> Nbt {
-    ItemStackTemplate { item: stack.get_item().name().to_string(), count: stack.count, components: stack.components_patch().to_nbt() }.to_nbt()
 }
 
 impl ContainerComponentManipulator {
@@ -25,17 +25,13 @@ impl ContainerComponentManipulator {
         }
     }
 
+    fn empty(self) -> Nbt {
+        Nbt::List(Vec::new())
+    }
+
     pub fn item_copies(self, contents: &Nbt) -> Vec<ItemStack> {
         match self {
-            ContainerComponentManipulator::Container => {
-                let slots = values::container_slots(contents);
-                let Some(max_slot_index) = slots.iter().map(|&(index, _)| index).max() else { return Vec::new() };
-                let mut items = vec![ItemStack::empty(); max_slot_index as usize + 1];
-                for (index, template) in &slots {
-                    items[*index as usize] = template.create().unwrap_or_else(ItemStack::empty);
-                }
-                items
-            }
+            ContainerComponentManipulator::Container => item_container_contents::item_copies(contents),
             ContainerComponentManipulator::BundleContents | ContainerComponentManipulator::ChargedProjectiles => bundle_contents::item_copies(contents),
         }
     }
@@ -50,7 +46,7 @@ impl ContainerComponentManipulator {
                 }
                 builder.to_immutable()
             }
-            ContainerComponentManipulator::ChargedProjectiles => Nbt::List(new_contents.iter().filter(|stack| !stack.is_empty()).map(template_of).collect()),
+            ContainerComponentManipulator::ChargedProjectiles => Nbt::List(new_contents.iter().filter(|stack| !stack.is_empty()).map(bundle_contents::template_of).collect()),
         }
     }
 
@@ -74,5 +70,70 @@ impl ContainerComponentManipulator {
             })
             .collect();
         self.set_contents(item_stack, items);
+    }
+
+    pub fn get_slots(self, item_stack: &mut ItemStack) -> ComponentSlotCollection<'_> {
+        ComponentSlotCollection { item_stack, component: self }
+    }
+}
+
+pub struct ComponentSlotCollection<'i> {
+    item_stack: &'i mut ItemStack,
+    component: ContainerComponentManipulator,
+}
+
+impl ComponentSlotCollection<'_> {
+    pub fn item_copies(&self) -> Vec<ItemStack> {
+        self.item_stack.get(self.component.type_()).map(|contents| self.component.item_copies(contents)).unwrap_or_default()
+    }
+
+    pub fn size(&self) -> i32 {
+        self.item_copies().len() as i32
+    }
+
+    fn current_value(&self) -> Nbt {
+        self.item_stack.get(self.component.type_()).cloned().unwrap_or_else(|| self.component.empty())
+    }
+
+    pub fn replace_slot_items(&mut self, items: &mut dyn ItemProvider, slot_selector: &SlotSelector) -> i32 {
+        let current_value = self.current_value();
+        let (slots_replaced, new_value) = match self.component {
+            ContainerComponentManipulator::Container => {
+                let mut mutable = item_container_contents::as_mutable(&current_value);
+                (growable_mutable_container::growable_replace_slot_items(&mut mutable, items, slot_selector), mutable.to_immutable())
+            }
+            ContainerComponentManipulator::BundleContents => {
+                let mut mutable = bundle_contents::as_mutable(&current_value);
+                (mutable.replace_slot_items(items, slot_selector), mutable.to_immutable())
+            }
+            ContainerComponentManipulator::ChargedProjectiles => {
+                let mut mutable = charged_projectiles::as_mutable(&current_value);
+                (growable_mutable_container::growable_replace_slot_items(&mut mutable, items, slot_selector), mutable.to_immutable())
+            }
+        };
+        self.item_stack.set(self.component.type_(), Some(new_value));
+        slots_replaced
+    }
+
+    pub fn modify_slots(&mut self, level: &mut ServerLevel, consumer: &mut SlotConsumer, slot_selector: &SlotSelector) {
+        let current_value = self.current_value();
+        let new_value = match self.component {
+            ContainerComponentManipulator::Container => {
+                let mut mutable = item_container_contents::as_mutable(&current_value);
+                simple_mutable_container::simple_modify_slots(&mut mutable, level, consumer, slot_selector);
+                mutable.to_immutable()
+            }
+            ContainerComponentManipulator::BundleContents => {
+                let mut mutable = bundle_contents::as_mutable(&current_value);
+                mutable.modify_slots(level, consumer, slot_selector);
+                mutable.to_immutable()
+            }
+            ContainerComponentManipulator::ChargedProjectiles => {
+                let mut mutable = charged_projectiles::as_mutable(&current_value);
+                simple_mutable_container::simple_modify_slots(&mut mutable, level, consumer, slot_selector);
+                mutable.to_immutable()
+            }
+        };
+        self.item_stack.set(self.component.type_(), Some(new_value));
     }
 }

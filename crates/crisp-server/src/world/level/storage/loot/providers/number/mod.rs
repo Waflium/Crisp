@@ -9,8 +9,21 @@ use crate::util::codec::{self, DataResult};
 use crate::world::level::storage::loot::loot_context::LootContext;
 use crate::world::level::storage::loot::predicates::loot_item_condition::LootItemCondition;
 
-#[derive(Clone, Copy, Debug)]
-pub struct ArithmeticException;
+#[derive(Clone, Debug)]
+pub struct ArithmeticException(pub String);
+
+impl ArithmeticException {
+    pub fn new(message: impl Into<String>) -> ArithmeticException {
+        ArithmeticException(message.into())
+    }
+
+    pub fn get_message(&self) -> &str {
+        &self.0
+    }
+}
+
+pub const INTEGER_OVERFLOW: &str = "integer overflow";
+pub const DIVISION_BY_ZERO: &str = "/ by zero";
 
 pub type ArithmeticResult<T> = Result<T, ArithmeticException>;
 

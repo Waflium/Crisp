@@ -15,8 +15,8 @@ impl SequenceFunction {
         Ok(SequenceFunction { functions: codec::decode_field(tag, "functions", LootItemFunction::decode_list)? })
     }
 
-    pub fn decode_inline(tag: &Nbt) -> DataResult<SequenceFunction> {
-        Ok(SequenceFunction { functions: LootItemFunction::decode_list(tag)? })
+    pub fn decode_inline(tag: &Nbt) -> Result<SequenceFunction, codec::DecodeError> {
+        Ok(SequenceFunction { functions: LootItemFunction::decode_holder_set(tag)? })
     }
 
     pub fn run(&self, mut item_stack: ItemStack, context: &mut LootContext) -> ItemStack {

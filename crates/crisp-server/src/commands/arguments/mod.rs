@@ -13,8 +13,11 @@ pub mod objective_criteria_argument;
 pub mod operation_argument;
 pub mod resource_key_argument;
 pub mod score_holder_argument;
+pub mod resource_or_id_argument;
 pub mod scoreboard_slot_argument;
 pub mod selector;
+pub mod slot_argument;
+pub mod slot_source_argument;
 
 use std::sync::LazyLock;
 
@@ -28,6 +31,14 @@ use self::item::ItemInput;
 use self::item::item_predicate_argument::ItemPredicate;
 use self::nbt_path_argument::NbtPath;
 use self::operation_argument::Operation;
+use self::resource_or_id_argument::ResourceOrId;
+use self::slot_source_argument::SlotSourceResult;
+use crate::server::reloadable_server_registries;
+use crate::world::level::storage::loot::functions::loot_item_function::LootItemFunction;
+use crate::world::level::storage::loot::loot_table::LootTable;
+use crate::world::level::storage::loot::predicates::loot_item_condition::LootItemCondition;
+use crate::world::level::storage::loot::providers::number::floats::ContextFloatProvider;
+use crate::world::level::storage::loot::providers::number::ints::ContextIntProvider;
 use self::score_holder_argument::ScoreHolderResult;
 use self::game_profile_argument::GameProfileResult;
 use self::message_argument::Message;
@@ -102,6 +113,13 @@ pub enum ArgumentType {
     TeamColor,
     Component,
     Style,
+    LootTable,
+    LootPredicate,
+    LootModifier,
+    ContextFloatProvider,
+    ContextIntProvider,
+    SlotSource,
+    ItemSlot,
     Unsupported(&'static str),
 }
 
@@ -141,6 +159,12 @@ pub enum ArgumentValue {
     TeamColor(TeamColor),
     Component(Component),
     Style(Style),
+    LootTable(ResourceOrId<LootTable>),
+    LootPredicate(ResourceOrId<LootItemCondition>),
+    LootModifier(ResourceOrId<LootItemFunction>),
+    FloatProvider(ResourceOrId<ContextFloatProvider>),
+    IntProvider(ResourceOrId<ContextIntProvider>),
+    SlotSource(SlotSourceResult),
 }
 
 impl ArgumentType {
@@ -198,6 +222,13 @@ impl ArgumentType {
             "minecraft:team_color" => ArgumentType::TeamColor,
             "minecraft:component" => ArgumentType::Component,
             "minecraft:style" => ArgumentType::Style,
+            "minecraft:loot_table" => ArgumentType::LootTable,
+            "minecraft:loot_predicate" => ArgumentType::LootPredicate,
+            "minecraft:loot_modifier" => ArgumentType::LootModifier,
+            "minecraft:context_float_provider" => ArgumentType::ContextFloatProvider,
+            "minecraft:context_int_provider" => ArgumentType::ContextIntProvider,
+            "minecraft:slot_source" => ArgumentType::SlotSource,
+            "minecraft:item_slot" => ArgumentType::ItemSlot,
             other => ArgumentType::Unsupported(other),
         }
     }
@@ -331,6 +362,13 @@ impl ArgumentType {
             ArgumentType::TeamColor => ArgumentValue::TeamColor(scoreboard_slot_argument::parse_team_color(reader)?),
             ArgumentType::Component => ArgumentValue::Component(component_argument::parse_component(reader)?),
             ArgumentType::Style => ArgumentValue::Style(component_argument::parse_style(reader)?),
+            ArgumentType::LootTable => ArgumentValue::LootTable(resource_or_id_argument::loot_table(reader)?),
+            ArgumentType::LootPredicate => ArgumentValue::LootPredicate(resource_or_id_argument::loot_predicate(reader)?),
+            ArgumentType::LootModifier => ArgumentValue::LootModifier(resource_or_id_argument::loot_modifier(reader)?),
+            ArgumentType::ContextFloatProvider => ArgumentValue::FloatProvider(resource_or_id_argument::float_provider(reader)?),
+            ArgumentType::ContextIntProvider => ArgumentValue::IntProvider(resource_or_id_argument::int_provider(reader)?),
+            ArgumentType::SlotSource => ArgumentValue::SlotSource(slot_source_argument::parse(reader)?),
+            ArgumentType::ItemSlot => ArgumentValue::Int(slot_argument::parse(reader)?),
             ArgumentType::Unsupported(parser) => {
                 return Err(super::brigadier::DISPATCHER_PARSE_EXCEPTION.create_with_context(reader, format!("{parser} arguments are not supported yet")));
             }
@@ -612,6 +650,48 @@ impl CommandContext {
             other => panic!("{name} is {other:?}"),
         }
     }
+
+    pub fn get_loot_table(&self, name: &str) -> &ResourceOrId<LootTable> {
+        match self.argument(name) {
+            ArgumentValue::LootTable(v) => v,
+            other => panic!("{name} is {other:?}"),
+        }
+    }
+
+    pub fn get_loot_predicate(&self, name: &str) -> &ResourceOrId<LootItemCondition> {
+        match self.argument(name) {
+            ArgumentValue::LootPredicate(v) => v,
+            other => panic!("{name} is {other:?}"),
+        }
+    }
+
+    pub fn get_loot_modifier(&self, name: &str) -> &ResourceOrId<LootItemFunction> {
+        match self.argument(name) {
+            ArgumentValue::LootModifier(v) => v,
+            other => panic!("{name} is {other:?}"),
+        }
+    }
+
+    pub fn get_float_provider(&self, name: &str) -> &ResourceOrId<ContextFloatProvider> {
+        match self.argument(name) {
+            ArgumentValue::FloatProvider(v) => v,
+            other => panic!("{name} is {other:?}"),
+        }
+    }
+
+    pub fn get_int_provider(&self, name: &str) -> &ResourceOrId<ContextIntProvider> {
+        match self.argument(name) {
+            ArgumentValue::IntProvider(v) => v,
+            other => panic!("{name} is {other:?}"),
+        }
+    }
+
+    pub fn get_slot_source(&self, name: &str) -> &SlotSourceResult {
+        match self.argument(name) {
+            ArgumentValue::SlotSource(v) => v,
+            other => panic!("{name} is {other:?}"),
+        }
+    }
 }
 
 pub fn list_suggestions(
@@ -683,6 +763,13 @@ pub fn list_suggestions(
         ArgumentType::ScoreboardSlot => shared_suggestion_provider::suggest(DisplaySlot::VALUES.map(DisplaySlot::serialized_name), &mut builder),
         ArgumentType::Team => shared_suggestion_provider::suggest(server.scoreboard.borrow().player_teams().map(|t| t.name().to_string()), &mut builder),
         ArgumentType::TeamColor => shared_suggestion_provider::suggest(TeamColor::VALUES.map(TeamColor::serialized_name), &mut builder),
+        ArgumentType::LootTable => resource_or_id_argument::list_suggestions(reloadable_server_registries::LOOT_TABLE, &mut builder),
+        ArgumentType::LootPredicate => resource_or_id_argument::list_suggestions(reloadable_server_registries::PREDICATE, &mut builder),
+        ArgumentType::LootModifier => resource_or_id_argument::list_suggestions(reloadable_server_registries::ITEM_MODIFIER, &mut builder),
+        ArgumentType::ContextFloatProvider => resource_or_id_argument::list_suggestions(reloadable_server_registries::CONTEXT_FLOAT_PROVIDER, &mut builder),
+        ArgumentType::ContextIntProvider => resource_or_id_argument::list_suggestions(reloadable_server_registries::CONTEXT_INT_PROVIDER, &mut builder),
+        ArgumentType::SlotSource => slot_source_argument::list_suggestions(&mut builder),
+        ArgumentType::ItemSlot => slot_argument::list_suggestions(&mut builder),
         _ => {}
     }
     builder.build()

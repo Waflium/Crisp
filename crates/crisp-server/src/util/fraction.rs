@@ -68,6 +68,13 @@ impl Fraction {
         Some(Fraction { numerator: numerator / gcd, denominator: denominator / gcd })
     }
 
+    pub fn compare_to(self, other: Fraction) -> std::cmp::Ordering {
+        if self.numerator == other.numerator && self.denominator == other.denominator {
+            return std::cmp::Ordering::Equal;
+        }
+        (self.numerator as i64 * other.denominator as i64).cmp(&(other.numerator as i64 * self.denominator as i64))
+    }
+
     pub fn int_value(self) -> i32 {
         self.numerator / self.denominator
     }

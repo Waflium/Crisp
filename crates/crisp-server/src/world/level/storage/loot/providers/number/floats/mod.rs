@@ -72,9 +72,13 @@ impl ContextFloatProvider {
     }
 
     pub fn decode(tag: &Nbt) -> DataResult<ContextFloatProvider> {
-        if let Ok(value) = codec::float(tag) {
-            return Ok(ContextFloatProvider::ConstantValue(value));
+        match codec::either(tag, codec::float, ContextFloatProvider::decode_typed)? {
+            Ok(value) => Ok(ContextFloatProvider::ConstantValue(value)),
+            Err(provider) => Ok(provider),
         }
+    }
+
+    fn decode_typed(tag: &Nbt) -> DataResult<ContextFloatProvider> {
         let ty = codec::decode_field(tag, "type", codec::identifier)?;
         let holder = |key| codec::decode_field(tag, key, ContextFloatProvider::decode_holder);
         let inputs = || codec::decode_field(tag, "inputs", ContextFloatProvider::decode_holders);
@@ -139,7 +143,7 @@ impl ContextFloatProvider {
 
     pub fn get_float_or_throw(&self, context: &mut LootContext) -> ArithmeticResult<f32> {
         let value = self.get_float_unsafe(context)?;
-        if value.is_finite() { Ok(value) } else { Err(ArithmeticException) }
+        if value.is_finite() { Ok(value) } else { Err(ArithmeticException::new(format!("Invalid value: {}", crate::nbt::java_float_to_string(value)))) }
     }
 
     pub fn get_float_unsafe(&self, context: &mut LootContext) -> ArithmeticResult<f32> {

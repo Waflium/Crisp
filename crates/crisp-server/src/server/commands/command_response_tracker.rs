@@ -34,6 +34,13 @@ impl<E: Clone> CommandResponseTracker<E> {
         self.total_value
     }
 
+    pub fn element_count(&self, element_type: ElementType) -> i32 {
+        match element_type {
+            ElementType::Any => self.element_count,
+            ElementType::NonZero => self.non_zero_element_count,
+        }
+    }
+
     pub fn dispatch_any<R>(&self, on_single: impl FnOnce(E, i32) -> R, on_multiple: impl FnOnce(i32, i32) -> R) -> R {
         match &self.only_element {
             Some(element) => on_single(element.clone(), self.total_value),

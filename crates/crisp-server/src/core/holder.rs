@@ -29,17 +29,21 @@ impl<T: RegistryElement> Holder<T> {
         }
     }
 
+    pub fn unwrap_key(&self) -> Option<&str> {
+        match self {
+            Holder::Direct(_) => None,
+            Holder::Reference(key, _) => Some(key),
+        }
+    }
+
     pub fn decode(tag: &Nbt, direct: impl FnOnce(&Nbt) -> DataResult<T>) -> DataResult<Holder<T>> {
-        match tag {
-            Nbt::String(_) => {
-                let key = codec::identifier(tag)?;
-                if T::contains_key(&key) {
-                    Ok(Holder::Reference(key, OnceLock::new()))
-                } else {
-                    Err(format!("Missing element ResourceKey[{} / {key}]", T::REGISTRY))
-                }
-            }
-            _ => Ok(Holder::direct(direct(tag)?)),
+        let Ok(key) = codec::identifier(tag) else { return Ok(Holder::direct(direct(tag)?)) };
+        if T::contains_key(&key) {
+            Ok(Holder::Reference(key, OnceLock::new()))
+        } else if codec::is_nbt_ops() {
+            Err(format!("Failed to get element {key} from registry {}", T::REGISTRY))
+        } else {
+            Err(format!("Missing element ResourceKey[{} / {key}]", T::REGISTRY))
         }
     }
 }

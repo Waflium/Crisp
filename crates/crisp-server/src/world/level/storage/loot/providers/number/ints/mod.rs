@@ -6,7 +6,7 @@ use crisp_protocol::nbt::Nbt;
 
 use super::floats::ContextFloatProvider;
 use super::stored_number_access::StoredNumberAccess;
-use super::{ArithmeticException, ArithmeticResult, Case, decode_holder_list, decode_weighted_list, get_random};
+use super::{ArithmeticException, ArithmeticResult, Case, DIVISION_BY_ZERO, INTEGER_OVERFLOW, decode_holder_list, decode_weighted_list, get_random};
 use crate::core::holder::{Holder, RegistryElement};
 use crate::server::reloadable_server_registries;
 use crate::util::codec::{self, DataResult};
@@ -58,14 +58,22 @@ pub fn exactly(value: i32) -> Holder<ContextIntProvider> {
 }
 
 fn long_to_int_safe(value: i64) -> ArithmeticResult<i32> {
-    i32::try_from(value).map_err(|_| ArithmeticException)
+    i32::try_from(value).map_err(|_| ArithmeticException::new(format!("Value {value} can't be safely converted to int")))
 }
 
 pub fn float_to_int_safe(value: f32) -> ArithmeticResult<i32> {
     if !value.is_finite() {
-        return Err(ArithmeticException);
+        return Err(ArithmeticException::new(format!("Value {} can't be safely converted to int", crate::nbt::java_float_to_string(value))));
     }
     long_to_int_safe(value as i64)
+}
+
+fn overflow() -> ArithmeticException {
+    ArithmeticException::new(INTEGER_OVERFLOW)
+}
+
+fn division_by_zero() -> ArithmeticException {
+    ArithmeticException::new(DIVISION_BY_ZERO)
 }
 
 impl ContextIntProvider {
@@ -78,9 +86,13 @@ impl ContextIntProvider {
     }
 
     pub fn decode(tag: &Nbt) -> DataResult<ContextIntProvider> {
-        if let Ok(value) = codec::int(tag) {
-            return Ok(ContextIntProvider::ConstantValue(value));
+        match codec::either(tag, codec::int, ContextIntProvider::decode_typed)? {
+            Ok(value) => Ok(ContextIntProvider::ConstantValue(value)),
+            Err(provider) => Ok(provider),
         }
+    }
+
+    fn decode_typed(tag: &Nbt) -> DataResult<ContextIntProvider> {
         let ty = codec::decode_field(tag, "type", codec::identifier)?;
         let holder = |key| codec::decode_field(tag, key, ContextIntProvider::decode_holder);
         let inputs = || codec::decode_field(tag, "inputs", ContextIntProvider::decode_holders);
@@ -144,7 +156,9 @@ impl ContextIntProvider {
 
     pub fn get_int_unsafe(&self, context: &mut LootContext) -> ArithmeticResult<i32> {
         match self {
-            ContextIntProvider::Absolute(input) => input.value().get_int_unsafe(context)?.checked_abs().ok_or(ArithmeticException),
+            ContextIntProvider::Absolute(input) => {
+                input.value().get_int_unsafe(context)?.checked_abs().ok_or_else(|| ArithmeticException::new("Overflow to represent absolute value of Integer.MIN_VALUE"))
+            }
             ContextIntProvider::Average(inputs) => {
                 let (mut sum, mut count) = (0i64, 0i64);
                 for input in inputs {
@@ -152,7 +166,7 @@ impl ContextIntProvider {
                     count += 1;
                 }
                 if count == 0 {
-                    return Err(ArithmeticException);
+                    return Err(division_by_zero());
                 }
                 long_to_int_safe(sum / count)
             }
@@ -173,11 +187,11 @@ impl ContextIntProvider {
             }
             ContextIntProvider::ConstantValue(value) => Ok(*value),
             ContextIntProvider::Difference { left, right } => {
-                left.value().get_int_unsafe(context)?.checked_sub(right.value().get_int_unsafe(context)?).ok_or(ArithmeticException)
+                left.value().get_int_unsafe(context)?.checked_sub(right.value().get_int_unsafe(context)?).ok_or_else(overflow)
             }
             ContextIntProvider::EnvironmentAttributeValue(attribute) => {
                 let value = context.environment_attribute_value(attribute);
-                attribute.ty.to_int(&value).ok_or(ArithmeticException)
+                attribute.ty.to_int(&value).ok_or_else(|| ArithmeticException::new(format!("{value:?} cannot be represented as an integer")))
             }
             ContextIntProvider::FromFloat(input) => float_to_int_safe(input.value().get_float_unsafe(context)?),
             ContextIntProvider::Maximum(inputs) => {
@@ -197,15 +211,18 @@ impl ContextIntProvider {
             ContextIntProvider::FloorModulus { left, right } => {
                 let (left, right) = (left.value().get_int_unsafe(context)?, right.value().get_int_unsafe(context)?);
                 if right == 0 {
-                    return Err(ArithmeticException);
+                    return Err(division_by_zero());
                 }
                 let modulus = left.wrapping_rem(right);
                 Ok(if modulus != 0 && (modulus ^ right) < 0 { modulus + right } else { modulus })
             }
             ContextIntProvider::FloorQuotient { left, right } => {
                 let (left, right) = (left.value().get_int_unsafe(context)?, right.value().get_int_unsafe(context)?);
-                if right == 0 || (left == i32::MIN && right == -1) {
-                    return Err(ArithmeticException);
+                if right == 0 {
+                    return Err(division_by_zero());
+                }
+                if left == i32::MIN && right == -1 {
+                    return Err(overflow());
                 }
                 let quotient = left / right;
                 Ok(if (left ^ right) < 0 && quotient * right != left { quotient - 1 } else { quotient })
@@ -213,18 +230,18 @@ impl ContextIntProvider {
             ContextIntProvider::Modulus { left, right } => {
                 let (left, right) = (left.value().get_int_unsafe(context)?, right.value().get_int_unsafe(context)?);
                 if right == 0 {
-                    return Err(ArithmeticException);
+                    return Err(division_by_zero());
                 }
                 Ok(left.wrapping_rem(right))
             }
             ContextIntProvider::Quotient { left, right } => {
                 let (left, right) = (left.value().get_int_unsafe(context)?, right.value().get_int_unsafe(context)?);
                 if right == 0 {
-                    return Err(ArithmeticException);
+                    return Err(division_by_zero());
                 }
                 Ok(left.wrapping_div(right))
             }
-            ContextIntProvider::Negate(input) => input.value().get_int_unsafe(context)?.checked_neg().ok_or(ArithmeticException),
+            ContextIntProvider::Negate(input) => input.value().get_int_unsafe(context)?.checked_neg().ok_or_else(overflow),
             ContextIntProvider::NumberDispatcher { cases, default_value } => {
                 for case in cases {
                     if case.test(context) {
@@ -235,10 +252,13 @@ impl ContextIntProvider {
             }
             ContextIntProvider::Power { base, exponent } => {
                 let (base, exponent) = (base.value().get_int_unsafe(context)?, exponent.value().get_int_unsafe(context)?);
-                if (base == 0 && exponent == 0) || exponent < 0 {
-                    return Err(ArithmeticException);
+                if base == 0 && exponent == 0 {
+                    return Err(ArithmeticException::new("Result of 0 to the power of 0 is undefined"));
                 }
-                base.checked_pow(exponent as u32).ok_or(ArithmeticException)
+                if exponent < 0 {
+                    return Err(ArithmeticException::new("negative exponent"));
+                }
+                base.checked_pow(exponent as u32).ok_or_else(overflow)
             }
             ContextIntProvider::Product(inputs) => {
                 let mut value = 1i64;

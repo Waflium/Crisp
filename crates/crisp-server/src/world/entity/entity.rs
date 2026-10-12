@@ -672,6 +672,13 @@ impl ServerLevel {
         self.players.contains_key(&id)
     }
 
+    pub fn get_loot_table(&self, id: EntityId) -> Option<String> {
+        if let Some(mob) = self.mob(id) {
+            return mob.loot_table_id();
+        }
+        self.is_player(id).then(|| "minecraft:entities/player".to_string())
+    }
+
     pub fn force_set_rotation(&mut self, id: EntityId, y_rot: f32, relative_y: bool, x_rot: f32, relative_x: bool) {
         let living = self.is_living(id);
         let e = self.entity_mut(id);

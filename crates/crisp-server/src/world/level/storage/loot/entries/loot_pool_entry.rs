@@ -53,7 +53,8 @@ impl<'e> LootPoolEntry<'e> {
                 }
             }
             LootPoolEntryKind::Slots(slot_source) => {
-                for item_stack in slot_source.value().provide(context).item_copies() {
+                let item_copies = slot_source.value().provide(context).item_copies(context.level());
+                for item_stack in item_copies {
                     if !item_stack.is_empty() {
                         output(context, item_stack);
                     }

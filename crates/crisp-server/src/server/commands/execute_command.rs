@@ -6,6 +6,7 @@ use crisp_protocol::nbt::Nbt;
 
 use super::data::data_accessor::{DataAccessor, KINDS};
 use super::function_command::modify_sender_for_execution;
+use super::item::item_commands;
 use super::look_at::anchor_apply;
 use crate::commands::{CommandFn, CustomModifierFn, ModifierFn};
 use crate::commands::arguments::ArgumentValue;
@@ -17,6 +18,8 @@ use crate::commands::source::{Anchor, CommandResultCallback, CommandSourceStack}
 use crate::network::chat::{Arg, Component};
 use crate::server::Server;
 use crate::world::entity::EntityId;
+use crate::world::level::storage::loot::loot_context::LootContextBuilder;
+use crate::world::level::storage::loot::loot_params::LootParams;
 
 static ERROR_CONDITIONAL_FAILED: SimpleCommandExceptionType = SimpleCommandExceptionType("commands.execute.conditional.fail");
 static ERROR_CONDITIONAL_FAILED_COUNT: DynamicCommandExceptionType = DynamicCommandExceptionType(|count| tr("commands.execute.conditional.fail_count", vec![count]));
@@ -276,6 +279,11 @@ pub fn modifiers() -> Vec<(String, ModifierFn)> {
             out.push((format!("execute {test} score target targetObjective {comparison} source sourceObjective"), if_score));
         }
         out.push((format!("execute {test} score target targetObjective matches range"), if_score));
+        out.push((format!("execute {test} predicate predicate"), if_predicate));
+        for kind in ["entity", "block"] {
+            out.push((format!("execute {test} items {kind} source slots item_predicate"), if_items));
+            out.push((format!("execute {test} slots {kind} source slots"), if_slots));
+        }
     }
     for store in ["result", "success"] {
         out.push((format!("execute store {store} score targets objective"), store_score));
@@ -295,6 +303,11 @@ pub fn executors() -> Vec<(String, CommandFn)> {
             out.push((format!("execute {test} score target targetObjective {comparison} source sourceObjective"), if_score_run));
         }
         out.push((format!("execute {test} score target targetObjective matches range"), if_score_run));
+        out.push((format!("execute {test} predicate predicate"), if_predicate_run));
+        for kind in ["entity", "block"] {
+            out.push((format!("execute {test} items {kind} source slots item_predicate"), if_items_run));
+            out.push((format!("execute {test} slots {kind} source slots"), if_slots_run));
+        }
     }
     out
 }
@@ -401,6 +414,58 @@ pub fn if_data(server: &mut Server, context: &CommandContext, source: &CommandSo
 pub fn if_data_run(server: &mut Server, context: &CommandContext, source: &CommandSourceStack) -> Result<i32, CommandSyntaxException> {
     let count = check_matching_data(server, context, source)?;
     numeric_conditional(server, context, source, count)
+}
+
+fn count_items(server: &mut Server, context: &CommandContext, source: &CommandSourceStack) -> Result<i32, CommandSyntaxException> {
+    let accessor = item_commands::access(server, context, source, name(context, 2), "source")?;
+    let slots = accessor.get_slots(server, source, context.get_slot_source("slots").value())?;
+    let predicate = context.get_item_predicate("item_predicate");
+    Ok(slots.iter().filter(|item_stack| predicate.test(item_stack)).map(|item_stack| item_stack.count).sum())
+}
+
+fn count_slots(server: &mut Server, context: &CommandContext, source: &CommandSourceStack) -> Result<i32, CommandSyntaxException> {
+    let accessor = item_commands::access(server, context, source, name(context, 2), "source")?;
+    let slots = accessor.get_slots(server, source, context.get_slot_source("slots").value())?;
+    Ok(slots.len() as i32)
+}
+
+pub fn if_items(server: &mut Server, context: &CommandContext, source: &CommandSourceStack) -> Sources {
+    let count = count_items(server, context, source)?;
+    expect(context, source, count > 0)
+}
+
+pub fn if_items_run(server: &mut Server, context: &CommandContext, source: &CommandSourceStack) -> Result<i32, CommandSyntaxException> {
+    let count = count_items(server, context, source)?;
+    numeric_conditional(server, context, source, count)
+}
+
+pub fn if_slots(server: &mut Server, context: &CommandContext, source: &CommandSourceStack) -> Sources {
+    let count = count_slots(server, context, source)?;
+    expect(context, source, count > 0)
+}
+
+pub fn if_slots_run(server: &mut Server, context: &CommandContext, source: &CommandSourceStack) -> Result<i32, CommandSyntaxException> {
+    let count = count_slots(server, context, source)?;
+    numeric_conditional(server, context, source, count)
+}
+
+fn check_custom_predicate(server: &mut Server, context: &CommandContext, source: &CommandSourceStack) -> bool {
+    let predicate = context.get_loot_predicate("predicate");
+    let mut params = LootParams::new(&mut server.levels[source.level]);
+    params.origin = Some(source.position);
+    params.this_entity = source.entity;
+    let mut loot_context = LootContextBuilder::new(params).create(None);
+    predicate.value().test(&mut loot_context)
+}
+
+pub fn if_predicate(server: &mut Server, context: &CommandContext, source: &CommandSourceStack) -> Sources {
+    let result = check_custom_predicate(server, context, source);
+    expect(context, source, result)
+}
+
+pub fn if_predicate_run(server: &mut Server, context: &CommandContext, source: &CommandSourceStack) -> Result<i32, CommandSyntaxException> {
+    let result = check_custom_predicate(server, context, source);
+    conditional(server, context, source, result)
 }
 
 pub fn summon(server: &mut Server, context: &CommandContext, source: &CommandSourceStack) -> Sources {

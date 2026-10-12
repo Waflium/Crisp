@@ -5,6 +5,7 @@ mod boss_bar_commands;
 mod block_item_command_tests;
 mod clear_inventory_commands;
 mod clone_commands;
+mod compute_command;
 mod damage_command;
 mod data_pack_command;
 mod command_response_tracker;
@@ -27,11 +28,16 @@ mod entity_command_tests;
 pub mod game_mode_command;
 mod game_rule_command;
 mod help_command;
+mod item;
 mod kick_command;
 mod kill_command;
 pub mod list_players_command;
 mod locate_command;
 mod look_at;
+mod loot_command;
+#[cfg(test)]
+mod loot_command_tests;
+mod loot_context_sources;
 mod msg_command;
 mod op_command;
 mod play_sound_command;
@@ -95,6 +101,9 @@ pub fn executors() -> Vec<(String, CommandFn)> {
     all.extend(world_border_command::executors());
     all.extend(data_pack_command::executors());
     all.extend(schedule_command::executors());
+    all.extend(loot_command::executors());
+    all.extend(item::item_commands::executors());
+    all.extend(compute_command::executors());
     all.push(("reload".into(), reload_command::reload));
     all
 }

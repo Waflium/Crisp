@@ -1,3 +1,5 @@
+use std::cell::Cell;
+
 use crisp_protocol::nbt::Nbt;
 
 use crate::world::item::component::codec as component_codec;
@@ -29,9 +31,25 @@ pub fn map(tag: &Nbt) -> DataResult<&[(String, Nbt)]> {
     component_codec::map(tag)
 }
 
+thread_local! {
+    static NBT_OPS: Cell<bool> = const { Cell::new(false) };
+}
+
+pub fn with_nbt_ops<R>(decode: impl FnOnce() -> R) -> R {
+    let previous = NBT_OPS.with(|nbt_ops| nbt_ops.replace(true));
+    let result = decode();
+    NBT_OPS.with(|nbt_ops| nbt_ops.set(previous));
+    result
+}
+
+pub fn is_nbt_ops() -> bool {
+    NBT_OPS.with(Cell::get)
+}
+
 pub fn number(tag: &Nbt) -> DataResult<&Nbt> {
     match tag {
         Nbt::Byte(_) | Nbt::Short(_) | Nbt::Int(_) | Nbt::Long(_) | Nbt::Float(_) | Nbt::Double(_) => Ok(tag),
+        _ if is_nbt_ops() => Err("Not a number".to_string()),
         _ => Err(format!("Not a number: {}", crate::nbt::to_string(tag))),
     }
 }
@@ -87,6 +105,61 @@ pub fn either<A, B>(tag: &Nbt, first: impl FnOnce(&Nbt) -> DataResult<A>, second
             Err(second_error) => Err(format!("Failed to parse either. First: {first_error}; Second: {second_error}")),
         },
     }
+}
+
+pub struct DecodeError {
+    pub message: String,
+    pub partial: bool,
+}
+
+pub fn either_or_partial<A, B>(
+    tag: &Nbt,
+    first: impl FnOnce(&Nbt) -> DataResult<A>,
+    second: impl FnOnce(&Nbt) -> Result<B, DecodeError>,
+) -> DataResult<Result<A, B>> {
+    match first(tag) {
+        Ok(a) => Ok(Ok(a)),
+        Err(first_error) => match second(tag) {
+            Ok(b) => Ok(Err(b)),
+            Err(DecodeError { message, partial: true }) => Err(message),
+            Err(DecodeError { message, .. }) => Err(format!("Failed to parse either. First: {first_error}; Second: {message}")),
+        },
+    }
+}
+
+pub fn holder_set<T>(tag: &Nbt, registry: &str, element: impl Fn(&Nbt) -> DataResult<T>) -> Result<Vec<T>, DecodeError> {
+    let tag_error = match tag {
+        Nbt::String(name) => match name.strip_prefix('#') {
+            Some(location) => {
+                let location = crate::resources::identifier::read(location).map_err(|message| DecodeError { message, partial: false })?;
+                return Err(DecodeError { message: format!("Missing tag: '{location}' in '{registry}'"), partial: false });
+            }
+            None => "Not a tag id".to_string(),
+        },
+        _ => "Not a string".to_string(),
+    };
+    let compact_error = match tag {
+        Nbt::List(_) | Nbt::ByteArray(_) | Nbt::IntArray(_) | Nbt::LongArray(_) => {
+            let mut elements = Vec::new();
+            let mut errors: Vec<String> = Vec::new();
+            for value in list(tag).unwrap_or_default().iter() {
+                match element(value) {
+                    Ok(value) => elements.push(value),
+                    Err(error) => errors.push(error),
+                }
+            }
+            if errors.is_empty() {
+                return Ok(elements);
+            }
+            errors.reverse();
+            return Err(DecodeError { message: errors.join("; "), partial: true });
+        }
+        single => match element(single) {
+            Ok(value) => return Ok(vec![value]),
+            Err(error) => format!("Failed to parse either. First: Not a list: {}; Second: {error}", crate::nbt::to_string(single)),
+        },
+    };
+    Err(DecodeError { message: format!("Failed to parse either. First: {tag_error}; Second: {compact_error}"), partial: false })
 }
 
 pub fn string_enum<T: Copy>(tag: &Nbt, values: &[(&str, T)]) -> DataResult<T> {

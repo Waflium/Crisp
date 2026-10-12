@@ -116,14 +116,18 @@ impl LootItemFunction {
     }
 
     pub fn decode_direct(tag: &Nbt) -> DataResult<LootItemFunction> {
-        match codec::either(tag, LootItemFunction::decode_typed, SequenceFunction::decode_inline)? {
+        match codec::either_or_partial(tag, LootItemFunction::decode_typed, SequenceFunction::decode_inline)? {
             Ok(function) => Ok(function),
             Err(sequence) => Ok(LootItemFunction { condition: None, function: LootItemFunctionType::Sequence(sequence) }),
         }
     }
 
     pub fn decode_list(tag: &Nbt) -> DataResult<Vec<Holder<LootItemFunction>>> {
-        codec::compact_list_of(tag, |t| Holder::decode(t, LootItemFunction::decode_typed))
+        LootItemFunction::decode_holder_set(tag).map_err(|error| error.message)
+    }
+
+    pub fn decode_holder_set(tag: &Nbt) -> Result<Vec<Holder<LootItemFunction>>, codec::DecodeError> {
+        codec::holder_set(tag, Self::REGISTRY, |t| Holder::decode(t, LootItemFunction::decode_typed))
     }
 
     pub fn decode_typed(tag: &Nbt) -> DataResult<LootItemFunction> {
