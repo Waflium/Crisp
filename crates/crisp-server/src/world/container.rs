@@ -14,6 +14,7 @@ pub const DEFAULT_DISTANCE_BUFFER: f64 = 4.0;
 pub enum ContainerRef {
     Block { pos: BlockPos, id: u64 },
     Compound { first: (BlockPos, u64), second: (BlockPos, u64) },
+    Composter(BlockPos),
 }
 
 impl ContainerRef {
@@ -25,7 +26,7 @@ impl ContainerRef {
     pub fn single_block(self) -> Option<BlockPos> {
         match self {
             ContainerRef::Block { pos, .. } => Some(pos),
-            ContainerRef::Compound { .. } => None,
+            ContainerRef::Compound { .. } | ContainerRef::Composter(_) => None,
         }
     }
 
@@ -37,6 +38,7 @@ impl ContainerRef {
         match self {
             ContainerRef::Block { .. } => self.is_single(pos, id),
             ContainerRef::Compound { first, second } => first == (pos, id) || second == (pos, id),
+            ContainerRef::Composter(_) => false,
         }
     }
 
@@ -44,8 +46,16 @@ impl ContainerRef {
         match self {
             ContainerRef::Block { pos, id } => vec![(pos, id)],
             ContainerRef::Compound { first, second } => vec![first, second],
+            ContainerRef::Composter(_) => Vec::new(),
         }
     }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum ComposterContainer {
+    Empty,
+    Input,
+    Output,
 }
 
 fn size_of(entity: &BlockEntity) -> usize {
@@ -60,6 +70,7 @@ impl ServerLevel {
                 let first_size = self.get_block_entity(first.0).map_or(0, |e| size_of(e));
                 if slot >= first_size { Some((second.0, slot - first_size)) } else { Some((first.0, slot)) }
             }
+            ContainerRef::Composter(_) => None,
         }
     }
 
@@ -68,15 +79,40 @@ impl ServerLevel {
         Some(&mut self.get_block_entity(pos)?.container_base_mut()?.items)
     }
 
+    fn composter_container(&mut self, pos: BlockPos) -> ComposterContainer {
+        use crate::world::level::BlockGetter;
+        let content_level = self.block_state(pos).get(crisp_data::properties::LEVEL_COMPOSTER);
+        if content_level == 8 {
+            ComposterContainer::Output
+        } else if content_level < 7 {
+            ComposterContainer::Input
+        } else {
+            ComposterContainer::Empty
+        }
+    }
+
     pub fn container_size(&mut self, container: ContainerRef) -> usize {
+        if let ContainerRef::Composter(pos) = container {
+            return if self.composter_container(pos) == ComposterContainer::Empty { 0 } else { 1 };
+        }
         container.parts().into_iter().map(|(pos, _)| self.get_block_entity(pos).map_or(0, |e| size_of(e))).sum()
     }
 
     pub fn container_is_empty(&mut self, container: ContainerRef) -> bool {
+        if let ContainerRef::Composter(pos) = container {
+            return self.composter_container(pos) != ComposterContainer::Output;
+        }
         container.parts().into_iter().all(|(pos, _)| self.container_items(pos).is_none_or(|items| items.iter().all(ItemStack::is_empty)))
     }
 
     pub fn get_item(&mut self, container: ContainerRef, slot: usize) -> ItemStack {
+        if let ContainerRef::Composter(pos) = container {
+            return if slot == 0 && self.composter_container(pos) == ComposterContainer::Output {
+                ItemStack::new(crisp_data::items::BONE_MEAL, 1)
+            } else {
+                ItemStack::empty()
+            };
+        }
         let Some((pos, slot)) = self.container_part(container, slot) else { return ItemStack::empty() };
         self.container_items(pos).and_then(|items| items.get(slot).cloned()).unwrap_or_else(ItemStack::empty)
     }
@@ -91,6 +127,12 @@ impl ServerLevel {
     }
 
     pub fn set_item(&mut self, container: ContainerRef, slot: usize, mut stack: ItemStack) {
+        if let ContainerRef::Composter(pos) = container {
+            if slot == 0 && self.composter_container(pos) == ComposterContainer::Input {
+                crate::world::level::block::composter_block::insert_through_container(self, pos, &stack);
+            }
+            return;
+        }
         let Some((pos, slot)) = self.container_part(container, slot) else { return };
         self.unpack_loot_table(pos, None);
         let Some(entity) = self.get_block_entity(pos) else { return };
@@ -114,6 +156,10 @@ impl ServerLevel {
     }
 
     pub fn remove_item(&mut self, container: ContainerRef, slot: usize, count: i32) -> ItemStack {
+        if let ContainerRef::Composter(_) = container {
+            let item = self.get_item(container, slot);
+            return if count > 0 { item } else { ItemStack::empty() };
+        }
         let Some((pos, slot)) = self.container_part(container, slot) else { return ItemStack::empty() };
         let is_hopper = matches!(self.get_block_entity(pos).map(|e| &e.kind), Some(BlockEntityKind::Hopper(_)));
         let Some(items) = self.container_items(pos) else { return ItemStack::empty() };
@@ -128,22 +174,37 @@ impl ServerLevel {
     }
 
     pub fn remove_item_no_update(&mut self, container: ContainerRef, slot: usize) -> ItemStack {
+        if let ContainerRef::Composter(_) = container {
+            return self.get_item(container, slot);
+        }
         let Some((pos, slot)) = self.container_part(container, slot) else { return ItemStack::empty() };
         let Some(items) = self.container_items(pos) else { return ItemStack::empty() };
         items.get_mut(slot).map(|s| std::mem::replace(s, ItemStack::empty())).unwrap_or_else(ItemStack::empty)
     }
 
     pub fn container_set_changed(&mut self, container: ContainerRef) {
+        if let ContainerRef::Composter(pos) = container {
+            if self.composter_container(pos) == ComposterContainer::Output {
+                crate::world::level::block::composter_block::empty(self, pos);
+            }
+            return;
+        }
         for (pos, _) in container.parts() {
             self.block_entity_set_changed(pos);
         }
     }
 
-    pub fn container_max_stack_size(&self, _container: ContainerRef, stack: &ItemStack) -> i32 {
+    pub fn container_max_stack_size(&self, container: ContainerRef, stack: &ItemStack) -> i32 {
+        if let ContainerRef::Composter(_) = container {
+            return stack.max_stack_size().min(1);
+        }
         stack.max_stack_size().min(99)
     }
 
     pub fn can_place_item(&mut self, container: ContainerRef, slot: usize, stack: &ItemStack) -> bool {
+        if let ContainerRef::Composter(_) = container {
+            return true;
+        }
         let Some((pos, slot)) = self.container_part(container, slot) else { return false };
         match self.get_block_entity(pos).map(|e| &e.kind) {
             Some(BlockEntityKind::Furnace(furnace)) => furnace.can_place_item(slot, stack),
@@ -156,6 +217,14 @@ impl ServerLevel {
     }
 
     pub fn slots_for_face(&mut self, container: ContainerRef, direction: Direction) -> Option<Vec<usize>> {
+        if let ContainerRef::Composter(pos) = container {
+            let face = match self.composter_container(pos) {
+                ComposterContainer::Input => Direction::Up,
+                ComposterContainer::Output => Direction::Down,
+                ComposterContainer::Empty => return Some(Vec::new()),
+            };
+            return Some(if direction == face { vec![0] } else { Vec::new() });
+        }
         let pos = container.single_block()?;
         match self.get_block_entity(pos).map(|e| &e.kind)? {
             BlockEntityKind::ShulkerBox(_) => Some((0..27).collect()),
@@ -164,7 +233,12 @@ impl ServerLevel {
         }
     }
 
-    pub fn can_place_item_through_face(&mut self, container: ContainerRef, slot: usize, stack: &ItemStack, _direction: Option<Direction>) -> bool {
+    pub fn can_place_item_through_face(&mut self, container: ContainerRef, slot: usize, stack: &ItemStack, direction: Option<Direction>) -> bool {
+        if let ContainerRef::Composter(pos) = container {
+            return self.composter_container(pos) == ComposterContainer::Input
+                && direction == Some(Direction::Up)
+                && stack.has(crate::world::item::component::COMPOSTABLE);
+        }
         let Some(pos) = container.single_block() else { return true };
         match self.get_block_entity(pos).map(|e| &e.kind) {
             Some(BlockEntityKind::ShulkerBox(_)) => !stack.get_item().info().block.is_some_and(|b| b.is_instance_of("ShulkerBoxBlock")),
@@ -174,6 +248,9 @@ impl ServerLevel {
     }
 
     pub fn can_take_item_through_face(&mut self, container: ContainerRef, slot: usize, stack: &ItemStack, direction: Direction) -> bool {
+        if let ContainerRef::Composter(pos) = container {
+            return self.composter_container(pos) == ComposterContainer::Output && direction == Direction::Down && stack.is(crisp_data::items::BONE_MEAL);
+        }
         let Some(pos) = container.single_block() else { return true };
         match self.get_block_entity(pos).map(|e| &e.kind) {
             Some(BlockEntityKind::Furnace(_)) => AbstractFurnaceBlockEntity::can_take_item_through_face(slot, stack, direction),
@@ -218,6 +295,9 @@ impl ServerLevel {
     }
 
     pub fn get_block_container(&mut self, pos: BlockPos, state: BlockState) -> Option<ContainerRef> {
+        if state.is_block(crisp_data::blocks::COMPOSTER) {
+            return Some(ContainerRef::Composter(pos));
+        }
         if !state.has_block_entity() {
             return None;
         }

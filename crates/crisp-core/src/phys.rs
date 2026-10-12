@@ -101,6 +101,12 @@ impl Vec3 {
         self.add(x as f64, y as f64, z as f64)
     }
 
+    pub fn offset_random_xz(self, random: &mut impl RandomSource, offset: f32) -> Vec3 {
+        let x = (random.next_float() - 0.5) * offset;
+        let z = (random.next_float() - 0.5) * offset;
+        self.add(x as f64, 0.0, z as f64)
+    }
+
     pub fn length(self) -> f64 {
         self.length_sqr().sqrt()
     }
