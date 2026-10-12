@@ -827,6 +827,7 @@ fn for_class(class: &str, block: Block) -> Option<Box<dyn BlockBehaviour>> {
         "ChiseledBookShelfBlock" => Box::new(chiseled_book_shelf_block::ChiseledBookShelfBlock),
         "CommandBlock" => Box::new(command_block::CommandBlock),
         "CopperGolemStatueBlock" => Box::new(copper_golem_statue_block::CopperGolemStatueBlock),
+        "WeatheringCopperGolemStatueBlock" => Box::new(copper_golem_statue_block::WeatheringCopperGolemStatueBlock),
         "CrafterBlock" => Box::new(crafter_block::CrafterBlock),
         "CreakingHeartBlock" => Box::new(creaking_heart_block::CreakingHeartBlock),
         "DecoratedPotBlock" => Box::new(decorated_pot_block::DecoratedPotBlock),
