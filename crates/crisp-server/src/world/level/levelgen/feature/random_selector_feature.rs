@@ -30,6 +30,11 @@ pub struct RandomSelectorFeature {
 }
 
 impl RandomSelectorFeature {
+    pub fn get_sub_features(&self, out: &mut Vec<u32>) {
+        self.features.iter().for_each(|weighted| weighted.feature.value().get_features(out));
+        self.default_feature.value().get_features(out);
+    }
+
     pub fn parse(json: &Value) -> Result<RandomSelectorFeature, String> {
         Ok(RandomSelectorFeature {
             features: json.get("features").and_then(Value::as_array).ok_or("missing features")?.iter().map(WeightedPlacedFeature::parse).collect::<Result<_, _>>()?,

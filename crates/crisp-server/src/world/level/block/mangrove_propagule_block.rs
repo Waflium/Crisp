@@ -4,8 +4,9 @@ use crisp_data::properties::{AGE_4, HANGING, WATERLOGGED};
 use crisp_data::{Block, BlockState, Fluid, block_tags, blocks};
 
 use super::BlockBehaviour;
-use super::sapling_block::advance_tree;
-use super::vegetation_block::{self, Vegetation, schedule_water_tick};
+use super::grower::tree_grower::TreeGrower;
+use super::sapling_block::{self, advance_tree};
+use super::vegetation_block::{self, Vegetation, fields, schedule_water_tick};
 use crate::server::level::ServerLevel;
 use crate::world::item::context::BlockPlaceContext;
 use crate::world::level::{BlockGetter, LevelAccessor, LevelReader};
@@ -23,7 +24,16 @@ fn is_fully_grown(state: BlockState) -> bool {
     state.get(AGE_4) == 4
 }
 
-pub struct MangrovePropaguleBlock;
+pub struct MangrovePropaguleBlock {
+    tree_grower: &'static TreeGrower,
+}
+
+impl MangrovePropaguleBlock {
+    pub fn new(block: Block) -> MangrovePropaguleBlock {
+        let tree_grower = fields(block)["treeGrower"].as_str().and_then(TreeGrower::by_name).expect("propagules have a tree grower");
+        MangrovePropaguleBlock { tree_grower }
+    }
+}
 
 impl Vegetation for MangrovePropaguleBlock {
     fn may_place_on(&self, state: BlockState, _level: &mut dyn LevelReader, _pos: BlockPos) -> bool {
@@ -58,7 +68,7 @@ impl BlockBehaviour for MangrovePropaguleBlock {
     fn random_tick(&self, state: BlockState, level: &mut ServerLevel, pos: BlockPos) {
         if !is_hanging(state) {
             if level.random.next_int_bounded(7) == 0 {
-                advance_tree(level, pos, state);
+                advance_tree(level, pos, state, self.tree_grower);
             }
         } else if !is_fully_grown(state) {
             level.set_block(pos, state.cycle(AGE_4), UPDATE_CLIENTS);
@@ -66,16 +76,18 @@ impl BlockBehaviour for MangrovePropaguleBlock {
     }
 
     fn is_valid_bonemeal_target(&self, _level: &mut ServerLevel, _pos: BlockPos, state: BlockState) -> bool {
-        is_hanging(state) && !is_fully_grown(state)
+        !is_hanging(state) || !is_fully_grown(state)
     }
 
-    fn is_bonemeal_success(&self, _level: &mut ServerLevel, _pos: BlockPos, state: BlockState) -> bool {
-        is_hanging(state) && !is_fully_grown(state)
+    fn is_bonemeal_success(&self, level: &mut ServerLevel, _pos: BlockPos, state: BlockState) -> bool {
+        if is_hanging(state) { !is_fully_grown(state) } else { sapling_block::is_bonemeal_success(level) }
     }
 
     fn perform_bonemeal(&self, level: &mut ServerLevel, pos: BlockPos, state: BlockState) {
         if is_hanging(state) && !is_fully_grown(state) {
             level.set_block(pos, state.cycle(AGE_4), UPDATE_CLIENTS);
+        } else {
+            advance_tree(level, pos, state, self.tree_grower);
         }
     }
 }

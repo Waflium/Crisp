@@ -1,7 +1,11 @@
 mod abstract_cauldron_block;
 mod abstract_furnace_block;
 pub mod anvil_block;
+mod bonemealable_feature_placer_block;
 mod dragon_egg_block;
+mod grass_block;
+mod netherrack_block;
+mod rooted_dirt_block;
 pub mod falling_block;
 mod bamboo_sapling_block;
 mod bamboo_stalk_block;
@@ -148,6 +152,7 @@ mod nether_wart_block;
 mod nylium_block;
 mod pitcher_crop_block;
 mod sapling_block;
+pub mod grower;
 pub mod sculk_behaviour;
 pub mod sculk_spreader;
 mod sculk_vein_block;
@@ -581,6 +586,10 @@ fn for_class(class: &str, block: Block) -> Option<Box<dyn BlockBehaviour>> {
         "AnvilBlock" => Box::new(anvil_block::AnvilBlock),
         "DragonEggBlock" => Box::new(dragon_egg_block::DragonEggBlock),
         "FallingBlock" => Box::new(falling_block::FallingBlock),
+        "GrassBlock" => Box::new(grass_block::GrassBlock::new(block)),
+        "BonemealableFeaturePlacerBlock" => Box::new(bonemealable_feature_placer_block::BonemealableFeaturePlacerBlock::new(block)),
+        "RootedDirtBlock" => Box::new(rooted_dirt_block::RootedDirtBlock),
+        "NetherrackBlock" => Box::new(netherrack_block::NetherrackBlock),
         "CarpetBlock" => Box::new(carpet_block::CarpetBlock),
         "CartographyTableBlock" => Box::new(cartography_table_block::CartographyTableBlock),
         "CarvedPumpkinBlock" => Box::new(carved_pumpkin_block::CarvedPumpkinBlock),
@@ -663,12 +672,12 @@ fn for_class(class: &str, block: Block) -> Option<Box<dyn BlockBehaviour>> {
         "LeavesBlock" => Box::new(leaves_block::LeavesBlock),
         "MangroveLeavesBlock" => Box::new(mangrove_leaves_block::MangroveLeavesBlock),
         "VineBlock" => Box::new(vine_block::VineBlock),
-        "MushroomBlock" => Box::new(mushroom_block::MushroomBlock),
+        "MushroomBlock" => Box::new(mushroom_block::MushroomBlock::new(block)),
         "NetherWartBlock" => Box::new(nether_wart_block::NetherWartBlock),
         "CocoaBlock" => Box::new(cocoa_block::CocoaBlock),
         "SweetBerryBushBlock" => Box::new(sweet_berry_bush_block::SweetBerryBushBlock),
-        "SaplingBlock" => Box::new(sapling_block::SaplingBlock),
-        "MangrovePropaguleBlock" => Box::new(mangrove_propagule_block::MangrovePropaguleBlock),
+        "SaplingBlock" => Box::new(sapling_block::SaplingBlock::new(block)),
+        "MangrovePropaguleBlock" => Box::new(mangrove_propagule_block::MangrovePropaguleBlock::new(block)),
         "AzaleaBlock" => Box::new(azalea_block::AzaleaBlock),
         "FlowerPotBlock" => Box::new(flower_pot_block::FlowerPotBlock::new(block)),
         "LilyPadBlock" => Box::new(lily_pad_block::LilyPadBlock),

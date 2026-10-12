@@ -43,6 +43,10 @@ pub fn get(index: u32) -> &'static PlacedFeature {
 }
 
 impl PlacedFeature {
+    pub fn get_features(&self, out: &mut Vec<u32>) {
+        self.feature.get_features(out);
+    }
+
     pub fn parse(json: &Value) -> Result<PlacedFeature, String> {
         Ok(PlacedFeature {
             feature: FeatureHolder::parse(json.get("feature").ok_or("missing feature")?)?,

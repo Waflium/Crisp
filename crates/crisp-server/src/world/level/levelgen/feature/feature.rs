@@ -104,6 +104,10 @@ pub fn feature_index(name: &str) -> Option<u32> {
     crisp_data::FEATURES.iter().position(|(n, _)| *n == name).map(|i| i as u32)
 }
 
+pub fn feature(name: &str) -> Option<&'static Feature> {
+    feature_index(name).map(|index| &FEATURES[index as usize])
+}
+
 impl Feature {
     pub fn parse(json: &Value) -> Result<Feature, String> {
         let ty = json.get("type").and_then(Value::as_str).ok_or("feature without type")?;
@@ -152,6 +156,18 @@ impl Feature {
             "weighted_random_selector" => Feature::WeightedRandomSelector(WeightedRandomSelectorFeature::parse(json)?),
             _ => Feature::NotImplemented,
         })
+    }
+
+    pub fn get_sub_features(&self, out: &mut Vec<u32>) {
+        match self {
+            Feature::Sequence(feature) => feature.get_sub_features(out),
+            Feature::Overlay(feature) => feature.get_sub_features(out),
+            Feature::RandomSelector(feature) => feature.get_sub_features(out),
+            Feature::SimpleRandomSelector(feature) => feature.get_sub_features(out),
+            Feature::RandomBooleanSelector(feature) => feature.get_sub_features(out),
+            Feature::WeightedRandomSelector(feature) => feature.get_sub_features(out),
+            _ => {}
+        }
     }
 
     pub fn place<R: RandomSource>(&self, level: &mut impl WorldGenLevel, random: &mut R, origin: BlockPos) -> bool {
@@ -223,6 +239,13 @@ impl FeatureHolder {
             Value::String(name) => feature_index(name).map(FeatureHolder::Reference).ok_or_else(|| format!("unknown feature {name}")),
             other => Ok(FeatureHolder::Direct(Box::new(Feature::parse(other)?))),
         }
+    }
+
+    pub fn get_features(&self, out: &mut Vec<u32>) {
+        if let FeatureHolder::Reference(index) = self {
+            out.push(*index);
+        }
+        self.value().get_sub_features(out);
     }
 
     pub fn value(&self) -> &Feature {

@@ -130,6 +130,17 @@ impl BlockPos {
         BlockPos::manhattan_ordered(origin, reach_x, reach_y, reach_z, reach_x + reach_y + reach_z)
     }
 
+    pub fn between_closed(a: BlockPos, b: BlockPos) -> impl Iterator<Item = BlockPos> {
+        let (min_x, min_y, min_z) = (a.x.min(b.x), a.y.min(b.y), a.z.min(b.z));
+        let (width, height, depth) = (a.x.max(b.x) - min_x + 1, a.y.max(b.y) - min_y + 1, a.z.max(b.z) - min_z + 1);
+        let end = width * height * depth;
+        (0..end).map(move |index| {
+            let x = index % width;
+            let rest = index / width;
+            BlockPos::new(min_x + x, min_y + rest % height, min_z + rest / height)
+        })
+    }
+
     pub fn spiral_around(center: BlockPos, radius: i32, first_direction: Direction, second_direction: Direction) -> impl Iterator<Item = BlockPos> {
         let directions = [first_direction, second_direction, first_direction.opposite(), second_direction.opposite()];
         let legs = 4 * radius;

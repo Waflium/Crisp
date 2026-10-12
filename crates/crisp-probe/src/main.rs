@@ -19,11 +19,12 @@ struct Options {
     walk: bool,
     say: Option<String>,
     dig: Option<u32>,
+    script: Vec<String>,
 }
 
 fn options() -> anyhow::Result<Options> {
     let mut args = std::env::args().skip(1);
-    let usage = "usage: crisp-probe <host:port> <seconds> <out.jsonl> [--view N] [--name NAME] [--wait MS] [--walk] [--say TEXT] [--dig TICKS]";
+    let usage = "usage: crisp-probe <host:port> <seconds> <out.jsonl> [--view N] [--name NAME] [--wait MS] [--walk] [--say TEXT] [--dig TICKS] [--script FILE]";
     let mut o = Options {
         addr: args.next().context(usage)?,
         duration: Duration::from_secs(args.next().context(usage)?.parse()?),
@@ -34,6 +35,7 @@ fn options() -> anyhow::Result<Options> {
         walk: false,
         say: None,
         dig: None,
+        script: Vec::new(),
     };
     while let Some(flag) = args.next() {
         let mut value = || args.next().with_context(|| format!("{flag} needs a value"));
@@ -44,6 +46,7 @@ fn options() -> anyhow::Result<Options> {
             "--walk" => o.walk = true,
             "--say" => o.say = Some(value()?),
             "--dig" => o.dig = Some(value()?.parse()?),
+            "--script" => o.script = std::fs::read_to_string(value()?)?.lines().map(str::trim).filter(|l| !l.is_empty()).map(String::from).collect(),
             _ => bail!("unknown option {flag}\n{usage}"),
         }
     }
@@ -170,6 +173,9 @@ async fn main() -> anyhow::Result<()> {
     let mut ticker = tokio::time::interval(Duration::from_millis(50));
     let mut position: Option<(f64, f64, f64)> = None;
     let mut ticks_loaded = 0u32;
+    let mut script = o.script.iter();
+    let mut script_wait = 0u32;
+    let mut sequence = 100;
     loop {
         tokio::select! {
             packet = rx.recv() => {
@@ -234,6 +240,34 @@ async fn main() -> anyhow::Result<()> {
                         w.u8(1);
                     })
                     .await?;
+                }
+                if ticks_loaded >= 20 && script_wait > 0 {
+                    script_wait -= 1;
+                } else if ticks_loaded >= 20 && let Some(line) = script.next() {
+                    let words: Vec<&str> = line.split_whitespace().collect();
+                    match words.as_slice() {
+                        ["wait", ticks] => script_wait = ticks.parse()?,
+                        ["use", x, y, z, face] => {
+                            let (x, y, z, face): (i32, i32, i32, i32) = (x.parse()?, y.parse()?, z.parse()?, face.parse()?);
+                            sequence += 1;
+                            send(&mut wr, codec, play::serverbound::USE_ITEM_ON, |w| {
+                                w.varint(0);
+                                w.position(x, y, z);
+                                w.varint(face);
+                                w.f32(0.5);
+                                w.f32(0.5);
+                                w.f32(0.5);
+                                w.bool(false);
+                                w.bool(false);
+                                w.varint(sequence);
+                            })
+                            .await?;
+                        }
+                        _ => {
+                            let command = line.strip_prefix('/').unwrap_or(line);
+                            send(&mut wr, codec, play::serverbound::CHAT_COMMAND, |w| w.string(command)).await?;
+                        }
+                    }
                 }
                 if o.dig.is_some() {
                     send(&mut wr, codec, play::serverbound::MOVE_PLAYER_ROT, |w| {

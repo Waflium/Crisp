@@ -10,6 +10,10 @@ pub struct SimpleRandomSelectorFeature {
 }
 
 impl SimpleRandomSelectorFeature {
+    pub fn get_sub_features(&self, out: &mut Vec<u32>) {
+        self.features.iter().for_each(|feature| feature.value().get_features(out));
+    }
+
     pub fn parse(json: &Value) -> Result<SimpleRandomSelectorFeature, String> {
         Ok(SimpleRandomSelectorFeature { features: parse_placed_feature_set(json.get("features").ok_or("missing features")?)? })
     }

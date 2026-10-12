@@ -11,6 +11,10 @@ pub struct WeightedRandomSelectorFeature {
 }
 
 impl WeightedRandomSelectorFeature {
+    pub fn get_sub_features(&self, out: &mut Vec<u32>) {
+        self.features.items.iter().for_each(|(feature, _)| feature.value().get_features(out));
+    }
+
     pub fn parse(json: &Value) -> Result<WeightedRandomSelectorFeature, String> {
         Ok(WeightedRandomSelectorFeature { features: WeightedList::parse(json.get("features").ok_or("missing features")?, PlacedFeatureHolder::parse)? })
     }

@@ -116,10 +116,13 @@ fn main() -> anyhow::Result<()> {
     damage_types(&mut out, &data, &synced["minecraft:damage_type"])?;
     let mut tagged = synced.clone();
     let mut structures = Vec::new();
+    let mut features = Vec::new();
     for ns in namespaces(&data)? {
         structures.extend(list_entries(&ns, &data.join(&ns).join("worldgen/structure"))?);
+        features.extend(list_entries(&ns, &data.join(&ns).join("worldgen/feature"))?);
     }
     tagged.insert("minecraft:worldgen/structure".into(), structures);
+    tagged.insert("minecraft:worldgen/feature".into(), features);
     tags(&mut out, &data, &builtin, &tagged)?;
     let lang = vanilla.join("assets/minecraft/lang/en_us.json").canonicalize()?;
     writeln!(out, "pub static LANGUAGE_EN_US: &str = include_str!({lang:?});")?;

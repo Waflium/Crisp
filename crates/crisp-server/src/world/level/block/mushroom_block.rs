@@ -1,14 +1,17 @@
 use crisp_core::random::RandomSource;
 use crisp_core::{BlockPos, Direction};
-use crisp_data::{BlockState, block_tags};
+use crisp_data::{Block, BlockState, block_tags};
 
 use super::BlockBehaviour;
-use super::vegetation_block::{self, Vegetation, at_most_matched};
+use super::vegetation_block::{self, Vegetation, at_most_matched, fields};
 use crate::server::level::ServerLevel;
 use crate::world::level::{BlockGetter, LevelAccessor, LevelReader};
-use crate::world::level::update_flags::UPDATE_CLIENTS;
+use crate::world::level::levelgen::feature::feature::{self, Feature};
+use crate::world::level::update_flags::{UPDATE_ALL, UPDATE_CLIENTS};
 
-pub struct MushroomBlock;
+pub struct MushroomBlock {
+    feature: Option<&'static Feature>,
+}
 
 fn random_offset(level: &mut ServerLevel, pos: BlockPos) -> BlockPos {
     let dx = level.random.next_int_bounded(3) - 1;
@@ -54,5 +57,40 @@ impl BlockBehaviour for MushroomBlock {
         if level.block_state(offset).is_air() && self.can_survive(state, level, offset) {
             level.set_block(offset, state, UPDATE_CLIENTS);
         }
+    }
+
+    fn is_valid_bonemeal_target(&self, level: &mut ServerLevel, pos: BlockPos, _state: BlockState) -> bool {
+        match self.feature {
+            Some(Feature::HugeMushroom(mushroom_feature)) => {
+                let min_height = 4 + mushroom_feature.foliage_radius;
+                level.is_inside_build_height(pos.relative_n(Direction::Up, min_height).y)
+            }
+            _ => false,
+        }
+    }
+
+    fn is_bonemeal_success(&self, level: &mut ServerLevel, _pos: BlockPos, _state: BlockState) -> bool {
+        (level.random.next_float() as f64) < 0.4
+    }
+
+    fn perform_bonemeal(&self, level: &mut ServerLevel, pos: BlockPos, state: BlockState) {
+        self.grow_mushroom(level, pos, state);
+    }
+}
+
+impl MushroomBlock {
+    pub fn new(block: Block) -> MushroomBlock {
+        let fields = fields(block);
+        MushroomBlock { feature: feature::feature(fields["feature"].as_str().expect("mushrooms grow into a feature")) }
+    }
+
+    pub fn grow_mushroom(&self, level: &mut ServerLevel, pos: BlockPos, state: BlockState) -> bool {
+        let Some(feature) = self.feature else { return false };
+        level.remove_block(pos, false);
+        if level.with_level_random(|level, random| feature.place(level, random, pos)) {
+            return true;
+        }
+        level.set_block(pos, state, UPDATE_ALL);
+        false
     }
 }

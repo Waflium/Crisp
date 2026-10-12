@@ -1418,6 +1418,15 @@ impl crate::world::level::LevelAccessor for ServerLevel {
     }
 }
 
+impl ServerLevel {
+    pub fn with_level_random<T>(&mut self, f: impl FnOnce(&mut ServerLevel, &mut crisp_core::random::LegacyRandomSource) -> T) -> T {
+        let mut random = self.random.clone();
+        let result = f(self, &mut random);
+        self.random = random;
+        result
+    }
+}
+
 impl crate::world::level::world_gen_level::WorldGenLevel for ServerLevel {
     fn get_seed(&self) -> i64 {
         self.seed

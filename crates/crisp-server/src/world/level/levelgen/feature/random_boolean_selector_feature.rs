@@ -11,6 +11,11 @@ pub struct RandomBooleanSelectorFeature {
 }
 
 impl RandomBooleanSelectorFeature {
+    pub fn get_sub_features(&self, out: &mut Vec<u32>) {
+        self.feature_true.value().get_features(out);
+        self.feature_false.value().get_features(out);
+    }
+
     pub fn parse(json: &Value) -> Result<RandomBooleanSelectorFeature, String> {
         Ok(RandomBooleanSelectorFeature {
             feature_true: PlacedFeatureHolder::parse(json.get("feature_true").ok_or("missing feature_true")?)?,

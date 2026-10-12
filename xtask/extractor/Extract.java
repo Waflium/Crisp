@@ -439,6 +439,11 @@ public final class Extract {
             }
             return a;
         }
+        if (v instanceof net.minecraft.world.level.block.grower.TreeGrower g) {
+            Field f = g.getClass().getDeclaredField("name");
+            f.setAccessible(true);
+            return new JsonPrimitive((String) f.get(g));
+        }
         if (v.getClass().isRecord()) {
             JsonObject o = new JsonObject();
             for (RecordComponent rc : v.getClass().getRecordComponents()) {
