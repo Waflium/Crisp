@@ -15,6 +15,7 @@ pub enum ContainerRef {
     Block { pos: BlockPos, id: u64 },
     Compound { first: (BlockPos, u64), second: (BlockPos, u64) },
     Composter(BlockPos),
+    Jukebox(BlockPos),
 }
 
 impl ContainerRef {
@@ -26,7 +27,7 @@ impl ContainerRef {
     pub fn single_block(self) -> Option<BlockPos> {
         match self {
             ContainerRef::Block { pos, .. } => Some(pos),
-            ContainerRef::Compound { .. } | ContainerRef::Composter(_) => None,
+            ContainerRef::Compound { .. } | ContainerRef::Composter(_) | ContainerRef::Jukebox(_) => None,
         }
     }
 
@@ -38,7 +39,7 @@ impl ContainerRef {
         match self {
             ContainerRef::Block { .. } => self.is_single(pos, id),
             ContainerRef::Compound { first, second } => first == (pos, id) || second == (pos, id),
-            ContainerRef::Composter(_) => false,
+            ContainerRef::Composter(_) | ContainerRef::Jukebox(_) => false,
         }
     }
 
@@ -46,7 +47,7 @@ impl ContainerRef {
         match self {
             ContainerRef::Block { pos, id } => vec![(pos, id)],
             ContainerRef::Compound { first, second } => vec![first, second],
-            ContainerRef::Composter(_) => Vec::new(),
+            ContainerRef::Composter(_) | ContainerRef::Jukebox(_) => Vec::new(),
         }
     }
 }
@@ -70,7 +71,7 @@ impl ServerLevel {
                 let first_size = self.get_block_entity(first.0).map_or(0, |e| size_of(e));
                 if slot >= first_size { Some((second.0, slot - first_size)) } else { Some((first.0, slot)) }
             }
-            ContainerRef::Composter(_) => None,
+            ContainerRef::Composter(_) | ContainerRef::Jukebox(_) => None,
         }
     }
 
@@ -95,12 +96,18 @@ impl ServerLevel {
         if let ContainerRef::Composter(pos) = container {
             return if self.composter_container(pos) == ComposterContainer::Empty { 0 } else { 1 };
         }
+        if let ContainerRef::Jukebox(_) = container {
+            return 1;
+        }
         container.parts().into_iter().map(|(pos, _)| self.get_block_entity(pos).map_or(0, |e| size_of(e))).sum()
     }
 
     pub fn container_is_empty(&mut self, container: ContainerRef) -> bool {
         if let ContainerRef::Composter(pos) = container {
             return self.composter_container(pos) != ComposterContainer::Output;
+        }
+        if let ContainerRef::Jukebox(pos) = container {
+            return self.jukebox_get_the_item(pos).is_empty();
         }
         container.parts().into_iter().all(|(pos, _)| self.container_items(pos).is_none_or(|items| items.iter().all(ItemStack::is_empty)))
     }
@@ -112,6 +119,9 @@ impl ServerLevel {
             } else {
                 ItemStack::empty()
             };
+        }
+        if let ContainerRef::Jukebox(pos) = container {
+            return if slot == 0 { self.jukebox_get_the_item(pos) } else { ItemStack::empty() };
         }
         let Some((pos, slot)) = self.container_part(container, slot) else { return ItemStack::empty() };
         self.container_items(pos).and_then(|items| items.get(slot).cloned()).unwrap_or_else(ItemStack::empty)
@@ -130,6 +140,12 @@ impl ServerLevel {
         if let ContainerRef::Composter(pos) = container {
             if slot == 0 && self.composter_container(pos) == ComposterContainer::Input {
                 crate::world::level::block::composter_block::insert_through_container(self, pos, &stack);
+            }
+            return;
+        }
+        if let ContainerRef::Jukebox(pos) = container {
+            if slot == 0 {
+                self.jukebox_set_the_item(pos, stack);
             }
             return;
         }
@@ -160,6 +176,9 @@ impl ServerLevel {
             let item = self.get_item(container, slot);
             return if count > 0 { item } else { ItemStack::empty() };
         }
+        if let ContainerRef::Jukebox(pos) = container {
+            return if slot == 0 { self.jukebox_split_the_item(pos) } else { ItemStack::empty() };
+        }
         let Some((pos, slot)) = self.container_part(container, slot) else { return ItemStack::empty() };
         let is_hopper = matches!(self.get_block_entity(pos).map(|e| &e.kind), Some(BlockEntityKind::Hopper(_)));
         let Some(items) = self.container_items(pos) else { return ItemStack::empty() };
@@ -177,6 +196,9 @@ impl ServerLevel {
         if let ContainerRef::Composter(_) = container {
             return self.get_item(container, slot);
         }
+        if let ContainerRef::Jukebox(_) = container {
+            return self.remove_item(container, slot, 1);
+        }
         let Some((pos, slot)) = self.container_part(container, slot) else { return ItemStack::empty() };
         let Some(items) = self.container_items(pos) else { return ItemStack::empty() };
         items.get_mut(slot).map(|s| std::mem::replace(s, ItemStack::empty())).unwrap_or_else(ItemStack::empty)
@@ -189,13 +211,16 @@ impl ServerLevel {
             }
             return;
         }
+        if let ContainerRef::Jukebox(pos) = container {
+            return self.block_entity_set_changed(pos);
+        }
         for (pos, _) in container.parts() {
             self.block_entity_set_changed(pos);
         }
     }
 
     pub fn container_max_stack_size(&self, container: ContainerRef, stack: &ItemStack) -> i32 {
-        if let ContainerRef::Composter(_) = container {
+        if let ContainerRef::Composter(_) | ContainerRef::Jukebox(_) = container {
             return stack.max_stack_size().min(1);
         }
         stack.max_stack_size().min(99)
@@ -205,6 +230,9 @@ impl ServerLevel {
         if let ContainerRef::Composter(_) = container {
             return true;
         }
+        if let ContainerRef::Jukebox(pos) = container {
+            return self.jukebox_can_place_item(pos, slot, stack);
+        }
         let Some((pos, slot)) = self.container_part(container, slot) else { return false };
         match self.get_block_entity(pos).map(|e| &e.kind) {
             Some(BlockEntityKind::Furnace(furnace)) => furnace.can_place_item(slot, stack),
@@ -212,7 +240,10 @@ impl ServerLevel {
         }
     }
 
-    pub fn can_take_item(&mut self, _container: ContainerRef, _into: ContainerRef, _slot: usize, _stack: &ItemStack) -> bool {
+    pub fn can_take_item(&mut self, container: ContainerRef, into: ContainerRef, _slot: usize, _stack: &ItemStack) -> bool {
+        if let ContainerRef::Jukebox(_) = container {
+            return (0..self.container_size(into)).any(|slot| self.get_item(into, slot).is_empty());
+        }
         true
     }
 
@@ -302,6 +333,9 @@ impl ServerLevel {
             return None;
         }
         let entity = self.get_block_entity(pos)?;
+        if let BlockEntityKind::Jukebox(_) = entity.kind {
+            return Some(ContainerRef::Jukebox(pos));
+        }
         entity.container_base()?;
         if matches!(entity.kind, BlockEntityKind::Chest(_)) && state.block().is_instance_of("ChestBlock") {
             return chest_block::get_container(state, self, pos, true);

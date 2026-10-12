@@ -82,6 +82,7 @@ fn main() -> anyhow::Result<()> {
     embed_json(&mut out, &data, "enchantment", "ENCHANTMENTS")?;
     embed_json(&mut out, &data, "context_int_provider", "CONTEXT_INT_PROVIDERS")?;
     embed_json(&mut out, &data, "context_float_provider", "CONTEXT_FLOAT_PROVIDERS")?;
+    embed_json(&mut out, &data, "jukebox_song", "JUKEBOX_SONGS")?;
     embed_json(&mut out, &data, "timeline", "TIMELINES")?;
     embed_json(&mut out, &data, "chicken_variant", "CHICKEN_VARIANTS")?;
     embed_json(&mut out, &data, "chicken_sound_variant", "CHICKEN_SOUND_VARIANTS")?;

@@ -27,7 +27,14 @@ impl ServerLevel {
     }
 
     pub fn remove_block_entity(&mut self, pos: BlockPos) -> Option<BlockEntity> {
-        if self.is_in_valid_bounds(pos) { self.chunks.remove_block_entity(pos) } else { None }
+        if !self.is_in_valid_bounds(pos) {
+            return None;
+        }
+        let removed = self.chunks.remove_block_entity(pos);
+        if let Some(entity) = &removed {
+            self.block_entity_set_removed(pos, entity);
+        }
+        removed
     }
 
     pub fn block_entity_changed(&mut self, pos: BlockPos) {
@@ -50,11 +57,18 @@ impl ServerLevel {
         }
     }
 
+    pub fn block_entity_set_removed(&self, pos: BlockPos, entity: &BlockEntity) {
+        if let BlockEntityKind::Jukebox(_) = entity.kind {
+            self.level_event(None, crate::server::level::events::SOUND_STOP_JUKEBOX_SONG, pos, 0);
+        }
+    }
+
     pub fn pre_remove_side_effects(&mut self, pos: BlockPos) {
         let Some(entity) = self.get_block_entity(pos) else { return };
         let (is_container, is_furnace) = match &entity.kind {
             BlockEntityKind::Chest(_) | BlockEntityKind::Barrel(_) | BlockEntityKind::Hopper(_) | BlockEntityKind::Dispenser(_) => (true, false),
             BlockEntityKind::Furnace(_) => (true, true),
+            BlockEntityKind::Jukebox(_) => return self.jukebox_pop_out_the_item(pos),
             _ => (false, false),
         };
         if is_container {
@@ -139,6 +153,7 @@ impl ServerLevel {
             BlockEntityTicker::Hopper => self.hopper_push_items_tick(pos, state),
             BlockEntityTicker::ShulkerBox => self.shulker_box_tick(pos, state),
             BlockEntityTicker::DaylightDetector => self.daylight_detector_tick_entity(pos, state),
+            BlockEntityTicker::Jukebox => self.jukebox_tick(pos),
         }
     }
 

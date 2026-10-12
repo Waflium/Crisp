@@ -8,6 +8,7 @@ pub mod comparator_block_entity;
 pub mod container_openers_counter;
 mod dispenser_block_entity;
 pub mod hopper_block_entity;
+pub mod jukebox_block_entity;
 #[cfg(test)]
 mod oracle_data;
 #[cfg(test)]
@@ -43,6 +44,7 @@ pub enum BlockEntityTicker {
     Hopper,
     ShulkerBox,
     DaylightDetector,
+    Jukebox,
 }
 
 enum UpdateTag {
@@ -63,6 +65,7 @@ pub enum BlockEntityKind {
     Spawner(spawner_block_entity::SpawnerBlockEntity),
     Brushable(BrushableBlockEntity),
     Comparator(comparator_block_entity::ComparatorBlockEntity),
+    Jukebox(jukebox_block_entity::JukeboxBlockEntity),
     Other(Vec<(String, Nbt)>),
 }
 
@@ -97,6 +100,7 @@ impl BlockEntity {
             types::MOB_SPAWNER => BlockEntityKind::Spawner(spawner_block_entity::SpawnerBlockEntity::default()),
             types::BRUSHABLE_BLOCK => BlockEntityKind::Brushable(BrushableBlockEntity::default()),
             types::COMPARATOR => BlockEntityKind::Comparator(comparator_block_entity::ComparatorBlockEntity::default()),
+            types::JUKEBOX => BlockEntityKind::Jukebox(jukebox_block_entity::JukeboxBlockEntity::default()),
             _ => BlockEntityKind::Other(Vec::new()),
         };
         Some(BlockEntity { ty, pos, block_state: state, remove: false, components: DataComponentMap::EMPTY, id: NEXT_ID.fetch_add(1, Ordering::Relaxed), kind })
@@ -183,6 +187,7 @@ impl BlockEntity {
             BlockEntityKind::Spawner(spawner) => spawner.load_additional(input),
             BlockEntityKind::Brushable(brushable) => brushable.load_additional(input),
             BlockEntityKind::Comparator(comparator) => comparator.load_additional(input),
+            BlockEntityKind::Jukebox(jukebox) => jukebox.load_additional(input),
             BlockEntityKind::Other(data) => {
                 let _ = state;
                 *data = match input {
@@ -207,6 +212,7 @@ impl BlockEntity {
             BlockEntityKind::Spawner(spawner) => spawner.save_additional(output),
             BlockEntityKind::Brushable(brushable) => brushable.save_additional(output),
             BlockEntityKind::Comparator(comparator) => comparator.save_additional(output),
+            BlockEntityKind::Jukebox(jukebox) => jukebox.save_additional(output),
             BlockEntityKind::Other(data) => output.extend(data.iter().cloned()),
         }
     }
@@ -367,7 +373,7 @@ impl BlockEntity {
     pub fn is_randomizable(&self) -> bool {
         !matches!(
             self.kind,
-            BlockEntityKind::Furnace(_) | BlockEntityKind::Beehive(_) | BlockEntityKind::Spawner(_) | BlockEntityKind::Brushable(_) | BlockEntityKind::Comparator(_) | BlockEntityKind::Other(_)
+            BlockEntityKind::Furnace(_) | BlockEntityKind::Beehive(_) | BlockEntityKind::Spawner(_) | BlockEntityKind::Brushable(_) | BlockEntityKind::Comparator(_) | BlockEntityKind::Jukebox(_) | BlockEntityKind::Other(_)
         )
     }
 
@@ -404,6 +410,7 @@ impl BlockEntity {
             types::HOPPER if block.is_instance_of("HopperBlock") => Some(BlockEntityTicker::Hopper),
             types::SHULKER_BOX if block.is_instance_of("ShulkerBoxBlock") => Some(BlockEntityTicker::ShulkerBox),
             types::DAYLIGHT_DETECTOR if block.is_instance_of("DaylightDetectorBlock") => Some(BlockEntityTicker::DaylightDetector),
+            types::JUKEBOX if block.is_instance_of("JukeboxBlock") && state.get(crisp_data::properties::HAS_RECORD) => Some(BlockEntityTicker::Jukebox),
             _ => None,
         }
     }

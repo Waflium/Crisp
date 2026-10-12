@@ -448,6 +448,9 @@ impl ServerLevel {
                 self.pre_remove_side_effects(pos);
             }
             *removed = self.chunks.remove_block_entity(pos);
+            if let Some(entity) = removed {
+                self.block_entity_set_removed(pos, entity);
+            }
         }
         if (block_changed || new_block.is_instance_of("BaseRailBlock")) && (flags & UPDATE_NEIGHBORS != 0 || moved_by_piston) {
             block::of(old).affect_neighbors_after_removal(old, self, pos, moved_by_piston);
@@ -463,7 +466,9 @@ impl ServerLevel {
             if existing == Some(false) {
                 let ty = self.chunks.block_entity_ref(pos).map(BlockEntity::ty);
                 warn!("Found mismatched block entity @ {pos:?}: type = {ty:?}, state = {state:?}");
-                self.chunks.remove_block_entity(pos);
+                if let Some(entity) = self.chunks.remove_block_entity(pos) {
+                    self.block_entity_set_removed(pos, &entity);
+                }
             }
             if existing == Some(true) {
                 if let Some(entity) = self.chunks.block_entity(pos, EntityCreationType::Check) {
