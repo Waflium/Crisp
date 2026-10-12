@@ -24,6 +24,7 @@ mod oracle_data;
 mod oracle_tests;
 pub mod shelf_block_entity;
 pub mod shulker_box_block_entity;
+pub mod skull_block_entity;
 pub mod spawner_block_entity;
 #[cfg(test)]
 mod tests;
@@ -90,6 +91,7 @@ pub enum BlockEntityKind {
     Shelf(shelf_block_entity::ShelfBlockEntity),
     DecoratedPot(decorated_pot_block_entity::DecoratedPotBlockEntity),
     Banner(banner_block_entity::BannerBlockEntity),
+    Skull(skull_block_entity::SkullBlockEntity),
     BrewingStand(brewing_stand_block_entity::BrewingStandBlockEntity),
     Other(Vec<(String, Nbt)>),
 }
@@ -135,6 +137,7 @@ impl BlockEntity {
             types::SHELF => BlockEntityKind::Shelf(shelf_block_entity::ShelfBlockEntity::default()),
             types::DECORATED_POT => BlockEntityKind::DecoratedPot(decorated_pot_block_entity::DecoratedPotBlockEntity::default()),
             types::BANNER => BlockEntityKind::Banner(banner_block_entity::BannerBlockEntity::default()),
+            types::SKULL => BlockEntityKind::Skull(skull_block_entity::SkullBlockEntity::default()),
             types::BREWING_STAND => BlockEntityKind::BrewingStand(brewing_stand_block_entity::BrewingStandBlockEntity::default()),
             _ => BlockEntityKind::Other(Vec::new()),
         };
@@ -238,6 +241,7 @@ impl BlockEntity {
             BlockEntityKind::Shelf(shelf) => shelf.load_additional(input),
             BlockEntityKind::DecoratedPot(pot) => pot.load_additional(input),
             BlockEntityKind::Banner(banner) => banner.load_additional(input),
+            BlockEntityKind::Skull(skull) => skull.load_additional(input),
             BlockEntityKind::BrewingStand(brewing_stand) => brewing_stand.load_additional(input),
             BlockEntityKind::Other(data) => {
                 let _ = state;
@@ -273,6 +277,7 @@ impl BlockEntity {
             BlockEntityKind::Shelf(shelf) => shelf.save_additional(output),
             BlockEntityKind::DecoratedPot(pot) => pot.save_additional(output),
             BlockEntityKind::Banner(banner) => banner.save_additional(output),
+            BlockEntityKind::Skull(skull) => skull.save_additional(output),
             BlockEntityKind::BrewingStand(brewing_stand) => brewing_stand.save_additional(output),
             BlockEntityKind::Other(data) => output.extend(data.iter().cloned()),
         }
@@ -360,6 +365,9 @@ impl BlockEntity {
             | types::CREAKING_HEART
             | types::DECORATED_POT
             | types::JIGSAW
+            | types::SKULL
+            | types::STRUCTURE_BLOCK
+            | types::TEST_BLOCK
             | types::TEST_INSTANCE_BLOCK
             | types::END_GATEWAY => UpdateTag::CustomOnly,
             types::BANNER => UpdateTag::WithoutMetadata,
@@ -393,6 +401,8 @@ impl BlockEntity {
             pot.apply_implicit_components(&mut get);
         } else if let BlockEntityKind::Banner(banner) = &mut self.kind {
             banner.apply_implicit_components(&mut get);
+        } else if let BlockEntityKind::Skull(skull) = &mut self.kind {
+            skull.apply_implicit_components(&mut get);
         }
         let added: Vec<(DataComponentType, Nbt)> =
             patch.iter().filter(|(ty, _)| !implicit.contains(ty)).filter_map(|(ty, value)| value.map(|v| (ty, v.clone()))).collect();
@@ -417,6 +427,8 @@ impl BlockEntity {
             pot.collect_implicit_components(&mut result);
         } else if let BlockEntityKind::Banner(banner) = &self.kind {
             banner.collect_implicit_components(&mut result);
+        } else if let BlockEntityKind::Skull(skull) = &self.kind {
+            skull.collect_implicit_components(&mut result);
         }
         result
     }
@@ -445,6 +457,8 @@ impl BlockEntity {
             output.retain(|(k, _)| !matches!(k.as_str(), "sherds" | "item"));
         } else if let BlockEntityKind::Banner(_) = self.kind {
             output.retain(|(k, _)| !matches!(k.as_str(), "patterns" | "CustomName"));
+        } else if let BlockEntityKind::Skull(_) = self.kind {
+            output.retain(|(k, _)| !matches!(k.as_str(), "profile" | "note_block_sound" | "custom_name"));
         }
     }
 

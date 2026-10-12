@@ -46,6 +46,7 @@ mod comparator_block;
 pub mod composter_block;
 pub mod beacon_block;
 mod abstract_banner_block;
+mod abstract_skull_block;
 pub mod rotation_segment;
 pub mod brewing_stand_block;
 mod conduit_block;

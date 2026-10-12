@@ -10,6 +10,7 @@ use crate::server::level::{ServerLevel, SoundSource};
 use crate::world::entity::EntityId;
 use crate::world::item::ItemStack;
 use crate::world::item::context::BlockPlaceContext;
+use crate::world::level::block::entity::BlockEntityKind;
 use crate::world::level::{BlockGetter, LevelAccessor, LevelReader};
 use crate::world::{InteractionHand, InteractionResult};
 
@@ -146,7 +147,10 @@ impl BlockBehaviour for NoteBlock {
         let instrument = state.get(NOTEBLOCK_INSTRUMENT);
         let pitch = if is_tunable(instrument) { get_pitch_from_note(state.get(NOTE)) } else { 1.0 };
         if has_custom_sound(instrument) {
-            return false;
+            let Some(sound_id) = self.get_custom_sound_id(level, pos) else { return false };
+            let seed = level.random.next_long();
+            level.play_seeded_direct_sound(None, pos, &sound_id, SoundSource::Records, NOTE_VOLUME, pitch, seed);
+            return true;
         }
         let sound = registry_id(registry::SOUND_EVENT, sound_event(instrument));
         let seed = level.random.next_long();
@@ -155,7 +159,34 @@ impl BlockBehaviour for NoteBlock {
     }
 }
 
+impl NoteBlock {
+    fn get_custom_sound_id(&self, level: &mut ServerLevel, pos: BlockPos) -> Option<String> {
+        match &level.get_block_entity(pos.above())?.kind {
+            BlockEntityKind::Skull(head) => head.get_note_block_sound().map(str::to_string),
+            _ => None,
+        }
+    }
+}
+
 impl ServerLevel {
+    pub fn play_seeded_direct_sound(&mut self, except: Option<EntityId>, pos: BlockPos, sound_id: &str, source: SoundSource, volume: f32, pitch: f32, seed: i64) {
+        let (x, y, z) = (pos.x as f64 + 0.5, pos.y as f64 + 0.5, pos.z as f64 + 0.5);
+        let packet = encode(clientbound::SOUND, |p| {
+            p.varint(0);
+            p.string(sound_id);
+            p.bool(false);
+            p.varint(source as i32);
+            p.i32((x * 8.0) as i32);
+            p.i32((y * 8.0) as i32);
+            p.i32((z * 8.0) as i32);
+            p.f32(volume);
+            p.f32(pitch);
+            p.i64(seed);
+        });
+        let range = if volume > 1.0 { 16.0 * volume } else { 16.0 } as f64;
+        self.broadcast_near(except, x, y, z, range, &packet);
+    }
+
     pub fn play_seeded_sound(&mut self, except: Option<EntityId>, pos: BlockPos, sound: i32, source: SoundSource, volume: f32, pitch: f32, seed: i64) {
         let (x, y, z) = (pos.x as f64 + 0.5, pos.y as f64 + 0.5, pos.z as f64 + 0.5);
         let packet = encode(clientbound::SOUND, |p| {
