@@ -33,6 +33,7 @@ use crisp_data::{MobEffect, game_rule};
 use crate::world::inventory::abstract_container_menu::AbstractContainerMenu;
 use crate::world::item::{Inventory, ItemStack, OFFHAND, inventory_slot, protocol_slot};
 use crate::world::entity::player::abilities::Abilities;
+use crate::world::level::portal::teleport_transition::{PostTeleportTransition, TeleportTransition};
 use crate::world::level::storage::RespawnData;
 use crate::world::InteractionHand;
 
@@ -78,6 +79,9 @@ pub struct ServerPlayer {
     pub game_mode: ServerPlayerGameMode,
     pub abilities: Abilities,
     pub respawn_config: Option<RespawnConfig>,
+    pub is_changing_dimension: bool,
+    pub seen_credits: bool,
+    pub entered_nether_position: Option<Vec3>,
     pub sleep_counter: i32,
     pub health: f32,
     pub food_data: crate::world::food::FoodData,
@@ -148,6 +152,9 @@ impl ServerPlayer {
             game_mode: ServerPlayerGameMode::default(),
             abilities: Abilities::default(),
             respawn_config: None,
+            is_changing_dimension: false,
+            seen_credits: false,
+            entered_nether_position: None,
             sleep_counter: 0,
             health: 20.0,
             food_data: Default::default(),
@@ -311,6 +318,10 @@ impl ServerPlayer {
         if let Some(previous) = self.game_mode.previous_game_type {
             nbt.push(("previousPlayerGameType".into(), Nbt::Int(previous.id())));
         }
+        nbt.push(("seenCredits".into(), Nbt::Byte(self.seen_credits as i8)));
+        if let Some(pos) = self.entered_nether_position {
+            nbt.push(("entered_nether_pos".into(), Nbt::List(vec![Nbt::Double(pos.x), Nbt::Double(pos.y), Nbt::Double(pos.z)])));
+        }
         nbt.push((crate::stats::server_recipe_book::RECIPE_BOOK_TAG.into(), self.recipe_book.pack()));
         nbt.push(("Dimension".into(), s(dimension)));
         if let Some(respawn) = &self.respawn_config {
@@ -340,6 +351,10 @@ impl ServerPlayer {
             Some(RespawnConfig { respawn_data: RespawnData::from_nbt(r)?, forced })
         });
         let number = |key: &str| nbt.get(key).and_then(Nbt::as_f64);
+        self.entered_nether_position = nbt.get("entered_nether_pos").map(Nbt::as_list).filter(|p| p.len() == 3).and_then(|p| {
+            Some(Vec3::new(p[0].as_f64()?, p[1].as_f64()?, p[2].as_f64()?))
+        });
+        self.seen_credits = number("seenCredits").is_some_and(|v| v != 0.0);
         if let Some(attributes) = nbt.get("attributes") {
             self.living.attributes.load(attributes);
         }
@@ -527,7 +542,9 @@ impl ServerLevel {
     }
 
     pub fn server_player_is_invulnerable_to(&mut self, id: EntityId, source: &DamageSource) -> bool {
-        self.player_is_invulnerable_to(id, source) || !self.player(id).movement.has_client_loaded()
+        self.player_is_invulnerable_to(id, source)
+            || self.player(id).is_changing_dimension && !source.is_type(crisp_data::damage_types::ENDER_PEARL)
+            || !self.player(id).movement.has_client_loaded()
     }
 
     pub fn can_harm_player(&self, id: EntityId, target: EntityId) -> bool {
@@ -665,5 +682,99 @@ impl ServerLevel {
             message.write(w);
             w.bool(false);
         });
+    }
+}
+
+impl crate::server::Server {
+    #[allow(clippy::too_many_arguments)]
+    pub fn server_player_teleport_to(&mut self, id: EntityId, level: usize, pos: Vec3, relatives: u16, y_rot: f32, x_rot: f32, _reset_camera: bool) -> bool {
+        let current = self.level_of(id).expect("player on this server");
+        if self.levels[current].is_sleeping(id) {
+            self.levels[current].stop_sleep_in_bed(id, true, true);
+        }
+        let transition = TeleportTransition::with_relatives(level, pos, Vec3::ZERO, y_rot, x_rot, relatives, PostTeleportTransition::DO_NOTHING);
+        let success = self.server_player_teleport(id, transition).is_some();
+        if success {
+            let p = self.player_mut(id);
+            p.entity.y_head_rot = if relatives & crate::world::entity::relative::relative::Y_ROT != 0 { p.entity.y_head_rot + y_rot } else { y_rot };
+            p.movement.above_ground_tick_count = 0;
+        }
+        success
+    }
+
+    pub fn server_player_teleport(&mut self, id: EntityId, transition: TeleportTransition) -> Option<EntityId> {
+        let old_level = self.level_of(id)?;
+        if self.levels[old_level].entity(id).is_removed() {
+            return None;
+        }
+        let out = self.player(id).connection.clone();
+        if transition.missing_respawn_block {
+            out.send(clientbound::GAME_EVENT, |w| {
+                w.u8(0);
+                w.f32(0.0);
+            });
+        }
+        let new_level = transition.new_level;
+        if new_level == old_level {
+            let level = &mut self.levels[old_level];
+            let player = level.player_mut(id);
+            player.teleport_relative(transition.position_move_rotation(), transition.relatives);
+            player.reset_position();
+            transition.post_teleport_transition.on_transition(level, id);
+            return Some(id);
+        }
+        self.player_mut(id).is_changing_dimension = true;
+        out.send(clientbound::RESPAWN, |w| {
+            self.create_common_spawn_info(w, new_level, self.player(id));
+            w.u8(3);
+        });
+        out.send(clientbound::CHANGE_DIFFICULTY, |w| {
+            w.varint(self.difficulty.id());
+            w.bool(self.difficulty_locked);
+        });
+        self.send_player_permission_level(id);
+        let mut player = self.levels[old_level].remove_player_immediately(id, crate::world::entity::RemovalReason::ChangedDimension);
+        player.entity.removal = None;
+        if self.levels[old_level].dimension == crate::server::OVERWORLD && self.levels[new_level].dimension == crate::server::THE_NETHER {
+            player.entered_nether_position = Some(player.entity.position());
+        }
+        player.teleport_relative(transition.position_move_rotation(), transition.relatives);
+        player.reset_position();
+        self.levels[new_level].add_player(player);
+        self.trigger_dimension_change_triggers(id);
+        let level = &mut self.levels[new_level];
+        level.stop_using_item(id);
+        let player = level.player(id);
+        player.connection.send(clientbound::PLAYER_ABILITIES, |w| player.abilities.write(w));
+        self.send_level_info(&out, new_level);
+        self.send_all_player_info(id);
+        let level = &mut self.levels[new_level];
+        level.send_active_player_effects(id);
+        out.send(clientbound::POST_EFFECTS, |w| w.varint(0));
+        transition.post_teleport_transition.on_transition(level, id);
+        let player = level.player_mut(id);
+        player.last_sent_exp = -1;
+        player.last_sent_health = -1.0;
+        player.last_sent_food = -1;
+        Some(id)
+    }
+
+    fn trigger_dimension_change_triggers(&mut self, id: EntityId) {
+        let new_level = self.level_of(id).expect("player on this server");
+        if self.levels[new_level].dimension != crate::server::THE_NETHER {
+            self.player_mut(id).entered_nether_position = None;
+        }
+    }
+
+    pub fn send_all_player_info(&mut self, id: EntityId) {
+        let level = self.entity_level_mut(id);
+        if let Some(mut menu) = level.player_mut(id).inventory_menu.take() {
+            level.menu_send_all_data_to_remote(&mut menu, id);
+            level.player_mut(id).inventory_menu = Some(menu);
+        }
+        let player = level.player_mut(id);
+        player.last_sent_health = -1.0e8;
+        let selected = player.inventory.selected as i32;
+        player.connection.send(clientbound::SET_HELD_SLOT, |w| w.varint(selected));
     }
 }

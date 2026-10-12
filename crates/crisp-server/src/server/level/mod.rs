@@ -978,6 +978,18 @@ impl ServerLevel {
         self.update_sleeping_player_list();
     }
 
+    pub fn reset_empty_time(&mut self) {
+        self.empty_time = 0;
+    }
+
+    pub fn remove_player_immediately(&mut self, id: EntityId, reason: crate::world::entity::RemovalReason) -> ServerPlayer {
+        self.player_remove(id, reason);
+        self.world_border.listener.remove_connection(id);
+        let player = self.players.shift_remove(&id).expect("removed player");
+        self.update_sleeping_player_list();
+        player
+    }
+
     pub fn remove_player(&mut self, id: EntityId) -> Option<ServerPlayer> {
         self.world_border.listener.remove_connection(id);
         self.player_left_level(id);

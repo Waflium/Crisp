@@ -854,3 +854,29 @@ fn stopwatch_transfer_and_damage() {
     assert_eq!(run(&mut server, "damage Alice 3 minecraft:mob_attack by Alice"), ["Target is invulnerable to the given damage type"]);
     assert_eq!(exec(&mut server, &console, "damage Alice 5 minecraft:out_of_world at 0 0 0"), Ok(1));
 }
+
+#[test]
+fn teleport_between_dimensions() {
+    let mut server = server();
+    let alice = join(&mut server, "Alice", Vec3::new(0.5, -60.0, 0.5));
+    run(&mut server, "execute in minecraft:the_end run forceload add 100 0");
+    for _ in 0..3 {
+        server.tick();
+    }
+    server.levels[2].finish_chunk_work();
+    let item = drop_item(&mut server, Vec3::new(1.5, -60.0, 1.5));
+    assert_eq!(run(&mut server, "execute in minecraft:the_end run tp @e[type=item] 100 70 0"), ["Teleported Stone to 100.500000, 70.000000, 0.500000"]);
+    assert_eq!(server.level_of(item), None);
+    assert_eq!(run(&mut server, "execute in minecraft:the_end run data get entity @e[type=item,limit=1] Pos"), ["Stone has the following entity data: [100.5d, 70.0d, 0.5d]"]);
+    for _ in 0..20 {
+        server.tick();
+    }
+    assert_eq!(run(&mut server, "execute in minecraft:the_end run data get entity @e[type=item,limit=1] Pos"), ["Stone has the following entity data: [100.5d, 62.574417918565516d, 0.5d]"]);
+    assert_eq!(run(&mut server, "execute in minecraft:the_nether run tp Alice 0.5 100 0.5"), ["Teleported Alice to 0.500000, 100.000000, 0.500000"]);
+    assert_eq!(server.level_of(alice.id), Some(1));
+    assert!(server.player(alice.id).is_changing_dimension);
+    assert_eq!(run(&mut server, "data get entity Alice Dimension"), ["Alice has the following entity data: \"minecraft:the_nether\""]);
+    run(&mut server, "tp Alice 0.5 -60 0.5");
+    assert_eq!(server.level_of(alice.id), Some(0));
+    assert_eq!(server.player_list, [alice.id]);
+}

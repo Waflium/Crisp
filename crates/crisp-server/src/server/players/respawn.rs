@@ -2,7 +2,7 @@ use crisp_core::{BlockPos, Vec3};
 use crisp_data::packets::play::clientbound;
 use crisp_protocol::Writer;
 
-use crate::network::connection::Packet;
+use crate::network::connection::{Outbound, Packet};
 use crate::server::level::game_mode::GameType;
 use crate::server::level::server_player::{RespawnConfig, ServerPlayer};
 use crate::server::{GAME_EVENT_LEVEL_CHUNKS_LOAD_START, OVERWORLD, Server, hashed_seed};
@@ -41,6 +41,44 @@ struct RespawnTransition {
 }
 
 impl Server {
+    pub fn create_common_spawn_info(&self, p: &mut Writer, level_index: usize, player: &ServerPlayer) {
+        let level = &self.levels[level_index];
+        p.varint(level.dimension_type_id);
+        p.string(level.dimension);
+        p.i64(hashed_seed(self.seed));
+        p.varint(player.game_mode.game_type.id());
+        p.varint(player.game_mode.previous_game_type.map_or(0, |g| g.id() + 1));
+        p.bool(false);
+        p.bool(level.chunks.generator.is_flat());
+        write_death_location(p, &player.last_death_location);
+        p.varint(player.entity.portal_cooldown);
+        p.varint(level.chunks.generator.sea_level());
+    }
+
+    pub fn send_level_info(&self, out: &Outbound, level_index: usize) {
+        let level = &self.levels[level_index];
+        out.send(clientbound::INITIALIZE_BORDER, |p| write_initialize_border(p, &level.world_border));
+        out.send(clientbound::SET_TIME, |p| self.full_time_sync(p));
+        out.send(clientbound::SET_DEFAULT_SPAWN_POSITION, |p| self.write_spawn(p));
+        level.write_weather_for_joining(out);
+        out.send(clientbound::GAME_EVENT, |p| {
+            p.u8(GAME_EVENT_LEVEL_CHUNKS_LOAD_START);
+            p.f32(0.0);
+        });
+        self.update_joining_player_tick_rate(out);
+    }
+
+    pub fn send_player_permission_level_to(&self, level_index: usize, player: &ServerPlayer) {
+        let permission = self.profile_permission_level(player.profile.uuid);
+        player.connection.send(clientbound::ENTITY_EVENT, |p| {
+            p.i32(player.entity.id);
+            p.u8(crate::server::EVENT_PERMISSION_LEVEL_ALL + permission as u8);
+        });
+        player.connection.send(clientbound::COMMANDS, |p| {
+            crate::commands::write_commands_packet(p, &crate::commands::source::CommandSourceStack::for_new_player(self, level_index, player))
+        });
+    }
+
     pub(in crate::server) fn handle_client_command(&mut self, id: EntityId, packet: &Packet) -> anyhow::Result<()> {
         self.player_mut(id).reset_last_action_time();
         if packet.reader().varint()? != PERFORM_RESPAWN {
@@ -111,10 +149,7 @@ impl Server {
     pub fn respawn(&mut self, id: EntityId) {
         let transition = self.find_respawn_position_and_use_spawn_block(id, true);
         let old_level = self.level_of(id).expect("respawning player");
-        self.levels[old_level].player_remove(id, RemovalReason::Killed);
-        let old = self.levels[old_level].players.shift_remove(&id).expect("respawning player");
-        self.levels[old_level].world_border.listener.remove_connection(id);
-        self.levels[old_level].update_sleeping_player_list();
+        let old = self.levels[old_level].remove_player_immediately(id, RemovalReason::Killed);
         let level_index = transition.level;
         let old_score = old.score();
         let mut player = ServerPlayer::new(old.profile.clone(), old.client, old.connection.clone(), BlockPos::ZERO);
@@ -145,6 +180,9 @@ impl Server {
             player.set_score(old_score);
         }
         player.experience.enchantment_seed = old.experience.enchantment_seed;
+        player.ender_chest_inventory = old.ender_chest_inventory;
+        player.seen_credits = old.seen_credits;
+        player.entered_nether_position = old.entered_nether_position;
         player.recipe_book.copy_over_data(&old.recipe_book);
         player.last_sent_exp = -1;
         player.last_sent_health = -1.0;
@@ -168,18 +206,8 @@ impl Server {
                 p.f32(0.0);
             });
         }
-        let level = &self.levels[level_index];
         out.send(clientbound::RESPAWN, |p| {
-            p.varint(level.dimension_type_id);
-            p.string(level.dimension);
-            p.i64(hashed_seed(self.seed));
-            p.varint(player.game_mode.game_type.id());
-            p.varint(player.game_mode.previous_game_type.map_or(0, |g| g.id() + 1));
-            p.bool(false);
-            p.bool(level.chunks.generator.is_flat());
-            write_death_location(p, &player.last_death_location);
-            p.varint(0);
-            p.varint(level.chunks.generator.sea_level());
+            self.create_common_spawn_info(p, level_index, &player);
             p.u8(0);
         });
         let (pos, y_rot, x_rot) = (player.entity.position(), player.entity.y_rot, player.entity.x_rot);
@@ -188,27 +216,8 @@ impl Server {
         self.send_difficulty_update(&out);
         player.send_experience();
         out.send(clientbound::POST_EFFECTS, |p| p.varint(0));
-        out.send(clientbound::INITIALIZE_BORDER, |p| write_initialize_border(p, &level.world_border));
-        out.send(clientbound::SET_TIME, |p| self.full_time_sync(p));
-        out.send(clientbound::SET_DEFAULT_SPAWN_POSITION, |p| self.write_spawn(p));
-        level.write_weather_for_joining(&out);
-        out.send(clientbound::GAME_EVENT, |p| {
-            p.u8(GAME_EVENT_LEVEL_CHUNKS_LOAD_START);
-            p.f32(0.0);
-        });
-        out.send(clientbound::TICKING_STATE, |p| {
-            p.f32(20.0);
-            p.bool(false);
-        });
-        out.send(clientbound::TICKING_STEP, |p| p.varint(0));
-        let permission = self.profile_permission_level(player.profile.uuid);
-        out.send(clientbound::ENTITY_EVENT, |p| {
-            p.i32(id);
-            p.u8(crate::server::EVENT_PERMISSION_LEVEL_ALL + permission as u8);
-        });
-        out.send(clientbound::COMMANDS, |p| {
-            crate::commands::write_commands_packet(p, &crate::commands::source::CommandSourceStack::for_new_player(self, level_index, &player))
-        });
+        self.send_level_info(&out, level_index);
+        self.send_player_permission_level_to(level_index, &player);
         self.levels[level_index].add_player(player);
         self.player_list.retain(|&p| p != id);
         self.player_list.push(id);

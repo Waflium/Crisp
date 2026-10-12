@@ -169,7 +169,10 @@ impl ServerLevel {
         }
     }
 
-    fn should_check_player_movement(&self, is_fall_flying: bool) -> bool {
+    fn should_check_player_movement(&self, id: EntityId, is_fall_flying: bool) -> bool {
+        if self.player(id).is_changing_dimension {
+            return false;
+        }
         self.game_rules.get_bool(crisp_data::game_rule::PLAYER_MOVEMENT_CHECK)
             && (!is_fall_flying || self.game_rules.get_bool(crisp_data::game_rule::ELYTRA_MOVEMENT_CHECK))
     }
@@ -198,7 +201,7 @@ impl ServerLevel {
             if delta_packets > 5 {
                 delta_packets = 1;
             }
-            if self.should_check_player_movement(is_fall_flying) {
+            if self.should_check_player_movement(id, is_fall_flying) {
                 let meters_per_tick = if is_fall_flying { 300.0f32 } else { 100.0 };
                 if moved_dist - expected_dist > (meters_per_tick * delta_packets as f32) as f64 {
                     let p = self.player(id);
@@ -229,7 +232,8 @@ impl ServerLevel {
         let z_dist = target_z - e.z();
         let moved_dist = x_dist * x_dist + y_dist * y_dist + z_dist * z_dist;
         let p = self.player(id);
-        let fail = moved_dist > 0.0625
+        let fail = !p.is_changing_dimension
+            && moved_dist > 0.0625
             && p.game_mode.game_type != GameType::Creative
             && p.game_mode.game_type != GameType::Spectator
             && !p.living.is_in_post_impulse_grace_time();
@@ -366,6 +370,7 @@ impl ServerLevel {
         p.entity.abs_snap_to(awaiting.x, awaiting.y, awaiting.z);
         p.entity.abs_snap_rotation_to(own_y_rot, own_x_rot);
         p.movement.last_good = awaiting;
+        p.is_changing_dimension = false;
         p.movement.awaiting_position_from_client = None;
         self.handle_player_position_change(id, pos, y_rot, x_rot, false, false);
     }

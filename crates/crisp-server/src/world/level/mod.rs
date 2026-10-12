@@ -18,6 +18,7 @@ pub mod moon_phase;
 pub mod noise_column;
 pub mod path_navigation_region;
 pub mod pathfinder;
+pub mod portal;
 pub mod saveddata;
 pub mod redstone;
 pub mod signal;

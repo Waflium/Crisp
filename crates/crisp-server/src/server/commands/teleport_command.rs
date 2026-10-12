@@ -1,5 +1,4 @@
 use crisp_core::{BlockPos, Vec3, mth};
-use crisp_data::packets::play::clientbound;
 
 use super::command_response_tracker::CommandResponseTracker;
 use super::look_at::LookAt;
@@ -7,12 +6,10 @@ use crate::commands::arguments::coordinates::Coordinates;
 use crate::commands::brigadier::{CommandContext, CommandSyntaxException, SimpleCommandExceptionType};
 use crate::commands::source::{Anchor, CommandSourceStack};
 use crate::network::chat::Component;
-use crate::network::connection::encode;
 use crate::server::Server;
-use crate::server::level::ServerLevel;
 use crate::util::java_format_fixed;
 use crate::world::entity::EntityId;
-use crate::world::entity::relative::{PositionMoveRotation, relative};
+use crate::world::entity::relative::relative;
 use crate::world::level::is_in_spawnable_bounds;
 
 static INVALID_POSITION: SimpleCommandExceptionType = SimpleCommandExceptionType("commands.teleport.invalidPosition");
@@ -69,17 +66,19 @@ pub fn teleport_targets_to_destination(server: &mut Server, context: &CommandCon
 fn teleport_to_entity(server: &mut Server, source: &CommandSourceStack, entities: &[EntityId], destination: EntityId) -> Result<i32> {
     let mut tracker = CommandResponseTracker::new();
     for &entity in entities {
-        let d = server.entity_level(destination).entity(destination);
+        let level = server.level_of(destination).expect("destination on this server");
+        let d = server.levels[level].entity(destination);
         let (pos, y_rot, x_rot) = (d.position(), d.y_rot, d.x_rot);
-        perform_teleport(server.entity_level_mut(entity), source, entity, pos, 0, y_rot, x_rot, None)?;
-        tracker.track(entity);
+        let name = server.entity_display_name(entity);
+        perform_teleport(server, source, entity, level, pos, 0, y_rot, x_rot, None)?;
+        tracker.track(name);
     }
     let server = &*server;
     tracker.send_feedback(
         server,
         source,
         true,
-        |entity, _| Component::translatable_with("commands.teleport.success.entity.single", vec![server.entity_display_name(entity).into(), server.entity_display_name(destination).into()]),
+        |name, _| Component::translatable_with("commands.teleport.success.entity.single", vec![name.into(), server.entity_display_name(destination).into()]),
         |count, _| Component::translatable_with("commands.teleport.success.entity.multiple", vec![count.into(), server.entity_display_name(destination).into()]),
     )
 }
@@ -104,8 +103,9 @@ fn teleport_to_pos(
             }
             Some((x, y)) => (y, x),
         };
-        perform_teleport(server.entity_level_mut(entity), source, entity, pos, relatives, y_rot, x_rot, look_at)?;
-        tracker.track(entity);
+        let name = server.entity_display_name(entity);
+        perform_teleport(server, source, entity, source.level, pos, relatives, y_rot, x_rot, look_at)?;
+        tracker.track(name);
     }
     let server = &*server;
     let (x, y, z) = (format_double(pos.x), format_double(pos.y), format_double(pos.z));
@@ -113,10 +113,10 @@ fn teleport_to_pos(
         server,
         source,
         true,
-        |entity, _| {
+        |name, _| {
             Component::translatable_with(
                 "commands.teleport.success.location.single",
-                vec![server.entity_display_name(entity).into(), x.as_str().into(), y.as_str().into(), z.as_str().into()],
+                vec![name.into(), x.as_str().into(), y.as_str().into(), z.as_str().into()],
             )
         },
         |count, _| Component::translatable_with("commands.teleport.success.location.multiple", vec![count.into(), x.as_str().into(), y.as_str().into(), z.as_str().into()]),
@@ -137,10 +137,12 @@ fn format_double(value: f64) -> String {
 }
 
 #[allow(clippy::too_many_arguments)]
+#[allow(clippy::too_many_arguments)]
 fn perform_teleport(
-    level: &mut ServerLevel,
+    server: &mut Server,
     source: &CommandSourceStack,
     victim: EntityId,
+    level: usize,
     pos: Vec3,
     relatives: u16,
     y_rot: f32,
@@ -150,14 +152,17 @@ fn perform_teleport(
     if !is_in_spawnable_bounds(BlockPos::containing_vec(pos)) {
         return Err(INVALID_POSITION.create());
     }
-    let e = level.entity(victim);
+    let e = server.entity_level(victim).entity(victim);
     let has = |r: u16| relatives & r != 0;
     let x = if has(relative::X) { pos.x - e.x() } else { pos.x };
     let y = if has(relative::Y) { pos.y - e.y() } else { pos.y };
     let z = if has(relative::Z) { pos.z - e.z() } else { pos.z };
     let new_y_rot = mth::wrap_degrees(if has(relative::Y_ROT) { y_rot - e.y_rot } else { y_rot });
     let new_x_rot = mth::wrap_degrees(if has(relative::X_ROT) { x_rot - e.x_rot } else { x_rot });
-    if teleport_to(level, victim, Vec3::new(x, y, z), relatives, new_y_rot, new_x_rot) {
+    if server.teleport_to(victim, level, Vec3::new(x, y, z), relatives, new_y_rot, new_x_rot, true)
+        && let Some(level) = server.level_of(victim)
+    {
+        let level = &mut server.levels[level];
         if let Some(look_at) = look_at {
             look_at.perform(level, source, victim);
         }
@@ -169,37 +174,6 @@ fn perform_teleport(
         }
     }
     Ok(())
-}
-
-fn teleport_to(level: &mut ServerLevel, id: EntityId, pos: Vec3, relatives: u16, y_rot: f32, x_rot: f32) -> bool {
-    if level.entity(id).is_removed() {
-        return false;
-    }
-    let destination = PositionMoveRotation { position: pos, delta_movement: Vec3::ZERO, y_rot, x_rot };
-    if level.is_player(id) && level.is_sleeping(id) {
-        level.stop_sleep_in_bed(id, true, true);
-    }
-    if let Some(player) = level.players.get_mut(&id) {
-        player.teleport_relative(destination, relatives);
-        player.reset_position();
-        let e = &mut player.entity;
-        e.y_head_rot = if relatives & relative::Y_ROT != 0 { e.y_head_rot + y_rot } else { y_rot };
-        player.movement.above_ground_tick_count = 0;
-        return true;
-    }
-    let e = level.entity_mut(id);
-    let current = PositionMoveRotation { position: e.position(), delta_movement: e.delta_movement, y_rot: e.y_rot, x_rot: e.x_rot };
-    e.teleport_set_position(current, destination, relatives);
-    level.entity_moved(id);
-    let e = level.entity(id);
-    let packet = encode(clientbound::TELEPORT_ENTITY, |w| {
-        w.varint(id);
-        PositionMoveRotation { position: e.position(), delta_movement: e.delta_movement, y_rot: e.y_rot, x_rot: e.x_rot }.write(w);
-        w.i32(0);
-        w.bool(e.on_ground);
-    });
-    level.send_to_tracking_players(id, &packet);
-    true
 }
 
 #[cfg(test)]

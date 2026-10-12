@@ -22,6 +22,7 @@ use crate::server::level::{ServerLevel, SoundSource};
 use crate::world::attribute::environment_attributes;
 use crate::world::level::BlockGetter;
 use crate::world::level::block;
+use crate::world::level::portal::teleport_transition::{PostTeleportTransition, TeleportTransition};
 use crate::world::level::clip::{ClipBlock, ClipContext, ClipFluid};
 use crate::world::level::clip::for_each_block_intersected_between;
 use crate::world::level::collision::{Collider, collide_with_shapes};
@@ -1767,6 +1768,10 @@ impl ServerLevel {
         self.no_collision_for(id, &box_) && !self.contains_any_liquid(&box_)
     }
 
+    pub fn place_portal_ticket(&mut self, ticket_position: BlockPos) {
+        self.chunks.add_ticket_with_radius(crate::server::level::ticket::TicketType::Portal, ticket_position.chunk(), 3);
+    }
+
     pub fn teleport_relative(&mut self, id: EntityId, dx: f64, dy: f64, dz: f64) {
         if let Some(p) = self.players.get_mut(&id) {
             let destination = super::relative::PositionMoveRotation { position: Vec3::new(dx, dy, dz), delta_movement: Vec3::ZERO, y_rot: 0.0, x_rot: 0.0 };
@@ -2021,6 +2026,81 @@ trait SignumJava {
 impl SignumJava for f64 {
     fn signum_java(self) -> f64 {
         if self == 0.0 || self.is_nan() { self } else { self.signum() }
+    }
+}
+
+impl ServerLevel {
+    pub fn teleport_same_dimension(&mut self, id: EntityId, transition: TeleportTransition) -> EntityId {
+        let e = self.entity_mut(id);
+        let current = relative::PositionMoveRotation { position: e.position(), delta_movement: e.delta_movement, y_rot: e.y_rot, x_rot: e.x_rot };
+        e.teleport_set_position(current, transition.position_move_rotation(), transition.relatives);
+        self.entity_moved(id);
+        if !transition.as_passenger {
+            self.send_teleport_transition_to_players(id);
+        }
+        transition.post_teleport_transition.on_transition(self, id);
+        id
+    }
+
+    fn send_teleport_transition_to_players(&mut self, id: EntityId) {
+        let e = self.entity(id);
+        let packet = crate::network::connection::encode(crisp_data::packets::play::clientbound::TELEPORT_ENTITY, |w| {
+            w.varint(id);
+            relative::PositionMoveRotation { position: e.position(), delta_movement: e.delta_movement, y_rot: e.y_rot, x_rot: e.x_rot }.write(w);
+            w.i32(0);
+            w.bool(e.on_ground);
+        });
+        self.send_to_tracking_players(id, &packet);
+    }
+
+    fn remove_after_changing_dimensions(&mut self, id: EntityId) {
+        self.entity_mut(id).removal = Some(RemovalReason::ChangedDimension);
+        self.remove_entity(id);
+    }
+}
+
+impl crate::server::Server {
+    pub fn teleport_to(&mut self, id: EntityId, level: usize, pos: Vec3, relatives: u16, y_rot: f32, x_rot: f32, reset_camera: bool) -> bool {
+        if self.has_player(id) {
+            return self.server_player_teleport_to(id, level, pos, relatives, y_rot, x_rot, reset_camera);
+        }
+        let transition = TeleportTransition::with_relatives(level, pos, Vec3::ZERO, y_rot, x_rot, relatives, PostTeleportTransition::DO_NOTHING);
+        self.teleport(id, transition).is_some()
+    }
+
+    pub fn teleport(&mut self, id: EntityId, transition: TeleportTransition) -> Option<EntityId> {
+        if self.has_player(id) {
+            return self.server_player_teleport(id, transition);
+        }
+        let old_level = self.level_of(id)?;
+        if self.levels[old_level].entity(id).is_removed() {
+            return None;
+        }
+        if transition.new_level != old_level {
+            self.teleport_cross_dimension(old_level, id, transition)
+        } else {
+            Some(self.levels[old_level].teleport_same_dimension(id, transition))
+        }
+    }
+
+    fn teleport_cross_dimension(&mut self, old_level: usize, id: EntityId, transition: TeleportTransition) -> Option<EntityId> {
+        let old = self.levels[old_level].entities.get(&id)?;
+        let entity_type = registry::ENTITY_TYPE[old.entity().entity_type as usize];
+        let mut new_entity = ServerLevel::create_entity(entity_type)?;
+        let mut data = Vec::new();
+        old.save_without_id(&mut data);
+        let _ = new_entity.load(&Nbt::Compound(data));
+        let old_entity = old.entity();
+        let current = relative::PositionMoveRotation { position: old_entity.position(), delta_movement: old_entity.delta_movement, y_rot: old_entity.y_rot, x_rot: old_entity.x_rot };
+        new_entity.entity_mut().portal_cooldown = old_entity.portal_cooldown;
+        self.levels[old_level].remove_after_changing_dimensions(id);
+        new_entity.entity_mut().teleport_set_position(current, transition.position_move_rotation(), transition.relatives);
+        let new_id = new_entity.entity().id;
+        let level = &mut self.levels[transition.new_level];
+        level.add_entity(new_entity);
+        level.reset_empty_time();
+        transition.post_teleport_transition.on_transition(level, new_id);
+        Some(new_id)
     }
 }
 
