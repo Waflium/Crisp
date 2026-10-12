@@ -3,7 +3,7 @@ use crisp_core::{BlockPos, Direction};
 use serde_json::Value;
 
 use super::stateproviders::block_state_provider::BlockStateProviderHolder;
-use crate::server::level::world_gen_region::WorldGenRegion;
+use crate::world::level::world_gen_level::WorldGenLevel;
 use crate::util::valueproviders::IntProvider;
 use crate::world::level::levelgen::blockpredicates::block_predicate::BlockPredicate;
 
@@ -40,7 +40,7 @@ impl BlockColumnFeature {
         })
     }
 
-    pub fn place<R: RandomSource>(&self, level: &mut WorldGenRegion, random: &mut R, origin: BlockPos) -> bool {
+    pub fn place<R: RandomSource>(&self, level: &mut impl WorldGenLevel, random: &mut R, origin: BlockPos) -> bool {
         let mut layer_heights: Vec<i32> = Vec::with_capacity(self.layers.len());
         let mut total_height = 0;
         for layer in &self.layers {

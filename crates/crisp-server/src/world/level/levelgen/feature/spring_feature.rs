@@ -3,8 +3,7 @@ use crisp_data::{Fluid, FluidState};
 use serde_json::Value;
 
 use crate::server::level::legacy_block;
-use crate::server::level::world_gen_region::WorldGenRegion;
-use crate::world::level::ScheduledTickAccess;
+use crate::world::level::world_gen_level::WorldGenLevel;
 use crate::world::level::levelgen::blockpredicates::block_predicate::{BlockSet, resource};
 
 pub struct SpringFeature {
@@ -38,11 +37,11 @@ impl SpringFeature {
         })
     }
 
-    fn is_valid(&self, level: &mut WorldGenRegion, pos: BlockPos) -> bool {
+    fn is_valid(&self, level: &mut impl WorldGenLevel, pos: BlockPos) -> bool {
         self.valid_blocks.contains(level.get_block_state(pos).block())
     }
 
-    pub fn place(&self, level: &mut WorldGenRegion, origin: BlockPos) -> bool {
+    pub fn place(&self, level: &mut impl WorldGenLevel, origin: BlockPos) -> bool {
         if !self.is_valid(level, origin.above()) {
             return false;
         }

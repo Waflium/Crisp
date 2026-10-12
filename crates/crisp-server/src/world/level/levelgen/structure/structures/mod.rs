@@ -50,7 +50,7 @@ use super::pool_element_structure_piece::{self, PoolElementStructurePiece};
 use super::single_piece_structure;
 use super::structure::{GenerationContext, GenerationStub};
 use super::structure_piece::StructurePiece;
-use crate::server::level::world_gen_region::WorldGenRegion;
+use crate::world::level::world_gen_level::WorldGenLevel;
 
 pub enum StructureType {
     BuriedTreasure,
@@ -113,7 +113,7 @@ impl StructureType {
         }
     }
 
-    pub fn after_place(&self, level: &mut WorldGenRegion, _random: &mut impl RandomSource, chunk_bb: &BoundingBox, _chunk_pos: ChunkPos, pieces: &PiecesContainer) {
+    pub fn after_place(&self, level: &mut impl WorldGenLevel, _random: &mut impl RandomSource, chunk_bb: &BoundingBox, _chunk_pos: ChunkPos, pieces: &PiecesContainer) {
         if let StructureType::DesertPyramid = self {
             desert_pyramid_structure::after_place(level, chunk_bb, pieces);
         }
@@ -263,7 +263,7 @@ impl Piece {
         self.piece().create_tag(additional)
     }
 
-    pub fn post_process(&mut self, level: &mut WorldGenRegion, random: &mut impl RandomSource, chunk_bb: &BoundingBox, chunk_pos: ChunkPos, reference_pos: BlockPos) {
+    pub fn post_process(&mut self, level: &mut impl WorldGenLevel, random: &mut impl RandomSource, chunk_bb: &BoundingBox, chunk_pos: ChunkPos, reference_pos: BlockPos) {
         match self {
             Piece::BuriedTreasure(piece) => piece.post_process(level, random, chunk_bb),
             Piece::DesertPyramid(piece) => piece.post_process(level, random, chunk_bb),

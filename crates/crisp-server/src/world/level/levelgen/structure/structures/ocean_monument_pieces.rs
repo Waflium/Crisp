@@ -3,7 +3,7 @@ use crisp_core::random::RandomSource;
 use crisp_data::{Block, BlockState, blocks};
 use crisp_protocol::nbt::Nbt;
 
-use crate::server::level::world_gen_region::WorldGenRegion;
+use crate::world::level::world_gen_level::WorldGenLevel;
 use crate::util::shuffle;
 use crate::world::level::levelgen::structure::BoundingBox;
 use crate::world::level::levelgen::structure::structure_piece::{self, StructurePiece};
@@ -217,7 +217,7 @@ impl MonumentChildPiece {
         }
     }
 
-    fn post_process(&self, level: &mut WorldGenRegion, random: &mut impl RandomSource, chunk_bb: &BoundingBox, rooms: &[RoomDefinition]) {
+    fn post_process(&self, level: &mut impl WorldGenLevel, random: &mut impl RandomSource, chunk_bb: &BoundingBox, rooms: &[RoomDefinition]) {
         match self {
             MonumentChildPiece::CoreRoom(piece) => piece.post_process(level, chunk_bb),
             MonumentChildPiece::DoubleXRoom(piece) => piece.post_process(level, chunk_bb, rooms),
@@ -390,7 +390,7 @@ impl MonumentBuilding {
         (room_defs, source_room, core_room)
     }
 
-    pub fn post_process(&self, level: &mut WorldGenRegion, random: &mut impl RandomSource, chunk_bb: &BoundingBox) {
+    pub fn post_process(&self, level: &mut impl WorldGenLevel, random: &mut impl RandomSource, chunk_bb: &BoundingBox) {
         let monument = &self.monument;
         let piece = &monument.piece;
         let base_light = base_light();
@@ -438,7 +438,7 @@ impl MonumentBuilding {
         }
     }
 
-    fn generate_wing(&self, is_flipped: bool, xoff: i32, level: &mut WorldGenRegion, chunk_bb: &BoundingBox) {
+    fn generate_wing(&self, is_flipped: bool, xoff: i32, level: &mut impl WorldGenLevel, chunk_bb: &BoundingBox) {
         let monument = &self.monument;
         let piece = &monument.piece;
         let (base_gray, base_light) = (base_gray(), base_light());
@@ -479,7 +479,7 @@ impl MonumentBuilding {
         }
     }
 
-    fn generate_entrance_archs(&self, level: &mut WorldGenRegion, chunk_bb: &BoundingBox) {
+    fn generate_entrance_archs(&self, level: &mut impl WorldGenLevel, chunk_bb: &BoundingBox) {
         let monument = &self.monument;
         let piece = &monument.piece;
         let (base_gray, base_light, lamp_block) = (base_gray(), base_light(), lamp_block());
@@ -501,7 +501,7 @@ impl MonumentBuilding {
         }
     }
 
-    fn generate_entrance_wall(&self, level: &mut WorldGenRegion, chunk_bb: &BoundingBox) {
+    fn generate_entrance_wall(&self, level: &mut impl WorldGenLevel, chunk_bb: &BoundingBox) {
         let monument = &self.monument;
         let piece = &monument.piece;
         let (base_gray, base_light, base_black) = (base_gray(), base_light(), base_black());
@@ -558,7 +558,7 @@ impl MonumentBuilding {
         }
     }
 
-    fn generate_roof_piece(&self, level: &mut WorldGenRegion, chunk_bb: &BoundingBox) {
+    fn generate_roof_piece(&self, level: &mut impl WorldGenLevel, chunk_bb: &BoundingBox) {
         let monument = &self.monument;
         let piece = &monument.piece;
         let (base_gray, base_light, lamp_block) = (base_gray(), base_light(), lamp_block());
@@ -595,7 +595,7 @@ impl MonumentBuilding {
         }
     }
 
-    fn generate_lower_wall(&self, level: &mut WorldGenRegion, chunk_bb: &BoundingBox) {
+    fn generate_lower_wall(&self, level: &mut impl WorldGenLevel, chunk_bb: &BoundingBox) {
         let monument = &self.monument;
         let piece = &monument.piece;
         let (base_gray, base_light) = (base_gray(), base_light());
@@ -640,7 +640,7 @@ impl MonumentBuilding {
         }
     }
 
-    fn generate_middle_wall(&self, level: &mut WorldGenRegion, chunk_bb: &BoundingBox) {
+    fn generate_middle_wall(&self, level: &mut impl WorldGenLevel, chunk_bb: &BoundingBox) {
         let monument = &self.monument;
         let piece = &monument.piece;
         let (base_gray, base_light) = (base_gray(), base_light());
@@ -694,7 +694,7 @@ impl MonumentBuilding {
         }
     }
 
-    fn generate_upper_wall(&self, level: &mut WorldGenRegion, chunk_bb: &BoundingBox) {
+    fn generate_upper_wall(&self, level: &mut impl WorldGenLevel, chunk_bb: &BoundingBox) {
         let monument = &self.monument;
         let piece = &monument.piece;
         let (base_gray, base_light) = (base_gray(), base_light());
@@ -747,7 +747,7 @@ impl OceanMonumentCoreRoom {
         OceanMonumentCoreRoom { monument: OceanMonumentPiece::new_room(OCEAN_MONUMENT_CORE_ROOM, 1, orientation, rooms, definition, 2, 2, 2) }
     }
 
-    fn post_process(&self, level: &mut WorldGenRegion, chunk_bb: &BoundingBox) {
+    fn post_process(&self, level: &mut impl WorldGenLevel, chunk_bb: &BoundingBox) {
         let monument = &self.monument;
         let piece = &monument.piece;
         let (base_gray, base_light, base_black, lamp_block) = (base_gray(), base_light(), base_black(), lamp_block());
@@ -821,7 +821,7 @@ impl OceanMonumentDoubleXRoom {
         OceanMonumentDoubleXRoom { monument: OceanMonumentPiece::new_room(OCEAN_MONUMENT_DOUBLE_X_ROOM, 1, orientation, rooms, definition, 2, 1, 1) }
     }
 
-    fn post_process(&self, level: &mut WorldGenRegion, chunk_bb: &BoundingBox, rooms: &[RoomDefinition]) {
+    fn post_process(&self, level: &mut impl WorldGenLevel, chunk_bb: &BoundingBox, rooms: &[RoomDefinition]) {
         let monument = &self.monument;
         let piece = &monument.piece;
         let (base_gray, base_light, lamp_block) = (base_gray(), base_light(), lamp_block());
@@ -886,7 +886,7 @@ impl OceanMonumentDoubleXYRoom {
         OceanMonumentDoubleXYRoom { monument: OceanMonumentPiece::new_room(OCEAN_MONUMENT_DOUBLE_XY_ROOM, 1, orientation, rooms, definition, 2, 2, 1) }
     }
 
-    fn post_process(&self, level: &mut WorldGenRegion, chunk_bb: &BoundingBox, rooms: &[RoomDefinition]) {
+    fn post_process(&self, level: &mut impl WorldGenLevel, chunk_bb: &BoundingBox, rooms: &[RoomDefinition]) {
         let monument = &self.monument;
         let piece = &monument.piece;
         let (base_gray, base_light, lamp_block) = (base_gray(), base_light(), lamp_block());
@@ -987,7 +987,7 @@ impl OceanMonumentDoubleYRoom {
         OceanMonumentDoubleYRoom { monument: OceanMonumentPiece::new_room(OCEAN_MONUMENT_DOUBLE_Y_ROOM, 1, orientation, rooms, definition, 1, 2, 1) }
     }
 
-    fn post_process(&self, level: &mut WorldGenRegion, chunk_bb: &BoundingBox, rooms: &[RoomDefinition]) {
+    fn post_process(&self, level: &mut impl WorldGenLevel, chunk_bb: &BoundingBox, rooms: &[RoomDefinition]) {
         let monument = &self.monument;
         let piece = &monument.piece;
         let (base_gray, base_light) = (base_gray(), base_light());
@@ -1064,7 +1064,7 @@ impl OceanMonumentDoubleYZRoom {
         OceanMonumentDoubleYZRoom { monument: OceanMonumentPiece::new_room(OCEAN_MONUMENT_DOUBLE_YZ_ROOM, 1, orientation, rooms, definition, 1, 2, 2) }
     }
 
-    fn post_process(&self, level: &mut WorldGenRegion, chunk_bb: &BoundingBox, rooms: &[RoomDefinition]) {
+    fn post_process(&self, level: &mut impl WorldGenLevel, chunk_bb: &BoundingBox, rooms: &[RoomDefinition]) {
         let monument = &self.monument;
         let piece = &monument.piece;
         let (base_gray, base_light, base_black, lamp_block) = (base_gray(), base_light(), base_black(), lamp_block());
@@ -1161,7 +1161,7 @@ impl OceanMonumentDoubleZRoom {
         OceanMonumentDoubleZRoom { monument: OceanMonumentPiece::new_room(OCEAN_MONUMENT_DOUBLE_Z_ROOM, 1, orientation, rooms, definition, 1, 1, 2) }
     }
 
-    fn post_process(&self, level: &mut WorldGenRegion, chunk_bb: &BoundingBox, rooms: &[RoomDefinition]) {
+    fn post_process(&self, level: &mut impl WorldGenLevel, chunk_bb: &BoundingBox, rooms: &[RoomDefinition]) {
         let monument = &self.monument;
         let piece = &monument.piece;
         let (base_gray, base_light, lamp_block) = (base_gray(), base_light(), lamp_block());
@@ -1245,7 +1245,7 @@ impl OceanMonumentEntryRoom {
         OceanMonumentEntryRoom { monument: OceanMonumentPiece::new_room(OCEAN_MONUMENT_ENTRY_ROOM, 1, orientation, rooms, definition, 1, 1, 1) }
     }
 
-    fn post_process(&self, level: &mut WorldGenRegion, chunk_bb: &BoundingBox, rooms: &[RoomDefinition]) {
+    fn post_process(&self, level: &mut impl WorldGenLevel, chunk_bb: &BoundingBox, rooms: &[RoomDefinition]) {
         let monument = &self.monument;
         let piece = &monument.piece;
         let base_light = base_light();
@@ -1281,7 +1281,7 @@ impl OceanMonumentPenthouse {
         OceanMonumentPenthouse { monument: OceanMonumentPiece::new(OCEAN_MONUMENT_PENTHOUSE, orientation, 1, bounding_box) }
     }
 
-    fn post_process(&self, level: &mut WorldGenRegion, chunk_bb: &BoundingBox) {
+    fn post_process(&self, level: &mut impl WorldGenLevel, chunk_bb: &BoundingBox) {
         let monument = &self.monument;
         let piece = &monument.piece;
         let (base_gray, base_light, base_black, lamp_block) = (base_gray(), base_light(), base_black(), lamp_block());
@@ -1378,7 +1378,7 @@ impl OceanMonumentPiece {
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn generate_water_box(&self, level: &mut WorldGenRegion, chunk_bb: &BoundingBox, x0: i32, y0: i32, z0: i32, x1: i32, y1: i32, z1: i32) {
+    fn generate_water_box(&self, level: &mut impl WorldGenLevel, chunk_bb: &BoundingBox, x0: i32, y0: i32, z0: i32, x1: i32, y1: i32, z1: i32) {
         let fill_block = fill_block();
         for y in y0..=y1 {
             for x in x0..=x1 {
@@ -1396,7 +1396,7 @@ impl OceanMonumentPiece {
         }
     }
 
-    fn generate_default_floor(&self, level: &mut WorldGenRegion, chunk_bb: &BoundingBox, x_off: i32, z_off: i32, down_opening: bool) {
+    fn generate_default_floor(&self, level: &mut impl WorldGenLevel, chunk_bb: &BoundingBox, x_off: i32, z_off: i32, down_opening: bool) {
         let piece = &self.piece;
         let (base_gray, base_light) = (base_gray(), base_light());
         if down_opening {
@@ -1414,7 +1414,7 @@ impl OceanMonumentPiece {
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn generate_box_on_fill_only(&self, level: &mut WorldGenRegion, chunk_bb: &BoundingBox, x0: i32, y0: i32, z0: i32, x1: i32, y1: i32, z1: i32, target_block: BlockState) {
+    fn generate_box_on_fill_only(&self, level: &mut impl WorldGenLevel, chunk_bb: &BoundingBox, x0: i32, y0: i32, z0: i32, x1: i32, y1: i32, z1: i32, target_block: BlockState) {
         let fill_block = fill_block();
         for y in y0..=y1 {
             for x in x0..=x1 {
@@ -1452,7 +1452,7 @@ impl OceanMonumentSimpleRoom {
         OceanMonumentSimpleRoom { monument, main_design: random.next_int_bounded(3) }
     }
 
-    fn post_process(&self, level: &mut WorldGenRegion, random: &mut impl RandomSource, chunk_bb: &BoundingBox, rooms: &[RoomDefinition]) {
+    fn post_process(&self, level: &mut impl WorldGenLevel, random: &mut impl RandomSource, chunk_bb: &BoundingBox, rooms: &[RoomDefinition]) {
         let monument = &self.monument;
         let piece = &monument.piece;
         let (base_gray, base_light, base_black, lamp_block) = (base_gray(), base_light(), base_black(), lamp_block());
@@ -1607,7 +1607,7 @@ impl OceanMonumentSimpleTopRoom {
         OceanMonumentSimpleTopRoom { monument: OceanMonumentPiece::new_room(OCEAN_MONUMENT_SIMPLE_TOP_ROOM, 1, orientation, rooms, definition, 1, 1, 1) }
     }
 
-    fn post_process(&self, level: &mut WorldGenRegion, random: &mut impl RandomSource, chunk_bb: &BoundingBox, rooms: &[RoomDefinition]) {
+    fn post_process(&self, level: &mut impl WorldGenLevel, random: &mut impl RandomSource, chunk_bb: &BoundingBox, rooms: &[RoomDefinition]) {
         let monument = &self.monument;
         let piece = &monument.piece;
         let (base_gray, base_light, base_black) = (base_gray(), base_light(), base_black());
@@ -1660,7 +1660,7 @@ impl OceanMonumentWingRoom {
         OceanMonumentWingRoom { monument: OceanMonumentPiece::new(OCEAN_MONUMENT_WING_ROOM, orientation, 1, bounding_box), main_design: random_value & 1 }
     }
 
-    fn post_process(&self, level: &mut WorldGenRegion, chunk_bb: &BoundingBox) {
+    fn post_process(&self, level: &mut impl WorldGenLevel, chunk_bb: &BoundingBox) {
         let monument = &self.monument;
         let piece = &monument.piece;
         let (base_light, base_black, lamp_block) = (base_light(), base_black(), lamp_block());

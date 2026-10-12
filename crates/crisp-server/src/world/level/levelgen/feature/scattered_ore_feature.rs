@@ -3,7 +3,7 @@ use crisp_core::{BlockPos, mth};
 use serde_json::Value;
 
 use super::abstract_ore_feature::AbstractOreFeature;
-use crate::server::level::world_gen_region::WorldGenRegion;
+use crate::world::level::world_gen_level::WorldGenLevel;
 use crate::world::level::update_flags::UPDATE_CLIENTS;
 
 pub struct ScatteredOreFeature {
@@ -15,14 +15,13 @@ impl ScatteredOreFeature {
         Ok(ScatteredOreFeature { ore: AbstractOreFeature::parse(json)? })
     }
 
-    pub fn place(&self, level: &mut WorldGenRegion, random: &mut impl RandomSource, origin: BlockPos) -> bool {
+    pub fn place(&self, level: &mut impl WorldGenLevel, random: &mut impl RandomSource, origin: BlockPos) -> bool {
         let number_of_tries = random.next_int_bounded(self.ore.size + 1);
         for i in 0..number_of_tries {
             let target_pos = offset_target_pos(random, origin, i.min(7));
             let block_state = level.get_block_state(target_pos);
             for target_state in &self.ore.target_states {
-                let region: &WorldGenRegion = level;
-                if self.ore.can_place_ore(block_state, |pos| region.get_block_state(pos), random, target_state, target_pos) {
+                if self.ore.can_place_ore(block_state, |pos| level.get_block_state(pos), random, target_state, target_pos) {
                     level.set_block(target_pos, target_state.state, UPDATE_CLIENTS);
                     break;
                 }

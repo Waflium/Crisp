@@ -4,7 +4,7 @@ use crisp_data::BlockState;
 use serde_json::Value;
 
 use super::speleothem_utils;
-use crate::server::level::world_gen_region::WorldGenRegion;
+use crate::world::level::world_gen_level::WorldGenLevel;
 use crate::util::valueproviders::float;
 use crate::world::level::levelgen::blockpredicates::block_predicate::BlockSet;
 use crate::world::level::levelgen::parse_block_state;
@@ -34,7 +34,7 @@ impl SpeleothemFeature {
         })
     }
 
-    pub fn place<R: RandomSource>(&self, level: &mut WorldGenRegion, random: &mut R, origin: BlockPos) -> bool {
+    pub fn place<R: RandomSource>(&self, level: &mut impl WorldGenLevel, random: &mut R, origin: BlockPos) -> bool {
         let Some(tip_direction) = self.get_tip_direction(level, origin, random) else {
             return false;
         };
@@ -45,7 +45,7 @@ impl SpeleothemFeature {
         true
     }
 
-    fn get_tip_direction(&self, level: &mut WorldGenRegion, pos: BlockPos, random: &mut impl RandomSource) -> Option<Direction> {
+    fn get_tip_direction(&self, level: &mut impl WorldGenLevel, pos: BlockPos, random: &mut impl RandomSource) -> Option<Direction> {
         let can_place_above = speleothem_utils::is_base(level.get_block_state(pos.above()), self.base_block.block(), &self.replaceable_blocks);
         let can_place_below = speleothem_utils::is_base(level.get_block_state(pos.below()), self.base_block.block(), &self.replaceable_blocks);
         if can_place_above && can_place_below {
@@ -59,7 +59,7 @@ impl SpeleothemFeature {
         }
     }
 
-    fn create_patch_of_base_blocks(&self, level: &mut WorldGenRegion, random: &mut impl RandomSource, pos: BlockPos) {
+    fn create_patch_of_base_blocks(&self, level: &mut impl WorldGenLevel, random: &mut impl RandomSource, pos: BlockPos) {
         let base = self.base_block.block();
         speleothem_utils::place_base_block_if_possible(level, pos, base, &self.replaceable_blocks);
         for direction in Direction::PLANE_HORIZONTAL {

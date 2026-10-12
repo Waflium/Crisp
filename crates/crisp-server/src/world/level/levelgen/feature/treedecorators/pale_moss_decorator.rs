@@ -1,3 +1,4 @@
+use crate::world::level::world_gen_level::WorldGenLevel;
 use crisp_core::BlockPos;
 use crisp_core::random::RandomSource;
 use crisp_data::blocks;
@@ -25,7 +26,7 @@ impl PaleMossDecorator {
         })
     }
 
-    pub fn place<R: RandomSource>(&self, context: &mut Context<R>) {
+    pub fn place<R: RandomSource>(&self, context: &mut Context<impl WorldGenLevel, R>) {
         let mut logs = context.logs.clone();
         util::shuffle(&mut logs, context.random);
         let Some(&origin) = logs.iter().min_by_key(|pos| pos.y) else { return };
@@ -55,7 +56,7 @@ impl PaleMossDecorator {
     }
 }
 
-fn add_moss_hanger<R: RandomSource>(mut pos: BlockPos, context: &mut Context<R>) {
+fn add_moss_hanger<R: RandomSource>(mut pos: BlockPos, context: &mut Context<impl WorldGenLevel, R>) {
     while context.is_air(pos.below()) && context.random.next_float() as f64 >= 0.5 {
         context.set_block(pos, blocks::PALE_HANGING_MOSS.default_state().set(TIP, false));
         pos = pos.below();

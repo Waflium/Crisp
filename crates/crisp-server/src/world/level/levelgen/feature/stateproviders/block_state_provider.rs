@@ -6,7 +6,7 @@ use crisp_data::properties::{AXIS, FACING, HORIZONTAL_FACING};
 use crisp_data::{Block, BlockState};
 use serde_json::Value;
 
-use crate::server::level::world_gen_region::WorldGenRegion;
+use crate::world::level::world_gen_level::WorldGenLevel;
 use crate::util::random::WeightedList;
 use crate::util::valueproviders::{IntProvider, float};
 use crate::world::level::levelgen::blockpredicates::block_predicate::{BlockPredicate, resource};
@@ -174,7 +174,7 @@ impl BlockStateProvider {
         })
     }
 
-    pub fn get_state(&self, level: &mut WorldGenRegion, random: &mut impl RandomSource, pos: BlockPos) -> BlockState {
+    pub fn get_state(&self, level: &mut impl WorldGenLevel, random: &mut impl RandomSource, pos: BlockPos) -> BlockState {
         match self {
             BlockStateProvider::Simple(state) => *state,
             BlockStateProvider::Weighted(list) => *list.get_random_or_throw(random),
@@ -227,7 +227,7 @@ impl BlockStateProvider {
         }
     }
 
-    pub fn get_optional_state(&self, level: &mut WorldGenRegion, random: &mut impl RandomSource, pos: BlockPos) -> Option<BlockState> {
+    pub fn get_optional_state(&self, level: &mut impl WorldGenLevel, random: &mut impl RandomSource, pos: BlockPos) -> Option<BlockState> {
         match self {
             BlockStateProvider::RandomBlock(blocks) => {
                 if blocks.is_empty() {

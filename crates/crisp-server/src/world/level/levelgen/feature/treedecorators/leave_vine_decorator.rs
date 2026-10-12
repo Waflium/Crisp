@@ -1,10 +1,11 @@
+use crate::world::level::world_gen_level::WorldGenLevel;
 use crisp_core::BlockPos;
 use crisp_core::random::RandomSource;
 use crisp_data::properties::{BooleanProperty, EAST, NORTH, SOUTH, WEST};
 
 use super::tree_decorator::Context;
 
-pub fn place<R: RandomSource>(probability: f32, context: &mut Context<R>) {
+pub fn place<R: RandomSource>(probability: f32, context: &mut Context<impl WorldGenLevel, R>) {
     for i in 0..context.leaves.len() {
         let pos = context.leaves[i];
         if context.random.next_float() < probability {
@@ -34,7 +35,7 @@ pub fn place<R: RandomSource>(probability: f32, context: &mut Context<R>) {
     }
 }
 
-fn add_hanging_vine<R: RandomSource>(pos: BlockPos, direction: BooleanProperty, context: &mut Context<R>) {
+fn add_hanging_vine<R: RandomSource>(pos: BlockPos, direction: BooleanProperty, context: &mut Context<impl WorldGenLevel, R>) {
     context.place_vine(pos, direction);
     let mut max_dir = 4;
     let mut pos = pos.below();

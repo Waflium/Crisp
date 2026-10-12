@@ -3,7 +3,7 @@ use crisp_core::random::RandomSource;
 use crisp_data::BlockState;
 use serde_json::Value;
 
-use crate::server::level::world_gen_region::WorldGenRegion;
+use crate::world::level::world_gen_level::WorldGenLevel;
 use crate::world::level::levelgen::blockpredicates::block_predicate::BlockPredicate;
 use crate::world::level::levelgen::parse_block_state;
 
@@ -20,7 +20,7 @@ impl BlockBlobFeature {
         })
     }
 
-    pub fn place<R: RandomSource>(&self, level: &mut WorldGenRegion, random: &mut R, mut origin: BlockPos) -> bool {
+    pub fn place<R: RandomSource>(&self, level: &mut impl WorldGenLevel, random: &mut R, mut origin: BlockPos) -> bool {
         while origin.y > level.get_min_y() + 3 && !self.can_place_on.test(level, origin.below()) {
             origin = origin.below();
         }

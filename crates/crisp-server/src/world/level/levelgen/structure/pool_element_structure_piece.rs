@@ -8,7 +8,7 @@ use super::BoundingBox;
 use super::pools::jigsaw_junction::JigsawJunction;
 use super::pools::structure_pool_element::{StructurePoolElement, liquid_settings_name};
 use super::structure_piece::StructurePiece;
-use crate::server::level::world_gen_region::WorldGenRegion;
+use crate::world::level::world_gen_level::WorldGenLevel;
 use crate::world::level::block::rotation::Rotation;
 
 pub const JIGSAW: &str = "minecraft:jigsaw";
@@ -60,11 +60,11 @@ impl PoolElementStructurePiece {
         }
     }
 
-    pub fn post_process(&mut self, level: &mut WorldGenRegion, random: &mut impl RandomSource, chunk_bb: &BoundingBox, reference_pos: BlockPos) {
+    pub fn post_process(&mut self, level: &mut impl WorldGenLevel, random: &mut impl RandomSource, chunk_bb: &BoundingBox, reference_pos: BlockPos) {
         self.place(level, random, chunk_bb, reference_pos, false);
     }
 
-    pub fn place(&mut self, level: &mut WorldGenRegion, random: &mut impl RandomSource, chunk_bb: &BoundingBox, reference_pos: BlockPos, keep_jigsaws: bool) {
+    pub fn place(&mut self, level: &mut impl WorldGenLevel, random: &mut impl RandomSource, chunk_bb: &BoundingBox, reference_pos: BlockPos, keep_jigsaws: bool) {
         self.element.place(level, self.position, reference_pos, self.rotation, chunk_bb, random, self.apply_waterlogging, keep_jigsaws);
     }
 

@@ -6,9 +6,8 @@ use crisp_data::properties::{FACING, WATERLOGGED};
 use crisp_data::{BlockState, blocks};
 use serde_json::Value;
 
-use crate::server::level::world_gen_region::WorldGenRegion;
+use crate::world::level::world_gen_level::WorldGenLevel;
 use crate::util::valueproviders::IntProvider;
-use crate::world::level::ScheduledTickAccess;
 use crate::world::level::levelgen::AlgorithmRandom;
 use crate::world::level::levelgen::geode_block_settings::GeodeBlockSettings;
 use crate::world::level::levelgen::geode_crack_settings::GeodeCrackSettings;
@@ -61,13 +60,13 @@ impl GeodeFeature {
         })
     }
 
-    fn safe_set_block(&self, level: &mut WorldGenRegion, pos: BlockPos, state: BlockState) {
+    fn safe_set_block(&self, level: &mut impl WorldGenLevel, pos: BlockPos, state: BlockState) {
         if !self.block_settings.cannot_replace.contains(level.get_block_state(pos).block()) {
             level.set_block(pos, state, 2);
         }
     }
 
-    pub fn place<R: RandomSource>(&self, level: &mut WorldGenRegion, random: &mut R, origin: BlockPos) -> bool {
+    pub fn place<R: RandomSource>(&self, level: &mut impl WorldGenLevel, random: &mut R, origin: BlockPos) -> bool {
         let mut points: Vec<(BlockPos, i32)> = Vec::new();
         let num_points = self.distribution_points.sample(random);
         let noise = NOISE_PARAMETERS.create(&mut AlgorithmRandom::Legacy(LegacyRandomSource::new(level.get_seed())));

@@ -3,7 +3,7 @@ use crisp_core::{BlockPos, mth};
 use crisp_data::{BlockState, blocks};
 use serde_json::Value;
 
-use crate::server::level::world_gen_region::WorldGenRegion;
+use crate::world::level::world_gen_level::WorldGenLevel;
 use crate::world::level::levelgen::parse_block_state;
 
 pub struct IcebergFeature {
@@ -19,7 +19,7 @@ impl IcebergFeature {
         Ok(IcebergFeature { state: parse_block_state(json.get("state").ok_or("missing state")?)? })
     }
 
-    pub fn place<R: RandomSource>(&self, level: &mut WorldGenRegion, random: &mut R, origin: BlockPos) -> bool {
+    pub fn place<R: RandomSource>(&self, level: &mut impl WorldGenLevel, random: &mut R, origin: BlockPos) -> bool {
         let origin = BlockPos::new(origin.x, level.get_sea_level(), origin.z);
         let snow_on_top = random.next_double() > 0.7;
         let main_block_state = self.state;
@@ -77,7 +77,7 @@ impl IcebergFeature {
 #[allow(clippy::too_many_arguments)]
 fn generate_cut_out<R: RandomSource>(
     random: &mut R,
-    level: &mut WorldGenRegion,
+    level: &mut impl WorldGenLevel,
     width: i32,
     height: i32,
     global_origin: BlockPos,
@@ -115,7 +115,7 @@ fn generate_cut_out<R: RandomSource>(
 }
 
 #[allow(clippy::too_many_arguments)]
-fn carve(radius: i32, y_off: i32, global_origin: BlockPos, level: &mut WorldGenRegion, under_water: bool, angle: f64, local_origin: BlockPos, shape_ellipse_a: i32, shape_ellipse_c: i32) {
+fn carve(radius: i32, y_off: i32, global_origin: BlockPos, level: &mut impl WorldGenLevel, under_water: bool, angle: f64, local_origin: BlockPos, shape_ellipse_a: i32, shape_ellipse_c: i32) {
     let a = radius + 1 + shape_ellipse_a / 3;
     let c = (radius - 3).min(3) + shape_ellipse_c / 2 - 1;
     for xo in -a..a {
@@ -137,7 +137,7 @@ fn carve(radius: i32, y_off: i32, global_origin: BlockPos, level: &mut WorldGenR
     }
 }
 
-fn remove_floating_snow_layer(level: &mut WorldGenRegion, pos: BlockPos) {
+fn remove_floating_snow_layer(level: &mut impl WorldGenLevel, pos: BlockPos) {
     if level.get_block_state(pos.above()).is_block(blocks::SNOW) {
         level.set_block_and_update(pos.above(), blocks::AIR.default_state());
     }
@@ -145,7 +145,7 @@ fn remove_floating_snow_layer(level: &mut WorldGenRegion, pos: BlockPos) {
 
 #[allow(clippy::too_many_arguments)]
 fn generate_iceberg_block<R: RandomSource>(
-    level: &mut WorldGenRegion,
+    level: &mut impl WorldGenLevel,
     random: &mut R,
     origin: BlockPos,
     height: i32,
@@ -176,7 +176,7 @@ fn generate_iceberg_block<R: RandomSource>(
 }
 
 #[allow(clippy::too_many_arguments)]
-fn set_iceberg_block<R: RandomSource>(pos: BlockPos, level: &mut WorldGenRegion, random: &mut R, h_diff: i32, height: i32, is_ellipse: bool, snow_on_top: bool, main_block_state: BlockState) {
+fn set_iceberg_block<R: RandomSource>(pos: BlockPos, level: &mut impl WorldGenLevel, random: &mut R, h_diff: i32, height: i32, is_ellipse: bool, snow_on_top: bool, main_block_state: BlockState) {
     let state = level.get_block_state(pos);
     if state.is_air() || state.is_block(blocks::SNOW_BLOCK) || state.is_block(blocks::ICE) || state.is_block(blocks::WATER) {
         let randomness = !is_ellipse || random.next_double() > 0.05;
@@ -233,11 +233,11 @@ fn is_iceberg_state(state: BlockState) -> bool {
     state.is_block(blocks::PACKED_ICE) || state.is_block(blocks::SNOW_BLOCK) || state.is_block(blocks::BLUE_ICE)
 }
 
-fn below_is_air(level: &mut WorldGenRegion, pos: BlockPos) -> bool {
+fn below_is_air(level: &mut impl WorldGenLevel, pos: BlockPos) -> bool {
     level.get_block_state(pos.below()).is_air()
 }
 
-fn smooth(level: &mut WorldGenRegion, origin: BlockPos, width: i32, height: i32, is_ellipse: bool, shape_ellipse_a: i32) {
+fn smooth(level: &mut impl WorldGenLevel, origin: BlockPos, width: i32, height: i32, is_ellipse: bool, shape_ellipse_a: i32) {
     let a = if is_ellipse { shape_ellipse_a } else { width / 2 };
     for x in -a..=a {
         for z in -a..=a {

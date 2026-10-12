@@ -2,7 +2,7 @@ use crisp_core::random::RandomSource;
 use crisp_core::{BlockPos, Direction};
 use serde_json::Value;
 
-use crate::server::level::world_gen_region::WorldGenRegion;
+use crate::world::level::world_gen_level::WorldGenLevel;
 use crate::util;
 use crate::world::level::levelgen::placement::placed_feature::PlacedFeatureHolder;
 
@@ -15,7 +15,7 @@ impl CoralClawFeature {
         Ok(CoralClawFeature { feature: PlacedFeatureHolder::parse(json.get("feature").ok_or("missing feature")?)? })
     }
 
-    pub fn place<R: RandomSource>(&self, level: &mut WorldGenRegion, random: &mut R, origin: BlockPos) -> bool {
+    pub fn place<R: RandomSource>(&self, level: &mut impl WorldGenLevel, random: &mut R, origin: BlockPos) -> bool {
         if !self.feature.value().place(level, random, origin) {
             return false;
         }

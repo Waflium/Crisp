@@ -5,7 +5,7 @@ use crisp_data::{BlockState, blocks};
 use crisp_protocol::nbt::Nbt;
 
 use super::Piece;
-use crate::server::level::world_gen_region::WorldGenRegion;
+use crate::world::level::world_gen_level::WorldGenLevel;
 use crate::world::level::block::entity::BlockEntityKind;
 use crate::world::level::levelgen::structure::BoundingBox;
 use crate::world::level::levelgen::structure::pieces::structure_pieces_builder::StructurePiecesBuilder;
@@ -316,7 +316,7 @@ impl StrongholdPiece {
         tag.push(("EntryDoor".into(), Nbt::String(self.entry_door.name().to_owned())));
     }
 
-    fn generate_small_door(&self, level: &mut WorldGenRegion, chunk_bb: &BoundingBox, door_type: SmallDoorType, foot_x: i32, foot_y: i32, foot_z: i32) {
+    fn generate_small_door(&self, level: &mut impl WorldGenLevel, chunk_bb: &BoundingBox, door_type: SmallDoorType, foot_x: i32, foot_y: i32, foot_z: i32) {
         let piece = &self.piece;
         let stone_bricks = blocks::STONE_BRICKS.default_state();
         match door_type {
@@ -479,7 +479,7 @@ impl ChestCorridor {
         is_free_box(builder, &bounding_box).then(|| ChestCorridor::new(gen_depth, random, bounding_box, direction))
     }
 
-    fn post_process(&mut self, level: &mut WorldGenRegion, random: &mut impl RandomSource, chunk_bb: &BoundingBox) {
+    fn post_process(&mut self, level: &mut impl WorldGenLevel, random: &mut impl RandomSource, chunk_bb: &BoundingBox) {
         let stronghold = &self.stronghold;
         let piece = &stronghold.piece;
         let selector = &mut SmoothStoneSelector::new();
@@ -539,7 +539,7 @@ impl FillerCorridor {
         None
     }
 
-    fn post_process(&self, level: &mut WorldGenRegion, chunk_bb: &BoundingBox) {
+    fn post_process(&self, level: &mut impl WorldGenLevel, chunk_bb: &BoundingBox) {
         let piece = &self.stronghold.piece;
         let stone_bricks = blocks::STONE_BRICKS.default_state();
         for i in 0..self.steps {
@@ -639,7 +639,7 @@ impl FiveCrossing {
         is_free_box(builder, &bounding_box).then(|| FiveCrossing::new(gen_depth, random, bounding_box, direction))
     }
 
-    fn post_process(&self, level: &mut WorldGenRegion, random: &mut impl RandomSource, chunk_bb: &BoundingBox) {
+    fn post_process(&self, level: &mut impl WorldGenLevel, random: &mut impl RandomSource, chunk_bb: &BoundingBox) {
         let stronghold = &self.stronghold;
         let piece = &stronghold.piece;
         let selector = &mut SmoothStoneSelector::new();
@@ -722,7 +722,7 @@ impl LeftTurn {
         is_free_box(builder, &bounding_box).then(|| LeftTurn::new(gen_depth, random, bounding_box, direction))
     }
 
-    fn post_process(&self, level: &mut WorldGenRegion, random: &mut impl RandomSource, chunk_bb: &BoundingBox) {
+    fn post_process(&self, level: &mut impl WorldGenLevel, random: &mut impl RandomSource, chunk_bb: &BoundingBox) {
         let stronghold = &self.turn.stronghold;
         let piece = &stronghold.piece;
         piece.generate_box_with_selector(level, chunk_bb, 0, 0, 0, 4, 4, 4, true, random, &mut SmoothStoneSelector::new());
@@ -778,7 +778,7 @@ impl Library {
         Some(Library::new(gen_depth, random, bounding_box, direction))
     }
 
-    fn post_process(&self, level: &mut WorldGenRegion, random: &mut impl RandomSource, chunk_bb: &BoundingBox) {
+    fn post_process(&self, level: &mut impl WorldGenLevel, random: &mut impl RandomSource, chunk_bb: &BoundingBox) {
         let stronghold = &self.stronghold;
         let piece = &stronghold.piece;
         let current_height = if self.is_tall { 11 } else { 6 };
@@ -900,7 +900,7 @@ impl PortalRoom {
         is_free_box(builder, &bounding_box).then(|| PortalRoom::new(gen_depth, bounding_box, direction))
     }
 
-    fn post_process(&mut self, level: &mut WorldGenRegion, random: &mut impl RandomSource, chunk_bb: &BoundingBox) {
+    fn post_process(&mut self, level: &mut impl WorldGenLevel, random: &mut impl RandomSource, chunk_bb: &BoundingBox) {
         let stronghold = &self.stronghold;
         let piece = &stronghold.piece;
         let selector = &mut SmoothStoneSelector::new();
@@ -1015,7 +1015,7 @@ impl PrisonHall {
         is_free_box(builder, &bounding_box).then(|| PrisonHall::new(gen_depth, random, bounding_box, direction))
     }
 
-    fn post_process(&self, level: &mut WorldGenRegion, random: &mut impl RandomSource, chunk_bb: &BoundingBox) {
+    fn post_process(&self, level: &mut impl WorldGenLevel, random: &mut impl RandomSource, chunk_bb: &BoundingBox) {
         let stronghold = &self.stronghold;
         let piece = &stronghold.piece;
         let selector = &mut SmoothStoneSelector::new();
@@ -1088,7 +1088,7 @@ impl RightTurn {
         is_free_box(builder, &bounding_box).then(|| RightTurn::new(gen_depth, random, bounding_box, direction))
     }
 
-    fn post_process(&self, level: &mut WorldGenRegion, random: &mut impl RandomSource, chunk_bb: &BoundingBox) {
+    fn post_process(&self, level: &mut impl WorldGenLevel, random: &mut impl RandomSource, chunk_bb: &BoundingBox) {
         let stronghold = &self.turn.stronghold;
         let piece = &stronghold.piece;
         piece.generate_box_with_selector(level, chunk_bb, 0, 0, 0, 4, 4, 4, true, random, &mut SmoothStoneSelector::new());
@@ -1144,7 +1144,7 @@ impl RoomCrossing {
         is_free_box(builder, &bounding_box).then(|| RoomCrossing::new(gen_depth, random, bounding_box, direction))
     }
 
-    fn post_process(&self, level: &mut WorldGenRegion, random: &mut impl RandomSource, chunk_bb: &BoundingBox) {
+    fn post_process(&self, level: &mut impl WorldGenLevel, random: &mut impl RandomSource, chunk_bb: &BoundingBox) {
         let stronghold = &self.stronghold;
         let piece = &stronghold.piece;
         let stone_bricks = blocks::STONE_BRICKS.default_state();
@@ -1281,7 +1281,7 @@ impl StairsDown {
         is_free_box(builder, &bounding_box).then(|| StairsDown::new(gen_depth, random, bounding_box, direction))
     }
 
-    fn post_process(&self, level: &mut WorldGenRegion, random: &mut impl RandomSource, chunk_bb: &BoundingBox) {
+    fn post_process(&self, level: &mut impl WorldGenLevel, random: &mut impl RandomSource, chunk_bb: &BoundingBox) {
         let stronghold = &self.stronghold;
         let piece = &stronghold.piece;
         let stone_bricks = blocks::STONE_BRICKS.default_state();
@@ -1383,7 +1383,7 @@ impl Straight {
         is_free_box(builder, &bounding_box).then(|| Straight::new(gen_depth, random, bounding_box, direction))
     }
 
-    fn post_process(&self, level: &mut WorldGenRegion, random: &mut impl RandomSource, chunk_bb: &BoundingBox) {
+    fn post_process(&self, level: &mut impl WorldGenLevel, random: &mut impl RandomSource, chunk_bb: &BoundingBox) {
         let stronghold = &self.stronghold;
         let piece = &stronghold.piece;
         piece.generate_box_with_selector(level, chunk_bb, 0, 0, 0, 4, 4, 6, true, random, &mut SmoothStoneSelector::new());
@@ -1438,7 +1438,7 @@ impl StraightStairsDown {
         is_free_box(builder, &bounding_box).then(|| StraightStairsDown::new(gen_depth, random, bounding_box, direction))
     }
 
-    fn post_process(&self, level: &mut WorldGenRegion, random: &mut impl RandomSource, chunk_bb: &BoundingBox) {
+    fn post_process(&self, level: &mut impl WorldGenLevel, random: &mut impl RandomSource, chunk_bb: &BoundingBox) {
         let stronghold = &self.stronghold;
         let piece = &stronghold.piece;
         piece.generate_box_with_selector(level, chunk_bb, 0, 0, 0, 4, 10, 7, true, random, &mut SmoothStoneSelector::new());
@@ -1574,7 +1574,7 @@ impl StrongholdPieceKind {
         }
     }
 
-    pub fn post_process(&mut self, level: &mut WorldGenRegion, random: &mut impl RandomSource, chunk_bb: &BoundingBox) {
+    pub fn post_process(&mut self, level: &mut impl WorldGenLevel, random: &mut impl RandomSource, chunk_bb: &BoundingBox) {
         match self {
             StrongholdPieceKind::ChestCorridor(piece) => piece.post_process(level, random, chunk_bb),
             StrongholdPieceKind::FillerCorridor(piece) => piece.post_process(level, chunk_bb),

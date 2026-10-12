@@ -9,6 +9,7 @@ use crate::world::level::biome::BIOME_INFO_NOISE;
 use crate::world::level::chunk::HeightmapType;
 use crate::world::level::levelgen::blockpredicates::block_predicate::BlockPredicate;
 use crate::world::level::levelgen::heightproviders::HeightProvider;
+use crate::world::level::world_gen_level::WorldGenLevel;
 
 pub enum PlacementModifier {
     Biome,
@@ -106,7 +107,7 @@ impl PlacementModifier {
         })
     }
 
-    pub fn modify<R: RandomSource>(&self, context: &mut PlacementContext, random: &mut R, origin: BlockPos, output: &mut Vec<BlockPos>) {
+    pub fn modify<R: RandomSource>(&self, context: &mut PlacementContext<impl WorldGenLevel>, random: &mut R, origin: BlockPos, output: &mut Vec<BlockPos>) {
         match self {
             PlacementModifier::Biome => {
                 if context.biome_has_top_feature(origin) {
@@ -259,7 +260,7 @@ impl PlacementModifier {
     }
 }
 
-fn find_on_ground_y_position(context: &mut PlacementContext, x_start: i32, y_start: i32, z_start: i32, layer_to_place_on: i32) -> i32 {
+fn find_on_ground_y_position(context: &mut PlacementContext<impl WorldGenLevel>, x_start: i32, y_start: i32, z_start: i32, layer_to_place_on: i32) -> i32 {
     let mut current_layer = 0;
     let mut current_block = context.get_block_state(BlockPos::new(x_start, y_start, z_start));
     let mut y = y_start;

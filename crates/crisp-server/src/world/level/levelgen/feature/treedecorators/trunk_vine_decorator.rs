@@ -1,9 +1,10 @@
+use crate::world::level::world_gen_level::WorldGenLevel;
 use crisp_core::random::RandomSource;
 use crisp_data::properties::{EAST, NORTH, SOUTH, WEST};
 
 use super::tree_decorator::Context;
 
-pub fn place<R: RandomSource>(context: &mut Context<R>) {
+pub fn place<R: RandomSource>(context: &mut Context<impl WorldGenLevel, R>) {
     for i in 0..context.logs.len() {
         let pos = context.logs[i];
         if context.random.next_int_bounded(3) > 0 {

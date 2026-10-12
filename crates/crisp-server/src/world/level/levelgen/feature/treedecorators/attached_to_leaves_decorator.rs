@@ -1,3 +1,4 @@
+use crate::world::level::world_gen_level::WorldGenLevel;
 use crisp_core::hash_map::FastSet;
 use crisp_core::random::RandomSource;
 use crisp_core::{BlockPos, Direction};
@@ -32,7 +33,7 @@ impl AttachedToLeavesDecorator {
         })
     }
 
-    pub fn place<R: RandomSource>(&self, context: &mut Context<R>) {
+    pub fn place<R: RandomSource>(&self, context: &mut Context<impl WorldGenLevel, R>) {
         let mut propagule_blacklist = FastSet::default();
         let mut leaves = context.leaves.clone();
         util::shuffle(&mut leaves, context.random);
@@ -55,7 +56,7 @@ impl AttachedToLeavesDecorator {
         }
     }
 
-    fn has_required_empty_blocks<R: RandomSource>(&self, context: &mut Context<R>, leaf_pos: BlockPos, direction: Direction) -> bool {
+    fn has_required_empty_blocks<R: RandomSource>(&self, context: &mut Context<impl WorldGenLevel, R>, leaf_pos: BlockPos, direction: Direction) -> bool {
         (1..=self.required_empty_blocks).all(|i| context.is_air(leaf_pos.relative_n(direction, i)))
     }
 }

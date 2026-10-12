@@ -3,7 +3,7 @@ use crisp_protocol::nbt::Nbt;
 
 use super::BoundingBox;
 use super::structure_piece::{StructurePiece, make_bounding_box};
-use crate::server::level::world_gen_region::WorldGenRegion;
+use crate::world::level::world_gen_level::WorldGenLevel;
 use crate::world::level::chunk::HeightmapType;
 
 #[derive(Clone)]
@@ -47,7 +47,7 @@ impl ScatteredFeaturePiece {
         tag.push(("HPos".into(), Nbt::Int(self.height_position)));
     }
 
-    pub fn update_average_ground_height(&mut self, level: &mut WorldGenRegion, chunk_bb: &BoundingBox, offset: i32) -> bool {
+    pub fn update_average_ground_height(&mut self, level: &mut impl WorldGenLevel, chunk_bb: &BoundingBox, offset: i32) -> bool {
         if self.height_position >= 0 {
             return true;
         }
@@ -71,7 +71,7 @@ impl ScatteredFeaturePiece {
         true
     }
 
-    pub fn update_height_position_to_lowest_ground_height(&mut self, level: &mut WorldGenRegion, offset: i32) -> bool {
+    pub fn update_height_position_to_lowest_ground_height(&mut self, level: &mut impl WorldGenLevel, offset: i32) -> bool {
         if self.height_position >= 0 {
             return true;
         }

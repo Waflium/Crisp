@@ -8,7 +8,7 @@ use super::cherry_trunk_placer::{self, CherryTrunkPlacer};
 use super::poplar_trunk_placer::{self, PoplarTrunkPlacer};
 use super::upwards_branching_trunk_placer::{self, UpwardsBranchingTrunkPlacer};
 use super::{dark_oak_trunk_placer, fancy_trunk_placer, forking_trunk_placer, giant_trunk_placer, mega_jungle_trunk_placer, straight_trunk_placer};
-use crate::server::level::world_gen_region::WorldGenRegion;
+use crate::world::level::world_gen_level::WorldGenLevel;
 use crate::world::level::levelgen::feature::foliageplacers::foliage_placer::FoliageAttachment;
 use crate::world::level::levelgen::feature::tree_feature::{self, TreeFeature, TreeSetter};
 
@@ -54,7 +54,7 @@ impl TrunkPlacer {
 
     pub fn place_trunk<R: RandomSource>(
         &self,
-        level: &mut WorldGenRegion,
+        level: &mut impl WorldGenLevel,
         trunk_setter: &mut TreeSetter,
         random: &mut R,
         tree_height: i32,
@@ -79,13 +79,13 @@ impl TrunkPlacer {
         self.base_height + random.next_int_bounded(self.height_rand_a + 1) + random.next_int_bounded(self.height_rand_b + 1)
     }
 
-    pub fn place_log<R: RandomSource>(&self, level: &mut WorldGenRegion, trunk_setter: &mut TreeSetter, random: &mut R, pos: BlockPos, tree: &TreeFeature) -> bool {
+    pub fn place_log<R: RandomSource>(&self, level: &mut impl WorldGenLevel, trunk_setter: &mut TreeSetter, random: &mut R, pos: BlockPos, tree: &TreeFeature) -> bool {
         self.place_log_with(level, trunk_setter, random, pos, tree, |state| state)
     }
 
     pub fn place_log_with<R: RandomSource>(
         &self,
-        level: &mut WorldGenRegion,
+        level: &mut impl WorldGenLevel,
         trunk_setter: &mut TreeSetter,
         random: &mut R,
         pos: BlockPos,
@@ -101,25 +101,25 @@ impl TrunkPlacer {
         }
     }
 
-    pub fn place_log_if_free<R: RandomSource>(&self, level: &mut WorldGenRegion, trunk_setter: &mut TreeSetter, random: &mut R, pos: BlockPos, tree: &TreeFeature) {
+    pub fn place_log_if_free<R: RandomSource>(&self, level: &mut impl WorldGenLevel, trunk_setter: &mut TreeSetter, random: &mut R, pos: BlockPos, tree: &TreeFeature) {
         if self.is_free(level, pos) {
             self.place_log(level, trunk_setter, random, pos, tree);
         }
     }
 
-    pub fn valid_tree_pos(&self, level: &mut WorldGenRegion, pos: BlockPos) -> bool {
+    pub fn valid_tree_pos(&self, level: &mut impl WorldGenLevel, pos: BlockPos) -> bool {
         match &self.kind {
             TrunkPlacerType::UpwardsBranching(placer) => placer.valid_tree_pos(level, pos),
             _ => tree_feature::valid_tree_pos(level, pos),
         }
     }
 
-    pub fn is_free(&self, level: &mut WorldGenRegion, pos: BlockPos) -> bool {
+    pub fn is_free(&self, level: &mut impl WorldGenLevel, pos: BlockPos) -> bool {
         self.valid_tree_pos(level, pos) || level.get_block_state(pos).is(&block_tags::LOGS)
     }
 }
 
-pub fn place_below_trunk_block<R: RandomSource>(level: &mut WorldGenRegion, trunk_setter: &mut TreeSetter, random: &mut R, pos: BlockPos, tree: &TreeFeature) {
+pub fn place_below_trunk_block<R: RandomSource>(level: &mut impl WorldGenLevel, trunk_setter: &mut TreeSetter, random: &mut R, pos: BlockPos, tree: &TreeFeature) {
     if let Some(block_below_trunk) = tree.below_trunk_provider.value().get_optional_state(level, random, pos) {
         trunk_setter.accept(level, pos, block_below_trunk);
     }

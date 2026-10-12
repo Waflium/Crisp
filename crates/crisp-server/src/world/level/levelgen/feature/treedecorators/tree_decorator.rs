@@ -10,7 +10,7 @@ use super::attached_to_logs_decorator::AttachedToLogsDecorator;
 use super::pale_moss_decorator::PaleMossDecorator;
 use super::place_on_ground_decorator::PlaceOnGroundDecorator;
 use super::{beehive_decorator, cocoa_decorator, creaking_heart_decorator, leave_vine_decorator, shelf_mushroom_decorator, trunk_vine_decorator};
-use crate::server::level::world_gen_region::WorldGenRegion;
+use crate::world::level::world_gen_level::WorldGenLevel;
 use crate::util::java_collections::JavaObjectHashSet;
 use crate::util::valueproviders::float;
 use crate::world::level::levelgen::feature::tree_feature::TreeSetter;
@@ -49,7 +49,7 @@ impl TreeDecorator {
         })
     }
 
-    pub fn place<R: RandomSource>(&self, context: &mut Context<R>) {
+    pub fn place<R: RandomSource>(&self, context: &mut Context<impl WorldGenLevel, R>) {
         match self {
             TreeDecorator::TrunkVine => trunk_vine_decorator::place(context),
             TreeDecorator::LeaveVine(probability) => leave_vine_decorator::place(*probability, context),
@@ -66,8 +66,8 @@ impl TreeDecorator {
     }
 }
 
-pub struct Context<'a, 'l, R> {
-    pub level: &'a mut WorldGenRegion<'l>,
+pub struct Context<'a, L, R> {
+    pub level: &'a mut L,
     decoration_setter: TreeSetter<'a>,
     pub random: &'a mut R,
     pub logs: Vec<BlockPos>,
@@ -75,15 +75,15 @@ pub struct Context<'a, 'l, R> {
     pub roots: Vec<BlockPos>,
 }
 
-impl<'a, 'l, R: RandomSource> Context<'a, 'l, R> {
+impl<'a, L: WorldGenLevel, R: RandomSource> Context<'a, L, R> {
     pub fn new(
-        level: &'a mut WorldGenRegion<'l>,
+        level: &'a mut L,
         decoration_setter: TreeSetter<'a>,
         random: &'a mut R,
         trunk_set: &JavaObjectHashSet<BlockPos>,
         foliage_set: &JavaObjectHashSet<BlockPos>,
         root_set: &JavaObjectHashSet<BlockPos>,
-    ) -> Context<'a, 'l, R> {
+    ) -> Context<'a, L, R> {
         let mut roots: Vec<BlockPos> = root_set.iter().collect();
         let mut logs: Vec<BlockPos> = trunk_set.iter().collect();
         let mut leaves: Vec<BlockPos> = foliage_set.iter().collect();

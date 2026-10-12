@@ -3,7 +3,7 @@ use crisp_core::{BlockPos, Direction};
 use crisp_data::{Block, BlockState, blocks};
 use serde_json::Value;
 
-use crate::server::level::world_gen_region::WorldGenRegion;
+use crate::world::level::world_gen_level::WorldGenLevel;
 use crate::util;
 use crate::util::valueproviders::float;
 use crate::world::level::block::multiface_block;
@@ -35,7 +35,7 @@ impl MultifaceGrowthFeature {
         })
     }
 
-    pub fn place<R: RandomSource>(&self, level: &mut WorldGenRegion, random: &mut R, origin: BlockPos) -> bool {
+    pub fn place<R: RandomSource>(&self, level: &mut impl WorldGenLevel, random: &mut R, origin: BlockPos) -> bool {
         if !is_air_or_water(level.get_block_state(origin)) {
             return false;
         }
@@ -66,7 +66,7 @@ impl MultifaceGrowthFeature {
     fn place_growth_if_possible<R: RandomSource>(
         &self,
         spreader: &MultifaceSpreader,
-        level: &mut WorldGenRegion,
+        level: &mut impl WorldGenLevel,
         pos: BlockPos,
         old_state: BlockState,
         random: &mut R,

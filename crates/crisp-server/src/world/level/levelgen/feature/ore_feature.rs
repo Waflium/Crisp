@@ -4,7 +4,7 @@ use crisp_data::{BlockState, blocks};
 use serde_json::Value;
 
 use super::abstract_ore_feature::AbstractOreFeature;
-use crate::server::level::world_gen_region::WorldGenRegion;
+use crate::world::level::world_gen_level::WorldGenLevel;
 use crate::world::level::chunk::HeightmapType;
 
 pub struct OreFeature {
@@ -16,7 +16,7 @@ impl OreFeature {
         Ok(OreFeature { ore: AbstractOreFeature::parse(json)? })
     }
 
-    pub fn place(&self, level: &mut WorldGenRegion, random: &mut impl RandomSource, origin: BlockPos) -> bool {
+    pub fn place(&self, level: &mut impl WorldGenLevel, random: &mut impl RandomSource, origin: BlockPos) -> bool {
         let size = self.ore.size;
         let dir = random.next_float() * std::f64::consts::PI as f32;
         let spread_xy = size as f32 / 8.0;
@@ -44,7 +44,7 @@ impl OreFeature {
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn do_place(&self, level: &mut WorldGenRegion, random: &mut impl RandomSource, [x0, x1, z0, z1, y0, y1]: [f64; 6], x_start: i32, y_start: i32, z_start: i32, size_xz: i32, size_y: i32) -> bool {
+    fn do_place(&self, level: &mut impl WorldGenLevel, random: &mut impl RandomSource, [x0, x1, z0, z1, y0, y1]: [f64; 6], x_start: i32, y_start: i32, z_start: i32, size_xz: i32, size_y: i32) -> bool {
         let size = self.ore.size as usize;
         let mut placed = 0;
         let mut tested = vec![false; (size_xz * size_y * size_xz) as usize];
@@ -80,9 +80,6 @@ impl OreFeature {
                 }
             }
         }
-        let section_block = |level: &WorldGenRegion, pos: BlockPos| {
-            if level.is_outside_build_height(pos.y) { blocks::AIR.default_state() } else { level.get_block_state(pos) }
-        };
         for i in 0..size {
             let r = data[i * 4 + 3];
             if r < 0.0 {
@@ -124,8 +121,7 @@ impl OreFeature {
                         }
                         let block_state: BlockState = level.get_block_state(ore_pos);
                         for target_state in &self.ore.target_states {
-                            let region: &WorldGenRegion = level;
-                            if self.ore.can_place_ore(block_state, |pos| section_block(region, pos), random, target_state, ore_pos) {
+                            if self.ore.can_place_ore(block_state, |pos| section_block(level, pos), random, target_state, ore_pos) {
                                 level.set_section_block_state(ore_pos, target_state.state);
                                 placed += 1;
                                 break;
@@ -137,4 +133,8 @@ impl OreFeature {
         }
         placed > 0
     }
+}
+
+fn section_block(level: &mut impl WorldGenLevel, pos: BlockPos) -> BlockState {
+    if level.is_outside_build_height(pos.y) { blocks::AIR.default_state() } else { level.get_block_state(pos) }
 }

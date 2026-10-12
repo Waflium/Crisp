@@ -2,7 +2,7 @@ use crisp_core::random::RandomSource;
 use serde_json::Value;
 
 use super::foliage_placer::{FoliageAttachment, FoliagePlacer};
-use crate::server::level::world_gen_region::WorldGenRegion;
+use crate::world::level::world_gen_level::WorldGenLevel;
 use crate::util::valueproviders::{IntProvider, float};
 use crate::world::level::levelgen::feature::tree_feature::{TreeFeature, TreeSetter};
 
@@ -44,7 +44,7 @@ impl CherryFoliagePlacer {
 pub fn create_foliage<R: RandomSource>(
     cherry: &CherryFoliagePlacer,
     placer: &FoliagePlacer,
-    level: &mut WorldGenRegion,
+    level: &mut impl WorldGenLevel,
     foliage_setter: &mut TreeSetter,
     random: &mut R,
     tree: &TreeFeature,

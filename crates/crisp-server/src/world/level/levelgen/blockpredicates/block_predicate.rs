@@ -2,7 +2,7 @@ use crisp_core::{BlockPos, Direction};
 use crisp_data::{Block, BlockState, Fluid, SupportType, Tag, block_tags, fluid_tags};
 use serde_json::Value;
 
-use crate::server::level::world_gen_region::WorldGenRegion;
+use crate::world::level::world_gen_level::WorldGenLevel;
 use crate::world::level::block;
 use crate::world::level::levelgen::material::{VerticalAnchor, WorldGenerationContext};
 use crate::world::level::levelgen::parse_block_state;
@@ -140,7 +140,7 @@ impl BlockPredicate {
         })
     }
 
-    pub fn test(&self, level: &mut WorldGenRegion, origin: BlockPos) -> bool {
+    pub fn test(&self, level: &mut impl WorldGenLevel, origin: BlockPos) -> bool {
         let at = |(x, y, z): (i32, i32, i32)| origin.offset(x, y, z);
         match self {
             BlockPredicate::MatchingBlocks { offset, blocks } => blocks.contains(level.get_block_state(at(*offset)).block()),

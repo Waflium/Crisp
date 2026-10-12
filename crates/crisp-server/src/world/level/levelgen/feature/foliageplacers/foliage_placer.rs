@@ -8,7 +8,7 @@ use super::cherry_foliage_placer::{self, CherryFoliagePlacer};
 use super::poplar_foliage_placer::{self, PoplarFoliagePlacer};
 use super::random_spread_foliage_placer::{self, RandomSpreadFoliagePlacer};
 use super::{acacia_foliage_placer, blob_foliage_placer, bush_foliage_placer, dark_oak_foliage_placer, fancy_foliage_placer, mega_jungle_foliage_placer, mega_pine_foliage_placer, pine_foliage_placer, spruce_foliage_placer};
-use crate::server::level::world_gen_region::WorldGenRegion;
+use crate::world::level::world_gen_level::WorldGenLevel;
 use crate::util::valueproviders::IntProvider;
 use crate::world::level::levelgen::feature::tree_feature::{self, TreeFeature, TreeSetter};
 
@@ -79,7 +79,7 @@ impl FoliagePlacer {
     #[allow(clippy::too_many_arguments)]
     pub fn create_foliage<R: RandomSource>(
         &self,
-        level: &mut WorldGenRegion,
+        level: &mut impl WorldGenLevel,
         foliage_setter: &mut TreeSetter,
         random: &mut R,
         tree: &TreeFeature,
@@ -171,7 +171,7 @@ impl FoliagePlacer {
     #[allow(clippy::too_many_arguments)]
     pub fn place_leaves_row<R: RandomSource>(
         &self,
-        level: &mut WorldGenRegion,
+        level: &mut impl WorldGenLevel,
         foliage_setter: &mut TreeSetter,
         random: &mut R,
         tree: &TreeFeature,
@@ -193,7 +193,7 @@ impl FoliagePlacer {
     #[allow(clippy::too_many_arguments)]
     pub fn place_leaves_row_with_hanging_leaves_below<R: RandomSource>(
         &self,
-        level: &mut WorldGenRegion,
+        level: &mut impl WorldGenLevel,
         foliage_setter: &mut TreeSetter,
         random: &mut R,
         tree: &TreeFeature,
@@ -225,7 +225,7 @@ impl FoliagePlacer {
 }
 
 fn try_place_extension<R: RandomSource>(
-    level: &mut WorldGenRegion,
+    level: &mut impl WorldGenLevel,
     foliage_setter: &mut TreeSetter,
     random: &mut R,
     tree: &TreeFeature,
@@ -242,7 +242,7 @@ fn try_place_extension<R: RandomSource>(
     }
 }
 
-pub fn try_place_leaf<R: RandomSource>(level: &mut WorldGenRegion, foliage_setter: &mut TreeSetter, random: &mut R, tree: &TreeFeature, pos: BlockPos) -> bool {
+pub fn try_place_leaf<R: RandomSource>(level: &mut impl WorldGenLevel, foliage_setter: &mut TreeSetter, random: &mut R, tree: &TreeFeature, pos: BlockPos) -> bool {
     let is_persistent = level.get_block_state(pos).try_get(PERSISTENT).unwrap_or(false);
     if !is_persistent && tree_feature::valid_tree_pos(level, pos) {
         let mut foliage_state = tree.foliage_provider.value().get_state(level, random, pos);

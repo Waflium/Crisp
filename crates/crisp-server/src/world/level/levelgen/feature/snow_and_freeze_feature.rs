@@ -2,10 +2,10 @@ use crisp_core::BlockPos;
 use crisp_data::blocks;
 use crisp_data::properties::SNOWY;
 
-use crate::server::level::world_gen_region::WorldGenRegion;
+use crate::world::level::world_gen_level::WorldGenLevel;
 use crate::world::level::chunk::HeightmapType;
 
-pub fn place(level: &mut WorldGenRegion, origin: BlockPos) -> bool {
+pub fn place(level: &mut impl WorldGenLevel, origin: BlockPos) -> bool {
     for dx in 0..16 {
         for dz in 0..16 {
             let x = origin.x + dx;

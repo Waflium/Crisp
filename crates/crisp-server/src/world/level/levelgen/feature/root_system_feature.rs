@@ -4,7 +4,7 @@ use crisp_data::{BlockState, fluid_tags};
 use serde_json::Value;
 
 use super::stateproviders::block_state_provider::BlockStateProviderHolder;
-use crate::server::level::world_gen_region::WorldGenRegion;
+use crate::world::level::world_gen_level::WorldGenLevel;
 use crate::world::level::block;
 use crate::world::level::chunk::HeightmapType;
 use crate::world::level::levelgen::blockpredicates::block_predicate::{BlockPredicate, BlockSet};
@@ -51,7 +51,7 @@ impl RootSystemFeature {
         })
     }
 
-    pub fn place<R: RandomSource>(&self, level: &mut WorldGenRegion, random: &mut R, origin: BlockPos) -> bool {
+    pub fn place<R: RandomSource>(&self, level: &mut impl WorldGenLevel, random: &mut R, origin: BlockPos) -> bool {
         if !level.get_block_state(origin).is_air() {
             return false;
         }
@@ -62,7 +62,7 @@ impl RootSystemFeature {
         true
     }
 
-    fn space_for_tree(&self, level: &mut WorldGenRegion, pos: BlockPos) -> bool {
+    fn space_for_tree(&self, level: &mut impl WorldGenLevel, pos: BlockPos) -> bool {
         let mut column_up_pos = pos;
         for i in 1..=self.required_vertical_space_for_tree {
             column_up_pos = column_up_pos.above();
@@ -84,7 +84,7 @@ impl RootSystemFeature {
         true
     }
 
-    fn place_dirt_and_tree<R: RandomSource>(&self, level: &mut WorldGenRegion, random: &mut R, working_pos: &mut BlockPos, pos: BlockPos) -> bool {
+    fn place_dirt_and_tree<R: RandomSource>(&self, level: &mut impl WorldGenLevel, random: &mut R, working_pos: &mut BlockPos, pos: BlockPos) -> bool {
         for y in 0..self.root_column_max_height {
             *working_pos = working_pos.above();
             if level.get_height(HeightmapType::WorldSurface, working_pos.x, working_pos.z) < working_pos.y {
@@ -104,13 +104,13 @@ impl RootSystemFeature {
         false
     }
 
-    fn place_dirt<R: RandomSource>(&self, origin: BlockPos, target_height: i32, level: &mut WorldGenRegion, random: &mut R) {
+    fn place_dirt<R: RandomSource>(&self, origin: BlockPos, target_height: i32, level: &mut impl WorldGenLevel, random: &mut R) {
         for y in origin.y..target_height {
             self.place_rooted_dirt(level, random, origin.x, origin.z, y);
         }
     }
 
-    fn place_rooted_dirt<R: RandomSource>(&self, level: &mut WorldGenRegion, random: &mut R, origin_x: i32, origin_z: i32, y: i32) {
+    fn place_rooted_dirt<R: RandomSource>(&self, level: &mut impl WorldGenLevel, random: &mut R, origin_x: i32, origin_z: i32, y: i32) {
         for _ in 0..self.root_placement_attempts {
             let dx = random.next_int_bounded(self.root_radius) - random.next_int_bounded(self.root_radius);
             let dz = random.next_int_bounded(self.root_radius) - random.next_int_bounded(self.root_radius);
@@ -122,7 +122,7 @@ impl RootSystemFeature {
         }
     }
 
-    fn place_roots<R: RandomSource>(&self, level: &mut WorldGenRegion, random: &mut R, pos: BlockPos) {
+    fn place_roots<R: RandomSource>(&self, level: &mut impl WorldGenLevel, random: &mut R, pos: BlockPos) {
         for _ in 0..self.hanging_root_placement_attempts {
             let dx = random.next_int_bounded(self.hanging_root_radius) - random.next_int_bounded(self.hanging_root_radius);
             let dy = random.next_int_bounded(self.hanging_roots_vertical_span) - random.next_int_bounded(self.hanging_roots_vertical_span);

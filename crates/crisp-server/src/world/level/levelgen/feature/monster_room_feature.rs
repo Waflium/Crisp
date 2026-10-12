@@ -2,20 +2,20 @@ use crisp_core::random::RandomSource;
 use crisp_core::{BlockPos, Direction};
 use crisp_data::{BlockState, block_tags, blocks};
 
-use crate::server::level::world_gen_region::WorldGenRegion;
+use crate::world::level::world_gen_level::WorldGenLevel;
 use crate::world::level::block::entity::BlockEntityKind;
 use crate::world::level::levelgen::structure::structure_piece::reorient;
 
 const MOBS: [&str; 4] = ["minecraft:skeleton", "minecraft:zombie", "minecraft:zombie", "minecraft:spider"];
 const SIMPLE_DUNGEON: &str = "minecraft:chests/simple_dungeon";
 
-fn safe_set_block(level: &mut WorldGenRegion, pos: BlockPos, state: BlockState) {
+fn safe_set_block(level: &mut impl WorldGenLevel, pos: BlockPos, state: BlockState) {
     if !level.get_block_state(pos).is(&block_tags::FEATURES_CANNOT_REPLACE) {
         level.set_block(pos, state, 2);
     }
 }
 
-pub fn place<R: RandomSource>(level: &mut WorldGenRegion, random: &mut R, origin: BlockPos) -> bool {
+pub fn place<R: RandomSource>(level: &mut impl WorldGenLevel, random: &mut R, origin: BlockPos) -> bool {
     let air = blocks::CAVE_AIR.default_state();
     let xr = random.next_int_bounded(2) + 2;
     let min_x = -xr - 1;
@@ -99,7 +99,7 @@ pub fn place<R: RandomSource>(level: &mut WorldGenRegion, random: &mut R, origin
     true
 }
 
-fn set_block_entity_loot_table(level: &mut WorldGenRegion, random: &mut impl RandomSource, pos: BlockPos, loot_table: &str) {
+fn set_block_entity_loot_table(level: &mut impl WorldGenLevel, random: &mut impl RandomSource, pos: BlockPos, loot_table: &str) {
     if let Some(entity) = level.get_block_entity(pos)
         && entity.is_randomizable()
         && let Some(base) = entity.container_base_mut()

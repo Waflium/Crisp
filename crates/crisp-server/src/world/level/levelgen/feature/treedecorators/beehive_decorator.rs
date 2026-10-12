@@ -1,3 +1,4 @@
+use crate::world::level::world_gen_level::WorldGenLevel;
 use crisp_core::random::RandomSource;
 use crisp_core::{BlockPos, Direction};
 use crisp_data::block_entity_types;
@@ -12,7 +13,7 @@ use crate::world::level::block::entity::beehive_block_entity::Occupant;
 const WORLDGEN_FACING: Direction = Direction::South;
 const SPAWN_DIRECTIONS: [Direction; 3] = [Direction::East, Direction::South, Direction::West];
 
-pub fn place<R: RandomSource>(probability: f32, context: &mut Context<R>) {
+pub fn place<R: RandomSource>(probability: f32, context: &mut Context<impl WorldGenLevel, R>) {
     if context.logs.is_empty() {
         return;
     }

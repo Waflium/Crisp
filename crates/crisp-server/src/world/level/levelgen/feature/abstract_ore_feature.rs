@@ -21,7 +21,7 @@ impl AbstractOreFeature {
         })
     }
 
-    pub fn can_place_ore(&self, state: BlockState, block_getter: impl Fn(BlockPos) -> BlockState, random: &mut impl RandomSource, target_state: &BlockReplacement, ore_pos: BlockPos) -> bool {
+    pub fn can_place_ore(&self, state: BlockState, block_getter: impl FnMut(BlockPos) -> BlockState, random: &mut impl RandomSource, target_state: &BlockReplacement, ore_pos: BlockPos) -> bool {
         if !target_state.target.test(state, ore_pos, random) {
             return false;
         }
@@ -29,11 +29,11 @@ impl AbstractOreFeature {
     }
 }
 
-pub fn is_adjacent_to_air(block_getter: impl Fn(BlockPos) -> BlockState, pos: BlockPos) -> bool {
+pub fn is_adjacent_to_air(block_getter: impl FnMut(BlockPos) -> BlockState, pos: BlockPos) -> bool {
     check_neighbors(block_getter, pos, BlockState::is_air)
 }
 
-pub fn check_neighbors(block_getter: impl Fn(BlockPos) -> BlockState, pos: BlockPos, predicate: impl Fn(BlockState) -> bool) -> bool {
+pub fn check_neighbors(mut block_getter: impl FnMut(BlockPos) -> BlockState, pos: BlockPos, predicate: impl Fn(BlockState) -> bool) -> bool {
     Direction::VALUES.into_iter().any(|direction| predicate(block_getter(pos.relative(direction))))
 }
 

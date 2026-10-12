@@ -4,7 +4,7 @@ use serde_json::Value;
 
 use super::feature::mark_above_for_post_processing;
 use super::stateproviders::block_state_provider::BlockStateProviderHolder;
-use crate::server::level::world_gen_region::WorldGenRegion;
+use crate::world::level::world_gen_level::WorldGenLevel;
 use crate::util::valueproviders::IntProvider;
 use crate::world::level::levelgen::blockpredicates::block_predicate::BlockPredicate;
 
@@ -26,7 +26,7 @@ impl DiskFeature {
         })
     }
 
-    pub fn place<R: RandomSource>(&self, level: &mut WorldGenRegion, random: &mut R, origin: BlockPos) -> bool {
+    pub fn place<R: RandomSource>(&self, level: &mut impl WorldGenLevel, random: &mut R, origin: BlockPos) -> bool {
         let mut placed_any = false;
         let origin_y = origin.y;
         let top = origin_y + self.half_height;
@@ -44,7 +44,7 @@ impl DiskFeature {
         placed_any
     }
 
-    fn place_column<R: RandomSource>(&self, level: &mut WorldGenRegion, random: &mut R, top: i32, bottom: i32, x: i32, z: i32) -> bool {
+    fn place_column<R: RandomSource>(&self, level: &mut impl WorldGenLevel, random: &mut R, top: i32, bottom: i32, x: i32, z: i32) -> bool {
         let mut placed_any = false;
         let mut placed_above = false;
         let mut y = top;

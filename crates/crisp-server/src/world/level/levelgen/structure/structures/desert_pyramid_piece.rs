@@ -4,8 +4,7 @@ use crisp_data::properties::HORIZONTAL_FACING;
 use crisp_data::{BlockState, blocks};
 use crisp_protocol::nbt::Nbt;
 
-use crate::server::level::world_gen_region::WorldGenRegion;
-use crate::world::level::LevelAccessor;
+use crate::world::level::world_gen_level::WorldGenLevel;
 use crate::world::level::block;
 use crate::world::level::block::rotation::Rotation;
 use crate::world::level::levelgen::structure::BoundingBox;
@@ -50,7 +49,7 @@ impl DesertPyramidPiece {
         }
     }
 
-    pub fn post_process(&mut self, level: &mut WorldGenRegion, random: &mut impl RandomSource, chunk_bb: &BoundingBox) {
+    pub fn post_process(&mut self, level: &mut impl WorldGenLevel, random: &mut impl RandomSource, chunk_bb: &BoundingBox) {
         let offset = -random.next_int_bounded(3);
         if !self.scattered.update_height_position_to_lowest_ground_height(level, offset) {
             return;
@@ -243,13 +242,13 @@ impl DesertPyramidPiece {
         self.add_cellar(level, chunk_bb);
     }
 
-    fn add_cellar(&mut self, level: &mut WorldGenRegion, chunk_bb: &BoundingBox) {
+    fn add_cellar(&mut self, level: &mut impl WorldGenLevel, chunk_bb: &BoundingBox) {
         let room_center = BlockPos::new(16, -4, 13);
         self.add_cellar_stairs(room_center, level, chunk_bb);
         self.add_cellar_room(room_center, level, chunk_bb);
     }
 
-    fn add_cellar_stairs(&self, room_center: BlockPos, level: &mut WorldGenRegion, chunk_bb: &BoundingBox) {
+    fn add_cellar_stairs(&self, room_center: BlockPos, level: &mut impl WorldGenLevel, chunk_bb: &BoundingBox) {
         let piece = &self.scattered.piece;
         let (x, y, z) = (room_center.x, room_center.y, room_center.z);
         let sand_stone_stairs = blocks::SANDSTONE_STAIRS.default_state();
@@ -272,7 +271,7 @@ impl DesertPyramidPiece {
         piece.place_block(level, sand, x, y + 1, z + 4, chunk_bb);
     }
 
-    fn add_cellar_room(&mut self, room_center: BlockPos, level: &mut WorldGenRegion, chunk_bb: &BoundingBox) {
+    fn add_cellar_room(&mut self, room_center: BlockPos, level: &mut impl WorldGenLevel, chunk_bb: &BoundingBox) {
         let (x, y, z) = (room_center.x, room_center.y, room_center.z);
         let cut_sand_stone = blocks::CUT_SANDSTONE.default_state();
         let hieroglyphs_sand_stone = blocks::CHISELED_SANDSTONE.default_state();
@@ -341,7 +340,7 @@ impl DesertPyramidPiece {
         }
     }
 
-    fn place_collapsed_roof_piece(&self, level: &mut WorldGenRegion, x: i32, y: i32, z: i32, chunk_bb: &BoundingBox) {
+    fn place_collapsed_roof_piece(&self, level: &mut impl WorldGenLevel, x: i32, y: i32, z: i32, chunk_bb: &BoundingBox) {
         if level.get_random().next_float() < 0.33 {
             self.scattered.piece.place_block(level, blocks::SANDSTONE.default_state(), x, y, z, chunk_bb);
         } else {
@@ -350,7 +349,7 @@ impl DesertPyramidPiece {
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn place_collapsed_roof(&mut self, level: &mut WorldGenRegion, chunk_bb: &BoundingBox, x0: i32, y0: i32, z0: i32, x1: i32, z1: i32) {
+    fn place_collapsed_roof(&mut self, level: &mut impl WorldGenLevel, chunk_bb: &BoundingBox, x0: i32, y0: i32, z0: i32, x1: i32, z1: i32) {
         for x in x0..=x1 {
             for z in z0..=z1 {
                 self.place_collapsed_roof_piece(level, x, y0, z, chunk_bb);

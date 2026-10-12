@@ -10,7 +10,7 @@ use super::rootplacers::root_placer::RootPlacer;
 use super::stateproviders::block_state_provider::BlockStateProviderHolder;
 use super::treedecorators::tree_decorator::{self, TreeDecorator};
 use super::trunkplacers::trunk_placer::TrunkPlacer;
-use crate::server::level::world_gen_region::WorldGenRegion;
+use crate::world::level::world_gen_level::WorldGenLevel;
 use crate::util::java_collections::JavaObjectHashSet;
 use crate::world::level::block::leaves_block;
 use crate::world::level::levelgen::structure::BoundingBox;
@@ -28,7 +28,7 @@ impl<'s> TreeSetter<'s> {
         TreeSetter { positions }
     }
 
-    pub fn accept(&mut self, level: &mut WorldGenRegion, pos: BlockPos, state: BlockState) {
+    pub fn accept(&mut self, level: &mut impl WorldGenLevel, pos: BlockPos, state: BlockState) {
         self.positions.insert(pos);
         level.set_block(pos, state, BLOCK_UPDATE_FLAGS);
     }
@@ -50,20 +50,20 @@ pub struct TreeFeature {
     pub below_trunk_provider: BlockStateProviderHolder,
 }
 
-pub fn is_vine(level: &mut WorldGenRegion, pos: BlockPos) -> bool {
+pub fn is_vine(level: &mut impl WorldGenLevel, pos: BlockPos) -> bool {
     level.get_block_state(pos).is_block(blocks::VINE)
 }
 
-pub fn is_air_or_leaves(level: &mut WorldGenRegion, pos: BlockPos) -> bool {
+pub fn is_air_or_leaves(level: &mut impl WorldGenLevel, pos: BlockPos) -> bool {
     let state = level.get_block_state(pos);
     state.is_air() || state.is(&block_tags::LEAVES)
 }
 
-fn set_block_known_shape(level: &mut WorldGenRegion, pos: BlockPos, state: BlockState) {
+fn set_block_known_shape(level: &mut impl WorldGenLevel, pos: BlockPos, state: BlockState) {
     level.set_block(pos, state, BLOCK_UPDATE_FLAGS);
 }
 
-pub fn valid_tree_pos(level: &mut WorldGenRegion, pos: BlockPos) -> bool {
+pub fn valid_tree_pos(level: &mut impl WorldGenLevel, pos: BlockPos) -> bool {
     let state = level.get_block_state(pos);
     state.is_air() || state.is(&block_tags::REPLACEABLE_BY_TREES)
 }
@@ -86,7 +86,7 @@ impl TreeFeature {
 
     fn do_place<R: RandomSource>(
         &self,
-        level: &mut WorldGenRegion,
+        level: &mut impl WorldGenLevel,
         random: &mut R,
         origin: BlockPos,
         root_setter: &mut TreeSetter,
@@ -123,7 +123,7 @@ impl TreeFeature {
         true
     }
 
-    fn get_max_free_tree_height(&self, level: &mut WorldGenRegion, max_tree_height: i32, tree_pos: BlockPos) -> i32 {
+    fn get_max_free_tree_height(&self, level: &mut impl WorldGenLevel, max_tree_height: i32, tree_pos: BlockPos) -> i32 {
         for y in 0..=max_tree_height + 1 {
             let r = self.minimum_size.get_size_at_height(max_tree_height, y);
             for x in -r..=r {
@@ -138,7 +138,7 @@ impl TreeFeature {
         max_tree_height
     }
 
-    pub fn place<R: RandomSource>(&self, level: &mut WorldGenRegion, random: &mut R, origin: BlockPos) -> bool {
+    pub fn place<R: RandomSource>(&self, level: &mut impl WorldGenLevel, random: &mut R, origin: BlockPos) -> bool {
         let mut root_positions = JavaObjectHashSet::default();
         let mut trunks = JavaObjectHashSet::default();
         let mut foliage = JavaObjectHashSet::default();
@@ -180,7 +180,7 @@ fn encapsulating_positions(mut positions: impl Iterator<Item = BlockPos>) -> Opt
 }
 
 fn update_leaves(
-    level: &mut WorldGenRegion,
+    level: &mut impl WorldGenLevel,
     bounds: &BoundingBox,
     logs: &JavaObjectHashSet<BlockPos>,
     decoration_set: &JavaObjectHashSet<BlockPos>,

@@ -1418,6 +1418,66 @@ impl crate::world::level::LevelAccessor for ServerLevel {
     }
 }
 
+impl crate::world::level::world_gen_level::WorldGenLevel for ServerLevel {
+    fn get_seed(&self) -> i64 {
+        self.seed
+    }
+
+    fn ensure_can_write(&self, _pos: BlockPos) -> bool {
+        true
+    }
+
+    fn generator(&self) -> &crate::world::level::chunk::ChunkGenerator {
+        &self.chunks.generator
+    }
+
+    fn get_difficulty(&self) -> crate::world::difficulty::Difficulty {
+        self.difficulty
+    }
+
+    fn generation(&self) -> crate::world::level::levelgen::material::WorldGenerationContext {
+        let generator = &self.chunks.generator;
+        crate::world::level::levelgen::material::WorldGenerationContext {
+            min_gen_y: self.chunks.min_y().max(generator.min_y()),
+            gen_depth: self.chunks.height().min(generator.gen_depth()),
+            sea_level: generator.sea_level(),
+        }
+    }
+
+    fn get_block_state(&mut self, pos: BlockPos) -> BlockState {
+        self.chunks.block_state(pos)
+    }
+
+    fn get_height(&mut self, kind: crate::world::level::chunk::HeightmapType, x: i32, z: i32) -> i32 {
+        if (-30_000_000..30_000_000).contains(&x) && (-30_000_000..30_000_000).contains(&z) {
+            match self.chunks.loaded_chunk(ChunkPos::new(x >> 4, z >> 4)) {
+                Some(chunk) => chunk.height_at(kind, x, z) + 1,
+                None => self.chunks.min_y(),
+            }
+        } else {
+            self.sea_level() + 1
+        }
+    }
+
+    fn get_min_y(&self) -> i32 {
+        self.chunks.min_y()
+    }
+
+    fn get_height_of_level(&self) -> i32 {
+        self.chunks.height()
+    }
+
+    fn get_biome(&mut self, pos: BlockPos) -> crate::world::level::chunk::Biome {
+        ServerLevel::get_biome(self, pos)
+    }
+
+    fn set_section_block_state(&mut self, pos: BlockPos, state: BlockState) {
+        let chunk = self.chunks.chunk(ChunkPos::new(pos.x >> 4, pos.z >> 4));
+        let index = ((pos.y - chunk.min_y()) >> 4) as usize;
+        chunk.sections[index].set_block_state((pos.x & 15) as usize, (pos.y & 15) as usize, (pos.z & 15) as usize, state);
+    }
+}
+
 pub fn legacy_block(fluid: crisp_data::FluidState) -> BlockState {
     use crisp_data::Fluid;
     use crisp_data::properties::LEVEL;

@@ -9,7 +9,7 @@ use super::BoundingBox;
 use super::pieces::pieces_container::PiecesContainer;
 use super::structure::StructureHolder;
 use super::structures::{StructureType, ocean_monument_structure};
-use crate::server::level::world_gen_region::WorldGenRegion;
+use crate::world::level::world_gen_level::WorldGenLevel;
 
 pub struct StructureStart {
     pub structure: StructureHolder,
@@ -54,7 +54,7 @@ impl StructureStart {
         *self.cached_bounding_box.get_or_init(|| self.structure.value().adjust_bounding_box(self.piece_container.lock().unwrap().calculate_bounding_box()))
     }
 
-    pub fn place_in_chunk(&self, level: &mut WorldGenRegion, random: &mut impl RandomSource, chunk_bb: &BoundingBox, chunk_pos: ChunkPos) {
+    pub fn place_in_chunk(&self, level: &mut impl WorldGenLevel, random: &mut impl RandomSource, chunk_bb: &BoundingBox, chunk_pos: ChunkPos) {
         let mut container = self.piece_container.lock().unwrap();
         let Some(first) = container.pieces.first() else { return };
         let center_bb = first.piece().bounding_box;

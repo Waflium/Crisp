@@ -4,7 +4,7 @@ use crisp_data::{BlockState, block_tags, blocks, fluid_tags};
 use serde_json::Value;
 
 use super::speleothem_utils;
-use crate::server::level::world_gen_region::WorldGenRegion;
+use crate::world::level::world_gen_level::WorldGenLevel;
 use crate::util::valueproviders::{FloatProvider, IntProvider, float, normal};
 use crate::world::level::levelgen::blockpredicates::block_predicate::BlockSet;
 use crate::world::level::levelgen::column::Column;
@@ -49,7 +49,7 @@ impl SpeleothemClusterFeature {
         })
     }
 
-    pub fn place<R: RandomSource>(&self, level: &mut WorldGenRegion, random: &mut R, origin: BlockPos) -> bool {
+    pub fn place<R: RandomSource>(&self, level: &mut impl WorldGenLevel, random: &mut R, origin: BlockPos) -> bool {
         if !speleothem_utils::is_empty_or_water_at(level, origin) {
             return false;
         }
@@ -71,7 +71,7 @@ impl SpeleothemClusterFeature {
     #[allow(clippy::too_many_arguments)]
     fn place_column<R: RandomSource>(
         &self,
-        level: &mut WorldGenRegion,
+        level: &mut impl WorldGenLevel,
         random: &mut R,
         pos: BlockPos,
         dx: i32,
@@ -150,7 +150,7 @@ impl SpeleothemClusterFeature {
         }
     }
 
-    fn is_lava(&self, level: &mut WorldGenRegion, pos: BlockPos) -> bool {
+    fn is_lava(&self, level: &mut impl WorldGenLevel, pos: BlockPos) -> bool {
         level.get_block_state(pos).is_block(blocks::LAVA)
     }
 
@@ -163,7 +163,7 @@ impl SpeleothemClusterFeature {
         random_between_biased(random, 0.0, max_height as f32, height_mean, self.height_deviation as f32) as i32
     }
 
-    fn can_place_pool(&self, level: &mut WorldGenRegion, pos: BlockPos) -> bool {
+    fn can_place_pool(&self, level: &mut impl WorldGenLevel, pos: BlockPos) -> bool {
         let state = level.get_block_state(pos);
         if state.is_block(blocks::WATER) || state.is_block(self.base_block.block()) || state.is_block(self.pointed_block.block()) {
             return false;
@@ -179,7 +179,7 @@ impl SpeleothemClusterFeature {
         can_be_adjacent_to_water(level, pos.below())
     }
 
-    fn replace_blocks_with_base_blocks(&self, level: &mut WorldGenRegion, first_pos: BlockPos, max_count: i32, direction: Direction) {
+    fn replace_blocks_with_base_blocks(&self, level: &mut impl WorldGenLevel, first_pos: BlockPos, max_count: i32, direction: Direction) {
         let mut pos = first_pos;
         for _ in 0..max_count {
             if !speleothem_utils::place_base_block_if_possible(level, pos, self.base_block.block(), &self.replaceable_blocks) {
@@ -197,7 +197,7 @@ impl SpeleothemClusterFeature {
     }
 }
 
-fn can_be_adjacent_to_water(level: &mut WorldGenRegion, pos: BlockPos) -> bool {
+fn can_be_adjacent_to_water(level: &mut impl WorldGenLevel, pos: BlockPos) -> bool {
     let state = level.get_block_state(pos);
     state.is(&block_tags::BASE_STONE_OVERWORLD) || state.fluid_state().is(&fluid_tags::WATER)
 }

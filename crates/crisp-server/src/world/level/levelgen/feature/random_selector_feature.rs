@@ -2,7 +2,7 @@ use crisp_core::BlockPos;
 use crisp_core::random::RandomSource;
 use serde_json::Value;
 
-use crate::server::level::world_gen_region::WorldGenRegion;
+use crate::world::level::world_gen_level::WorldGenLevel;
 use crate::util::valueproviders::float;
 use crate::world::level::levelgen::placement::placed_feature::PlacedFeatureHolder;
 
@@ -19,7 +19,7 @@ impl WeightedPlacedFeature {
         })
     }
 
-    fn place<R: RandomSource>(&self, level: &mut WorldGenRegion, random: &mut R, origin: BlockPos) -> bool {
+    fn place<R: RandomSource>(&self, level: &mut impl WorldGenLevel, random: &mut R, origin: BlockPos) -> bool {
         self.feature.value().place(level, random, origin)
     }
 }
@@ -37,7 +37,7 @@ impl RandomSelectorFeature {
         })
     }
 
-    pub fn place<R: RandomSource>(&self, level: &mut WorldGenRegion, random: &mut R, origin: BlockPos) -> bool {
+    pub fn place<R: RandomSource>(&self, level: &mut impl WorldGenLevel, random: &mut R, origin: BlockPos) -> bool {
         for feature in &self.features {
             if random.next_float() < feature.chance {
                 return feature.place(level, random, origin);

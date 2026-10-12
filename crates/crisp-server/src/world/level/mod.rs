@@ -24,6 +24,7 @@ pub mod storage;
 pub mod timers;
 pub mod validation;
 pub mod world_data_configuration;
+pub mod world_gen_level;
 
 use crisp_core::random::RandomSource;
 use crisp_core::{BlockPos, Direction};

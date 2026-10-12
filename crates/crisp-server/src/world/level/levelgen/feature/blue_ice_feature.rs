@@ -2,9 +2,9 @@ use crisp_core::random::RandomSource;
 use crisp_core::{BlockPos, Direction};
 use crisp_data::blocks;
 
-use crate::server::level::world_gen_region::WorldGenRegion;
+use crate::world::level::world_gen_level::WorldGenLevel;
 
-pub fn place<R: RandomSource>(level: &mut WorldGenRegion, random: &mut R, origin: BlockPos) -> bool {
+pub fn place<R: RandomSource>(level: &mut impl WorldGenLevel, random: &mut R, origin: BlockPos) -> bool {
     if origin.y > level.get_sea_level() - 1 {
         return false;
     }

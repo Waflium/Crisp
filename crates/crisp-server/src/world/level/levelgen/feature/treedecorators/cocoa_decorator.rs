@@ -1,3 +1,4 @@
+use crate::world::level::world_gen_level::WorldGenLevel;
 use crisp_core::Direction;
 use crisp_core::random::RandomSource;
 use crisp_data::blocks;
@@ -5,7 +6,7 @@ use crisp_data::properties::{AGE_2, HORIZONTAL_FACING};
 
 use super::tree_decorator::Context;
 
-pub fn place<R: RandomSource>(probability: f32, context: &mut Context<R>) {
+pub fn place<R: RandomSource>(probability: f32, context: &mut Context<impl WorldGenLevel, R>) {
     if context.random.next_float() >= probability {
         return;
     }

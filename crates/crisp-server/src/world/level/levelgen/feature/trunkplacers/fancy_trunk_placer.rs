@@ -3,7 +3,7 @@ use crisp_core::{Axis, BlockPos, mth};
 use crisp_data::properties::AXIS;
 
 use super::trunk_placer::{TrunkPlacer, place_below_trunk_block};
-use crate::server::level::world_gen_region::WorldGenRegion;
+use crate::world::level::world_gen_level::WorldGenLevel;
 use crate::world::level::levelgen::feature::foliageplacers::foliage_placer::FoliageAttachment;
 use crate::world::level::levelgen::feature::tree_feature::{TreeFeature, TreeSetter};
 
@@ -24,7 +24,7 @@ impl FoliageCoords {
 
 pub fn place_trunk<R: RandomSource>(
     placer: &TrunkPlacer,
-    level: &mut WorldGenRegion,
+    level: &mut impl WorldGenLevel,
     trunk_setter: &mut TreeSetter,
     random: &mut R,
     tree_height: i32,
@@ -76,7 +76,7 @@ pub fn place_trunk<R: RandomSource>(
 #[allow(clippy::too_many_arguments)]
 fn make_limb<R: RandomSource>(
     placer: &TrunkPlacer,
-    level: &mut WorldGenRegion,
+    level: &mut impl WorldGenLevel,
     trunk_setter: &mut TreeSetter,
     random: &mut R,
     start_pos: BlockPos,
@@ -126,7 +126,7 @@ fn trim_branches(height: i32, local_y: i32) -> bool {
 #[allow(clippy::too_many_arguments)]
 fn make_branches<R: RandomSource>(
     placer: &TrunkPlacer,
-    level: &mut WorldGenRegion,
+    level: &mut impl WorldGenLevel,
     trunk_setter: &mut TreeSetter,
     random: &mut R,
     height: i32,

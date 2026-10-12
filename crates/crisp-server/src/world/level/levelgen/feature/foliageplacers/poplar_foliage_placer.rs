@@ -4,7 +4,7 @@ use crisp_data::properties::AXIS;
 use serde_json::Value;
 
 use super::foliage_placer::{FoliageAttachment, try_place_leaf};
-use crate::server::level::world_gen_region::WorldGenRegion;
+use crate::world::level::world_gen_level::WorldGenLevel;
 use crate::util::valueproviders::{IntProvider, float};
 use crate::world::level::levelgen::feature::tree_feature::{TreeFeature, TreeSetter};
 
@@ -24,7 +24,7 @@ impl PoplarFoliagePlacer {
     #[allow(clippy::too_many_arguments)]
     fn replace_leaves_with_log<R: RandomSource>(
         &self,
-        level: &mut WorldGenRegion,
+        level: &mut impl WorldGenLevel,
         foliage_setter: &mut TreeSetter,
         tree: &TreeFeature,
         random: &mut R,
@@ -58,7 +58,7 @@ impl PoplarFoliagePlacer {
     #[allow(clippy::too_many_arguments)]
     fn place_leaves_row<R: RandomSource>(
         &self,
-        level: &mut WorldGenRegion,
+        level: &mut impl WorldGenLevel,
         foliage_setter: &mut TreeSetter,
         random: &mut R,
         tree: &TreeFeature,
@@ -109,7 +109,7 @@ impl PoplarFoliagePlacer {
     }
 }
 
-fn try_place_log<R: RandomSource>(level: &mut WorldGenRegion, foliage_setter: &mut TreeSetter, random: &mut R, tree: &TreeFeature, pos: BlockPos, axis: Axis) {
+fn try_place_log<R: RandomSource>(level: &mut impl WorldGenLevel, foliage_setter: &mut TreeSetter, random: &mut R, tree: &TreeFeature, pos: BlockPos, axis: Axis) {
     let current = level.get_block_state(pos);
     if current == tree.foliage_provider.value().get_state(level, random, pos) {
         let state = tree.trunk_provider.value().get_state(level, random, pos).try_set(AXIS, axis);
@@ -132,7 +132,7 @@ fn is_left_top_corner_or_right_lower_corner(dx: i32, dz: i32) -> bool {
 #[allow(clippy::too_many_arguments)]
 pub fn create_foliage<R: RandomSource>(
     poplar: &PoplarFoliagePlacer,
-    level: &mut WorldGenRegion,
+    level: &mut impl WorldGenLevel,
     foliage_setter: &mut TreeSetter,
     random: &mut R,
     tree: &TreeFeature,

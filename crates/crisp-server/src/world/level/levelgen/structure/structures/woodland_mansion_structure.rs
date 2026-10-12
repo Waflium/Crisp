@@ -3,7 +3,7 @@ use crisp_data::blocks;
 
 use super::Piece;
 use super::woodland_mansion_pieces;
-use crate::server::level::world_gen_region::WorldGenRegion;
+use crate::world::level::world_gen_level::WorldGenLevel;
 use crate::world::level::block::rotation::Rotation;
 use crate::world::level::levelgen::structure::BoundingBox;
 use crate::world::level::levelgen::structure::pieces::pieces_container::PiecesContainer;
@@ -35,7 +35,7 @@ fn generate_pieces(builder: &mut StructurePiecesBuilder, context: &mut Generatio
     }
 }
 
-pub fn after_place(level: &mut WorldGenRegion, chunk_bb: &BoundingBox, pieces: &PiecesContainer) {
+pub fn after_place(level: &mut impl WorldGenLevel, chunk_bb: &BoundingBox, pieces: &PiecesContainer) {
     let min_y = level.get_min_y();
     let bounding_box = pieces.calculate_bounding_box();
     let y_start = bounding_box.min.y;

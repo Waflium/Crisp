@@ -3,7 +3,7 @@ use crisp_core::{BlockPos, Direction};
 use crisp_data::blocks;
 use serde_json::Value;
 
-use crate::server::level::world_gen_region::WorldGenRegion;
+use crate::world::level::world_gen_level::WorldGenLevel;
 use crate::world::level::block::sculk_behaviour::SculkBehaviour;
 use crate::world::level::block::sculk_spreader::SculkSpreader;
 
@@ -27,7 +27,7 @@ impl SculkPatchFeature {
         })
     }
 
-    pub fn place<R: RandomSource>(&self, level: &mut WorldGenRegion, random: &mut R, origin: BlockPos) -> bool {
+    pub fn place<R: RandomSource>(&self, level: &mut impl WorldGenLevel, random: &mut R, origin: BlockPos) -> bool {
         if !can_spread_from(level, origin) {
             return false;
         }
@@ -47,7 +47,7 @@ impl SculkPatchFeature {
     }
 }
 
-fn can_spread_from(level: &mut WorldGenRegion, origin: BlockPos) -> bool {
+fn can_spread_from(level: &mut impl WorldGenLevel, origin: BlockPos) -> bool {
     let start = level.get_block_state(origin);
     if SculkBehaviour::of(start.block()).is_some() {
         return true;

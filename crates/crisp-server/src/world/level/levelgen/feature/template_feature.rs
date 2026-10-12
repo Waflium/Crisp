@@ -2,7 +2,7 @@ use crisp_core::random::RandomSource;
 use crisp_core::{Axis, BlockPos};
 use serde_json::Value;
 
-use crate::server::level::world_gen_region::WorldGenRegion;
+use crate::world::level::world_gen_level::WorldGenLevel;
 use crate::util::random::WeightedList;
 use crate::world::level::block::rotation::Rotation;
 use crate::world::level::levelgen::blockpredicates::block_predicate::resource;
@@ -43,7 +43,7 @@ impl TemplateFeature {
         })
     }
 
-    pub fn place<R: RandomSource>(&self, level: &mut WorldGenRegion, random: &mut R, origin: BlockPos) -> bool {
+    pub fn place<R: RandomSource>(&self, level: &mut impl WorldGenLevel, random: &mut R, origin: BlockPos) -> bool {
         let template_entry = self.templates.get_random_or_throw(random);
         let rotation = template_entry.rotations[random.next_int_bounded(template_entry.rotations.len() as i32) as usize];
         let template = structure_template_manager::get_or_create(&template_entry.template);

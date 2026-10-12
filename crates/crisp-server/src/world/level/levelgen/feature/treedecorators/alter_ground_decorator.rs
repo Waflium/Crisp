@@ -1,3 +1,4 @@
+use crate::world::level::world_gen_level::WorldGenLevel;
 use crisp_core::BlockPos;
 use crisp_core::random::RandomSource;
 use serde_json::Value;
@@ -15,7 +16,7 @@ impl AlterGroundDecorator {
         Ok(AlterGroundDecorator { provider: BlockStateProviderHolder::parse(json.get("provider").ok_or("missing provider")?)? })
     }
 
-    pub fn place<R: RandomSource>(&self, context: &mut Context<R>) {
+    pub fn place<R: RandomSource>(&self, context: &mut Context<impl WorldGenLevel, R>) {
         let block_positions = tree_feature::get_lowest_trunk_or_root_of_tree(&context.roots, &context.logs);
         if block_positions.is_empty() {
             return;
@@ -37,7 +38,7 @@ impl AlterGroundDecorator {
         }
     }
 
-    fn place_circle<R: RandomSource>(&self, context: &mut Context<R>, pos: BlockPos) {
+    fn place_circle<R: RandomSource>(&self, context: &mut Context<impl WorldGenLevel, R>, pos: BlockPos) {
         for xx in -2i32..=2 {
             for zz in -2i32..=2 {
                 if xx.abs() != 2 || zz.abs() != 2 {
@@ -47,7 +48,7 @@ impl AlterGroundDecorator {
         }
     }
 
-    fn place_block_at<R: RandomSource>(&self, context: &mut Context<R>, pos: BlockPos) {
+    fn place_block_at<R: RandomSource>(&self, context: &mut Context<impl WorldGenLevel, R>, pos: BlockPos) {
         let mut dy = 2;
         while dy >= -3 {
             let cursor = pos.offset(0, dy, 0);

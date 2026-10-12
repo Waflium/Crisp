@@ -4,7 +4,7 @@ use crisp_data::{block_tags, blocks};
 use serde_json::Value;
 
 use super::speleothem_utils;
-use crate::server::level::world_gen_region::WorldGenRegion;
+use crate::world::level::world_gen_level::WorldGenLevel;
 use crate::util::valueproviders::{FloatProvider, IntProvider, float, random_between};
 use crate::world::level::chunk::HeightmapType;
 use crate::world::level::levelgen::blockpredicates::block_predicate::BlockSet;
@@ -40,7 +40,7 @@ impl LargeDripstoneFeature {
         })
     }
 
-    pub fn place<R: RandomSource>(&self, level: &mut WorldGenRegion, random: &mut R, origin: BlockPos) -> bool {
+    pub fn place<R: RandomSource>(&self, level: &mut impl WorldGenLevel, random: &mut R, origin: BlockPos) -> bool {
         if !speleothem_utils::is_empty_or_water_at(level, origin) {
             return false;
         }
@@ -96,7 +96,7 @@ impl LargeDripstone {
         self.get_height_at_radius(0.0)
     }
 
-    fn move_back_until_base_is_inside_stone_and_shrink_radius_if_necessary(&mut self, level: &mut WorldGenRegion, wind: &WindOffsetter) -> bool {
+    fn move_back_until_base_is_inside_stone_and_shrink_radius_if_necessary(&mut self, level: &mut impl WorldGenLevel, wind: &WindOffsetter) -> bool {
         while self.radius > 1 {
             let mut new_root = self.root;
             let max_tries = 10.min(self.get_height());
@@ -119,7 +119,7 @@ impl LargeDripstone {
         speleothem_utils::get_speleothem_height(check_radius as f64, self.radius as f64, self.scale, self.bluntness) as i32
     }
 
-    fn place_blocks(&self, level: &mut WorldGenRegion, random: &mut impl RandomSource, wind: &WindOffsetter) {
+    fn place_blocks(&self, level: &mut impl WorldGenLevel, random: &mut impl RandomSource, wind: &WindOffsetter) {
         for dx in -self.radius..=self.radius {
             for dz in -self.radius..=self.radius {
                 let current_radius = mth::sqrt((dx * dx + dz * dz) as f32);

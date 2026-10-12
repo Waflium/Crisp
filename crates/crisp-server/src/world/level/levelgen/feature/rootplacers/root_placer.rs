@@ -6,7 +6,7 @@ use serde_json::Value;
 
 use super::above_root_placement::AboveRootPlacement;
 use super::mangrove_root_placer::{self, MangroveRootPlacement};
-use crate::server::level::world_gen_region::WorldGenRegion;
+use crate::world::level::world_gen_level::WorldGenLevel;
 use crate::util::valueproviders::IntProvider;
 use crate::world::level::levelgen::feature::stateproviders::block_state_provider::BlockStateProviderHolder;
 use crate::world::level::levelgen::feature::tree_feature::{self, TreeFeature, TreeSetter};
@@ -40,7 +40,7 @@ impl RootPlacer {
 
     pub fn place_roots<R: RandomSource>(
         &self,
-        level: &mut WorldGenRegion,
+        level: &mut impl WorldGenLevel,
         root_setter: &mut TreeSetter,
         random: &mut R,
         origin: BlockPos,
@@ -52,19 +52,19 @@ impl RootPlacer {
         }
     }
 
-    pub fn can_place_root(&self, level: &mut WorldGenRegion, pos: BlockPos) -> bool {
+    pub fn can_place_root(&self, level: &mut impl WorldGenLevel, pos: BlockPos) -> bool {
         match &self.kind {
             RootPlacerType::Mangrove(placement) => tree_feature::valid_tree_pos(level, pos) || placement.can_grow_through.contains(level.get_block_state(pos).block()),
         }
     }
 
-    pub fn place_root<R: RandomSource>(&self, level: &mut WorldGenRegion, root_setter: &mut TreeSetter, random: &mut R, pos: BlockPos, tree: &TreeFeature) {
+    pub fn place_root<R: RandomSource>(&self, level: &mut impl WorldGenLevel, root_setter: &mut TreeSetter, random: &mut R, pos: BlockPos, tree: &TreeFeature) {
         match &self.kind {
             RootPlacerType::Mangrove(placement) => mangrove_root_placer::place_root(placement, self, level, root_setter, random, pos, tree),
         }
     }
 
-    pub fn root_placer_place_root<R: RandomSource>(&self, level: &mut WorldGenRegion, root_setter: &mut TreeSetter, random: &mut R, pos: BlockPos) {
+    pub fn root_placer_place_root<R: RandomSource>(&self, level: &mut impl WorldGenLevel, root_setter: &mut TreeSetter, random: &mut R, pos: BlockPos) {
         if self.can_place_root(level, pos) {
             let state = self.root_provider.value().get_state(level, random, pos);
             let state = get_potentially_waterlogged_state(level, pos, state);
@@ -85,7 +85,7 @@ impl RootPlacer {
     }
 }
 
-pub fn get_potentially_waterlogged_state(level: &mut WorldGenRegion, pos: BlockPos, state: BlockState) -> BlockState {
+pub fn get_potentially_waterlogged_state(level: &mut impl WorldGenLevel, pos: BlockPos, state: BlockState) -> BlockState {
     if state.has(WATERLOGGED) {
         let waterlogged = level.get_fluid_state(pos).is(&fluid_tags::WATER);
         state.set(WATERLOGGED, waterlogged)

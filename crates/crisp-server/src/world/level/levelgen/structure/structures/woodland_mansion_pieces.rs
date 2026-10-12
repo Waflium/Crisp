@@ -6,7 +6,7 @@ use crisp_data::blocks;
 use crisp_data::properties::HORIZONTAL_FACING;
 use crisp_protocol::nbt::Nbt;
 
-use crate::server::level::world_gen_region::WorldGenRegion;
+use crate::world::level::world_gen_level::WorldGenLevel;
 use crate::util::shuffle;
 use crate::world::entity::entity_types;
 use crate::world::level::LevelAccessor;
@@ -1050,7 +1050,7 @@ impl WoodlandMansionPiece {
         tag.push(("Mi".into(), Nbt::String(self.template.place_settings.mirror.legacy_name().to_owned())));
     }
 
-    pub fn post_process(&mut self, level: &mut WorldGenRegion, random: &mut impl RandomSource, chunk_bb: &BoundingBox, reference_pos: BlockPos) {
+    pub fn post_process(&mut self, level: &mut impl WorldGenLevel, random: &mut impl RandomSource, chunk_bb: &BoundingBox, reference_pos: BlockPos) {
         let piece = self.template.piece.clone();
         let rot = self.template.place_settings.rotation;
         self.template.post_process(level, random, chunk_bb, reference_pos, |marker_id, position, level, random, chunk_bb| {
@@ -1063,7 +1063,7 @@ impl WoodlandMansionPiece {
         rot: Rotation,
         marker_id: &str,
         position: BlockPos,
-        level: &mut WorldGenRegion,
+        level: &mut impl WorldGenLevel,
         random: &mut impl RandomSource,
         chunk_bb: &BoundingBox,
     ) {

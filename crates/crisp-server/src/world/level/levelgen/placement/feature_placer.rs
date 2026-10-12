@@ -2,7 +2,7 @@ use crisp_core::BlockPos;
 
 use super::placed_feature::PlacedFeature;
 use super::placement_context::PlacementContext;
-use crate::server::level::world_gen_region::WorldGenRegion;
+use crate::world::level::world_gen_level::WorldGenLevel;
 use crisp_core::random::RandomSource;
 
 #[derive(Default)]
@@ -13,15 +13,15 @@ pub struct FeaturePlacer {
 }
 
 impl FeaturePlacer {
-    pub fn place<R: RandomSource>(&mut self, level: &mut WorldGenRegion, placed_feature: &PlacedFeature, random: &mut R, origin: BlockPos) -> bool {
+    pub fn place<R: RandomSource>(&mut self, level: &mut impl WorldGenLevel, placed_feature: &PlacedFeature, random: &mut R, origin: BlockPos) -> bool {
         self.do_place(level, placed_feature, None, random, origin)
     }
 
-    pub fn place_with_biome_check<R: RandomSource>(&mut self, level: &mut WorldGenRegion, placed_feature: &PlacedFeature, index: u32, random: &mut R, origin: BlockPos) -> bool {
+    pub fn place_with_biome_check<R: RandomSource>(&mut self, level: &mut impl WorldGenLevel, placed_feature: &PlacedFeature, index: u32, random: &mut R, origin: BlockPos) -> bool {
         self.do_place(level, placed_feature, Some(index), random, origin)
     }
 
-    fn do_place<R: RandomSource>(&mut self, level: &mut WorldGenRegion, placed_feature: &PlacedFeature, top_feature: Option<u32>, random: &mut R, origin: BlockPos) -> bool {
+    fn do_place<R: RandomSource>(&mut self, level: &mut impl WorldGenLevel, placed_feature: &PlacedFeature, top_feature: Option<u32>, random: &mut R, origin: BlockPos) -> bool {
         let generation = level.generation();
         let mut context = PlacementContext::new(level, generation, top_feature);
         let feature = placed_feature.feature.value();
@@ -53,7 +53,7 @@ impl FeaturePlacer {
 }
 
 impl PlacedFeature {
-    pub fn place<R: RandomSource>(&self, level: &mut WorldGenRegion, random: &mut R, origin: BlockPos) -> bool {
+    pub fn place<R: RandomSource>(&self, level: &mut impl WorldGenLevel, random: &mut R, origin: BlockPos) -> bool {
         FeaturePlacer::default().place(level, self, random, origin)
     }
 }

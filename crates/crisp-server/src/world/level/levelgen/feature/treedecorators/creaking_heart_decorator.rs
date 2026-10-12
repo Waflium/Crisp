@@ -1,3 +1,4 @@
+use crate::world::level::world_gen_level::WorldGenLevel;
 use crisp_core::Direction;
 use crisp_core::random::RandomSource;
 use crisp_data::properties::{CREAKING_HEART_STATE, CreakingHeartState, NATURAL};
@@ -6,7 +7,7 @@ use crisp_data::{block_tags, blocks};
 use super::tree_decorator::Context;
 use crate::util;
 
-pub fn place<R: RandomSource>(probability: f32, context: &mut Context<R>) {
+pub fn place<R: RandomSource>(probability: f32, context: &mut Context<impl WorldGenLevel, R>) {
     if context.logs.is_empty() {
         return;
     }

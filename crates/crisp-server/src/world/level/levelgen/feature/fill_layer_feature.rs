@@ -2,7 +2,7 @@ use crisp_core::BlockPos;
 use crisp_data::BlockState;
 use serde_json::Value;
 
-use crate::server::level::world_gen_region::WorldGenRegion;
+use crate::world::level::world_gen_level::WorldGenLevel;
 use crate::world::level::levelgen::parse_block_state;
 
 pub struct FillLayerFeature {
@@ -18,7 +18,7 @@ impl FillLayerFeature {
         })
     }
 
-    pub fn place(&self, level: &mut WorldGenRegion, origin: BlockPos) -> bool {
+    pub fn place(&self, level: &mut impl WorldGenLevel, origin: BlockPos) -> bool {
         for dx in 0..16 {
             for dz in 0..16 {
                 let pos = BlockPos::new(origin.x + dx, level.get_min_y() + self.height, origin.z + dz);

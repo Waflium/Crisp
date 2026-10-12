@@ -259,6 +259,56 @@ fn post_process_pos(state: BlockState, pos: BlockPos) -> Option<BlockPos> {
     }
 }
 
+impl crate::world::level::world_gen_level::WorldGenLevel for WorldGenRegion<'_> {
+    fn get_seed(&self) -> i64 {
+        WorldGenRegion::get_seed(self)
+    }
+
+    fn ensure_can_write(&self, pos: BlockPos) -> bool {
+        WorldGenRegion::ensure_can_write(self, pos)
+    }
+
+    fn generator(&self) -> &ChunkGenerator {
+        self.generator
+    }
+
+    fn get_difficulty(&self) -> Difficulty {
+        self.difficulty
+    }
+
+    fn generation(&self) -> WorldGenerationContext {
+        self.generation
+    }
+
+    fn get_block_state(&mut self, pos: BlockPos) -> BlockState {
+        WorldGenRegion::get_block_state(self, pos)
+    }
+
+    fn get_height(&mut self, kind: HeightmapType, x: i32, z: i32) -> i32 {
+        WorldGenRegion::get_height(self, kind, x, z)
+    }
+
+    fn get_min_y(&self) -> i32 {
+        self.min_y
+    }
+
+    fn get_height_of_level(&self) -> i32 {
+        self.height
+    }
+
+    fn get_biome(&mut self, pos: BlockPos) -> Biome {
+        WorldGenRegion::get_biome(self, pos)
+    }
+
+    fn set_block_and_update(&mut self, pos: BlockPos, state: BlockState) -> bool {
+        WorldGenRegion::set_block_and_update(self, pos, state)
+    }
+
+    fn set_section_block_state(&mut self, pos: BlockPos, state: BlockState) {
+        WorldGenRegion::set_section_block_state(self, pos, state);
+    }
+}
+
 impl BlockGetter for WorldGenRegion<'_> {
     fn block_state(&mut self, pos: BlockPos) -> BlockState {
         self.get_block_state(pos)

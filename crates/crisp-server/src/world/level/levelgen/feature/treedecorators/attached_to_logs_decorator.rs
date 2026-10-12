@@ -1,3 +1,4 @@
+use crate::world::level::world_gen_level::WorldGenLevel;
 use crisp_core::Direction;
 use crisp_core::random::RandomSource;
 use serde_json::Value;
@@ -31,7 +32,7 @@ impl AttachedToLogsDecorator {
         })
     }
 
-    pub fn place<R: RandomSource>(&self, context: &mut Context<R>) {
+    pub fn place<R: RandomSource>(&self, context: &mut Context<impl WorldGenLevel, R>) {
         let mut logs = context.logs.clone();
         util::shuffle(&mut logs, context.random);
         for logs_pos in logs {

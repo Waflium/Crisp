@@ -5,8 +5,7 @@ use serde_json::Value;
 
 use super::feature::mark_above_for_post_processing;
 use super::stateproviders::block_state_provider::BlockStateProviderHolder;
-use crate::server::level::world_gen_region::WorldGenRegion;
-use crate::world::level::ScheduledTickAccess;
+use crate::world::level::world_gen_level::WorldGenLevel;
 use crate::world::level::levelgen::blockpredicates::block_predicate::BlockPredicate;
 
 pub struct LakeFeature {
@@ -43,7 +42,7 @@ impl LakeFeature {
         })
     }
 
-    pub fn place<R: RandomSource>(&self, level: &mut WorldGenRegion, random: &mut R, origin: BlockPos) -> bool {
+    pub fn place<R: RandomSource>(&self, level: &mut impl WorldGenLevel, random: &mut R, origin: BlockPos) -> bool {
         if origin.y <= level.get_min_y() + 4 {
             return false;
         }

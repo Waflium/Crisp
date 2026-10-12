@@ -2,8 +2,7 @@ use crisp_core::{BlockPos, Direction, mth};
 use crisp_data::properties::{SPELEOTHEM_THICKNESS, SpeleothemThickness, VERTICAL_DIRECTION, WATERLOGGED};
 use crisp_data::{Block, BlockState, blocks};
 
-use crate::server::level::world_gen_region::WorldGenRegion;
-use crate::world::level::LevelReader;
+use crate::world::level::world_gen_level::WorldGenLevel;
 use crate::world::level::levelgen::blockpredicates::block_predicate::BlockSet;
 
 pub fn get_speleothem_height(mut xz_distance_from_center: f64, speleothem_radius: f64, scale: f64, bluntness: f64) -> f64 {
@@ -19,7 +18,7 @@ pub fn get_speleothem_height(mut xz_distance_from_center: f64, speleothem_radius
     height_relative_to_max_radius / 0.384 * speleothem_radius
 }
 
-pub fn is_circle_mostly_embedded_in_stone(level: &mut WorldGenRegion, center: BlockPos, xz_radius: i32) -> bool {
+pub fn is_circle_mostly_embedded_in_stone(level: &mut impl WorldGenLevel, center: BlockPos, xz_radius: i32) -> bool {
     if is_empty_or_water_or_lava_at(level, center) {
         return false;
     }
@@ -36,11 +35,11 @@ pub fn is_circle_mostly_embedded_in_stone(level: &mut WorldGenRegion, center: Bl
     true
 }
 
-pub fn is_empty_or_water_at(level: &mut WorldGenRegion, pos: BlockPos) -> bool {
+pub fn is_empty_or_water_at(level: &mut impl WorldGenLevel, pos: BlockPos) -> bool {
     is_empty_or_water(level.get_block_state(pos))
 }
 
-pub fn is_empty_or_water_or_lava_at(level: &mut WorldGenRegion, pos: BlockPos) -> bool {
+pub fn is_empty_or_water_or_lava_at(level: &mut impl WorldGenLevel, pos: BlockPos) -> bool {
     is_empty_or_water_or_lava(level.get_block_state(pos))
 }
 
@@ -61,7 +60,7 @@ fn build_base_to_tip_column(direction: Direction, total_length: i32, merged_tip:
 
 #[allow(clippy::too_many_arguments)]
 pub fn grow_speleothem(
-    level: &mut WorldGenRegion,
+    level: &mut impl WorldGenLevel,
     start_pos: BlockPos,
     tip_direction: Direction,
     height: i32,
@@ -88,7 +87,7 @@ pub fn grow_speleothem(
     }
 }
 
-pub fn place_base_block_if_possible(level: &mut WorldGenRegion, pos: BlockPos, base_block: Block, replaceable_blocks: &BlockSet) -> bool {
+pub fn place_base_block_if_possible(level: &mut impl WorldGenLevel, pos: BlockPos, base_block: Block, replaceable_blocks: &BlockSet) -> bool {
     let state = level.get_block_state(pos);
     if replaceable_blocks.contains(state.block()) {
         level.set_block(pos, base_block.default_state(), 2);

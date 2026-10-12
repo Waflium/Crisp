@@ -6,7 +6,7 @@ use crisp_data::properties::PERSISTENT;
 use crisp_data::{Block, BlockState, block_tags, blocks};
 use crisp_protocol::nbt::Nbt;
 
-use crate::server::level::world_gen_region::WorldGenRegion;
+use crate::world::level::world_gen_level::WorldGenLevel;
 use crate::world::level::block::mirror::Mirror;
 use crate::world::level::block::rotation::Rotation;
 use crate::world::level::block::vine_block;
@@ -192,7 +192,7 @@ pub fn get_height_map_type(vertical_placement: VerticalPlacement) -> HeightmapTy
     if vertical_placement == VerticalPlacement::OnOceanFloor { HeightmapType::OceanFloorWg } else { HeightmapType::WorldSurfaceWg }
 }
 
-fn get_surface_y(level: &mut WorldGenRegion, x: i32, z: i32, vertical_placement: VerticalPlacement) -> i32 {
+fn get_surface_y(level: &mut impl WorldGenLevel, x: i32, z: i32, vertical_placement: VerticalPlacement) -> i32 {
     level.get_height(get_height_map_type(vertical_placement), x, z) - 1
 }
 
@@ -240,7 +240,7 @@ impl RuinedPortalPiece {
         tag.push(("Properties".into(), self.properties.save()));
     }
 
-    pub fn post_process(&mut self, level: &mut WorldGenRegion, random: &mut impl RandomSource, chunk_bb: &BoundingBox, reference_pos: BlockPos) {
+    pub fn post_process(&mut self, level: &mut impl WorldGenLevel, random: &mut impl RandomSource, chunk_bb: &BoundingBox, reference_pos: BlockPos) {
         let bounding_box = self.template.template.get_bounding_box(&self.template.place_settings.settings(None), self.template.template_position);
         if !chunk_bb.is_inside(bounding_box.get_center()) {
             return;
@@ -261,7 +261,7 @@ impl RuinedPortalPiece {
         }
     }
 
-    fn maybe_add_vines(&self, random: &mut impl RandomSource, level: &mut WorldGenRegion, pos: BlockPos) {
+    fn maybe_add_vines(&self, random: &mut impl RandomSource, level: &mut impl WorldGenLevel, pos: BlockPos) {
         let state = level.get_block_state(pos);
         if !state.is_air() && !state.is_block(blocks::VINE) {
             let direction = get_random_horizontal_direction(random);
@@ -274,13 +274,13 @@ impl RuinedPortalPiece {
         }
     }
 
-    fn maybe_add_leaves_above(&self, random: &mut impl RandomSource, level: &mut WorldGenRegion, pos: BlockPos) {
+    fn maybe_add_leaves_above(&self, random: &mut impl RandomSource, level: &mut impl WorldGenLevel, pos: BlockPos) {
         if random.next_float() < 0.5 && level.get_block_state(pos).is_block(blocks::NETHERRACK) && level.get_block_state(pos.above()).is_air() {
             level.set_block_and_update(pos.above(), blocks::JUNGLE_LEAVES.default_state().set(PERSISTENT, true));
         }
     }
 
-    fn add_netherrack_drip_columns_below_portal(&self, random: &mut impl RandomSource, level: &mut WorldGenRegion) {
+    fn add_netherrack_drip_columns_below_portal(&self, random: &mut impl RandomSource, level: &mut impl WorldGenLevel) {
         let bounding_box = self.template.piece.bounding_box;
         for x in bounding_box.min.x + 1..bounding_box.max.x {
             for z in bounding_box.min.z + 1..bounding_box.max.z {
@@ -292,7 +292,7 @@ impl RuinedPortalPiece {
         }
     }
 
-    fn add_netherrack_drip_column(&self, random: &mut impl RandomSource, level: &mut WorldGenRegion, pos: BlockPos) {
+    fn add_netherrack_drip_column(&self, random: &mut impl RandomSource, level: &mut impl WorldGenLevel, pos: BlockPos) {
         let mut current_pos = pos;
         self.place_netherrack_or_magma(random, level, current_pos);
         let mut remaining_cap = 8;
@@ -303,7 +303,7 @@ impl RuinedPortalPiece {
         }
     }
 
-    fn spread_netherrack(&self, random: &mut impl RandomSource, level: &mut WorldGenRegion) {
+    fn spread_netherrack(&self, random: &mut impl RandomSource, level: &mut impl WorldGenLevel) {
         let bounding_box = self.template.piece.bounding_box;
         let follow_ground_surface = self.vertical_placement == VerticalPlacement::OnLandSurface || self.vertical_placement == VerticalPlacement::OnOceanFloor;
         let center = bounding_box.get_center();
@@ -335,7 +335,7 @@ impl RuinedPortalPiece {
         }
     }
 
-    fn can_block_be_replaced_by_netherrack_or_magma_at(&self, level: &WorldGenRegion, pos: BlockPos) -> bool {
+    fn can_block_be_replaced_by_netherrack_or_magma_at(&self, level: &mut impl WorldGenLevel, pos: BlockPos) -> bool {
         self.can_block_be_replaced_by_netherrack_or_magma(level.get_block_state(pos))
     }
 
@@ -346,7 +346,7 @@ impl RuinedPortalPiece {
             && (self.vertical_placement == VerticalPlacement::InNether || !state.is_block(blocks::LAVA))
     }
 
-    fn place_netherrack_or_magma(&self, random: &mut impl RandomSource, level: &mut WorldGenRegion, pos: BlockPos) {
+    fn place_netherrack_or_magma(&self, random: &mut impl RandomSource, level: &mut impl WorldGenLevel, pos: BlockPos) {
         if self.can_block_be_replaced_by_netherrack_or_magma_at(level, pos) {
             if !self.properties.cold && random.next_float() < PROBABILITY_OF_MAGMA_INSTEAD_OF_NETHERRACK {
                 level.set_block_and_update(pos, blocks::MAGMA_BLOCK.default_state());

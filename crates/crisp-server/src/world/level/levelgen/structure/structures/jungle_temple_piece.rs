@@ -6,7 +6,7 @@ use crisp_data::properties::{
 use crisp_data::{BlockState, blocks};
 use crisp_protocol::nbt::Nbt;
 
-use crate::server::level::world_gen_region::WorldGenRegion;
+use crate::world::level::world_gen_level::WorldGenLevel;
 use crate::world::level::levelgen::structure::BoundingBox;
 use crate::world::level::levelgen::structure::scattered_feature_piece::ScatteredFeaturePiece;
 use crate::world::level::levelgen::structure::structure_piece::{BlockSelector, get_random_horizontal_direction};
@@ -54,7 +54,7 @@ impl JungleTemplePiece {
         tag.push(("placedTrap2".into(), Nbt::Byte(self.placed_trap2 as i8)));
     }
 
-    pub fn post_process(&mut self, level: &mut WorldGenRegion, random: &mut impl RandomSource, chunk_bb: &BoundingBox) {
+    pub fn post_process(&mut self, level: &mut impl WorldGenLevel, random: &mut impl RandomSource, chunk_bb: &BoundingBox) {
         if !self.scattered.update_average_ground_height(level, chunk_bb, 0) {
             return;
         }

@@ -6,7 +6,7 @@ use crisp_data::{Block, BlockState, Fluid, block_tags, blocks};
 use super::multiface_block::{self, get_face_property, has_any_face, has_face};
 use super::multiface_spreader::{DEFAULT_SPREAD_ORDER, MultifaceSpreader, SpreadConfig, SpreadType};
 use super::sculk_spreader::{ChargeCursor, SculkSpreader};
-use crate::server::level::world_gen_region::WorldGenRegion;
+use crate::world::level::world_gen_level::WorldGenLevel;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum SculkBehaviour {
@@ -37,13 +37,13 @@ impl SculkBehaviour {
         1
     }
 
-    pub fn on_discharged(self, level: &mut WorldGenRegion, state: BlockState, pos: BlockPos) {
+    pub fn on_discharged(self, level: &mut impl WorldGenLevel, state: BlockState, pos: BlockPos) {
         if self == SculkBehaviour::SculkVein {
             sculk_vein_on_discharged(level, state, pos);
         }
     }
 
-    pub fn attempt_spread_vein(self, level: &mut WorldGenRegion, pos: BlockPos, state: BlockState, facings: Option<u8>, post_process: bool) -> bool {
+    pub fn attempt_spread_vein(self, level: &mut impl WorldGenLevel, pos: BlockPos, state: BlockState, facings: Option<u8>, post_process: bool) -> bool {
         if self == SculkBehaviour::Default {
             match facings {
                 None => return SAME_SPACE_SPREADER.spread_all(level.get_block_state(pos), level, pos, post_process) > 0,
@@ -64,7 +64,7 @@ impl SculkBehaviour {
         if self == SculkBehaviour::Default { (age - 1).max(0) } else { 1 }
     }
 
-    pub fn attempt_use_charge<R: RandomSource>(self, cursor: &ChargeCursor, level: &mut WorldGenRegion, origin_pos: BlockPos, random: &mut R, spreader: &SculkSpreader, spread_veins: bool) -> i32 {
+    pub fn attempt_use_charge<R: RandomSource>(self, cursor: &ChargeCursor, level: &mut impl WorldGenLevel, origin_pos: BlockPos, random: &mut R, spreader: &SculkSpreader, spread_veins: bool) -> i32 {
         match self {
             SculkBehaviour::Default => {
                 if cursor.decay_delay > 0 {
@@ -87,7 +87,7 @@ impl SculkBehaviour {
     }
 }
 
-pub fn regrow(level: &mut WorldGenRegion, pos: BlockPos, existing: BlockState, faces: u8) -> bool {
+pub fn regrow(level: &mut impl WorldGenLevel, pos: BlockPos, existing: BlockState, faces: u8) -> bool {
     let mut has_at_least_one_face = false;
     let mut new_state = blocks::SCULK_VEIN.default_state();
     for face in Direction::VALUES {
@@ -106,14 +106,14 @@ pub fn regrow(level: &mut WorldGenRegion, pos: BlockPos, existing: BlockState, f
     true
 }
 
-pub fn has_substrate_access(level: &mut WorldGenRegion, state: BlockState, pos: BlockPos) -> bool {
+pub fn has_substrate_access(level: &mut impl WorldGenLevel, state: BlockState, pos: BlockPos) -> bool {
     if !state.is_block(blocks::SCULK_VEIN) {
         return false;
     }
     Direction::VALUES.into_iter().any(|direction| has_face(state, direction) && level.get_block_state(pos.relative(direction)).is(&block_tags::SCULK_REPLACEABLE))
 }
 
-fn sculk_vein_on_discharged(level: &mut WorldGenRegion, mut state: BlockState, pos: BlockPos) {
+fn sculk_vein_on_discharged(level: &mut impl WorldGenLevel, mut state: BlockState, pos: BlockPos) {
     if !state.is_block(blocks::SCULK_VEIN) {
         return;
     }
@@ -130,7 +130,7 @@ fn sculk_vein_on_discharged(level: &mut WorldGenRegion, mut state: BlockState, p
     level.set_block_and_update(pos, state);
 }
 
-fn attempt_place_sculk<R: RandomSource>(spreader: &SculkSpreader, level: &mut WorldGenRegion, pos: BlockPos, random: &mut R) -> bool {
+fn attempt_place_sculk<R: RandomSource>(spreader: &SculkSpreader, level: &mut impl WorldGenLevel, pos: BlockPos, random: &mut R) -> bool {
     let state = level.get_block_state(pos);
     for support in Direction::all_shuffled(random) {
         if has_face(state, support) {
@@ -157,7 +157,7 @@ fn attempt_place_sculk<R: RandomSource>(spreader: &SculkSpreader, level: &mut Wo
     false
 }
 
-fn sculk_attempt_use_charge<R: RandomSource>(cursor: &ChargeCursor, level: &mut WorldGenRegion, origin_pos: BlockPos, random: &mut R, spreader: &SculkSpreader) -> i32 {
+fn sculk_attempt_use_charge<R: RandomSource>(cursor: &ChargeCursor, level: &mut impl WorldGenLevel, origin_pos: BlockPos, random: &mut R, spreader: &SculkSpreader) -> i32 {
     let charge = cursor.charge;
     if charge == 0 || random.next_int_bounded(spreader.charge_decay_rate) != 0 {
         return charge;
@@ -188,12 +188,12 @@ fn get_decay_penalty(spreader: &SculkSpreader, pos: BlockPos, origin_pos: BlockP
     1.max((charge as f32 * distance_factor * 0.5) as i32)
 }
 
-fn get_random_growth_state(level: &mut WorldGenRegion, pos: BlockPos, random: &mut impl RandomSource, is_world_gen: bool) -> BlockState {
+fn get_random_growth_state(level: &mut impl WorldGenLevel, pos: BlockPos, random: &mut impl RandomSource, is_world_gen: bool) -> BlockState {
     let state = if random.next_int_bounded(11) == 0 { blocks::SCULK_SHRIEKER.default_state().set(CAN_SUMMON, is_world_gen) } else { blocks::SCULK_SENSOR.default_state() };
     if state.has(WATERLOGGED) && !level.get_fluid_state(pos).is_empty() { state.set(WATERLOGGED, true) } else { state }
 }
 
-fn can_place_growth(level: &mut WorldGenRegion, pos: BlockPos) -> bool {
+fn can_place_growth(level: &mut impl WorldGenLevel, pos: BlockPos) -> bool {
     let state_above = level.get_block_state(pos.above());
     if !(state_above.is_air() || state_above.is_block(blocks::WATER) && state_above.fluid_state().fluid == Fluid::Water) {
         return false;

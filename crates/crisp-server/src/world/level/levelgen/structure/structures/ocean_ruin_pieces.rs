@@ -8,7 +8,7 @@ use crisp_protocol::nbt::Nbt;
 
 use super::Piece;
 use super::ocean_ruin_structure::{OceanRuinStructure, Type};
-use crate::server::level::world_gen_region::WorldGenRegion;
+use crate::world::level::world_gen_level::WorldGenLevel;
 use crate::util::valueproviders::IntProvider;
 use crate::world::entity::entity_types;
 use crate::world::level::block::entity::BlockEntityKind;
@@ -243,7 +243,7 @@ impl OceanRuinPiece {
         tag.push(("IsLarge".into(), Nbt::Byte(self.is_large as i8)));
     }
 
-    fn handle_data_marker(is_large: bool, marker_id: &str, position: BlockPos, level: &mut WorldGenRegion, random: &mut impl RandomSource) {
+    fn handle_data_marker(is_large: bool, marker_id: &str, position: BlockPos, level: &mut impl WorldGenLevel, random: &mut impl RandomSource) {
         if marker_id == "chest" {
             let waterlogged = level.get_fluid_state(position).is(&fluid_tags::WATER);
             level.set_block(position, blocks::CHEST.default_state().set(WATERLOGGED, waterlogged), 2);
@@ -263,7 +263,7 @@ impl OceanRuinPiece {
         }
     }
 
-    pub fn post_process(&mut self, level: &mut WorldGenRegion, random: &mut impl RandomSource, chunk_bb: &BoundingBox, reference_pos: BlockPos) {
+    pub fn post_process(&mut self, level: &mut impl WorldGenLevel, random: &mut impl RandomSource, chunk_bb: &BoundingBox, reference_pos: BlockPos) {
         let template_position = self.template.template_position;
         let height = level.get_height(HeightmapType::OceanFloorWg, template_position.x, template_position.z);
         self.template.template_position = BlockPos::new(template_position.x, height, template_position.z);
@@ -282,7 +282,7 @@ impl OceanRuinPiece {
     }
 }
 
-fn get_height(pos: BlockPos, level: &WorldGenRegion, corner: BlockPos) -> i32 {
+fn get_height(pos: BlockPos, level: &mut impl WorldGenLevel, corner: BlockPos) -> i32 {
     let mut new_y = pos.y;
     let mut min_y = 512;
     let top_y = new_y - 1;

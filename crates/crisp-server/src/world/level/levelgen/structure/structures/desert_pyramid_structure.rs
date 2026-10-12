@@ -3,7 +3,7 @@ use crisp_core::random::{LegacyRandomSource, RandomSource};
 use crisp_data::blocks;
 
 use super::Piece;
-use crate::server::level::world_gen_region::WorldGenRegion;
+use crate::world::level::world_gen_level::WorldGenLevel;
 use crate::util;
 use crate::world::level::block::entity::BlockEntityKind;
 use crate::world::level::levelgen::structure::BoundingBox;
@@ -11,7 +11,7 @@ use crate::world::level::levelgen::structure::pieces::pieces_container::PiecesCo
 
 const DESERT_PYRAMID_ARCHAEOLOGY: &str = "minecraft:archaeology/desert_pyramid";
 
-pub fn after_place(level: &mut WorldGenRegion, chunk_bb: &BoundingBox, pieces: &PiecesContainer) {
+pub fn after_place(level: &mut impl WorldGenLevel, chunk_bb: &BoundingBox, pieces: &PiecesContainer) {
     let mut unique_sand_placements = Vec::new();
     for piece in &pieces.pieces {
         if let Piece::DesertPyramid(desert_pyramid_piece) = piece {
@@ -36,7 +36,7 @@ pub fn after_place(level: &mut WorldGenRegion, chunk_bb: &BoundingBox, pieces: &
     }
 }
 
-fn place_suspicious_sand(chunk_bb: &BoundingBox, level: &mut WorldGenRegion, block_pos: BlockPos) {
+fn place_suspicious_sand(chunk_bb: &BoundingBox, level: &mut impl WorldGenLevel, block_pos: BlockPos) {
     if chunk_bb.is_inside(block_pos) {
         level.set_block(block_pos, blocks::SUSPICIOUS_SAND.default_state(), 2);
         if let Some(entity) = level.get_block_entity(block_pos)

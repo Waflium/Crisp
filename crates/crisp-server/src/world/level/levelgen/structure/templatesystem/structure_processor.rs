@@ -11,7 +11,7 @@ use super::{blackstone_replace_processor, block_age_processor, lava_submerged_bl
 use super::rule_test::RuleTest;
 use super::structure_place_settings::StructurePlaceSettings;
 use super::structure_template::StructureBlockInfo;
-use crate::server::level::world_gen_region::WorldGenRegion;
+use crate::world::level::world_gen_level::WorldGenLevel;
 use crate::util::valueproviders::{IntProvider, float};
 use crate::world::level::chunk::HeightmapType;
 use crate::world::level::levelgen::placement::placement_modifier::parse_heightmap;
@@ -114,7 +114,7 @@ impl ProcessorRule {
 
     fn test(
         &self,
-        level: &mut WorldGenRegion,
+        level: &mut impl WorldGenLevel,
         input_state: BlockState,
         in_template_pos: BlockPos,
         world_pos: BlockPos,
@@ -165,7 +165,7 @@ impl StructureProcessor {
     #[allow(clippy::too_many_arguments)]
     pub fn process_block<R: RandomSource>(
         &self,
-        level: &mut WorldGenRegion,
+        level: &mut impl WorldGenLevel,
         _target_position: BlockPos,
         reference_pos: BlockPos,
         template_relative_pos: BlockPos,
@@ -235,7 +235,7 @@ impl StructureProcessor {
     #[allow(clippy::too_many_arguments)]
     pub fn finalize_processing<R: RandomSource>(
         &self,
-        level: &mut WorldGenRegion,
+        level: &mut impl WorldGenLevel,
         position: BlockPos,
         reference_pos: BlockPos,
         original_block_info_list: &[&StructureBlockInfo],

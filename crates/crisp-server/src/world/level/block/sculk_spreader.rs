@@ -6,7 +6,7 @@ use crisp_data::{Tag, block_tags};
 
 use super::multiface_block;
 use super::sculk_behaviour::{self, SculkBehaviour};
-use crate::server::level::world_gen_region::WorldGenRegion;
+use crate::world::level::world_gen_level::WorldGenLevel;
 use crate::util;
 
 pub struct SculkSpreader {
@@ -50,7 +50,7 @@ impl SculkSpreader {
         }
     }
 
-    pub fn update_cursors<R: RandomSource>(&mut self, level: &mut WorldGenRegion, origin_pos: BlockPos, random: &mut R, spread_veins: bool) {
+    pub fn update_cursors<R: RandomSource>(&mut self, level: &mut impl WorldGenLevel, origin_pos: BlockPos, random: &mut R, spread_veins: bool) {
         if self.cursors.is_empty() {
             return;
         }
@@ -122,7 +122,7 @@ impl ChargeCursor {
         (self.pos.x - origin_pos.x).abs().max((self.pos.y - origin_pos.y).abs()).max((self.pos.z - origin_pos.z).abs()) > 1024
     }
 
-    fn update<R: RandomSource>(&mut self, level: &mut WorldGenRegion, origin_pos: BlockPos, random: &mut R, spreader: &SculkSpreader, spread_veins: bool) {
+    fn update<R: RandomSource>(&mut self, level: &mut impl WorldGenLevel, origin_pos: BlockPos, random: &mut R, spreader: &SculkSpreader, spread_veins: bool) {
         if self.charge <= 0 {
             return;
         }
@@ -169,7 +169,7 @@ fn available_faces(state: crisp_data::BlockState) -> u8 {
     Direction::VALUES.into_iter().filter(|&direction| multiface_block::has_face(state, direction)).fold(0, |faces, direction| faces | 1 << direction.ordinal())
 }
 
-fn get_valid_movement_pos(level: &mut WorldGenRegion, pos: BlockPos, random: &mut impl RandomSource, origin_pos: BlockPos, spreader: &SculkSpreader) -> Option<BlockPos> {
+fn get_valid_movement_pos(level: &mut impl WorldGenLevel, pos: BlockPos, random: &mut impl RandomSource, origin_pos: BlockPos, spreader: &SculkSpreader) -> Option<BlockPos> {
     let mut sculk_position = pos;
     let mut offsets = NON_CORNER_NEIGHBOURS.clone();
     util::shuffle(&mut offsets, random);
@@ -197,7 +197,7 @@ fn can_move_to_pos(origin: BlockPos, target: BlockPos, spreader: &SculkSpreader)
     dx * dx + dz * dz <= 144
 }
 
-fn is_movement_unobstructed(level: &mut WorldGenRegion, from: BlockPos, to: BlockPos) -> bool {
+fn is_movement_unobstructed(level: &mut impl WorldGenLevel, from: BlockPos, to: BlockPos) -> bool {
     if from.dist_manhattan(to) == 1 {
         return true;
     }
@@ -215,7 +215,7 @@ fn is_movement_unobstructed(level: &mut WorldGenRegion, from: BlockPos, to: Bloc
     }
 }
 
-fn is_unobstructed(level: &mut WorldGenRegion, from: BlockPos, direction: Direction) -> bool {
+fn is_unobstructed(level: &mut impl WorldGenLevel, from: BlockPos, direction: Direction) -> bool {
     let test_pos = from.relative(direction);
     !level.get_block_state(test_pos).is_face_sturdy_full(direction.opposite())
 }

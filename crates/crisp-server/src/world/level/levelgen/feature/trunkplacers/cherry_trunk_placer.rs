@@ -4,7 +4,7 @@ use crisp_data::properties::AXIS;
 use serde_json::Value;
 
 use super::trunk_placer::{TrunkPlacer, place_below_trunk_block};
-use crate::server::level::world_gen_region::WorldGenRegion;
+use crate::world::level::world_gen_level::WorldGenLevel;
 use crate::util::valueproviders::IntProvider;
 use crate::world::level::levelgen::feature::foliageplacers::foliage_placer::FoliageAttachment;
 use crate::world::level::levelgen::feature::tree_feature::{TreeFeature, TreeSetter};
@@ -38,7 +38,7 @@ impl CherryTrunkPlacer {
 pub fn place_trunk<R: RandomSource>(
     cherry: &CherryTrunkPlacer,
     placer: &TrunkPlacer,
-    level: &mut WorldGenRegion,
+    level: &mut impl WorldGenLevel,
     trunk_setter: &mut TreeSetter,
     random: &mut R,
     tree_height: i32,
@@ -104,7 +104,7 @@ pub fn place_trunk<R: RandomSource>(
 fn generate_branch<R: RandomSource>(
     cherry: &CherryTrunkPlacer,
     placer: &TrunkPlacer,
-    level: &mut WorldGenRegion,
+    level: &mut impl WorldGenLevel,
     trunk_setter: &mut TreeSetter,
     random: &mut R,
     tree_height: i32,

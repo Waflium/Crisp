@@ -5,7 +5,7 @@ use crisp_core::random::RandomSource;
 use crisp_data::blocks;
 use crisp_protocol::nbt::Nbt;
 
-use crate::server::level::world_gen_region::WorldGenRegion;
+use crate::world::level::world_gen_level::WorldGenLevel;
 use crate::world::level::block::mirror::Mirror;
 use crate::world::level::block::rotation::Rotation;
 use crate::world::level::chunk::HeightmapType;
@@ -69,7 +69,7 @@ pub fn add_random_piece(position: BlockPos, rotation: Rotation, random: &mut imp
     ShipwreckPiece::new(identifier, position, rotation, is_beached)
 }
 
-fn set_block_entity_loot_table(level: &mut WorldGenRegion, random: &mut impl RandomSource, pos: BlockPos, loot_table: &str) {
+fn set_block_entity_loot_table(level: &mut impl WorldGenLevel, random: &mut impl RandomSource, pos: BlockPos, loot_table: &str) {
     if let Some(entity) = level.get_block_entity(pos)
         && entity.is_randomizable()
         && let Some(base) = entity.container_base_mut()
@@ -115,13 +115,13 @@ impl ShipwreckPiece {
         tag.push(("height_adjusted".into(), Nbt::Byte(self.height_adjusted as i8)));
     }
 
-    fn handle_data_marker(marker_id: &str, position: BlockPos, level: &mut WorldGenRegion, random: &mut impl RandomSource) {
+    fn handle_data_marker(marker_id: &str, position: BlockPos, level: &mut impl WorldGenLevel, random: &mut impl RandomSource) {
         if let Some(loot_table) = markers_to_loot(marker_id) {
             set_block_entity_loot_table(level, random, position.below(), loot_table);
         }
     }
 
-    pub fn post_process(&mut self, level: &mut WorldGenRegion, random: &mut impl RandomSource, chunk_bb: &BoundingBox, reference_pos: BlockPos) {
+    pub fn post_process(&mut self, level: &mut impl WorldGenLevel, random: &mut impl RandomSource, chunk_bb: &BoundingBox, reference_pos: BlockPos) {
         if !self.height_adjusted && !self.is_too_big_to_fit_in_world_gen_region() {
             let mut min_y = level.get_max_y() + 1;
             let mut mean = 0;

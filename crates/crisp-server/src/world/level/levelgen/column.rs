@@ -1,7 +1,7 @@
 use crisp_core::{BlockPos, Direction};
 use crisp_data::BlockState;
 
-use crate::server::level::world_gen_region::WorldGenRegion;
+use crate::world::level::world_gen_level::WorldGenLevel;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Column {
@@ -61,7 +61,7 @@ impl Column {
         Column::create(floor, self.get_ceiling())
     }
 
-    pub fn scan(level: &mut WorldGenRegion, pos: BlockPos, search_range: i32, inside_column: impl Fn(BlockState) -> bool, valid_edge: impl Fn(BlockState) -> bool) -> Option<Column> {
+    pub fn scan(level: &mut impl WorldGenLevel, pos: BlockPos, search_range: i32, inside_column: impl Fn(BlockState) -> bool, valid_edge: impl Fn(BlockState) -> bool) -> Option<Column> {
         if !inside_column(level.get_block_state(pos)) {
             return None;
         }
@@ -73,7 +73,7 @@ impl Column {
 }
 
 fn scan_direction(
-    level: &mut WorldGenRegion,
+    level: &mut impl WorldGenLevel,
     search_range: i32,
     inside_column: &impl Fn(BlockState) -> bool,
     valid_edge: &impl Fn(BlockState) -> bool,

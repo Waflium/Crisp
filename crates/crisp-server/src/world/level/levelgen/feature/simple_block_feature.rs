@@ -3,8 +3,7 @@ use crisp_core::random::RandomSource;
 use serde_json::Value;
 
 use super::stateproviders::block_state_provider::BlockStateProviderHolder;
-use crate::server::level::world_gen_region::WorldGenRegion;
-use crate::world::level::ScheduledTickAccess;
+use crate::world::level::world_gen_level::WorldGenLevel;
 use crate::world::level::block::{self, double_plant_block, mossy_carpet_block};
 
 pub struct SimpleBlockFeature {
@@ -20,7 +19,7 @@ impl SimpleBlockFeature {
         })
     }
 
-    pub fn place<R: RandomSource>(&self, level: &mut WorldGenRegion, random: &mut R, origin: BlockPos) -> bool {
+    pub fn place<R: RandomSource>(&self, level: &mut impl WorldGenLevel, random: &mut R, origin: BlockPos) -> bool {
         let Some(state_to_place) = self.to_place.value().get_optional_state(level, random, origin) else {
             return false;
         };

@@ -4,7 +4,7 @@ use crisp_core::{BlockPos, Direction};
 use crisp_data::{BlockState, blocks};
 use serde_json::Value;
 
-use crate::server::level::world_gen_region::WorldGenRegion;
+use crate::world::level::world_gen_level::WorldGenLevel;
 use crate::util::valueproviders::float;
 use crate::world::level::levelgen::column::Column;
 
@@ -24,7 +24,7 @@ impl UnderwaterMagmaFeature {
         })
     }
 
-    pub fn place<R: RandomSource>(&self, level: &mut WorldGenRegion, random: &mut R, origin: BlockPos) -> bool {
+    pub fn place<R: RandomSource>(&self, level: &mut impl WorldGenLevel, random: &mut R, origin: BlockPos) -> bool {
         let Some(floor_y) = self.get_floor_y(level, origin) else {
             return false;
         };
@@ -45,11 +45,11 @@ impl UnderwaterMagmaFeature {
         placed > 0
     }
 
-    fn get_floor_y(&self, level: &mut WorldGenRegion, origin: BlockPos) -> Option<i32> {
+    fn get_floor_y(&self, level: &mut impl WorldGenLevel, origin: BlockPos) -> Option<i32> {
         Column::scan(level, origin, self.floor_search_range, |state| state.is_block(blocks::WATER), |state| !state.is_block(blocks::WATER))?.get_floor()
     }
 
-    fn is_valid_placement(&self, level: &mut WorldGenRegion, pos: BlockPos) -> bool {
+    fn is_valid_placement(&self, level: &mut impl WorldGenLevel, pos: BlockPos) -> bool {
         if is_water_or_air(level.get_block_state(pos)) || is_visible_from_outside(level, pos.below(), Direction::Up) {
             return false;
         }
@@ -66,7 +66,7 @@ fn is_water_or_air(state: BlockState) -> bool {
     state.is_block(blocks::WATER) || state.is_air()
 }
 
-fn is_visible_from_outside(level: &mut WorldGenRegion, pos: BlockPos, covered_direction: Direction) -> bool {
+fn is_visible_from_outside(level: &mut impl WorldGenLevel, pos: BlockPos, covered_direction: Direction) -> bool {
     let state = level.get_block_state(pos);
     !(state.can_occlude() && shapes::is_face_full(state.occlusion_voxel_shape(), covered_direction))
 }

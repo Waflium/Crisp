@@ -6,7 +6,7 @@ use crisp_data::blocks;
 use crisp_protocol::nbt::Nbt;
 
 use super::Piece;
-use crate::server::level::world_gen_region::WorldGenRegion;
+use crate::world::level::world_gen_level::WorldGenLevel;
 use crate::world::level::block::entity::BlockEntityKind;
 use crate::world::level::block::mirror::Mirror;
 use crate::world::level::block::rotation::Rotation;
@@ -91,7 +91,7 @@ impl IglooPiece {
         tag.push(("Rot".into(), Nbt::String(self.template.place_settings.rotation.legacy_name().to_owned())));
     }
 
-    pub fn post_process(&mut self, level: &mut WorldGenRegion, random: &mut impl RandomSource, chunk_bb: &BoundingBox, reference_pos: BlockPos) {
+    pub fn post_process(&mut self, level: &mut impl WorldGenLevel, random: &mut impl RandomSource, chunk_bb: &BoundingBox, reference_pos: BlockPos) {
         let template_location = crate::world::level::levelgen::blockpredicates::block_predicate::resource(&self.template.template_name);
         let settings = make_settings(self.template.place_settings.rotation, &template_location).settings(None);
         let offset = offset(&template_location);

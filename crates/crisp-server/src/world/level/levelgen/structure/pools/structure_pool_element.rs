@@ -8,7 +8,7 @@ use crisp_protocol::nbt::Nbt;
 use serde_json::Value;
 
 use super::structure_template_pool::{Projection, shuffle};
-use crate::server::level::world_gen_region::WorldGenRegion;
+use crate::world::level::world_gen_level::WorldGenLevel;
 use crate::world::level::block::rotation::Rotation;
 use crate::world::level::levelgen::blockpredicates::block_predicate::resource;
 use crate::world::level::levelgen::placement::feature_placer::FeaturePlacer;
@@ -230,7 +230,7 @@ impl StructurePoolElement {
     #[allow(clippy::too_many_arguments)]
     pub fn place(
         &self,
-        level: &mut WorldGenRegion,
+        level: &mut impl WorldGenLevel,
         position: BlockPos,
         reference_pos: BlockPos,
         rotation: Rotation,

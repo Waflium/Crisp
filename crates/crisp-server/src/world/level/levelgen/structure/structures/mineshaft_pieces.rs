@@ -8,7 +8,7 @@ use crisp_protocol::nbt::Nbt;
 
 use super::Piece;
 use super::mineshaft_structure::Type;
-use crate::server::level::world_gen_region::WorldGenRegion;
+use crate::world::level::world_gen_level::WorldGenLevel;
 use crate::world::level::block;
 use crate::world::level::block::entity::BlockEntityKind;
 use crate::world::level::levelgen::structure::BoundingBox;
@@ -243,7 +243,7 @@ impl MineShaftCorridor {
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn create_chest(&self, level: &mut WorldGenRegion, chunk_bb: &BoundingBox, random: &mut impl RandomSource, x: i32, y: i32, z: i32, _loot_table: &str) -> bool {
+    fn create_chest(&self, level: &mut impl WorldGenLevel, chunk_bb: &BoundingBox, random: &mut impl RandomSource, x: i32, y: i32, z: i32, _loot_table: &str) -> bool {
         let pos = self.mine_shaft.piece.get_world_pos(x, y, z);
         if chunk_bb.is_inside(pos) && level.get_block_state(pos).is_air() && !level.get_block_state(pos.below()).is_air() {
             let state = blocks::RAIL.default_state().set(RAIL_SHAPE, if random.next_boolean() { RailShape::NorthSouth } else { RailShape::EastWest });
@@ -255,7 +255,7 @@ impl MineShaftCorridor {
         }
     }
 
-    pub fn post_process(&mut self, level: &mut WorldGenRegion, random: &mut impl RandomSource, chunk_bb: &BoundingBox) {
+    pub fn post_process(&mut self, level: &mut impl WorldGenLevel, random: &mut impl RandomSource, chunk_bb: &BoundingBox) {
         if self.mine_shaft.is_in_invalid_location(level, chunk_bb) {
             return;
         }
@@ -321,7 +321,7 @@ impl MineShaftCorridor {
         }
     }
 
-    fn place_double_lower_or_upper_support(&self, level: &mut WorldGenRegion, chunk_bb: &BoundingBox, x: i32, y: i32, z: i32) {
+    fn place_double_lower_or_upper_support(&self, level: &mut impl WorldGenLevel, chunk_bb: &BoundingBox, x: i32, y: i32, z: i32) {
         let wood_block = self.mine_shaft.r#type.get_wood_state();
         let plank_block = self.mine_shaft.r#type.get_planks_state();
         if self.mine_shaft.piece.get_block(level, x, y, z, chunk_bb).is_block(plank_block.block()) {
@@ -332,7 +332,7 @@ impl MineShaftCorridor {
         }
     }
 
-    fn fill_pillar_down_or_chain_up(&self, level: &mut WorldGenRegion, pillar_state: BlockState, x: i32, y: i32, z: i32, chunk_bb: &BoundingBox) {
+    fn fill_pillar_down_or_chain_up(&self, level: &mut impl WorldGenLevel, pillar_state: BlockState, x: i32, y: i32, z: i32, chunk_bb: &BoundingBox) {
         let mut pos = self.mine_shaft.piece.get_world_pos(x, y, z);
         if !chunk_bb.is_inside(pos) {
             return;
@@ -369,7 +369,7 @@ impl MineShaftCorridor {
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn place_support(&self, level: &mut WorldGenRegion, chunk_bb: &BoundingBox, x0: i32, y0: i32, z: i32, y1: i32, x1: i32, random: &mut impl RandomSource) {
+    fn place_support(&self, level: &mut impl WorldGenLevel, chunk_bb: &BoundingBox, x0: i32, y0: i32, z: i32, y1: i32, x1: i32, random: &mut impl RandomSource) {
         let mine_shaft = &self.mine_shaft;
         if !mine_shaft.is_supporting_box(level, chunk_bb, x0, x1, y1, z) {
             return;
@@ -390,13 +390,13 @@ impl MineShaftCorridor {
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn maybe_place_cob_web(&self, level: &mut WorldGenRegion, chunk_bb: &BoundingBox, random: &mut impl RandomSource, probability: f32, x: i32, y: i32, z: i32) {
+    fn maybe_place_cob_web(&self, level: &mut impl WorldGenLevel, chunk_bb: &BoundingBox, random: &mut impl RandomSource, probability: f32, x: i32, y: i32, z: i32) {
         if self.mine_shaft.piece.is_interior(level, x, y, z, chunk_bb) && random.next_float() < probability && self.has_sturdy_neighbours(level, chunk_bb, x, y, z, 2) {
             self.mine_shaft.place_block(level, blocks::COBWEB.default_state(), x, y, z, chunk_bb);
         }
     }
 
-    fn has_sturdy_neighbours(&self, level: &WorldGenRegion, chunk_bb: &BoundingBox, x: i32, y: i32, z: i32, count: i32) -> bool {
+    fn has_sturdy_neighbours(&self, level: &mut impl WorldGenLevel, chunk_bb: &BoundingBox, x: i32, y: i32, z: i32, count: i32) -> bool {
         let world_pos = self.mine_shaft.piece.get_world_pos(x, y, z);
         let mut sturdy_neighbours = 0;
         for direction in Direction::VALUES {
@@ -412,7 +412,7 @@ impl MineShaftCorridor {
     }
 }
 
-fn fill_column_between(level: &mut WorldGenRegion, pillar_state: BlockState, mut pos: BlockPos, bottom_inclusive: i32, top_exclusive: i32) {
+fn fill_column_between(level: &mut impl WorldGenLevel, pillar_state: BlockState, mut pos: BlockPos, bottom_inclusive: i32, top_exclusive: i32) {
     for pillar_y in bottom_inclusive..top_exclusive {
         pos.y = pillar_y;
         level.set_block(pos, pillar_state, 2);
@@ -423,7 +423,7 @@ fn can_place_column_on_top_of(state_below: BlockState) -> bool {
     state_below.is_face_sturdy(Direction::Up, SupportType::Full)
 }
 
-fn can_hang_chain_below(level: &mut WorldGenRegion, pos_above: BlockPos, state_above: BlockState) -> bool {
+fn can_hang_chain_below(level: &mut impl WorldGenLevel, pos_above: BlockPos, state_above: BlockState) -> bool {
     block::can_support_center(level, pos_above, Direction::Down) && !state_above.block().is_instance_of("FallingBlock")
 }
 
@@ -518,7 +518,7 @@ impl MineShaftCrossing {
         }
     }
 
-    pub fn post_process(&mut self, level: &mut WorldGenRegion, chunk_bb: &BoundingBox) {
+    pub fn post_process(&mut self, level: &mut impl WorldGenLevel, chunk_bb: &BoundingBox) {
         let mine_shaft = &self.mine_shaft;
         if mine_shaft.is_in_invalid_location(level, chunk_bb) {
             return;
@@ -547,7 +547,7 @@ impl MineShaftCrossing {
         }
     }
 
-    fn place_support_pillar(&self, level: &mut WorldGenRegion, chunk_bb: &BoundingBox, x: i32, y0: i32, z: i32, y1: i32) {
+    fn place_support_pillar(&self, level: &mut impl WorldGenLevel, chunk_bb: &BoundingBox, x: i32, y0: i32, z: i32, y1: i32) {
         if !self.mine_shaft.piece.get_block(level, x, y1 + 1, z, chunk_bb).is_air() {
             self.mine_shaft.generate_box(level, chunk_bb, x, y0, z, x, y1, z, self.mine_shaft.r#type.get_planks_state(), cave_air(), false);
         }
@@ -569,7 +569,7 @@ impl MineShaftPiece {
         Some(MineShaftPiece { piece: StructurePiece::load(piece_type, tag)?, r#type: Type::by_id(int(tag, "MST")) })
     }
 
-    fn can_be_replaced(&self, level: &WorldGenRegion, x: i32, y: i32, z: i32, chunk_bb: &BoundingBox) -> bool {
+    fn can_be_replaced(&self, level: &mut impl WorldGenLevel, x: i32, y: i32, z: i32, chunk_bb: &BoundingBox) -> bool {
         let state = self.piece.get_block(level, x, y, z, chunk_bb);
         !state.is_block(self.r#type.get_planks_state().block())
             && !state.is_block(self.r#type.get_wood_state().block())
@@ -581,11 +581,11 @@ impl MineShaftPiece {
         tag.push(("MST".into(), Nbt::Int(self.r#type.ordinal())));
     }
 
-    fn is_supporting_box(&self, level: &WorldGenRegion, chunk_bb: &BoundingBox, x0: i32, x1: i32, y1: i32, z0: i32) -> bool {
+    fn is_supporting_box(&self, level: &mut impl WorldGenLevel, chunk_bb: &BoundingBox, x0: i32, x1: i32, y1: i32, z0: i32) -> bool {
         (x0..=x1).all(|x| !self.piece.get_block(level, x, y1 + 1, z0, chunk_bb).is_air())
     }
 
-    fn is_in_invalid_location(&self, level: &WorldGenRegion, chunk_bb: &BoundingBox) -> bool {
+    fn is_in_invalid_location(&self, level: &mut impl WorldGenLevel, chunk_bb: &BoundingBox) -> bool {
         let bounding_box = self.piece.bounding_box;
         let x0 = (bounding_box.min.x - 1).max(chunk_bb.min.x);
         let y0 = (bounding_box.min.y - 1).max(chunk_bb.min.y);
@@ -630,7 +630,7 @@ impl MineShaftPiece {
         false
     }
 
-    fn set_planks_block(&self, level: &mut WorldGenRegion, chunk_bb: &BoundingBox, planks_block: BlockState, x: i32, y: i32, z: i32) {
+    fn set_planks_block(&self, level: &mut impl WorldGenLevel, chunk_bb: &BoundingBox, planks_block: BlockState, x: i32, y: i32, z: i32) {
         if self.piece.is_interior(level, x, y, z, chunk_bb) {
             let pos = self.piece.get_world_pos(x, y, z);
             let existing_state = level.get_block_state(pos);
@@ -640,7 +640,7 @@ impl MineShaftPiece {
         }
     }
 
-    fn place_block(&self, level: &mut WorldGenRegion, block_state: BlockState, x: i32, y: i32, z: i32, chunk_bb: &BoundingBox) {
+    fn place_block(&self, level: &mut impl WorldGenLevel, block_state: BlockState, x: i32, y: i32, z: i32, chunk_bb: &BoundingBox) {
         if chunk_bb.is_inside(self.piece.get_world_pos(x, y, z)) && self.can_be_replaced(level, x, y, z, chunk_bb) {
             self.piece.place_block(level, block_state, x, y, z, chunk_bb);
         }
@@ -649,7 +649,7 @@ impl MineShaftPiece {
     #[allow(clippy::too_many_arguments)]
     fn generate_box(
         &self,
-        level: &mut WorldGenRegion,
+        level: &mut impl WorldGenLevel,
         chunk_bb: &BoundingBox,
         x0: i32,
         y0: i32,
@@ -679,7 +679,7 @@ impl MineShaftPiece {
     #[allow(clippy::too_many_arguments)]
     fn generate_maybe_box(
         &self,
-        level: &mut WorldGenRegion,
+        level: &mut impl WorldGenLevel,
         chunk_bb: &BoundingBox,
         random: &mut impl RandomSource,
         probability: f32,
@@ -713,7 +713,7 @@ impl MineShaftPiece {
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn maybe_generate_block(&self, level: &mut WorldGenRegion, chunk_bb: &BoundingBox, random: &mut impl RandomSource, probability: f32, x: i32, y: i32, z: i32, block_state: BlockState) {
+    fn maybe_generate_block(&self, level: &mut impl WorldGenLevel, chunk_bb: &BoundingBox, random: &mut impl RandomSource, probability: f32, x: i32, y: i32, z: i32, block_state: BlockState) {
         if random.next_float() < probability {
             self.place_block(level, block_state, x, y, z, chunk_bb);
         }
@@ -722,7 +722,7 @@ impl MineShaftPiece {
     #[allow(clippy::too_many_arguments)]
     fn generate_upper_half_sphere(
         &self,
-        level: &mut WorldGenRegion,
+        level: &mut impl WorldGenLevel,
         chunk_bb: &BoundingBox,
         x0: i32,
         y0: i32,
@@ -832,7 +832,7 @@ impl MineShaftRoom {
         }
     }
 
-    pub fn post_process(&self, level: &mut WorldGenRegion, chunk_bb: &BoundingBox) {
+    pub fn post_process(&self, level: &mut impl WorldGenLevel, chunk_bb: &BoundingBox) {
         let mine_shaft = &self.mine_shaft;
         if mine_shaft.is_in_invalid_location(level, chunk_bb) {
             return;
@@ -925,7 +925,7 @@ impl MineShaftStairs {
         }
     }
 
-    pub fn post_process(&self, level: &mut WorldGenRegion, chunk_bb: &BoundingBox) {
+    pub fn post_process(&self, level: &mut impl WorldGenLevel, chunk_bb: &BoundingBox) {
         let mine_shaft = &self.mine_shaft;
         if mine_shaft.is_in_invalid_location(level, chunk_bb) {
             return;

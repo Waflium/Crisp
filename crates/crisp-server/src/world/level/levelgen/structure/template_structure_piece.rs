@@ -9,7 +9,7 @@ use super::templatesystem::structure_place_settings::StructurePlaceSettings;
 use super::templatesystem::structure_processor::StructureProcessor;
 use super::templatesystem::structure_template::StructureTemplate;
 use super::templatesystem::structure_template_manager;
-use crate::server::level::world_gen_region::WorldGenRegion;
+use crate::world::level::world_gen_level::WorldGenLevel;
 use crate::world::level::block::mirror::Mirror;
 use crate::world::level::block::rotation::Rotation;
 
@@ -96,13 +96,13 @@ impl TemplateStructurePiece {
         tag.push(("Template".into(), Nbt::String(self.template_name.clone())));
     }
 
-    pub fn post_process<R: RandomSource>(
+    pub fn post_process<L: WorldGenLevel, R: RandomSource>(
         &mut self,
-        level: &mut WorldGenRegion,
+        level: &mut L,
         random: &mut R,
         chunk_bb: &BoundingBox,
         reference_pos: BlockPos,
-        mut handle_data_marker: impl FnMut(&str, BlockPos, &mut WorldGenRegion, &mut R, &BoundingBox),
+        mut handle_data_marker: impl FnMut(&str, BlockPos, &mut L, &mut R, &BoundingBox),
     ) {
         let settings = self.place_settings.settings(Some(*chunk_bb));
         self.piece.bounding_box = self.template.get_bounding_box(&settings, self.template_position);

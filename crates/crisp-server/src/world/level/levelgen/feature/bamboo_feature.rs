@@ -4,7 +4,7 @@ use crisp_data::properties::{AGE_1, BAMBOO_LEAVES, BambooLeaves, STAGE};
 use crisp_data::{BlockState, block_tags, blocks};
 use serde_json::Value;
 
-use crate::server::level::world_gen_region::WorldGenRegion;
+use crate::world::level::world_gen_level::WorldGenLevel;
 use crate::util::valueproviders::float;
 use crate::world::level::block;
 use crate::world::level::chunk::HeightmapType;
@@ -22,7 +22,7 @@ impl BambooFeature {
         Ok(BambooFeature { probability: float(json.get("probability").ok_or("missing probability")?)? })
     }
 
-    pub fn place<R: RandomSource>(&self, level: &mut WorldGenRegion, random: &mut R, origin: BlockPos) -> bool {
+    pub fn place<R: RandomSource>(&self, level: &mut impl WorldGenLevel, random: &mut R, origin: BlockPos) -> bool {
         let mut placed = 0;
         let mut bamboo_pos = origin;
         if level.get_block_state(bamboo_pos).is_air() {

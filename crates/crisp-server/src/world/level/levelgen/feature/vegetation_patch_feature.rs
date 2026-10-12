@@ -5,7 +5,7 @@ use crisp_data::{BlockState, blocks};
 use serde_json::Value;
 
 use super::stateproviders::block_state_provider::BlockStateProviderHolder;
-use crate::server::level::world_gen_region::WorldGenRegion;
+use crate::world::level::world_gen_level::WorldGenLevel;
 use crate::util::java_collections::JavaObjectHashSet;
 use crate::util::valueproviders::{IntProvider, float};
 use crate::world::level::levelgen::blockpredicates::block_predicate::BlockSet;
@@ -48,7 +48,7 @@ impl VegetationPatchFeature {
         })
     }
 
-    pub fn place<R: RandomSource>(&self, level: &mut WorldGenRegion, random: &mut R, origin: BlockPos) -> bool {
+    pub fn place<R: RandomSource>(&self, level: &mut impl WorldGenLevel, random: &mut R, origin: BlockPos) -> bool {
         let x_radius = self.xz_radius.sample(random) + 1;
         let z_radius = self.xz_radius.sample(random) + 1;
         let surface = if self.waterlogged {
@@ -60,7 +60,7 @@ impl VegetationPatchFeature {
         !surface.is_empty()
     }
 
-    fn place_ground_patch<R: RandomSource>(&self, level: &mut WorldGenRegion, random: &mut R, origin: BlockPos, x_radius: i32, z_radius: i32) -> JavaObjectHashSet<BlockPos> {
+    fn place_ground_patch<R: RandomSource>(&self, level: &mut impl WorldGenLevel, random: &mut R, origin: BlockPos, x_radius: i32, z_radius: i32) -> JavaObjectHashSet<BlockPos> {
         let inwards = self.surface;
         let outwards = inwards.opposite();
         let mut surface = JavaObjectHashSet::default();
@@ -98,7 +98,7 @@ impl VegetationPatchFeature {
         surface
     }
 
-    fn waterlogged_place_ground_patch<R: RandomSource>(&self, level: &mut WorldGenRegion, random: &mut R, origin: BlockPos, x_radius: i32, z_radius: i32) -> JavaObjectHashSet<BlockPos> {
+    fn waterlogged_place_ground_patch<R: RandomSource>(&self, level: &mut impl WorldGenLevel, random: &mut R, origin: BlockPos, x_radius: i32, z_radius: i32) -> JavaObjectHashSet<BlockPos> {
         let surface = self.place_ground_patch(level, random, origin, x_radius, z_radius);
         let mut water_surface = JavaObjectHashSet::default();
         for surface_pos in surface.iter() {
@@ -112,7 +112,7 @@ impl VegetationPatchFeature {
         water_surface
     }
 
-    fn distribute_vegetation<R: RandomSource>(&self, level: &mut WorldGenRegion, random: &mut R, surface: &JavaObjectHashSet<BlockPos>) {
+    fn distribute_vegetation<R: RandomSource>(&self, level: &mut impl WorldGenLevel, random: &mut R, surface: &JavaObjectHashSet<BlockPos>) {
         for surface_pos in surface.iter() {
             if self.vegetation_chance > 0.0 && random.next_float() < self.vegetation_chance {
                 self.place_vegetation(level, random, surface_pos);
@@ -120,7 +120,7 @@ impl VegetationPatchFeature {
         }
     }
 
-    fn place_vegetation<R: RandomSource>(&self, level: &mut WorldGenRegion, random: &mut R, vegetation_pos: BlockPos) -> bool {
+    fn place_vegetation<R: RandomSource>(&self, level: &mut impl WorldGenLevel, random: &mut R, vegetation_pos: BlockPos) -> bool {
         if self.waterlogged {
             if self.vegetation_patch_place_vegetation(level, random, vegetation_pos.below()) {
                 let placed = level.get_block_state(vegetation_pos);
@@ -136,11 +136,11 @@ impl VegetationPatchFeature {
         }
     }
 
-    fn vegetation_patch_place_vegetation<R: RandomSource>(&self, level: &mut WorldGenRegion, random: &mut R, vegetation_pos: BlockPos) -> bool {
+    fn vegetation_patch_place_vegetation<R: RandomSource>(&self, level: &mut impl WorldGenLevel, random: &mut R, vegetation_pos: BlockPos) -> bool {
         self.vegetation_feature.value().place(level, random, vegetation_pos.relative(self.surface.opposite()))
     }
 
-    fn place_ground<R: RandomSource>(&self, level: &mut WorldGenRegion, random: &mut R, mut below_pos: BlockPos, depth: i32) -> bool {
+    fn place_ground<R: RandomSource>(&self, level: &mut impl WorldGenLevel, random: &mut R, mut below_pos: BlockPos, depth: i32) -> bool {
         for i in 0..depth {
             let state_to_place: BlockState = self.ground_state.value().get_state(level, random, below_pos);
             let below_state = level.get_block_state(below_pos);
@@ -156,10 +156,10 @@ impl VegetationPatchFeature {
     }
 }
 
-fn is_exposed(level: &mut WorldGenRegion, pos: BlockPos) -> bool {
+fn is_exposed(level: &mut impl WorldGenLevel, pos: BlockPos) -> bool {
     [Direction::North, Direction::East, Direction::South, Direction::West, Direction::Down].into_iter().any(|direction| is_exposed_direction(level, pos, direction))
 }
 
-fn is_exposed_direction(level: &mut WorldGenRegion, pos: BlockPos, direction: Direction) -> bool {
+fn is_exposed_direction(level: &mut impl WorldGenLevel, pos: BlockPos, direction: Direction) -> bool {
     !level.get_block_state(pos.relative(direction)).is_face_sturdy_full(direction.opposite())
 }

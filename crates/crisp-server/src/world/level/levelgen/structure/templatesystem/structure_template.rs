@@ -8,7 +8,7 @@ use crisp_protocol::nbt::Nbt;
 
 use super::structure_place_settings::StructurePlaceSettings;
 use crate::server::level::UPDATE_SHAPE_ORDER;
-use crate::server::level::world_gen_region::WorldGenRegion;
+use crate::world::level::world_gen_level::WorldGenLevel;
 use crate::world::level::block;
 use crate::world::level::block::mirror::Mirror;
 use crate::world::level::block::rotation::Rotation;
@@ -154,7 +154,7 @@ impl StructureTemplate {
 
     pub fn place_in_world<R: RandomSource>(
         &self,
-        level: &mut WorldGenRegion,
+        level: &mut impl WorldGenLevel,
         position: BlockPos,
         reference_pos: BlockPos,
         settings: &StructurePlaceSettings,
@@ -335,7 +335,7 @@ fn load_palette(palette_list: &[Nbt], block_list: &[Nbt]) -> Palette {
     Palette { blocks: build_info_list(full_block_list, block_entities_list, other_blocks_list), cached_jigsaws: std::sync::OnceLock::new() }
 }
 
-pub fn update_shape_at_edge(level: &mut WorldGenRegion, update_mode: i32, shape: &BitSetDiscreteVoxelShape, start_x: i32, start_y: i32, start_z: i32) {
+pub fn update_shape_at_edge(level: &mut impl WorldGenLevel, update_mode: i32, shape: &BitSetDiscreteVoxelShape, start_x: i32, start_y: i32, start_z: i32) {
     shape.for_all_faces(|direction, x, y, z| {
         let pos = BlockPos::new(start_x + x, start_y + y, start_z + z);
         let neighbor_pos = pos.relative(direction);
@@ -352,7 +352,7 @@ pub fn update_shape_at_edge(level: &mut WorldGenRegion, update_mode: i32, shape:
     });
 }
 
-fn update_from_neighbour_shapes(state: BlockState, level: &mut WorldGenRegion, pos: BlockPos) -> BlockState {
+fn update_from_neighbour_shapes(state: BlockState, level: &mut impl WorldGenLevel, pos: BlockPos) -> BlockState {
     let mut new_state = state;
     for direction in UPDATE_SHAPE_ORDER {
         let neighbor_pos = pos.relative(direction);
@@ -363,7 +363,7 @@ fn update_from_neighbour_shapes(state: BlockState, level: &mut WorldGenRegion, p
 }
 
 pub fn process_block_infos<R: RandomSource>(
-    level: &mut WorldGenRegion,
+    level: &mut impl WorldGenLevel,
     position: BlockPos,
     reference_pos: BlockPos,
     settings: &StructurePlaceSettings,

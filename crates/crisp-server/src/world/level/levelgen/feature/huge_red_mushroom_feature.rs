@@ -3,9 +3,9 @@ use crisp_core::random::RandomSource;
 use crisp_data::properties::{EAST, NORTH, SOUTH, UP, WEST};
 
 use super::abstract_huge_mushroom_feature::{AbstractHugeMushroomFeature, place_mushroom_block};
-use crate::server::level::world_gen_region::WorldGenRegion;
+use crate::world::level::world_gen_level::WorldGenLevel;
 
-pub fn make_cap<R: RandomSource>(feature: &AbstractHugeMushroomFeature, level: &mut WorldGenRegion, random: &mut R, origin: BlockPos, tree_height: i32) {
+pub fn make_cap<R: RandomSource>(feature: &AbstractHugeMushroomFeature, level: &mut impl WorldGenLevel, random: &mut R, origin: BlockPos, tree_height: i32) {
     for dy in tree_height - 3..=tree_height {
         let radius = if dy < tree_height { feature.foliage_radius } else { feature.foliage_radius - 1 };
         let center = feature.foliage_radius - 2;

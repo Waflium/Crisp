@@ -42,7 +42,7 @@ use super::tree_feature::TreeFeature;
 use super::vegetation_patch_feature::VegetationPatchFeature;
 use super::vines_feature;
 use super::weighted_random_selector_feature::WeightedRandomSelectorFeature;
-use crate::server::level::world_gen_region::WorldGenRegion;
+use crate::world::level::world_gen_level::WorldGenLevel;
 use crate::world::level::levelgen::blockpredicates::block_predicate::resource;
 
 pub enum Feature {
@@ -154,7 +154,7 @@ impl Feature {
         })
     }
 
-    pub fn place<R: RandomSource>(&self, level: &mut WorldGenRegion, random: &mut R, origin: BlockPos) -> bool {
+    pub fn place<R: RandomSource>(&self, level: &mut impl WorldGenLevel, random: &mut R, origin: BlockPos) -> bool {
         match self {
             Feature::Tree(feature) => feature.place(level, random, origin),
             Feature::FallenTree(feature) => feature.place(level, random, origin),
@@ -201,7 +201,7 @@ impl Feature {
     }
 }
 
-pub fn mark_above_for_post_processing(level: &mut WorldGenRegion, place_pos: BlockPos) {
+pub fn mark_above_for_post_processing(level: &mut impl WorldGenLevel, place_pos: BlockPos) {
     let mut pos = place_pos;
     for _ in 0..2 {
         pos = pos.above();

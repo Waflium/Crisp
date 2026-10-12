@@ -1,3 +1,4 @@
+use crate::world::level::world_gen_level::WorldGenLevel;
 use crisp_core::BlockPos;
 use crisp_core::random::RandomSource;
 use crisp_data::blocks;
@@ -26,7 +27,7 @@ impl PlaceOnGroundDecorator {
         })
     }
 
-    pub fn place<R: RandomSource>(&self, context: &mut Context<R>) {
+    pub fn place<R: RandomSource>(&self, context: &mut Context<impl WorldGenLevel, R>) {
         let block_positions = tree_feature::get_lowest_trunk_or_root_of_tree(&context.roots, &context.logs);
         if block_positions.is_empty() {
             return;
@@ -53,7 +54,7 @@ impl PlaceOnGroundDecorator {
         }
     }
 
-    fn attempt_to_place_block_above<R: RandomSource>(&self, context: &mut Context<R>, pos: BlockPos) {
+    fn attempt_to_place_block_above<R: RandomSource>(&self, context: &mut Context<impl WorldGenLevel, R>, pos: BlockPos) {
         let above_pos = pos.above();
         let above = context.level.get_block_state(above_pos);
         if (above.is_air() || above.is_block(blocks::VINE))

@@ -3,7 +3,7 @@ use crisp_core::{BlockPos, Direction};
 use crisp_data::{BlockState, blocks};
 use crisp_protocol::nbt::Nbt;
 
-use crate::server::level::world_gen_region::WorldGenRegion;
+use crate::world::level::world_gen_level::WorldGenLevel;
 use crate::world::level::chunk::HeightmapType;
 use crate::world::level::levelgen::structure::BoundingBox;
 use crate::world::level::levelgen::structure::structure_piece::StructurePiece;
@@ -29,7 +29,7 @@ impl BuriedTreasurePiece {
         Some(BuriedTreasurePiece { piece: StructurePiece::load(BURIED_TREASURE_PIECE, tag)? })
     }
 
-    pub fn post_process(&mut self, level: &mut WorldGenRegion, random: &mut impl RandomSource, chunk_bb: &BoundingBox) {
+    pub fn post_process(&mut self, level: &mut impl WorldGenLevel, random: &mut impl RandomSource, chunk_bb: &BoundingBox) {
         let bounding_box = self.piece.bounding_box;
         let y = level.get_height(HeightmapType::OceanFloorWg, bounding_box.min.x, bounding_box.min.z);
         let mut pos = BlockPos::new(bounding_box.min.x, y, bounding_box.min.z);

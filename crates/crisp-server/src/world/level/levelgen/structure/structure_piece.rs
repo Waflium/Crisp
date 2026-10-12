@@ -6,13 +6,13 @@ use crisp_protocol::nbt::Nbt;
 
 use super::BoundingBox;
 use super::structures::Piece;
-use crate::server::level::world_gen_region::WorldGenRegion;
+use crate::world::level::world_gen_level::WorldGenLevel;
 use crate::world::level::block;
 use crate::world::level::block::entity::BlockEntityKind;
 use crate::world::level::block::mirror::Mirror;
 use crate::world::level::block::rotation::Rotation;
 use crate::world::level::chunk::HeightmapType;
-use crate::world::level::{LevelAccessor, ScheduledTickAccess};
+use crate::world::level::LevelAccessor;
 
 const SHAPE_CHECK_BLOCKS: [crisp_data::Block; 12] = [
     blocks::NETHER_BRICK_FENCE,
@@ -145,7 +145,7 @@ impl StructurePiece {
         }
     }
 
-    pub fn place_block(&self, level: &mut WorldGenRegion, mut block_state: BlockState, x: i32, y: i32, z: i32, chunk_bb: &BoundingBox) {
+    pub fn place_block(&self, level: &mut impl WorldGenLevel, mut block_state: BlockState, x: i32, y: i32, z: i32, chunk_bb: &BoundingBox) {
         let pos = self.get_world_pos(x, y, z);
         if !chunk_bb.is_inside(pos) {
             return;
@@ -166,18 +166,18 @@ impl StructurePiece {
         }
     }
 
-    pub fn get_block(&self, level: &WorldGenRegion, x: i32, y: i32, z: i32, chunk_bb: &BoundingBox) -> BlockState {
+    pub fn get_block(&self, level: &mut impl WorldGenLevel, x: i32, y: i32, z: i32, chunk_bb: &BoundingBox) -> BlockState {
         let pos = self.get_world_pos(x, y, z);
         if !chunk_bb.is_inside(pos) { blocks::AIR.default_state() } else { level.get_block_state(pos) }
     }
 
-    pub fn is_interior(&self, level: &mut WorldGenRegion, x: i32, y: i32, z: i32, chunk_bb: &BoundingBox) -> bool {
+    pub fn is_interior(&self, level: &mut impl WorldGenLevel, x: i32, y: i32, z: i32, chunk_bb: &BoundingBox) -> bool {
         let pos = self.get_world_pos(x, y + 1, z);
         chunk_bb.is_inside(pos) && pos.y < level.get_height(HeightmapType::OceanFloorWg, pos.x, pos.z)
     }
 
     #[allow(clippy::too_many_arguments)]
-    pub fn generate_air_box(&self, level: &mut WorldGenRegion, chunk_bb: &BoundingBox, x0: i32, y0: i32, z0: i32, x1: i32, y1: i32, z1: i32) {
+    pub fn generate_air_box(&self, level: &mut impl WorldGenLevel, chunk_bb: &BoundingBox, x0: i32, y0: i32, z0: i32, x1: i32, y1: i32, z1: i32) {
         for y in y0..=y1 {
             for x in x0..=x1 {
                 for z in z0..=z1 {
@@ -190,7 +190,7 @@ impl StructurePiece {
     #[allow(clippy::too_many_arguments)]
     pub fn generate_box(
         &self,
-        level: &mut WorldGenRegion,
+        level: &mut impl WorldGenLevel,
         chunk_bb: &BoundingBox,
         x0: i32,
         y0: i32,
@@ -220,7 +220,7 @@ impl StructurePiece {
     #[allow(clippy::too_many_arguments)]
     pub fn generate_box_with_selector(
         &self,
-        level: &mut WorldGenRegion,
+        level: &mut impl WorldGenLevel,
         chunk_bb: &BoundingBox,
         x0: i32,
         y0: i32,
@@ -247,7 +247,7 @@ impl StructurePiece {
     #[allow(clippy::too_many_arguments)]
     pub fn generate_maybe_box(
         &self,
-        level: &mut WorldGenRegion,
+        level: &mut impl WorldGenLevel,
         chunk_bb: &BoundingBox,
         random: &mut impl RandomSource,
         probability: f32,
@@ -281,13 +281,13 @@ impl StructurePiece {
     }
 
     #[allow(clippy::too_many_arguments)]
-    pub fn maybe_generate_block(&self, level: &mut WorldGenRegion, chunk_bb: &BoundingBox, random: &mut impl RandomSource, probability: f32, x: i32, y: i32, z: i32, block_state: BlockState) {
+    pub fn maybe_generate_block(&self, level: &mut impl WorldGenLevel, chunk_bb: &BoundingBox, random: &mut impl RandomSource, probability: f32, x: i32, y: i32, z: i32, block_state: BlockState) {
         if random.next_float() < probability {
             self.place_block(level, block_state, x, y, z, chunk_bb);
         }
     }
 
-    pub fn fill_column_down(&self, level: &mut WorldGenRegion, block_state: BlockState, x: i32, start_y: i32, z: i32, chunk_bb: &BoundingBox) {
+    pub fn fill_column_down(&self, level: &mut impl WorldGenLevel, block_state: BlockState, x: i32, start_y: i32, z: i32, chunk_bb: &BoundingBox) {
         let mut pos = self.get_world_pos(x, start_y, z);
         if chunk_bb.is_inside(pos) {
             while is_replaceable_by_structures(level.get_block_state(pos)) && pos.y > level.get_min_y() + 1 {
@@ -297,7 +297,7 @@ impl StructurePiece {
         }
     }
 
-    pub fn create_chest(&self, level: &mut WorldGenRegion, chunk_bb: &BoundingBox, random: &mut impl RandomSource, pos: BlockPos, loot_table: &str, block_state: Option<BlockState>) -> bool {
+    pub fn create_chest(&self, level: &mut impl WorldGenLevel, chunk_bb: &BoundingBox, random: &mut impl RandomSource, pos: BlockPos, loot_table: &str, block_state: Option<BlockState>) -> bool {
         if !chunk_bb.is_inside(pos) || level.get_block_state(pos).is_block(blocks::CHEST) {
             return false;
         }
@@ -316,7 +316,7 @@ impl StructurePiece {
     #[allow(clippy::too_many_arguments)]
     pub fn create_dispenser(
         &self,
-        level: &mut WorldGenRegion,
+        level: &mut impl WorldGenLevel,
         chunk_bb: &BoundingBox,
         random: &mut impl RandomSource,
         x: i32,
@@ -354,7 +354,7 @@ pub fn is_replaceable_by_structures(state: BlockState) -> bool {
     state.is_air() || state.liquid() || state.is_block(blocks::GLOW_LICHEN) || state.is_block(blocks::SEAGRASS) || state.is_block(blocks::TALL_SEAGRASS)
 }
 
-pub fn reorient(level: &mut WorldGenRegion, block_pos: BlockPos, block_state: BlockState) -> BlockState {
+pub fn reorient(level: &mut impl WorldGenLevel, block_pos: BlockPos, block_state: BlockState) -> BlockState {
     let mut solid_neighbor = None;
     for direction in Direction::PLANE_HORIZONTAL {
         let state = level.get_block_state(block_pos.relative(direction));

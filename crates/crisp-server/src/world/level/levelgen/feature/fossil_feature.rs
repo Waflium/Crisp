@@ -3,7 +3,7 @@ use crisp_core::random::RandomSource;
 use crisp_data::blocks;
 use serde_json::Value;
 
-use crate::server::level::world_gen_region::WorldGenRegion;
+use crate::world::level::world_gen_level::WorldGenLevel;
 use crate::world::level::block::mirror::Mirror;
 use crate::world::level::block::rotation::Rotation;
 use crate::world::level::chunk::HeightmapType;
@@ -46,7 +46,7 @@ impl FossilFeature {
         Ok(fossil)
     }
 
-    pub fn place<R: RandomSource>(&self, level: &mut WorldGenRegion, random: &mut R, origin: BlockPos) -> bool {
+    pub fn place<R: RandomSource>(&self, level: &mut impl WorldGenLevel, random: &mut R, origin: BlockPos) -> bool {
         let rotation = Rotation::get_random(random);
         let fossil_index = random.next_int_bounded(self.fossil_structures.len() as i32) as usize;
         let fossil_base = structure_template_manager::get_or_create(&self.fossil_structures[fossil_index]);
@@ -82,7 +82,7 @@ impl FossilFeature {
     }
 }
 
-fn count_empty_corners(level: &mut WorldGenRegion, structure_bounds: BoundingBox) -> i32 {
+fn count_empty_corners(level: &mut impl WorldGenLevel, structure_bounds: BoundingBox) -> i32 {
     let mut count = 0;
     structure_bounds.for_all_corners(|pos| {
         let state = level.get_block_state(pos);

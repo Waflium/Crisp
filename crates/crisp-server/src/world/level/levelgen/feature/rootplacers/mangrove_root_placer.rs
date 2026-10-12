@@ -3,7 +3,7 @@ use crisp_core::{BlockPos, Direction};
 use serde_json::Value;
 
 use super::root_placer::{RootPlacer, get_potentially_waterlogged_state};
-use crate::server::level::world_gen_region::WorldGenRegion;
+use crate::world::level::world_gen_level::WorldGenLevel;
 use crate::util::valueproviders::float;
 use crate::world::level::levelgen::blockpredicates::block_predicate::BlockSet;
 use crate::world::level::levelgen::feature::stateproviders::block_state_provider::BlockStateProviderHolder;
@@ -37,7 +37,7 @@ impl MangroveRootPlacement {
 pub fn place_roots<R: RandomSource>(
     placement: &MangroveRootPlacement,
     placer: &RootPlacer,
-    level: &mut WorldGenRegion,
+    level: &mut impl WorldGenLevel,
     root_setter: &mut TreeSetter,
     random: &mut R,
     origin: BlockPos,
@@ -72,7 +72,7 @@ pub fn place_roots<R: RandomSource>(
 fn simulate_roots<R: RandomSource>(
     placement: &MangroveRootPlacement,
     placer: &RootPlacer,
-    level: &mut WorldGenRegion,
+    level: &mut impl WorldGenLevel,
     random: &mut R,
     root_pos: BlockPos,
     dir: Direction,
@@ -118,7 +118,7 @@ fn potential_root_positions(placement: &MangroveRootPlacement, pos: BlockPos, pr
 pub fn place_root<R: RandomSource>(
     placement: &MangroveRootPlacement,
     placer: &RootPlacer,
-    level: &mut WorldGenRegion,
+    level: &mut impl WorldGenLevel,
     root_setter: &mut TreeSetter,
     random: &mut R,
     pos: BlockPos,

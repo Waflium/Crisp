@@ -1,10 +1,10 @@
 use crisp_core::{BlockPos, Direction};
 use crisp_data::blocks;
 
-use crate::server::level::world_gen_region::WorldGenRegion;
+use crate::world::level::world_gen_level::WorldGenLevel;
 use crate::world::level::block::vine_block;
 
-pub fn place(level: &mut WorldGenRegion, origin: BlockPos) -> bool {
+pub fn place(level: &mut impl WorldGenLevel, origin: BlockPos) -> bool {
     if !level.get_block_state(origin).is_air() {
         return false;
     }

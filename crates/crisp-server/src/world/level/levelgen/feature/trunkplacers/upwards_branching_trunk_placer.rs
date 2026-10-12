@@ -3,7 +3,7 @@ use crisp_core::{BlockPos, Direction};
 use serde_json::Value;
 
 use super::trunk_placer::TrunkPlacer;
-use crate::server::level::world_gen_region::WorldGenRegion;
+use crate::world::level::world_gen_level::WorldGenLevel;
 use crate::util::valueproviders::{IntProvider, float};
 use crate::world::level::levelgen::blockpredicates::block_predicate::BlockSet;
 use crate::world::level::levelgen::feature::foliageplacers::foliage_placer::FoliageAttachment;
@@ -27,7 +27,7 @@ impl UpwardsBranchingTrunkPlacer {
         })
     }
 
-    pub fn valid_tree_pos(&self, level: &mut WorldGenRegion, pos: BlockPos) -> bool {
+    pub fn valid_tree_pos(&self, level: &mut impl WorldGenLevel, pos: BlockPos) -> bool {
         tree_feature::valid_tree_pos(level, pos) || self.can_grow_through.contains(level.get_block_state(pos).block())
     }
 }
@@ -36,7 +36,7 @@ impl UpwardsBranchingTrunkPlacer {
 pub fn place_trunk<R: RandomSource>(
     branching: &UpwardsBranchingTrunkPlacer,
     placer: &TrunkPlacer,
-    level: &mut WorldGenRegion,
+    level: &mut impl WorldGenLevel,
     trunk_setter: &mut TreeSetter,
     random: &mut R,
     tree_height: i32,
@@ -64,7 +64,7 @@ pub fn place_trunk<R: RandomSource>(
 #[allow(clippy::too_many_arguments)]
 fn place_branch<R: RandomSource>(
     placer: &TrunkPlacer,
-    level: &mut WorldGenRegion,
+    level: &mut impl WorldGenLevel,
     trunk_setter: &mut TreeSetter,
     random: &mut R,
     tree_height: i32,
