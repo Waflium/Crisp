@@ -50,7 +50,7 @@ mod abstract_skull_block;
 pub mod rotation_segment;
 pub mod brewing_stand_block;
 mod conduit_block;
-mod enchanting_table_block;
+pub mod enchanting_table_block;
 mod eyeblossom_block;
 mod infested_block;
 mod daylight_detector_block;

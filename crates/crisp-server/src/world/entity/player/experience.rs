@@ -115,6 +115,19 @@ impl ServerLevel {
         }
     }
 
+    pub fn on_enchantment_performed(&mut self, id: EntityId, enchantment_cost: i32) {
+        let p = self.player_mut(id);
+        let xp = &mut p.experience;
+        xp.level -= enchantment_cost;
+        if xp.level < 0 {
+            xp.level = 0;
+            xp.progress = 0.0;
+            xp.total = 0;
+        }
+        xp.enchantment_seed = p.entity.random.next_int();
+        p.last_sent_exp = -1;
+    }
+
     pub fn give_experience_levels(&mut self, id: EntityId, amount: i32) {
         if amount == 0 {
             return;

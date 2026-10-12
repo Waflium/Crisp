@@ -236,7 +236,7 @@ impl ServerLevel {
                 stack.limit_size(max_stack_size);
                 items[slot] = stack;
             }
-            return;
+            return self.container_set_changed(container);
         }
         let Some((pos, slot)) = self.container_part(container, slot) else { return };
         self.unpack_loot_table(pos, None);
@@ -282,10 +282,12 @@ impl ServerLevel {
                 Some(stack) if !stack.is_empty() && count > 0 => stack.split(count),
                 _ => ItemStack::empty(),
             };
-            if let ContainerRef::Shelf(pos) = container
-                && !result.is_empty()
-            {
-                self.shelf_set_changed(pos);
+            if !result.is_empty() {
+                match container {
+                    ContainerRef::Shelf(pos) => self.shelf_set_changed(pos),
+                    ContainerRef::MenuContainer(_) => self.container_set_changed(container),
+                    _ => {}
+                }
             }
             return result;
         }
@@ -342,6 +344,9 @@ impl ServerLevel {
         }
         if let ContainerRef::Shelf(pos) = container {
             return self.shelf_set_changed(pos);
+        }
+        if let ContainerRef::MenuContainer(player) = container {
+            return self.player_mut(player).menu_container.set_changed();
         }
         for (pos, _) in container.parts() {
             self.block_entity_set_changed(pos);

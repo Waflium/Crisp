@@ -238,6 +238,13 @@ impl ItemStack {
         self.get(dc::ENCHANTMENTS).map(ItemEnchantments::from_nbt).unwrap_or_default()
     }
 
+    pub fn is_enchantable(&self) -> bool {
+        if !self.has(dc::ENCHANTABLE) {
+            return false;
+        }
+        self.get(dc::ENCHANTMENTS).is_some_and(|e| matches!(e, Nbt::Compound(f) if f.is_empty()))
+    }
+
     pub fn is_enchanted(&self) -> bool {
         self.get(dc::ENCHANTMENTS).is_some_and(|e| matches!(e, Nbt::Compound(f) if !f.is_empty()))
     }

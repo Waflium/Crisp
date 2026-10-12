@@ -62,6 +62,7 @@ impl ServerLevel {
     pub fn menu_click_menu_button(&mut self, menu: &mut AbstractContainerMenu, player: EntityId, button_id: i32) -> bool {
         match menu.kind {
             MenuKind::Lectern => self.lectern_menu_click_menu_button(menu, player, button_id),
+            MenuKind::Enchantment => self.enchantment_menu_click_menu_button(menu, player, button_id),
             _ => false,
         }
     }

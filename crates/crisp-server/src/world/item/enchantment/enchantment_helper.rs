@@ -105,6 +105,23 @@ fn get_random_item(random: &mut impl RandomSource, items: &[EnchantmentInstance]
     None
 }
 
+pub fn get_enchantment_cost(random: &mut impl RandomSource, slot: i32, mut bookcases: i32, item_stack: &ItemStack) -> i32 {
+    if !item_stack.has(dc::ENCHANTABLE) {
+        return 0;
+    }
+    if bookcases > 15 {
+        bookcases = 15;
+    }
+    let selected = random.next_int_bounded(8) + 1 + (bookcases >> 1) + random.next_int_bounded(bookcases + 1);
+    if slot == 0 {
+        (selected / 3).max(1)
+    } else if slot == 1 {
+        selected * 2 / 3 + 1
+    } else {
+        selected.max(bookcases * 2)
+    }
+}
+
 pub fn enchant_item(random: &mut impl RandomSource, mut item_stack: ItemStack, enchantment_cost: i32, source: &[&str]) -> ItemStack {
     let enchants = select_enchantment(random, &item_stack, enchantment_cost, source);
     if item_stack.is(items::BOOK) {

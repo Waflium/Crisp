@@ -86,6 +86,12 @@ impl ServerLevel {
                     self.send_chest_locked_notifications(Vec3::at_center_of(pos), player, display_name);
                     return None;
                 }
+                if let BlockEntityKind::EnchantingTable(_) = &entity.kind {
+                    let title = entity.name();
+                    let enchantment_seed = self.player(player).experience.enchantment_seed;
+                    self.enchantment_menu_create_container(player);
+                    return Some((AbstractContainerMenu::enchantment(container_id, player, pos, enchantment_seed), title));
+                }
                 let kind = menu_kind(entity)?;
                 if kind == MenuKind::Lectern {
                     let container = ContainerRef::lectern_book_access(self, pos);
@@ -203,6 +209,7 @@ impl ServerLevel {
             let full_resync_needed = state_id != menu.state_id();
             menu.set_suppress_remote_updates(true);
             let clicked = self.menu_clicked(&mut menu, player, slot, button, input);
+            self.menu_container_slots_changed(&mut menu, player);
             for (slot, stack) in claims {
                 menu.set_remote_slot_unsafe(slot, stack);
             }

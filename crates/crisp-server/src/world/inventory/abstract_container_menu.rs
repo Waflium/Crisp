@@ -4,6 +4,7 @@ use crisp_data::{registry, registry_id};
 use crisp_core::BlockPos;
 
 use super::beacon_menu::PAYMENT_SLOT;
+use super::enchantment_menu::EnchantmentMenu;
 use super::slot::{Slot, SlotContainer, SlotKind, brewing_stand_fuel_may_place_item, is_fuel};
 use crate::network::hashed_stack::HashedStack;
 use crate::server::level::ServerLevel;
@@ -33,6 +34,7 @@ pub enum MenuKind {
     BrewingStand,
     Lectern,
     Beacon,
+    Enchantment,
 }
 
 impl MenuKind {
@@ -51,6 +53,7 @@ impl MenuKind {
             MenuKind::BrewingStand => "minecraft:brewing_stand",
             MenuKind::Lectern => "minecraft:lectern",
             MenuKind::Beacon => "minecraft:beacon",
+            MenuKind::Enchantment => "minecraft:enchantment",
         }
     }
 }
@@ -102,6 +105,7 @@ pub struct AbstractContainerMenu {
     pub kind: MenuKind,
     pub container: ContainerRef,
     pub access: Option<BlockPos>,
+    pub enchantment: Option<EnchantmentMenu>,
     pub slots: Vec<Slot>,
     last_slots: Vec<ItemStack>,
     remote_slots: Vec<RemoteSlot>,
@@ -123,6 +127,7 @@ impl AbstractContainerMenu {
             kind,
             container,
             access: None,
+            enchantment: None,
             slots: Vec::new(),
             last_slots: Vec::new(),
             remote_slots: Vec::new(),
@@ -162,6 +167,12 @@ impl AbstractContainerMenu {
                 menu.add_slot(Slot::new(c, PAYMENT_SLOT, SlotKind::BeaconPayment));
                 menu.data_prev = vec![0; 3];
                 menu.remote_data_slots = vec![0; 3];
+            }
+            MenuKind::Enchantment => {
+                menu.add_slot(Slot::new(c, 0, SlotKind::EnchantmentItem));
+                menu.add_slot(Slot::new(c, 1, SlotKind::EnchantmentLapis));
+                menu.data_prev = vec![0; 10];
+                menu.remote_data_slots = vec![0; 10];
             }
         }
         for i in 9..36 {
@@ -267,6 +278,9 @@ impl ServerLevel {
     pub(super) fn menu_data(&mut self, menu: &AbstractContainerMenu, id: usize) -> i32 {
         if menu.kind == MenuKind::Beacon {
             return menu.access.map_or(0, |pos| self.beacon_data_get(pos, id));
+        }
+        if let Some(enchantment) = &menu.enchantment {
+            return enchantment.get(id);
         }
         if let ContainerRef::Lectern { pos, .. } = menu.container {
             return if id == crate::world::level::block::entity::lectern_block_entity::DATA_PAGE { self.lectern(pos).map_or(0, |lectern| lectern.get_page()) } else { 0 };
@@ -653,6 +667,23 @@ impl ServerLevel {
                     self.move_item_stack_to(menu, player, &mut stack, 1, 37, false)
                 }
             }
+            MenuKind::Enchantment => {
+                if index == 0 || index == 1 {
+                    self.move_item_stack_to(menu, player, &mut stack, 2, 38, true)
+                } else if stack.is(crisp_data::items::LAPIS_LAZULI) {
+                    self.move_item_stack_to(menu, player, &mut stack, 1, 2, true)
+                } else {
+                    let item_slot = menu.slots[0].clone();
+                    if self.slot_has_item(player, &item_slot) || !self.slot_may_place(&item_slot, &stack) {
+                        false
+                    } else {
+                        let single_item = stack.copy_with_count(1);
+                        stack.shrink(1);
+                        self.slot_set_by_player(player, &item_slot, single_item);
+                        true
+                    }
+                }
+            }
         };
         if !moved {
             menu.slots[index] = slot;
@@ -664,7 +695,7 @@ impl ServerLevel {
         } else {
             self.slot_set_changed(&slot);
         }
-        if matches!(menu.kind, MenuKind::Furnace(_) | MenuKind::Dispenser | MenuKind::BrewingStand | MenuKind::Beacon) {
+        if matches!(menu.kind, MenuKind::Furnace(_) | MenuKind::Dispenser | MenuKind::BrewingStand | MenuKind::Beacon | MenuKind::Enchantment) {
             if stack.count == clicked.count {
                 menu.slots[index] = slot;
                 return ItemStack::empty();
@@ -774,6 +805,9 @@ impl ServerLevel {
         if menu.kind == MenuKind::Beacon {
             return self.still_valid_access(menu.access, player, crisp_data::blocks::BEACON);
         }
+        if menu.kind == MenuKind::Enchantment {
+            return self.still_valid_access(menu.access, player, crisp_data::blocks::ENCHANTING_TABLE);
+        }
         self.container_still_valid(menu.container, player)
     }
 
@@ -785,16 +819,38 @@ impl ServerLevel {
     pub fn menu_removed(&mut self, menu: &mut AbstractContainerMenu, player: EntityId) {
         let carried = self.carried(player);
         if !carried.is_empty() {
-            if self.player(player).disconnected {
-                self.player_drop(player, carried, false, Prediction::ServerOnly);
-            } else {
-                self.place_item_back_in_inventory(player, carried);
-            }
+            self.drop_or_place_in_inventory(player, carried);
             self.set_carried(player, ItemStack::empty());
         }
         self.container_stop_open(menu.container, player);
-        if menu.kind == MenuKind::Beacon {
-            self.beacon_menu_removed(menu, player);
+        match menu.kind {
+            MenuKind::Beacon => self.beacon_menu_removed(menu, player),
+            MenuKind::Enchantment => self.enchantment_menu_removed(menu, player),
+            _ => {}
+        }
+    }
+
+    fn drop_or_place_in_inventory(&mut self, player: EntityId, carried: ItemStack) {
+        if self.player(player).disconnected {
+            self.player_drop(player, carried, false, Prediction::ServerOnly);
+        } else {
+            self.place_item_back_in_inventory(player, carried);
+        }
+    }
+
+    pub fn clear_container(&mut self, player: EntityId, container: ContainerRef) {
+        for i in 0..self.container_size(container) {
+            let stack = self.remove_item_no_update(container, i);
+            self.drop_or_place_in_inventory(player, stack);
+        }
+    }
+
+    pub fn menu_container_slots_changed(&mut self, menu: &mut AbstractContainerMenu, player: EntityId) {
+        if !std::mem::take(&mut self.player_mut(player).menu_container.changed) {
+            return;
+        }
+        if menu.kind == MenuKind::Enchantment {
+            self.enchantment_menu_slots_changed(menu, player);
         }
     }
 
