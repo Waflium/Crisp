@@ -302,6 +302,54 @@ fn spawn_origin_matches_vanilla() {
     }
 }
 
+fn check_dimension(generator: fn(i64) -> NoiseBasedChunkGenerator, dimension_type: &str, fixture: &str) {
+    let dimension = &crisp_data::DIMENSION_TYPES[crisp_data::SyncedRegistry::get("minecraft:dimension_type").id_of(dimension_type).unwrap() as usize];
+    let mut generators: HashMap<i64, NoiseBasedChunkGenerator> = HashMap::new();
+    let mut failures = Vec::new();
+    for line in fixture.lines().map(|l| l.split('#').next().unwrap().trim()).filter(|l| !l.is_empty()) {
+        let f: Vec<&str> = line.split_whitespace().collect();
+        let seed: i64 = f[0].parse().unwrap();
+        let pos = ChunkPos::new(f[1].parse().unwrap(), f[2].parse().unwrap());
+        let mut chunk = generators.entry(seed).or_insert_with(|| generator(seed)).generate(pos, dimension);
+        let h = hashes(&mut chunk);
+        let got = format!("{seed} {} {} {:016x} {:016x} {:016x}", pos.x, pos.z, h.blocks, h.biomes, h.heights);
+        if got != line {
+            failures.push(format!("expected {line}\n     got {got}"));
+        }
+    }
+    assert!(failures.is_empty(), "{dimension_type} chunks differ from vanilla:\n{}", failures.join("\n"));
+}
+
+#[test]
+fn nether_terrain_matches_vanilla() {
+    check_dimension(
+        NoiseBasedChunkGenerator::nether,
+        "minecraft:the_nether",
+        "
+        12345 0 0 2e563e8bbff3b5cd 6427a5780f66b325 4796e6fb39c90325 # [nether_wastes] {lava=208}
+        12345 5 -3 6178d2608445654d bb5fd09ddf9f3625 4796e6fb39c90325 # [nether_wastes, warped_forest] {}
+        12345 -20 14 996c24c6265174ae 8294733e3d64a325 4796e6fb39c90325 # [basalt_deltas] {lava=304}
+        12345 40 40 a2d0c9aeb9613c33 80d83a18f1533b25 4796e6fb39c90325 # [crimson_forest] {lava=400}
+        12345 100 -60 430e3138096fc115 80d83a18f1533b25 4796e6fb39c90325 # [crimson_forest] {lava=2728}
+        12345 -7 9 5dc03120f46092d3 c01423ae074e0f25 4796e6fb39c90325 # [crimson_forest, nether_wastes] {lava=2162}
+        ",
+    );
+}
+
+#[test]
+fn end_terrain_matches_vanilla() {
+    check_dimension(
+        NoiseBasedChunkGenerator::end,
+        "minecraft:the_end",
+        "
+        12345 0 0 ae595a498e26c8ff bddfa60e8e080325 481622c24b186225 # [the_end] {}
+        12345 3 3 7ea1733d5554bcbd bddfa60e8e080325 eb7a5d6cf507ba25 # [the_end] {}
+        12345 70 0 9c735bed0a722325 613b62e1f86a2b25 c0b014328067f325 # [small_end_islands] {}
+        12345 100 100 d9ba5491db252927 2a12bf9db6eedf25 16ce5c6fc605f9e5 # [end_midlands] {}
+        ",
+    );
+}
+
 #[test]
 fn terrain_matches_vanilla() {
     check(

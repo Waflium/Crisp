@@ -94,6 +94,32 @@ use crate::world::level::data_pack_config::DataPackConfig;
 use crate::world::level::world_data_configuration::WorldDataConfiguration;
 
 pub const OVERWORLD: &str = "minecraft:overworld";
+pub const THE_NETHER: &str = "minecraft:the_nether";
+pub const THE_END: &str = "minecraft:the_end";
+
+fn create_level(config: &ServerConfig, world_dir: Option<&WorldDir>, dimension: &'static str, generator: ChunkGenerator, generate_structures: bool, seed: i64) -> ServerLevel {
+    let dimension_type_id = SyncedRegistry::get("minecraft:dimension_type").id_of(dimension).expect("a dimension type");
+    let dimension_type = &DIMENSION_TYPES[dimension_type_id as usize];
+    let storage = world_dir.map(|d| RegionStorage::new(d.regions(dimension), config.sync_chunk_writes));
+    let mut chunks = ChunkCache::new(dimension_type, generator, storage);
+    chunks.generate_structures = generate_structures;
+    chunks.set_seed(seed);
+    let entity_storage = world_dir.map(|d| RegionStorage::new(d.entities(dimension), config.sync_chunk_writes));
+    let mut level = ServerLevel::new(dimension, dimension_type_id, chunks, entity_storage, config.view_distance, config.simulation_distance);
+    if let Some(dir) = world_dir {
+        level.load_chunk_tickets(dir);
+    }
+    level.biome_zoom_seed = crate::world::level::biome::obfuscate_seed(seed);
+    level.world_border = WorldBorder::load(world_dir.map(|d| d.dimension_data_folder(dimension)));
+    level.world_border.set_absolute_max_size(config.max_world_size);
+    level.raids = crate::world::entity::raid::raids::Raids::load(world_dir.map(|d| d.dimension_data_folder(dimension)));
+    level.level_name = config.level_name.clone();
+    level.allow_flight = config.allow_flight;
+    level.set_max_chained_neighbor_updates(config.max_chained_neighbor_updates);
+    level.entity_broadcast_range_percentage = config.entity_broadcast_range_percentage;
+    level.seed = seed;
+    level
+}
 const AUTOSAVE_INTERVAL: i32 = 6000;
 const STATUS_EXPIRE_TIME: Duration = Duration::from_secs(5);
 const MAX_STATUS_PLAYER_SAMPLE: usize = 12;
@@ -237,8 +263,6 @@ impl Server {
         let WorldStem { data_packs, world_data: data } = world_stem;
         let data_configuration = data.data_configuration.clone();
         let new_world = !data.initialized;
-        let dimension_type_id = SyncedRegistry::get("minecraft:dimension_type").id_of(OVERWORLD).expect("overworld dimension type");
-        let dimension = &DIMENSION_TYPES[dimension_type_id as usize];
         let world_dir = config.world.clone().map(|root| WorldDir { root });
         let mut clocks = ServerClockManager::new();
         let game_rules = GameRules::default();
@@ -256,24 +280,23 @@ impl Server {
         let spawn = (!new_world).then_some(data.spawn);
         let (seed, game_time, generator, game_type, difficulty, difficulty_locked, hardcore) =
             (data.seed, data.game_time, data.generator, data.game_type, data.difficulty, data.difficulty_locked, data.hardcore);
-        let storage = world_dir.as_ref().map(|d| RegionStorage::new(d.regions(OVERWORLD), config.sync_chunk_writes));
-        let mut chunks = ChunkCache::new(dimension, generator, storage);
-        chunks.generate_structures = generate_structures;
-        chunks.set_seed(seed);
-        let entity_storage = world_dir.as_ref().map(|d| RegionStorage::new(d.entities(OVERWORLD), config.sync_chunk_writes));
-        let mut level = ServerLevel::new(OVERWORLD, dimension_type_id, chunks, entity_storage, config.view_distance, config.simulation_distance);
-        if let Some(dir) = &world_dir {
-            level.load_chunk_tickets(dir);
-        }
+        let mut overworld = create_level(&config, world_dir.as_ref(), OVERWORLD, generator, generate_structures, seed);
         if new_world {
             load_listener.start(level::progress::Stage::PrepareGlobalSpawn, 0);
         }
         let spawn = match spawn {
             Some(spawn) => spawn,
-            None => RespawnData::of(OVERWORLD, level::player_spawn_finder::initial_spawn(&mut level.chunks), 0.0, 0.0),
+            None => RespawnData::of(OVERWORLD, level::player_spawn_finder::initial_spawn(&mut overworld.chunks), 0.0, 0.0),
         };
         if new_world {
             load_listener.finish(level::progress::Stage::PrepareGlobalSpawn);
+        }
+        let mut levels = vec![overworld];
+        for (dimension, generator) in [
+            (THE_NETHER, ChunkGenerator::Noise(Arc::new(NoiseBasedChunkGenerator::nether(seed)))),
+            (THE_END, ChunkGenerator::Noise(Arc::new(NoiseBasedChunkGenerator::end(seed)))),
+        ] {
+            levels.push(create_level(&config, world_dir.as_ref(), dimension, generator, generate_structures, seed));
         }
         let weather = Rc::new(Cell::new(weather));
         let scoreboard_save_data = ScoreboardSaveData::load(world_dir.as_ref().map(WorldDir::data_folder));
@@ -281,36 +304,31 @@ impl Server {
         scoreboard.borrow_mut().load(scoreboard_save_data.data());
         let command_storage = Rc::new(RefCell::new(CommandStorage::new(world_dir.as_ref().map(WorldDir::data_folder))));
         let random_sequences = Rc::new(RefCell::new(RandomSequences::load(world_dir.as_ref().map(WorldDir::data_folder))));
-        level.game_rules = game_rules.clone();
-        level.weather = weather.clone();
-        level.scoreboard = scoreboard.clone();
-        level.command_storage = command_storage.clone();
-        level.random_sequences = random_sequences.clone();
-        level.biome_zoom_seed = crate::world::level::biome::obfuscate_seed(seed);
-        level.prepare_weather();
-        level.sync_clocks(&clocks);
-        level.overworld_clock_time = clocks.clocks[ServerClockManager::id_of(OVERWORLD).unwrap()].total_ticks;
-        level.update_sky_brightness();
-        level.game_time = game_time;
+        let tick_rate_manager = ServerTickRateManager::default();
+        let main_thread_wakeup = levels[0].chunks.main_thread_wakeup();
+        for level in &mut levels {
+            level.chunks.set_main_thread_wakeup(main_thread_wakeup.clone());
+            level.game_rules = game_rules.clone();
+            level.weather = weather.clone();
+            level.scoreboard = scoreboard.clone();
+            level.command_storage = command_storage.clone();
+            level.random_sequences = random_sequences.clone();
+            level.tick_rate_manager = tick_rate_manager.shared();
+            level.prepare_weather();
+            level.sync_clocks(&clocks);
+            level.overworld_clock_time = clocks.clocks[ServerClockManager::id_of(OVERWORLD).unwrap()].total_ticks;
+            level.update_sky_brightness();
+            level.game_time = game_time;
+            level.chunks.game_time = game_time;
+        }
         let name_to_id_cache = CachedUserNameToIdResolver::load(config.server_dir.clone());
         name_to_id_cache.save();
         let lists = players::PlayerLists::load(config.server_dir.clone());
-        level.chunks.game_time = game_time;
-        level.world_border = WorldBorder::load(world_dir.as_ref().map(|d| d.dimension_data_folder(OVERWORLD)));
-        level.world_border.set_absolute_max_size(config.max_world_size);
-        level.raids = crate::world::entity::raid::raids::Raids::load(world_dir.as_ref().map(|d| d.dimension_data_folder(OVERWORLD)));
-        level.level_name = config.level_name.clone();
-        level.allow_flight = config.allow_flight;
-        level.set_max_chained_neighbor_updates(config.max_chained_neighbor_updates);
-        level.entity_broadcast_range_percentage = config.entity_broadcast_range_percentage;
-        level.seed = seed;
-        let tick_rate_manager = ServerTickRateManager::default();
-        level.tick_rate_manager = tick_rate_manager.shared();
         let (config_replies_to_status, config_accepts_transfers) = (config.replies_to_status, config.accepts_transfers);
         let mut server = Server {
             config,
             settings: None,
-            levels: vec![level],
+            levels,
             player_list: Vec::new(),
             player_names_array: Arc::default(),
             connections: HashMap::new(),

@@ -1,7 +1,9 @@
 pub mod biome_generation_settings;
+pub mod biome_source;
 pub mod climate;
 pub mod feature_sorter;
 pub mod mob_spawn_settings;
+pub mod the_end_biome_source;
 
 use std::sync::LazyLock;
 

@@ -414,7 +414,8 @@ mod tests {
         assert_eq!(run(&mut server, "execute if entity @e"), ["Test failed"]);
         assert_eq!(run(&mut server, "execute unless entity @e"), ["Test passed"]);
         assert_eq!(run(&mut server, "execute if entity @e run seed").len(), 0);
-        assert_eq!(run(&mut server, "execute in minecraft:the_nether run seed"), ["Unknown dimension 'minecraft:the_nether'"]);
+        assert_eq!(run(&mut server, "execute in minecraft:the_nether run seed").len(), 1);
+        assert_eq!(run(&mut server, "execute in minecraft:the_moon run seed"), ["Unknown dimension 'minecraft:the_moon'"]);
         run(&mut server, "execute positioned 10.7 70 -3.2 align xz run setworldspawn");
         assert_eq!((server.spawn.pos.x, server.spawn.pos.y, server.spawn.pos.z), (10, 70, -4));
         crate::server::level::testing::server_player(&mut server, crisp_core::Vec3::new(5.5, -60.0, 5.5), 0.0, 0.0);

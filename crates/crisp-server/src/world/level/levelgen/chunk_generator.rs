@@ -14,6 +14,8 @@ use crate::world::level::biome::biome_generation_settings;
 use crate::world::level::biome::feature_sorter::{self, StepFeatureData};
 use super::{NoiseGeneratorSettings, RandomState, WORLDGEN, quart_pos};
 use crate::world::level::biome::climate::{self, Parameter};
+use crate::world::level::biome::biome_source::BiomeSource;
+use crate::world::level::biome::the_end_biome_source::TheEndBiomeSource;
 use crate::world::level::biome::{self, MultiNoiseBiomeSource};
 use super::beardifier::Beardifier;
 use crate::world::level::chunk::carving_mask::CarvingMask;
@@ -51,7 +53,7 @@ struct Samplers {
 
 pub struct NoiseBasedChunkGenerator {
     pub settings: Arc<NoiseGeneratorSettings>,
-    pub biome_source: MultiNoiseBiomeSource,
+    pub biome_source: BiomeSource,
     pub state: RandomState,
     picker: FluidPicker,
     samplers: Samplers,
@@ -65,10 +67,21 @@ impl NoiseBasedChunkGenerator {
     pub fn overworld(seed: i64) -> NoiseBasedChunkGenerator {
         let settings = WORLDGEN.noise_settings["minecraft:overworld"].clone();
         let biome_source = MultiNoiseBiomeSource::from_preset("minecraft:overworld").expect("overworld biome source");
-        NoiseBasedChunkGenerator::new(settings, biome_source, seed)
+        NoiseBasedChunkGenerator::new(settings, BiomeSource::MultiNoise(biome_source), seed)
     }
 
-    pub fn new(settings: Arc<NoiseGeneratorSettings>, biome_source: MultiNoiseBiomeSource, seed: i64) -> NoiseBasedChunkGenerator {
+    pub fn nether(seed: i64) -> NoiseBasedChunkGenerator {
+        let settings = WORLDGEN.noise_settings["minecraft:nether"].clone();
+        let biome_source = MultiNoiseBiomeSource::from_preset("minecraft:nether").expect("nether biome source");
+        NoiseBasedChunkGenerator::new(settings, BiomeSource::MultiNoise(biome_source), seed)
+    }
+
+    pub fn end(seed: i64) -> NoiseBasedChunkGenerator {
+        let settings = WORLDGEN.noise_settings["minecraft:end"].clone();
+        NoiseBasedChunkGenerator::new(settings, BiomeSource::TheEnd(TheEndBiomeSource::create()), seed)
+    }
+
+    pub fn new(settings: Arc<NoiseGeneratorSettings>, biome_source: BiomeSource, seed: i64) -> NoiseBasedChunkGenerator {
         let state = RandomState::new(&settings, seed);
         let router = &settings.noise_router;
         let samplers = Samplers {
@@ -122,6 +135,23 @@ impl NoiseBasedChunkGenerator {
         let min_quart_y = quart_pos::from_block(dimension.min_y);
         let min_quart_z = quart_pos::from_block(pos.min_block_z());
         let size_y = quart_pos::from_block(dimension.height as i32);
+        let sections = dimension.height as usize / 16;
+        let source = match &self.biome_source {
+            BiomeSource::MultiNoise(source) => source,
+            BiomeSource::TheEnd(source) => {
+                let mut quarts = vec![Biome(0); sections * 64];
+                for quart_y in 0..size_y {
+                    for x in 0..4 {
+                        for z in 0..4 {
+                            quarts[((quart_y * 4 + x) * 4 + z) as usize] = source.get_noise_biome(min_quart_x + x, min_quart_y + quart_y, min_quart_z + z, |bx, by, bz| {
+                                self.samplers.climate[3].sample_value(&mut ctx, bx, by, bz) as f64
+                            });
+                        }
+                    }
+                }
+                return ChunkBiomes { min_quart_y, quarts };
+            }
+        };
         let volume = DensityVolume::stepped(
             4,
             size_y,
@@ -143,7 +173,6 @@ impl NoiseBasedChunkGenerator {
                 buffer
             })
             .collect();
-        let sections = dimension.height as usize / 16;
         let mut quarts = vec![Biome(0); sections * 64];
         for section in 0..sections as i32 {
             for x in 0..4 {
@@ -159,7 +188,7 @@ impl NoiseBasedChunkGenerator {
                             buffers[4][index],
                             buffers[5][index],
                         );
-                        quarts[((quart_y * 4 + x) * 4 + z) as usize] = self.biome_source.get_noise_biome(&target);
+                        quarts[((quart_y * 4 + x) * 4 + z) as usize] = source.get_noise_biome(&target);
                     }
                 }
             }
@@ -283,17 +312,7 @@ impl NoiseBasedChunkGenerator {
         if let Some(&biome) = self.carver_biomes.lock().unwrap().get(&chunk) {
             return biome;
         }
-        let (x, z) = (chunk.min_block_x(), chunk.min_block_z());
-        let [t, v, c, e, d, w] = &self.samplers.climate;
-        let target = climate::target(
-            t.sample_value(ctx, x, 0, z),
-            v.sample_value(ctx, x, 0, z),
-            c.sample_value(ctx, x, 0, z),
-            e.sample_value(ctx, x, 0, z),
-            d.sample_value(ctx, x, 0, z),
-            w.sample_value(ctx, x, 0, z),
-        );
-        let biome = self.biome_source.get_noise_biome(&target);
+        let biome = self.get_noise_biome(ctx, quart_pos::from_block(chunk.min_block_x()), 0, quart_pos::from_block(chunk.min_block_z()));
         let mut cache = self.carver_biomes.lock().unwrap();
         if cache.len() >= MAX_CACHED_BIOMES {
             cache.clear();
@@ -412,10 +431,15 @@ impl NoiseBasedChunkGenerator {
     }
 
     pub fn get_noise_biome(&self, ctx: &mut SamplerContext, quart_x: i32, quart_y: i32, quart_z: i32) -> Biome {
-        let (block_x, block_y, block_z) = (quart_pos::to_block(quart_x), quart_pos::to_block(quart_y), quart_pos::to_block(quart_z));
-        let [temperature, humidity, continentalness, erosion, depth, weirdness] =
-            self.samplers.climate.each_ref().map(|sampler| sampler.sample_value(ctx, block_x, block_y, block_z));
-        self.biome_source.get_noise_biome(&climate::target(temperature, humidity, continentalness, erosion, depth, weirdness))
+        match &self.biome_source {
+            BiomeSource::MultiNoise(source) => {
+                let (block_x, block_y, block_z) = (quart_pos::to_block(quart_x), quart_pos::to_block(quart_y), quart_pos::to_block(quart_z));
+                let [temperature, humidity, continentalness, erosion, depth, weirdness] =
+                    self.samplers.climate.each_ref().map(|sampler| sampler.sample_value(ctx, block_x, block_y, block_z));
+                source.get_noise_biome(&climate::target(temperature, humidity, continentalness, erosion, depth, weirdness))
+            }
+            BiomeSource::TheEnd(source) => source.get_noise_biome(quart_x, quart_y, quart_z, |x, y, z| self.samplers.climate[3].sample_value(ctx, x, y, z) as f64),
+        }
     }
 
     pub fn get_base_height(&self, x: i32, z: i32, kind: HeightmapType, min_y: i32, height: i32) -> i32 {

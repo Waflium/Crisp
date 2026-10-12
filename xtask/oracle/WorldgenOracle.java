@@ -82,7 +82,8 @@ import net.minecraft.world.level.levelgen.densityfunction.DensityVolume;
 import net.minecraft.world.level.levelgen.densityfunction.ScopedDensityBuffer;
 
 public final class WorldgenOracle {
-    private static final LevelHeightAccessor HEIGHT = LevelHeightAccessor.create(-64, 384);
+    private static final String DIMENSION = System.getenv().getOrDefault("ORACLE_DIMENSION", "overworld");
+    private static final LevelHeightAccessor HEIGHT = DIMENSION.equals("overworld") ? LevelHeightAccessor.create(-64, 384) : LevelHeightAccessor.create(0, 256);
     private static final Heightmap.Types[] FINAL = {
         Heightmap.Types.WORLD_SURFACE, Heightmap.Types.OCEAN_FLOOR, Heightmap.Types.MOTION_BLOCKING, Heightmap.Types.MOTION_BLOCKING_NO_LEAVES
     };
@@ -128,11 +129,21 @@ public final class WorldgenOracle {
     }
 
     private static World world(long seed) {
-        Holder<NoiseGeneratorSettings> settings = registries.lookupOrThrow(Registries.NOISE_SETTINGS).getOrThrow(NoiseGeneratorSettings.OVERWORLD);
-        Holder<MultiNoiseBiomeSourceParameterList> preset = registries
-            .lookupOrThrow(Registries.MULTI_NOISE_BIOME_SOURCE_PARAMETER_LIST)
-            .getOrThrow(MultiNoiseBiomeSourceParameterLists.OVERWORLD);
-        NoiseBasedChunkGenerator generator = new NoiseBasedChunkGenerator(MultiNoiseBiomeSource.createFromPreset(preset), settings);
+        Holder<NoiseGeneratorSettings> settings = registries.lookupOrThrow(Registries.NOISE_SETTINGS).getOrThrow(switch (DIMENSION) {
+            case "nether" -> NoiseGeneratorSettings.NETHER;
+            case "end" -> NoiseGeneratorSettings.END;
+            default -> NoiseGeneratorSettings.OVERWORLD;
+        });
+        net.minecraft.world.level.biome.BiomeSource biomeSource = switch (DIMENSION) {
+            case "nether" -> MultiNoiseBiomeSource.createFromPreset(
+                registries.lookupOrThrow(Registries.MULTI_NOISE_BIOME_SOURCE_PARAMETER_LIST).getOrThrow(MultiNoiseBiomeSourceParameterLists.NETHER)
+            );
+            case "end" -> net.minecraft.world.level.biome.TheEndBiomeSource.create(registries.lookupOrThrow(Registries.BIOME));
+            default -> MultiNoiseBiomeSource.createFromPreset(
+                registries.lookupOrThrow(Registries.MULTI_NOISE_BIOME_SOURCE_PARAMETER_LIST).getOrThrow(MultiNoiseBiomeSourceParameterLists.OVERWORLD)
+            );
+        };
+        NoiseBasedChunkGenerator generator = new NoiseBasedChunkGenerator(biomeSource, settings);
         RandomState randomState = RandomState.create(registries.lookupOrThrow(Registries.NOISE), seed, settings.value());
         return new World(seed, generator, randomState, settings);
     }
@@ -242,10 +253,10 @@ public final class WorldgenOracle {
     private static void report(long seed, ChunkPos pos, ProtoChunk chunk, String dump) throws Exception {
         {
             long blocks = FNV_OFFSET;
-            int[] ids = new int[16 * 384 * 16];
+            int[] ids = new int[16 * HEIGHT.getHeight() * 16];
             int n = 0;
             Map<String, Integer> counts = new LinkedHashMap<>();
-            for (int y = -64; y < 320; y++) {
+            for (int y = HEIGHT.getMinY(); y <= HEIGHT.getMaxY(); y++) {
                 for (int z = 0; z < 16; z++) {
                     for (int x = 0; x < 16; x++) {
                         BlockState state = chunk.getBlockState(new net.minecraft.core.BlockPos(pos.getMinBlockX() + x, y, pos.getMinBlockZ() + z));
@@ -257,7 +268,7 @@ public final class WorldgenOracle {
             }
             long biomes = FNV_OFFSET;
             List<String> biomeNames = new ArrayList<>();
-            for (int qy = -16; qy < 80; qy++) {
+            for (int qy = QuartPos.fromBlock(HEIGHT.getMinY()); qy < QuartPos.fromBlock(HEIGHT.getMaxY() + 1); qy++) {
                 for (int qx = 0; qx < 4; qx++) {
                     for (int qz = 0; qz < 4; qz++) {
                         String name = chunk.getNoiseBiome(QuartPos.fromBlock(pos.getMinBlockX()) + qx, qy, QuartPos.fromBlock(pos.getMinBlockZ()) + qz)

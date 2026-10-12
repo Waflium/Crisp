@@ -299,7 +299,8 @@ fn clone() {
     assert!(block(&mut server, 6, -60, 6).is_air());
     assert_eq!(run(&mut server, "clone 0 -60 0 1 -60 1 1 -60 1 replace move"), ["Successfully cloned 4 block(s)"]);
     assert!(block(&mut server, 0, -60, 0).is_air() && block(&mut server, 1, -60, 1).is_block(blocks::OAK_STAIRS));
-    assert_eq!(run(&mut server, "clone from minecraft:the_nether 0 -60 0 1 -60 1 0 -50 0"), ["Unknown dimension 'minecraft:the_nether'"]);
+    assert_eq!(run(&mut server, "clone from minecraft:the_nether 0 -60 0 1 -60 1 0 -50 0"), ["That position is not loaded"]);
+    assert_eq!(run(&mut server, "clone from minecraft:the_moon 0 -60 0 1 -60 1 0 -50 0"), ["Unknown dimension 'minecraft:the_moon'"]);
     assert_eq!(run(&mut server, "clone from minecraft:overworld 0 -55 0 1 -55 1 to minecraft:overworld 0 -50 0 strict"), ["Successfully cloned 4 block(s)"]);
     assert_eq!(run(&mut server, "clone 0 -60 0 1 -60 1 100 -60 0"), ["That position is not loaded"]);
     assert_eq!(run(&mut server, "clone -16 -60 -16 24 -20 24 0 0 0 replace force"), ["Too many blocks in the specified area (maximum 32768, but specified 68921)"]);
