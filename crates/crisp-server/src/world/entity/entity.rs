@@ -249,7 +249,7 @@ impl Entity {
                 self.in_block_state = None;
             }
             self.pos = pos;
-            self.pending_on_move = true;
+            self.pending_on_move = !self.first_tick;
         }
     }
 
