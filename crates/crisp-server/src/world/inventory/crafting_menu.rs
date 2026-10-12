@@ -71,7 +71,8 @@ impl ServerLevel {
             carried.on_crafted_by(self, player, remove_count);
         }
         if let SlotContainer::Menu(c) = menu.slots[index].container {
-            menu.containers[c].award_used_recipes(self, player);
+            let craft_items = menu.containers[craft_slots].crafting().get_items().to_vec();
+            menu.containers[c].award_used_recipes(self, player, &craft_items);
         }
         if let SlotKind::Result { remove_count, .. } = &mut menu.slots[index].kind {
             *remove_count = 0;

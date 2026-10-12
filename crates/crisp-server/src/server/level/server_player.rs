@@ -688,7 +688,7 @@ impl ServerLevel {
         if let Some(killer) = self.kill_credit(id) {
             let killer_type = self.entity(killer).entity_type;
             self.award_stat(id, stats::ENTITY_KILLED_BY.get(killer_type as u16), 1);
-            self.award_kill_score(killer, id);
+            self.award_kill_score(killer, id, &source);
         }
         self.broadcast_entity_event(id, entity_event::DEATH);
         self.award_stat(id, stats::DEATHS, 1);
@@ -705,10 +705,11 @@ impl ServerLevel {
         p.movement.waiting_for_respawn = true;
     }
 
-    pub fn server_player_award_kill_score(&mut self, id: EntityId, victim: EntityId) {
+    pub fn server_player_award_kill_score(&mut self, id: EntityId, victim: EntityId, killing_blow: &DamageSource) {
         if victim == id {
             return;
         }
+        self.entity_award_kill_score(id, victim, killing_blow);
         let holder = ScoreHolder::for_entity(self, id);
         self.for_all_objectives(&ObjectiveCriteria::KILL_COUNT_ALL, &holder, |level, score| {
             let _ = score.increment(level);
@@ -721,6 +722,7 @@ impl ServerLevel {
         } else {
             self.award_stat(id, stats::MOB_KILLS, 1);
         }
+        criteria_triggers::PLAYER_KILLED_ENTITY.trigger(self, id, victim, killing_blow);
     }
 
     pub fn get_enchanted_damage(&mut self, id: EntityId, entity: EntityId, damage: f32, damage_source: &DamageSource) -> f32 {

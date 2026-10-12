@@ -52,5 +52,5 @@ pub fn matches(predicate: Option<&Holder<LootItemCondition>>, context: &mut Loot
 }
 
 pub fn matches_entity(level: &mut ServerLevel, player: EntityId, predicate: Option<&Holder<LootItemCondition>>, entity: EntityId) -> bool {
-    predicate.is_none_or(|predicate| predicate.value().test(&mut EntityPredicate::create_context(level, player, entity)))
+    predicate.is_none_or(|predicate| level.entity_ref(entity).is_some() && predicate.value().test(&mut EntityPredicate::create_context(level, player, entity)))
 }

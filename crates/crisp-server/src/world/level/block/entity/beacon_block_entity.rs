@@ -265,8 +265,15 @@ impl ServerLevel {
             let was_active = previous_levels > 0;
             entity.beam_sections = std::mem::take(&mut entity.checking_beam_sections);
             let is_active = entity.levels > 0;
+            let levels = entity.levels;
             if !was_active && is_active {
                 self.beacon_play_sound(pos, "minecraft:block.beacon.activate");
+                let (x, y, z) = (pos.x as f64, pos.y as f64, pos.z as f64);
+                let bb = AABB::new(x, y, z, x, y - 4.0, z).inflate(10.0, 5.0, 10.0);
+                let players: Vec<_> = self.get_entities(None, &bb).into_iter().filter(|&id| self.is_player(id)).collect();
+                for player in players {
+                    crate::advancements::triggers::criteria_triggers::CONSTRUCT_BEACON.trigger(self, player, levels);
+                }
             } else if was_active && !is_active {
                 self.beacon_play_sound(pos, "minecraft:block.beacon.deactivate");
             }

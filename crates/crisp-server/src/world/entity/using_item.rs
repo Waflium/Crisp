@@ -99,6 +99,7 @@ impl ServerLevel {
     }
 
     fn update_using_item(&mut self, id: EntityId, stack: ItemStack) {
+        crate::advancements::triggers::criteria_triggers::USING_ITEM.trigger(self, id, &stack);
         let remaining = self.player(id).living.use_item_remaining;
         if let Some(consumable) = &stack.item.info().consumable
             && consumable.should_emit_particles_and_sounds(remaining)
@@ -180,6 +181,9 @@ impl ServerLevel {
     fn on_consume(&mut self, id: EntityId, mut stack: ItemStack, consumable: &Consumable) -> ItemStack {
         self.emit_particles_and_sounds(id, consumable, 16);
         self.award_stat(id, crate::stats::stats::ITEM_USED.get(stack.get_item().0), 1);
+        if self.is_player(id) {
+            crate::advancements::triggers::criteria_triggers::CONSUME_ITEM.trigger(self, id, &stack);
+        }
         if let Some(food) = stack.item.info().food {
             let e = self.entity_mut(id);
             let pitch = triangle(&mut e.random, 1.0, 0.4);

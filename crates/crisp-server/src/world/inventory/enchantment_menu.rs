@@ -127,6 +127,7 @@ impl ServerLevel {
             for enchantment in &new_enchantment {
                 enchantment_helper::enchant(&mut enchantment_item, &enchantment.enchantment, enchantment.level);
             }
+            let enchanted = enchantment_item.clone();
             *menu.containers[ENCHANT_SLOTS].get_item_mut(0) = enchantment_item;
             currency.consume(enchantment_cost, self, Some(player));
             if currency.is_empty() {
@@ -135,6 +136,7 @@ impl ServerLevel {
                 *menu.containers[ENCHANT_SLOTS].get_item_mut(1) = currency;
             }
             self.award_stat(player, crate::stats::stats::ENCHANT_ITEM, 1);
+            crate::advancements::triggers::criteria_triggers::ENCHANTED_ITEM.trigger(self, player, &enchanted, enchantment_cost);
             self.menu_container_set_changed(menu, player, ENCHANT_SLOTS);
             let enchantment_seed = self.player(player).experience.enchantment_seed;
             if let Some(state) = menu.enchantment.as_mut() {

@@ -359,6 +359,14 @@ async fn main() -> anyhow::Result<()> {
                             })
                             .await?;
                         }
+                        ["advancement_tab", tab] => {
+                            send(&mut wr, codec, play::serverbound::SEEN_ADVANCEMENTS, |w| {
+                                w.varint(0);
+                                w.string(tab);
+                            })
+                            .await?;
+                        }
+                        ["advancement_close"] => send(&mut wr, codec, play::serverbound::SEEN_ADVANCEMENTS, |w| w.varint(1)).await?,
                         ["seen_recipe", recipe] => {
                             let recipe: i32 = recipe.parse()?;
                             send(&mut wr, codec, play::serverbound::RECIPE_BOOK_SEEN_RECIPE, |w| w.varint(recipe)).await?;

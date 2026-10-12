@@ -70,6 +70,7 @@ pub fn use_item(level: &mut ServerLevel, player: EntityId, hand: InteractionHand
     eye_of_ender.set_item(&item_stack);
     eye_of_ender.signal_to(Vec3::at_lower_corner_of(nearest_map_feature));
     level.add_fresh_entity(LevelEntity::EyeOfEnder(eye_of_ender));
+    crate::advancements::triggers::criteria_triggers::USED_ENDER_EYE.trigger(level, player, nearest_map_feature);
     let pitch = mth::lerp_f(level.random.next_float(), 0.33, 0.5);
     level.play_sound_at(None, x, y, z, sound_event("minecraft:entity.ender_eye.launch"), SoundSource::Neutral, 1.0, pitch);
     let this = item_stack.item;

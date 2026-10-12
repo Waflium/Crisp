@@ -62,6 +62,10 @@ impl BeehiveBlockEntity {
         self.stored.push(BeeData::new(occupant));
     }
 
+    pub fn get_occupant_count(&self) -> i32 {
+        self.stored.len() as i32
+    }
+
     pub fn load_additional(&mut self, input: &Nbt) {
         self.stored.clear();
         if let Some(Nbt::List(bees)) = input.get("bees") {

@@ -319,6 +319,10 @@ impl ServerLevel {
         let position = self.player(player).entity.position();
         let recipes_to_award = self.get_recipes_to_award_and_pop_experience(pos, position);
         self.award_recipes(player, &recipes_to_award);
+        let items = self.furnace(pos).map(|furnace| furnace.base.items.clone()).unwrap_or_default();
+        for recipe in &recipes_to_award {
+            crate::advancements::triggers::criteria_triggers::RECIPE_CRAFTED.trigger(self, player, recipe.id, &items);
+        }
         if let Some(furnace) = self.furnace(pos) {
             furnace.recipes_used.clear();
         }

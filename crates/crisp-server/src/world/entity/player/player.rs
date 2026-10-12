@@ -582,6 +582,9 @@ impl ServerLevel {
         let result = self.player_start_sleep_in_bed(id, pos);
         if result.is_ok() {
             self.award_stat(id, abstract_bed_block::get_slept_in_bed_stat_type(kind), 1);
+            if can_set_spawn {
+                crate::advancements::triggers::criteria_triggers::SLEPT_IN_BED.trigger(self, id);
+            }
         }
         if !self.can_sleep_through_nights() {
             self.send_overlay_message(id, &Component::translatable("sleep.not_possible"));

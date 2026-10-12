@@ -71,7 +71,18 @@ impl ServerLevel {
         bolt.life -= 1;
         if bolt.life < 0 {
             if bolt.flashes == 0 {
-                bolt.entity.discard();
+                let pos = bolt.entity.position();
+                let area = AABB::new(pos.x - 15.0, pos.y - 15.0, pos.z - 15.0, pos.x + 15.0, pos.y + 6.0 + 15.0, pos.z + 15.0);
+                let hit_entities = bolt.hit_entities.clone();
+                let viewers: Vec<EntityId> = self
+                    .all_entities()
+                    .filter(|&e| e != id && self.is_alive(e) && !hit_entities.contains(&e) && self.entity(e).bounding_box().intersects(&area))
+                    .collect();
+                let players: Vec<EntityId> = self.players.values().filter(|p| (p.entity.position().distance_to_sqr(pos) as f32).sqrt() < 256.0).map(|p| p.entity.id).collect();
+                for player in players {
+                    crate::advancements::triggers::criteria_triggers::LIGHTNING_STRIKE.trigger(self, player, id, &viewers);
+                }
+                self.lightning_bolt(id).entity.discard();
             } else if bolt.life < -bolt.entity.random.next_int_bounded(10) {
                 bolt.flashes -= 1;
                 bolt.life = 1;
@@ -90,7 +101,10 @@ impl ServerLevel {
             for &entity in &hit {
                 self.thunder_hit(entity);
             }
-            self.lightning_bolt(id).hit_entities.extend(hit);
+            self.lightning_bolt(id).hit_entities.extend(hit.iter().copied());
+            if let Some(cause) = self.lightning_bolt(id).cause.filter(|&cause| self.is_player(cause)) {
+                crate::advancements::triggers::criteria_triggers::CHANNELED_LIGHTNING.trigger(self, cause, &hit);
+            }
         }
     }
 

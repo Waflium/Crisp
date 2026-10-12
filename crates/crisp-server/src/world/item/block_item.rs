@@ -55,7 +55,11 @@ pub fn place(item: &dyn BlockItemBehaviour, level: &mut ServerLevel, ctx: BlockP
     if placed.is_block(state.block()) {
         update_custom_block_entity_tag(level, player, pos, &ctx.item);
         update_block_entity_components(level, pos, &ctx.item);
+        let item_stack = ctx.item.clone();
         block::of(placed).set_placed_by(level, pos, placed, player, ctx.item);
+        if let Some(player) = player {
+            crate::advancements::triggers::criteria_triggers::PLACED_BLOCK.trigger(level, player, pos, &item_stack);
+        }
     }
     let sound = placed.sound_type();
     level.play_sound(player, pos, sound.place_sound, SoundSource::Blocks, (sound.volume + 1.0) / 2.0, sound.pitch * 0.8);

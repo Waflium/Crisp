@@ -9,6 +9,7 @@ use super::attributes::{Attribute, AttributeMap, AttributeModifier, AttributeSup
 use super::data::{DataValue, Pose, ids};
 use super::mob::MobKind;
 use super::{Entity, EntityId, MoverType, RemovalReason, TOTAL_AIR_SUPPLY, compute_modified_friction, entity_event, flags, sound_event};
+use crate::advancements::triggers::criteria_triggers;
 use crate::core::holder_set::HolderSet;
 use crate::network::connection::encode;
 use crate::server::level::ServerLevel;
@@ -415,7 +416,11 @@ impl ServerLevel {
         if new_amount == 0 {
             return;
         }
-        item_stack.set_damage_value(item_stack.damage_value() + new_amount);
+        let new_damage = item_stack.damage_value() + new_amount;
+        if self.is_player(owner) {
+            criteria_triggers::ITEM_DURABILITY_CHANGED.trigger(self, owner, &item_stack, new_damage);
+        }
+        item_stack.set_damage_value(new_damage);
         if item_stack.is_broken() {
             let broken = item_stack.copy();
             item_stack.shrink(1);
@@ -621,6 +626,7 @@ impl ServerLevel {
         if damage < 0.0 {
             damage = 0.0;
         }
+        let original_damage = damage;
         let blocked = false;
         if source.is(&damage_type_tags::IS_FREEZING) && entity_type_tags::FREEZE_HURTS_EXTRA_TYPES.contains(self.entity(id).entity_type as usize) {
             damage *= 5.0;
@@ -681,6 +687,12 @@ impl ServerLevel {
             let living = &mut self.living_mut(id);
             living.last_damage_source = Some(source);
             living.last_damage_stamp = game_time;
+        }
+        if self.is_player(id) {
+            criteria_triggers::ENTITY_HURT_PLAYER.trigger(self, id, &source, original_damage, damage, blocked);
+        }
+        if let Some(source_player) = source.causing_entity.filter(|&entity| self.is_player(entity)) {
+            criteria_triggers::PLAYER_HURT_ENTITY.trigger(self, source_player, id, &source, original_damage, damage, blocked);
         }
         success
     }
@@ -916,11 +928,12 @@ impl ServerLevel {
         for slot in [EquipmentSlot::Mainhand, EquipmentSlot::Offhand] {
             let Some(mut stack) = self.item_by_slot(id, slot) else { continue };
             let Some(death_effects) = stack.item.info().death_protection else { continue };
-            let protection_item = stack.get_item();
+            let protection_item = stack.copy();
             stack.shrink(1);
             self.set_item_slot(id, slot, stack);
             if self.is_player(id) {
-                self.award_stat(id, stats::ITEM_USED.get(protection_item.0), 1);
+                self.award_stat(id, stats::ITEM_USED.get(protection_item.get_item().0), 1);
+                criteria_triggers::USED_TOTEM.trigger(self, id, &protection_item);
             }
             self.set_health(id, 1.0);
             for effect in death_effects {
@@ -945,7 +958,7 @@ impl ServerLevel {
             return;
         }
         if let Some(killer) = self.kill_credit(id) {
-            self.award_kill_score(killer, id);
+            self.award_kill_score(killer, id, &source);
         }
         if self.is_sleeping(id) {
             self.stop_sleeping(id);
@@ -969,9 +982,17 @@ impl ServerLevel {
         true
     }
 
-    pub fn award_kill_score(&mut self, killer: EntityId, victim: EntityId) {
+    pub fn award_kill_score(&mut self, killer: EntityId, victim: EntityId, killing_blow: &DamageSource) {
         if self.is_player(killer) {
-            self.server_player_award_kill_score(killer, victim);
+            self.server_player_award_kill_score(killer, victim, killing_blow);
+        } else {
+            self.entity_award_kill_score(killer, victim, killing_blow);
+        }
+    }
+
+    pub fn entity_award_kill_score(&mut self, killer: EntityId, victim: EntityId, killing_blow: &DamageSource) {
+        if self.is_player(victim) {
+            criteria_triggers::ENTITY_KILLED_PLAYER.trigger(self, victim, killer, killing_blow);
         }
     }
 

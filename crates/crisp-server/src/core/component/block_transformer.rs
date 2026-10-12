@@ -141,6 +141,9 @@ impl BlockTransformer {
             let Some(new_block_state) = new_block_state else { continue };
             let updated_shape = if transform_data.update_from_neighbors { level.update_from_neighbour_shapes(new_block_state, pos) } else { new_block_state };
             let mut item_in_hand = ctx.item.clone();
+            if let Some(player) = player {
+                crate::advancements::triggers::criteria_triggers::ITEM_USED_ON_BLOCK.trigger(level, player, pos, &item_in_hand);
+            }
             let old_block_state = level.block_state(pos);
             if let Some(loot) = &transform_data.loot {
                 let block_entity = level.get_block_entity(pos).cloned();

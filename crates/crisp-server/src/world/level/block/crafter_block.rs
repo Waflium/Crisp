@@ -1,6 +1,6 @@
 use std::sync::{LazyLock, Mutex};
 
-use crisp_core::{BlockPos, Direction, Vec3};
+use crisp_core::{AABB, BlockPos, Direction, Vec3};
 use crisp_data::properties::{CRAFTING, FrontAndTop, ORIENTATION, TRIGGERED};
 use crisp_data::{Block, BlockState};
 
@@ -55,10 +55,10 @@ fn dispense_from(state: BlockState, level: &mut ServerLevel, pos: BlockPos) {
     }
     level.set_block(pos, state.set(CRAFTING, true), UPDATE_CLIENTS);
     results.on_crafted_by_system(level);
-    dispense_item(level, pos, &results, state);
+    dispense_item(level, pos, &results, state, picked_recipe.id);
     for remaining_item in crafting_recipe.get_remaining_items(&mut craft_input) {
         if !remaining_item.is_empty() {
-            dispense_item(level, pos, &remaining_item, state);
+            dispense_item(level, pos, &remaining_item, state, picked_recipe.id);
         }
     }
     if let Some(block_entity) = level.crafter(pos) {
@@ -67,7 +67,7 @@ fn dispense_from(state: BlockState, level: &mut ServerLevel, pos: BlockPos) {
     level.block_entity_set_changed(pos);
 }
 
-fn dispense_item(level: &mut ServerLevel, pos: BlockPos, results: &ItemStack, block_state: BlockState) {
+fn dispense_item(level: &mut ServerLevel, pos: BlockPos, results: &ItemStack, block_state: BlockState, recipe: &str) {
     let direction = block_state.get(ORIENTATION).front();
     let into = level.get_container_at(pos.relative(direction));
     let block_entity = ContainerRef::block(level, pos);
@@ -96,6 +96,11 @@ fn dispense_item(level: &mut ServerLevel, pos: BlockPos, results: &ItemStack, bl
         let center_pos = Vec3::at_center_of(pos);
         let item_spawn_offset = center_pos.relative(direction, 0.7);
         spawn_item(level, remaining, 6, direction, item_spawn_offset);
+        let players: Vec<_> = level.get_entities(None, &AABB::of_size(center_pos, 17.0, 17.0, 17.0)).into_iter().filter(|&id| level.is_player(id)).collect();
+        let items = level.crafter(pos).map(|crafter| crafter.base.items.clone()).unwrap_or_default();
+        for player in players {
+            crate::advancements::triggers::criteria_triggers::CRAFTER_RECIPE_CRAFTED.trigger(level, player, recipe, &items);
+        }
         level.level_event(None, SOUND_CRAFTER_CRAFT, pos, 0);
         level.level_event(None, PARTICLES_SHOOT_WHITE_SMOKE, pos, direction.ordinal() as i32);
     }

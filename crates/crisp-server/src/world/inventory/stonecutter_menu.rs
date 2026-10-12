@@ -99,7 +99,8 @@ impl ServerLevel {
     pub fn stonecutter_result_slot_on_take(&mut self, menu: &mut AbstractContainerMenu, player: EntityId, carried: &mut ItemStack) {
         let count = carried.count;
         carried.on_crafted_by(self, player, count);
-        menu.containers[RESULT_CONTAINER].award_used_recipes(self, player);
+        let relevant_items = [self.slot_get(menu, player, INPUT_SLOT)];
+        menu.containers[RESULT_CONTAINER].award_used_recipes(self, player, &relevant_items);
         let remaining = self.slot_remove(menu, player, INPUT_SLOT, 1);
         if !remaining.is_empty() {
             let selected_recipe_index = menu.stonecutter_state().selected_recipe_index;

@@ -109,6 +109,9 @@ impl ServerLevel {
             }
         };
         let loot_table = LootTable::get(&loot_table_key);
+        if let Some(player) = player.filter(|&player| self.is_player(player)) {
+            crate::advancements::triggers::criteria_triggers::GENERATE_LOOT.trigger(self, player, &loot_table_key);
+        }
         let luck = player.map(|player| self.attribute_value(player, Attribute::Luck) as f32);
         let mut params = LootParams::new(self);
         params.origin = Some(crisp_core::Vec3::at_center_of(pos));

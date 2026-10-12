@@ -13,6 +13,7 @@ use crate::world::item::component::{self as dc};
 use crate::world::item::item_utils::has_infinite_materials;
 use crate::world::level::block;
 use crate::world::level::block::entity::beehive_block_entity::BeeReleaseStatus;
+use crate::world::level::block::entity::{BlockEntity, BlockEntityKind};
 use crate::world::level::update_flags::UPDATE_ALL;
 use crate::world::{InteractionHand, InteractionResult};
 
@@ -34,6 +35,16 @@ pub fn reset_honey_level(level: &mut ServerLevel, state: BlockState, pos: BlockP
 pub struct BeehiveBlock;
 
 impl BlockBehaviour for BeehiveBlock {
+    fn player_destroy(&self, level: &mut ServerLevel, player: EntityId, pos: BlockPos, state: BlockState, block_entity: Option<&BlockEntity>, tool: Option<ItemStack>) {
+        let destroyed_with = tool.clone().unwrap_or_else(ItemStack::empty);
+        level.drop_resources_with_entity(state, pos, block_entity, Some(player), tool);
+        if let Some(BlockEntityKind::Beehive(beehive_block_entity)) = block_entity.map(|block_entity| &block_entity.kind) {
+            let prevents_bee_spawns = crate::world::item::enchantment::enchantment_helper::has_tag(&destroyed_with, "minecraft:prevents_bee_spawns_when_mining");
+            let occupant_count = if prevents_bee_spawns { beehive_block_entity.get_occupant_count() } else { 0 };
+            crate::advancements::triggers::criteria_triggers::BEE_NEST_DESTROYED.trigger(level, player, state, &destroyed_with, occupant_count);
+        }
+    }
+
     fn use_item_on(
         &self,
         item_stack: ItemStack,

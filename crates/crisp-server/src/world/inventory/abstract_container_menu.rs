@@ -136,9 +136,9 @@ impl MenuContainer {
         }
     }
 
-    pub fn award_used_recipes(&mut self, level: &mut ServerLevel, player: EntityId) {
+    pub fn award_used_recipes(&mut self, level: &mut ServerLevel, player: EntityId, item_stacks: &[ItemStack]) {
         if let MenuContainer::Result(container) = self {
-            container.award_used_recipes(level, player);
+            container.award_used_recipes(level, player, item_stacks);
         }
     }
 

@@ -320,6 +320,10 @@ impl ServerLevel {
             self.send_spawn_protection_message(id, pos);
         } else if self.player(id).movement.awaiting_position_from_client.is_none() && self.may_interact(id, pos) {
             let result = self.use_item_on(id, hand, hit);
+            if result.consumes_action() {
+                let item_after = self.player(id).item_in_hand(hand).filter(|stack| stack.is(item_stack.get_item())).unwrap_or_else(ItemStack::empty);
+                crate::advancements::triggers::criteria_triggers::ANY_BLOCK_USE.trigger(self, id, pos, &item_after);
+            }
             let placement_attempt = was_block_placement_attempt(&item_stack);
             let swing = |level: &mut ServerLevel| {
                 if let InteractionResult::Success { swing_source, .. } = result
@@ -394,12 +398,14 @@ impl ServerLevel {
         }
         let used_item_stack = self.player(id).item_in_hand(hand).unwrap_or_else(ItemStack::empty);
         let result = self.interact_on(id, entity_id, hand, location);
-        if let InteractionResult::Success { swing_source, .. } = result
-            && result.should_swing()
-        {
-            let swing_animation = used_item_stack.interact_animation();
-            if self.swing(id, hand, swing_animation, swing_source != SwingSource::Predicted) {
-                self.reset_attack_strength_ticker(id);
+        if let InteractionResult::Success { swing_source, was_item_interaction } = result {
+            let awarded_for_stack = if was_item_interaction { used_item_stack.clone() } else { ItemStack::empty() };
+            crate::advancements::triggers::criteria_triggers::PLAYER_INTERACTED_WITH_ENTITY.trigger(self, id, &awarded_for_stack, entity_id);
+            if result.should_swing() {
+                let swing_animation = used_item_stack.interact_animation();
+                if self.swing(id, hand, swing_animation, swing_source != SwingSource::Predicted) {
+                    self.reset_attack_strength_ticker(id);
+                }
             }
         }
     }

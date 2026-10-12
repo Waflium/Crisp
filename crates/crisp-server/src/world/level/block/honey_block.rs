@@ -39,6 +39,13 @@ fn is_sliding_down(level: &ServerLevel, pos: BlockPos, entity: EntityId) -> bool
     dx + 1.0e-7 > overlap_distance || dz + 1.0e-7 > overlap_distance
 }
 
+fn maybe_do_slide_achievement(level: &mut ServerLevel, entity: EntityId, pos: BlockPos) {
+    if level.is_player(entity) && level.game_time % 20 == 0 {
+        let state = crate::world::level::BlockGetter::block_state(level, pos);
+        crate::advancements::triggers::criteria_triggers::HONEY_BLOCK_SLIDE.trigger(level, entity, state);
+    }
+}
+
 fn do_slide_movement(level: &mut ServerLevel, entity: EntityId) {
     let e = level.entity_mut(entity);
     let delta_movement = e.delta_movement;
@@ -74,6 +81,7 @@ impl BlockBehaviour for HoneyBlock {
 
     fn entity_inside(&self, _state: BlockState, level: &mut ServerLevel, pos: BlockPos, entity: EntityId, _effects: &mut InsideBlockEffects, _is_precise: bool) {
         if is_sliding_down(level, pos, entity) {
+            maybe_do_slide_achievement(level, entity, pos);
             do_slide_movement(level, entity);
             maybe_do_slide_effects(level, entity);
         }

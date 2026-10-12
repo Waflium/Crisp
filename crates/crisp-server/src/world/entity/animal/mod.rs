@@ -105,8 +105,11 @@ impl ServerLevel {
         offspring.set_baby(true);
         let e = self.entity(id);
         offspring.entity.snap_to(e.x(), e.y(), e.z(), 0.0, 0.0);
-        self.finalize_spawn_child_from_breeding(id, partner);
-        self.add_fresh_entity(LevelEntity::Mob(offspring));
+        let offspring_id = offspring.entity.id;
+        self.entities.insert(offspring_id, LevelEntity::Mob(offspring));
+        self.finalize_spawn_child_from_breeding(id, partner, Some(offspring_id));
+        let offspring = self.entities.shift_remove(&offspring_id).expect("offspring");
+        self.add_fresh_entity(offspring);
     }
 
     fn get_love_cause(&self, id: EntityId) -> Option<EntityId> {
@@ -114,9 +117,10 @@ impl ServerLevel {
         self.players.values().find(|p| p.profile.uuid == love_cause).map(|p| p.entity.id)
     }
 
-    pub fn finalize_spawn_child_from_breeding(&mut self, id: EntityId, partner: EntityId) {
+    pub fn finalize_spawn_child_from_breeding(&mut self, id: EntityId, partner: EntityId, offspring: Option<EntityId>) {
         if let Some(cause) = self.get_love_cause(id).or_else(|| self.get_love_cause(partner)) {
             self.award_stat(cause, crate::stats::stats::ANIMALS_BRED, 1);
+            crate::advancements::triggers::criteria_triggers::BRED_ANIMALS.trigger(self, cause, id, partner, offspring);
         }
         self.set_age(id, 6000);
         self.set_age(partner, 6000);

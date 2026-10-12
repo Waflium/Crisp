@@ -1602,9 +1602,15 @@ impl ServerLevel {
             if left == 0 {
                 item.entity.discard();
                 item.item.count = original;
+            }
+            let (picked, thrower) = (item.item.clone(), item.thrower);
+            if left == 0 {
                 self.remove_entity(id);
             }
             self.award_stat(player, crate::stats::stats::ITEM_PICKED_UP.get(picked_up_item.0), original);
+            if let Some(thrower) = thrower.and_then(|uuid| self.entity_manager.visible_entity_storage.get(uuid)) {
+                criteria_triggers::THROWN_ITEM_PICKED_UP_BY_PLAYER.trigger(self, player, &picked, thrower);
+            }
         }
     }
 

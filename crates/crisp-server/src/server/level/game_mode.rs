@@ -4,6 +4,7 @@ use crisp_data::packets::play::clientbound;
 
 use super::ServerLevel;
 use super::events::{PARTICLES_AND_SOUND_DESTROY_PROGRESS, PARTICLES_DESTROY_PROGRESS};
+use crate::advancements::triggers::criteria_triggers;
 use crate::world::entity::EntityId;
 use crate::world::entity::attributes::Attribute;
 use crate::world::entity::player::abilities::Abilities;
@@ -409,16 +410,19 @@ impl ServerLevel {
         let item = p.item_in_hand(hand);
         let something_in_hands = p.item_in_hand(InteractionHand::MainHand).is_some() || p.item_in_hand(InteractionHand::OffHand).is_some();
         let suppress_using_block = p.is_secondary_use_active() && something_in_hands;
+        let used_item_stack = item.clone().unwrap_or_else(ItemStack::empty);
         if !suppress_using_block {
             let behaviour = block::of(state);
             let held = item.clone().unwrap_or_else(|| ItemStack::new(crisp_data::items::AIR, 0));
             let result = behaviour.use_item_on(held, state, self, pos, player, hand, &hit);
             if result.consumes_action() {
+                criteria_triggers::ITEM_USED_ON_BLOCK.trigger(self, player, pos, &used_item_stack);
                 return result;
             }
             if result == InteractionResult::TryWithEmptyHand && hand == InteractionHand::MainHand {
                 let result = behaviour.use_without_item(state, self, pos, player, &hit);
                 if result.consumes_action() {
+                    criteria_triggers::DEFAULT_BLOCK_USE.trigger(self, player, pos);
                     return result;
                 }
             }
@@ -429,6 +433,9 @@ impl ServerLevel {
                 let result = item::use_on(self, player, hand, hit, stack);
                 if let InteractionResult::Success { was_item_interaction: true, .. } = result {
                     self.award_stat(player, crate::stats::stats::ITEM_USED.get(used_item.0), 1);
+                }
+                if result.consumes_action() {
+                    criteria_triggers::ITEM_USED_ON_BLOCK.trigger(self, player, pos, &used_item_stack);
                 }
                 result
             }

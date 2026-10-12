@@ -251,6 +251,13 @@ impl ServerLevel {
                 self.loom_result_slot_on_take(menu, player);
                 self.slot_set_changed(menu, player, index);
             }
+            SlotKind::BrewingStandPotion => {
+                if let Some(potion_contents) = carried.get(crate::world::item::component::POTION_CONTENTS) {
+                    let potion_contents = potion_contents.clone();
+                    crate::advancements::triggers::criteria_triggers::BREWED_POTION.trigger(self, player, &potion_contents);
+                }
+                self.slot_set_changed(menu, player, index);
+            }
             _ => self.slot_set_changed(menu, player, index),
         }
     }
@@ -285,9 +292,10 @@ impl ServerLevel {
                     self.award_used_recipes_and_pop_experience(pos, player);
                 }
             }
-            SlotKind::Result { .. } => {
+            SlotKind::Result { craft_slots, .. } => {
                 if let SlotContainer::Menu(c) = menu.slots[index].container {
-                    menu.containers[c].award_used_recipes(self, player);
+                    let craft_items = menu.containers[craft_slots].crafting().get_items().to_vec();
+                    menu.containers[c].award_used_recipes(self, player, &craft_items);
                 }
             }
             _ => {}

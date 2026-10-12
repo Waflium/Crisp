@@ -17,6 +17,7 @@ pub fn use_on(level: &mut ServerLevel, player: EntityId, hand: InteractionHand, 
     let pos = hit.block_pos;
     let old_state = level.block_state(pos);
     let Some(waxed_state) = get_waxed(old_state) else { return InteractionResult::Pass };
+    crate::advancements::triggers::criteria_triggers::ITEM_USED_ON_BLOCK.trigger(level, player, pos, &stack);
     let mut item_in_hand = stack;
     item_in_hand.shrink(1);
     if level.player(player).game_mode.game_type != GameType::Creative {

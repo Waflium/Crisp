@@ -53,7 +53,9 @@ impl ServerLevel {
     pub fn smithing_menu_on_take(&mut self, menu: &mut AbstractContainerMenu, player: EntityId, carried: &mut ItemStack) {
         let count = carried.count;
         carried.on_crafted_by(self, player, count);
-        menu.containers[RESULT_SLOTS].award_used_recipes(self, player);
+        let input_slots = &menu.containers[INPUT_SLOTS];
+        let relevant_items = [input_slots.get_item(0).clone(), input_slots.get_item(1).clone(), input_slots.get_item(2).clone()];
+        menu.containers[RESULT_SLOTS].award_used_recipes(self, player, &relevant_items);
         self.shrink_stack_in_slot(menu, player, 0);
         self.shrink_stack_in_slot(menu, player, 1);
         self.shrink_stack_in_slot(menu, player, 2);
