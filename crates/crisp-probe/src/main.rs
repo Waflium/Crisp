@@ -177,6 +177,7 @@ async fn main() -> anyhow::Result<()> {
     let mut script_wait = 0u32;
     let mut sequence = 100;
     let mut open_container = 0;
+    let mut on_ground = 1u8;
     loop {
         tokio::select! {
             packet = rx.recv() => {
@@ -250,6 +251,36 @@ async fn main() -> anyhow::Result<()> {
                     match words.as_slice() {
                         ["wait", ticks] => script_wait = ticks.parse()?,
                         ["respawn"] => send(&mut wr, codec, play::serverbound::CLIENT_COMMAND, |w| w.varint(0)).await?,
+                        ["stats"] => send(&mut wr, codec, play::serverbound::CLIENT_COMMAND, |w| w.varint(1)).await?,
+                        ["input", flags] => {
+                            let flags: u8 = flags.parse()?;
+                            send(&mut wr, codec, play::serverbound::PLAYER_INPUT, |w| w.u8(flags)).await?;
+                        }
+                        ["action", status, x, y, z, face] => {
+                            let (status, x, y, z, face): (i32, i32, i32, i32, u8) = (status.parse()?, x.parse()?, y.parse()?, z.parse()?, face.parse()?);
+                            sequence += 1;
+                            send(&mut wr, codec, play::serverbound::PLAYER_ACTION, |w| {
+                                w.varint(status);
+                                w.position(x, y, z);
+                                w.u8(face);
+                                w.varint(sequence);
+                            })
+                            .await?;
+                        }
+                        ["move_air", nx, ny, nz, y_rot] => {
+                            let (nx, ny, nz, y_rot): (f64, f64, f64, f32) = (nx.parse()?, ny.parse()?, nz.parse()?, y_rot.parse()?);
+                            (*x, *y, *z) = (nx, ny, nz);
+                            on_ground = 0;
+                            send(&mut wr, codec, play::serverbound::MOVE_PLAYER_POS_ROT, |w| {
+                                w.f64(nx);
+                                w.f64(ny);
+                                w.f64(nz);
+                                w.f32(y_rot);
+                                w.f32(0.0);
+                                w.u8(0);
+                            })
+                            .await?;
+                        }
                         ["sign", x, y, z, slot, rest @ ..] => {
                             let (x, y, z, slot): (i32, i32, i32, i32) = (x.parse()?, y.parse()?, z.parse()?, slot.parse()?);
                             let text = rest.join(" ");
@@ -378,6 +409,7 @@ async fn main() -> anyhow::Result<()> {
                         ["move", nx, ny, nz, y_rot] => {
                             let (nx, ny, nz, y_rot): (f64, f64, f64, f32) = (nx.parse()?, ny.parse()?, nz.parse()?, y_rot.parse()?);
                             (*x, *y, *z) = (nx, ny, nz);
+                            on_ground = 1;
                             send(&mut wr, codec, play::serverbound::MOVE_PLAYER_POS_ROT, |w| {
                                 w.f64(nx);
                                 w.f64(ny);
@@ -418,7 +450,7 @@ async fn main() -> anyhow::Result<()> {
                     })
                     .await?;
                 } else if !o.walk {
-                    send(&mut wr, codec, play::serverbound::MOVE_PLAYER_STATUS_ONLY, |w| w.u8(1)).await?;
+                    send(&mut wr, codec, play::serverbound::MOVE_PLAYER_STATUS_ONLY, |w| w.u8(on_ground)).await?;
                 }
                 if let Some(dig_ticks) = o.dig {
                     let below = (x.floor() as i32, y.floor() as i32 - 1, z.floor() as i32);
