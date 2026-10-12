@@ -3,6 +3,7 @@ mod barrel_block_entity;
 pub mod base_container_block_entity;
 pub mod beacon_block_entity;
 pub mod beehive_block_entity;
+pub mod brewing_stand_block_entity;
 pub mod brushable_block_entity;
 pub mod chest_block_entity;
 pub mod comparator_block_entity;
@@ -49,6 +50,7 @@ pub enum BlockEntityTicker {
     Jukebox,
     Conduit,
     Beacon,
+    BrewingStand,
 }
 
 enum UpdateTag {
@@ -72,6 +74,7 @@ pub enum BlockEntityKind {
     Jukebox(jukebox_block_entity::JukeboxBlockEntity),
     Conduit(conduit_block_entity::ConduitBlockEntity),
     Beacon(beacon_block_entity::BeaconBlockEntity),
+    BrewingStand(brewing_stand_block_entity::BrewingStandBlockEntity),
     Other(Vec<(String, Nbt)>),
 }
 
@@ -109,6 +112,7 @@ impl BlockEntity {
             types::JUKEBOX => BlockEntityKind::Jukebox(jukebox_block_entity::JukeboxBlockEntity::default()),
             types::CONDUIT => BlockEntityKind::Conduit(conduit_block_entity::ConduitBlockEntity::default()),
             types::BEACON => BlockEntityKind::Beacon(beacon_block_entity::BeaconBlockEntity::default()),
+            types::BREWING_STAND => BlockEntityKind::BrewingStand(brewing_stand_block_entity::BrewingStandBlockEntity::default()),
             _ => BlockEntityKind::Other(Vec::new()),
         };
         Some(BlockEntity { ty, pos, block_state: state, remove: false, components: DataComponentMap::EMPTY, id: NEXT_ID.fetch_add(1, Ordering::Relaxed), kind })
@@ -204,6 +208,7 @@ impl BlockEntity {
             BlockEntityKind::Jukebox(jukebox) => jukebox.load_additional(input),
             BlockEntityKind::Conduit(conduit) => conduit.load_additional(input),
             BlockEntityKind::Beacon(beacon) => beacon.load_additional(input),
+            BlockEntityKind::BrewingStand(brewing_stand) => brewing_stand.load_additional(input),
             BlockEntityKind::Other(data) => {
                 let _ = state;
                 *data = match input {
@@ -231,6 +236,7 @@ impl BlockEntity {
             BlockEntityKind::Jukebox(jukebox) => jukebox.save_additional(output),
             BlockEntityKind::Conduit(conduit) => conduit.save_additional(output),
             BlockEntityKind::Beacon(beacon) => beacon.save_additional(output),
+            BlockEntityKind::BrewingStand(brewing_stand) => brewing_stand.save_additional(output),
             BlockEntityKind::Other(data) => output.extend(data.iter().cloned()),
         }
     }
@@ -378,6 +384,7 @@ impl BlockEntity {
             BlockEntityKind::Furnace(f) => &f.base,
             BlockEntityKind::Hopper(h) => &h.base,
             BlockEntityKind::Dispenser(d) => &d.base,
+            BlockEntityKind::BrewingStand(b) => &b.base,
             _ => return None,
         })
     }
@@ -390,6 +397,7 @@ impl BlockEntity {
             BlockEntityKind::Furnace(f) => &mut f.base,
             BlockEntityKind::Hopper(h) => &mut h.base,
             BlockEntityKind::Dispenser(d) => &mut d.base,
+            BlockEntityKind::BrewingStand(b) => &mut b.base,
             _ => return None,
         })
     }
@@ -413,6 +421,7 @@ impl BlockEntity {
             types::DISPENSER => "container.dispenser",
             types::DROPPER => "container.dropper",
             types::BEACON => "container.beacon",
+            types::BREWING_STAND => "container.brewing",
             _ => "",
         }
     }
@@ -445,6 +454,7 @@ impl BlockEntity {
             types::JUKEBOX if block.is_instance_of("JukeboxBlock") && state.get(crisp_data::properties::HAS_RECORD) => Some(BlockEntityTicker::Jukebox),
             types::CONDUIT if block.is_instance_of("ConduitBlock") => Some(BlockEntityTicker::Conduit),
             types::BEACON if block.is_instance_of("BeaconBlock") => Some(BlockEntityTicker::Beacon),
+            types::BREWING_STAND if block.is_instance_of("BrewingStandBlock") => Some(BlockEntityTicker::BrewingStand),
             _ => None,
         }
     }

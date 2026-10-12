@@ -27,6 +27,7 @@ fn menu_kind(entity: &BlockEntity) -> Option<MenuKind> {
         types::SMOKER => MenuKind::Furnace(CookingRecipeType::Smoking),
         types::HOPPER => MenuKind::Hopper,
         types::DISPENSER | types::DROPPER => MenuKind::Dispenser,
+        types::BREWING_STAND => MenuKind::BrewingStand,
         _ => return None,
     })
 }

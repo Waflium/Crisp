@@ -4,14 +4,12 @@ use crisp_data::{BlockState, items};
 use crisp_protocol::nbt::Nbt;
 
 use super::base_container_block_entity::{BaseContainerBlockEntity, save_all_items};
-use super::{BlockEntity, BlockEntityKind, float_value, int_or, int_value};
+use super::{BlockEntityKind, float_value, int_or, int_value};
 use crate::server::level::ServerLevel;
 use crate::world::entity::EntityId;
 use crate::world::item::ItemStack;
 use crate::world::item::component as dc;
 use crate::world::item::crafting::{self, CookingRecipeType};
-use crate::world::level::storage::loot::loot_context::{LootContext, LootContextBuilder};
-use crate::world::level::storage::loot::loot_params::{LootParams, SlotProvider};
 use crate::world::level::storage::loot::providers::number::floats::resolvable_float::ResolvableFloat;
 use crate::world::level::storage::loot::providers::number::ints::resolvable_int::ResolvableInt;
 use crate::world::level::update_flags::UPDATE_ALL;
@@ -186,15 +184,6 @@ impl ServerLevel {
             BlockEntityKind::Furnace(furnace) => Some(furnace),
             _ => None,
         }
-    }
-
-    fn get_loot_context<'a>(&'a mut self, pos: BlockPos, state: BlockState, block_entity: Option<&'a BlockEntity>) -> LootContext<'a> {
-        let mut params = LootParams::new(self);
-        params.block_state = Some(state);
-        params.block_entity = block_entity;
-        params.origin = Some(Vec3::at_center_of(pos));
-        params.container = block_entity.map(SlotProvider::BlockEntity);
-        LootContextBuilder::new(params).create(None)
     }
 
     fn get_burn_duration(&mut self, pos: BlockPos, state: BlockState, fuel_item: &ItemStack) -> i32 {

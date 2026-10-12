@@ -45,6 +45,7 @@ mod cake_block;
 mod comparator_block;
 pub mod composter_block;
 pub mod beacon_block;
+pub mod brewing_stand_block;
 mod conduit_block;
 mod daylight_detector_block;
 mod copper_bulb_block;
@@ -623,6 +624,7 @@ fn for_class(class: &str, block: Block) -> Option<Box<dyn BlockBehaviour>> {
         "ComposterBlock" => Box::new(composter_block::ComposterBlock),
         "ConduitBlock" => Box::new(conduit_block::ConduitBlock),
         "BeaconBlock" => Box::new(beacon_block::BeaconBlock),
+        "BrewingStandBlock" => Box::new(brewing_stand_block::BrewingStandBlock),
         "DaylightDetectorBlock" => Box::new(daylight_detector_block::DaylightDetectorBlock),
         "JukeboxBlock" => Box::new(jukebox_block::JukeboxBlock),
         "StrawBedBlock" => Box::new(abstract_bed_block::AbstractBedBlock::new(abstract_bed_block::BedKind::StrawBed)),

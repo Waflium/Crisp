@@ -1,12 +1,13 @@
 use crisp_data::packets::play::clientbound;
 use crisp_data::{registry, registry_id};
 
-use super::slot::{Slot, SlotContainer, SlotKind, is_fuel};
+use super::slot::{Slot, SlotContainer, SlotKind, brewing_stand_fuel_may_place_item, is_fuel};
 use crate::network::hashed_stack::HashedStack;
 use crate::server::level::ServerLevel;
 use crate::util::Prediction;
 use crate::world::container::ContainerRef;
 use crate::world::entity::EntityId;
+use crate::world::item::crafting::potion_ingredient::PotionIngredient;
 use crate::world::item::crafting::{self, CookingRecipeType};
 use crate::world::item::{ItemStack, write_slot};
 
@@ -26,6 +27,7 @@ pub enum MenuKind {
     Furnace(CookingRecipeType),
     Hopper,
     Dispenser,
+    BrewingStand,
 }
 
 impl MenuKind {
@@ -40,6 +42,7 @@ impl MenuKind {
             MenuKind::Furnace(CookingRecipeType::Smoking) => "minecraft:smoker",
             MenuKind::Hopper => "minecraft:hopper",
             MenuKind::Dispenser => "minecraft:generic_3x3",
+            MenuKind::BrewingStand => "minecraft:brewing_stand",
         }
     }
 }
@@ -134,6 +137,11 @@ impl AbstractContainerMenu {
             }
             MenuKind::Hopper => (0..5).for_each(|i| menu.add_slot(Slot::new(c, i, SlotKind::Normal))),
             MenuKind::Dispenser => (0..9).for_each(|i| menu.add_slot(Slot::new(c, i, SlotKind::Normal))),
+            MenuKind::BrewingStand => {
+                (0..3).for_each(|i| menu.add_slot(Slot::new(c, i, SlotKind::BrewingStandPotion)));
+                menu.add_slot(Slot::new(c, 3, SlotKind::BrewingStandIngredients));
+                menu.add_slot(Slot::new(c, 4, SlotKind::BrewingStandFuel));
+            }
         }
         for i in 9..36 {
             menu.add_slot(Slot::new(SlotContainer::Inventory, i, SlotKind::Normal));
@@ -141,7 +149,7 @@ impl AbstractContainerMenu {
         for i in 0..9 {
             menu.add_slot(Slot::new(SlotContainer::Inventory, i, SlotKind::Normal));
         }
-        if let MenuKind::Furnace(_) = kind {
+        if let MenuKind::Furnace(_) | MenuKind::BrewingStand = kind {
             menu.data_prev = vec![0; 4];
             menu.remote_data_slots = vec![0; 4];
         }
@@ -239,6 +247,7 @@ impl ServerLevel {
         let Some(pos) = menu.container.single_block() else { return 0 };
         match self.get_block_entity(pos).map(|e| &e.kind) {
             Some(crate::world::level::block::entity::BlockEntityKind::Furnace(furnace)) => furnace.data(id),
+            Some(crate::world::level::block::entity::BlockEntityKind::BrewingStand(brewing_stand)) => brewing_stand.data(id),
             _ => 0,
         }
     }
@@ -570,6 +579,34 @@ impl ServerLevel {
                     self.move_item_stack_to(menu, player, &mut stack, 3, 39, false)
                 }
             }
+            MenuKind::BrewingStand => {
+                if index > 2 && index != 3 && index != 4 {
+                    if brewing_stand_fuel_may_place_item(&clicked) {
+                        if self.move_item_stack_to(menu, player, &mut stack, 4, 5, false) {
+                            self.slot_put(player, &slot, stack);
+                            menu.slots[index] = slot;
+                            return ItemStack::empty();
+                        }
+                        !(self.slot_may_place(&menu.slots[3], &stack) && !self.move_item_stack_to(menu, player, &mut stack, 3, 4, false))
+                    } else if self.slot_may_place(&menu.slots[3], &stack) {
+                        self.move_item_stack_to(menu, player, &mut stack, 3, 4, false)
+                    } else if PotionIngredient::is_potion_input(&clicked) {
+                        self.move_item_stack_to(menu, player, &mut stack, 0, 3, false)
+                    } else if (5..32).contains(&index) {
+                        self.move_item_stack_to(menu, player, &mut stack, 32, 41, false)
+                    } else if (32..41).contains(&index) {
+                        self.move_item_stack_to(menu, player, &mut stack, 5, 32, false)
+                    } else {
+                        self.move_item_stack_to(menu, player, &mut stack, 5, 41, false)
+                    }
+                } else {
+                    let moved = self.move_item_stack_to(menu, player, &mut stack, 5, 41, true);
+                    if moved {
+                        self.slot_on_quick_craft(player, &mut slot, &stack, &clicked);
+                    }
+                    moved
+                }
+            }
         };
         if !moved {
             menu.slots[index] = slot;
@@ -581,7 +618,7 @@ impl ServerLevel {
         } else {
             self.slot_set_changed(&slot);
         }
-        if matches!(menu.kind, MenuKind::Furnace(_) | MenuKind::Dispenser) {
+        if matches!(menu.kind, MenuKind::Furnace(_) | MenuKind::Dispenser | MenuKind::BrewingStand) {
             if stack.count == clicked.count {
                 menu.slots[index] = slot;
                 return ItemStack::empty();

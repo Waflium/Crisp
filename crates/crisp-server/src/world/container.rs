@@ -5,6 +5,7 @@ use crate::server::level::ServerLevel;
 use crate::world::entity::EntityId;
 use crate::world::item::ItemStack;
 use crate::world::level::block::entity::abstract_furnace_block_entity::AbstractFurnaceBlockEntity;
+use crate::world::level::block::entity::brewing_stand_block_entity::BrewingStandBlockEntity;
 use crate::world::level::block::entity::{BlockEntity, BlockEntityKind};
 use crate::world::level::block::chest_block;
 
@@ -236,6 +237,7 @@ impl ServerLevel {
         let Some((pos, slot)) = self.container_part(container, slot) else { return false };
         match self.get_block_entity(pos).map(|e| &e.kind) {
             Some(BlockEntityKind::Furnace(furnace)) => furnace.can_place_item(slot, stack),
+            Some(BlockEntityKind::BrewingStand(brewing_stand)) => brewing_stand.can_place_item(slot, stack),
             _ => true,
         }
     }
@@ -260,6 +262,7 @@ impl ServerLevel {
         match self.get_block_entity(pos).map(|e| &e.kind)? {
             BlockEntityKind::ShulkerBox(_) => Some((0..27).collect()),
             BlockEntityKind::Furnace(_) => Some(AbstractFurnaceBlockEntity::slots_for_face(direction).to_vec()),
+            BlockEntityKind::BrewingStand(_) => Some(BrewingStandBlockEntity::get_slots_for_face(direction).to_vec()),
             _ => None,
         }
     }
@@ -274,6 +277,7 @@ impl ServerLevel {
         match self.get_block_entity(pos).map(|e| &e.kind) {
             Some(BlockEntityKind::ShulkerBox(_)) => !stack.get_item().info().block.is_some_and(|b| b.is_instance_of("ShulkerBoxBlock")),
             Some(BlockEntityKind::Furnace(furnace)) => furnace.can_place_item(slot, stack),
+            Some(BlockEntityKind::BrewingStand(brewing_stand)) => brewing_stand.can_place_item(slot, stack),
             _ => true,
         }
     }
@@ -285,6 +289,7 @@ impl ServerLevel {
         let Some(pos) = container.single_block() else { return true };
         match self.get_block_entity(pos).map(|e| &e.kind) {
             Some(BlockEntityKind::Furnace(_)) => AbstractFurnaceBlockEntity::can_take_item_through_face(slot, stack, direction),
+            Some(BlockEntityKind::BrewingStand(_)) => BrewingStandBlockEntity::can_take_item_through_face(slot, stack),
             _ => true,
         }
     }

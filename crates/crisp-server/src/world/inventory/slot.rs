@@ -4,6 +4,8 @@ use crate::server::level::ServerLevel;
 use crate::world::container::ContainerRef;
 use crate::world::entity::EntityId;
 use crate::world::item::component as dc;
+use crate::world::item::crafting::potion_ingredient::PotionIngredient;
+use crate::world::item::crafting::recipe_property_set::{BREWING_REAGENTS, RecipePropertySet};
 use crate::world::item::{ItemStack, inventory_slot};
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -18,6 +20,9 @@ pub enum SlotKind {
     ShulkerBox,
     FurnaceFuel,
     FurnaceResult { remove_count: i32 },
+    BrewingStandPotion,
+    BrewingStandIngredients,
+    BrewingStandFuel,
 }
 
 #[derive(Clone, Debug)]
@@ -40,6 +45,10 @@ pub fn is_bucket(stack: &ItemStack) -> bool {
 
 pub fn is_fuel(stack: &ItemStack) -> bool {
     stack.has(dc::COOKING_FUEL)
+}
+
+pub fn brewing_stand_fuel_may_place_item(stack: &ItemStack) -> bool {
+    stack.has(dc::BREWING_FUEL)
 }
 
 impl ServerLevel {
@@ -83,6 +92,9 @@ impl ServerLevel {
         if slot.kind == SlotKind::FurnaceFuel && is_bucket(stack) {
             return 1;
         }
+        if slot.kind == SlotKind::BrewingStandPotion {
+            return stack.max_stack_size().min(1);
+        }
         stack.max_stack_size().min(99)
     }
 
@@ -92,6 +104,9 @@ impl ServerLevel {
             SlotKind::ShulkerBox => !stack.get_item().info().block.is_some_and(|b| b.is_instance_of("ShulkerBoxBlock")),
             SlotKind::FurnaceFuel => is_fuel(stack) || is_bucket(stack),
             SlotKind::FurnaceResult { .. } => false,
+            SlotKind::BrewingStandPotion => PotionIngredient::is_potion_input(stack),
+            SlotKind::BrewingStandIngredients => RecipePropertySet::get(BREWING_REAGENTS).test(stack),
+            SlotKind::BrewingStandFuel => brewing_stand_fuel_may_place_item(stack),
         }
     }
 

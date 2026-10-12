@@ -1,3 +1,7 @@
+pub mod brewing_recipe;
+pub mod potion_ingredient;
+pub mod recipe_property_set;
+
 use std::sync::OnceLock;
 
 use crisp_data::{Item, RECIPES, tag};

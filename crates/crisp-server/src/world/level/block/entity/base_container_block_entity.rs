@@ -1,7 +1,12 @@
+use crisp_core::{BlockPos, Vec3};
+use crisp_data::BlockState;
 use crisp_protocol::nbt::Nbt;
 
-use super::{int_value, long_value};
+use super::{BlockEntity, int_value, long_value};
+use crate::server::level::ServerLevel;
 use crate::world::item::ItemStack;
+use crate::world::level::storage::loot::loot_context::{LootContext, LootContextBuilder};
+use crate::world::level::storage::loot::loot_params::{LootParams, SlotProvider};
 use crate::world::item::component::values::ItemStackTemplate;
 use crate::world::item::component::{self as dc, DataComponentType};
 
@@ -85,6 +90,17 @@ impl BaseContainerBlockEntity {
             }
             set(dc::CONTAINER_LOOT, Some(Nbt::Compound(loot)));
         }
+    }
+}
+
+impl ServerLevel {
+    pub fn get_loot_context<'a>(&'a mut self, pos: BlockPos, state: BlockState, block_entity: Option<&'a BlockEntity>) -> LootContext<'a> {
+        let mut params = LootParams::new(self);
+        params.block_state = Some(state);
+        params.block_entity = block_entity;
+        params.origin = Some(Vec3::at_center_of(pos));
+        params.container = block_entity.map(SlotProvider::BlockEntity);
+        LootContextBuilder::new(params).create(None)
     }
 }
 

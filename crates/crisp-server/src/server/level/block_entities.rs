@@ -68,7 +68,7 @@ impl ServerLevel {
     pub fn pre_remove_side_effects(&mut self, pos: BlockPos) {
         let Some(entity) = self.get_block_entity(pos) else { return };
         let (is_container, is_furnace) = match &entity.kind {
-            BlockEntityKind::Chest(_) | BlockEntityKind::Barrel(_) | BlockEntityKind::Hopper(_) | BlockEntityKind::Dispenser(_) => (true, false),
+            BlockEntityKind::Chest(_) | BlockEntityKind::Barrel(_) | BlockEntityKind::Hopper(_) | BlockEntityKind::Dispenser(_) | BlockEntityKind::BrewingStand(_) => (true, false),
             BlockEntityKind::Furnace(_) => (true, true),
             BlockEntityKind::Jukebox(_) => return self.jukebox_pop_out_the_item(pos),
             _ => (false, false),
@@ -158,6 +158,7 @@ impl ServerLevel {
             BlockEntityTicker::Jukebox => self.jukebox_tick(pos),
             BlockEntityTicker::Conduit => self.conduit_server_tick(pos, state),
             BlockEntityTicker::Beacon => self.beacon_tick(pos),
+            BlockEntityTicker::BrewingStand => self.brewing_stand_server_tick(pos, state),
         }
     }
 
