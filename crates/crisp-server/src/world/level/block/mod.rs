@@ -49,6 +49,7 @@ pub mod brewing_stand_block;
 mod conduit_block;
 mod enchanting_table_block;
 mod eyeblossom_block;
+mod infested_block;
 mod daylight_detector_block;
 mod copper_bulb_block;
 mod jukebox_block;
@@ -828,6 +829,7 @@ fn for_class(class: &str, block: Block) -> Option<Box<dyn BlockBehaviour>> {
         "HorizontalDirectionalBlock" => Box::new(horizontal_directional_block::HorizontalDirectionalBlock),
         "HugeMushroomBlock" => Box::new(huge_mushroom_block::HugeMushroomBlock),
         "InfestedRotatedPillarBlock" => Box::new(infested_rotated_pillar_block::InfestedRotatedPillarBlock),
+        "InfestedBlock" => Box::new(infested_block::InfestedBlock),
         "JigsawBlock" => Box::new(jigsaw_block::JigsawBlock),
         "LecternBlock" => Box::new(lectern_block::LecternBlock),
         "MovingPistonBlock" => Box::new(moving_piston_block::MovingPistonBlock),

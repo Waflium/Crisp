@@ -50,6 +50,15 @@ pub fn get_item_enchantment_level(enchantment: &str, piece: &ItemStack) -> i32 {
     piece.enchantments().level(enchantment)
 }
 
+pub fn has_tag(item_stack: &ItemStack, tag: &str) -> bool {
+    let tag = crisp_data::tag("minecraft:enchantment", tag);
+    item_stack
+        .enchantments()
+        .enchantments
+        .iter()
+        .any(|(enchantment, _)| crate::world::item::component::codec::registry_id("minecraft:enchantment", enchantment).is_ok_and(|id| tag.contains(&id)))
+}
+
 pub fn get_component_type(item_stack: &ItemStack) -> DataComponentType {
     if item_stack.is(items::ENCHANTED_BOOK) { dc::STORED_ENCHANTMENTS } else { dc::ENCHANTMENTS }
 }
