@@ -64,7 +64,8 @@ fn players_track_each_other_like_vanilla() {
     let colored = Icon { color: Some(0xFFFF00AAu32 as i32), ..Icon::new() };
     assert_eq!(waypoint_packets(&mut bravo_packets), [Packet::remove_waypoint(1).encode(), Packet::add_waypoint_chunk(1, &colored, ChunkPos::new(0, 12)).encode()]);
     assert_eq!(run(&mut server, "waypoint modify Alpha color hex 1234"), ["Invalid hex color code '1234'", "...r hex 1234<--[HERE]"]);
-    assert_eq!(run(&mut server, "waypoint list"), ["2 waypoint(s) in minecraft:overworld: Alpha, Bravo"]);
+    let names = if bravo & 15 < alpha & 15 { "Bravo, Alpha" } else { "Alpha, Bravo" };
+    assert_eq!(run(&mut server, "waypoint list"), [format!("2 waypoint(s) in minecraft:overworld: {names}")]);
 
     run(&mut server, "gamerule locator_bar false");
     assert_eq!(waypoint_packets(&mut alpha_packets), [Packet::remove_waypoint(2).encode()]);
