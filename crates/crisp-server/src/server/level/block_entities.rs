@@ -76,6 +76,7 @@ impl ServerLevel {
                 return crate::world::containers::drop_contents(self, pos, ContainerRef::ChiseledBookShelf(pos));
             }
             BlockEntityKind::Shelf(_) => return crate::world::containers::drop_contents(self, pos, ContainerRef::Shelf(pos)),
+            BlockEntityKind::DecoratedPot(_) => return crate::world::containers::drop_contents(self, pos, ContainerRef::DecoratedPot(pos)),
             BlockEntityKind::Lectern(_) => {
                 let state = entity.block_state();
                 return self.lectern_pre_remove_side_effects(pos, state);
@@ -96,11 +97,18 @@ impl ServerLevel {
         if !entity.is_randomizable() {
             return;
         }
-        let Some(base) = entity.container_base_mut() else { return };
-        let Some(loot_table_key) = base.loot_table.take() else { return };
-        let loot_table_seed = base.loot_table_seed;
+        let (loot_table_key, loot_table_seed, container) = match &mut entity.kind {
+            BlockEntityKind::DecoratedPot(pot) => {
+                let Some(loot_table_key) = pot.loot_table.take() else { return };
+                (loot_table_key, pot.loot_table_seed, ContainerRef::DecoratedPot(pos))
+            }
+            _ => {
+                let Some(base) = entity.container_base_mut() else { return };
+                let Some(loot_table_key) = base.loot_table.take() else { return };
+                (loot_table_key, base.loot_table_seed, ContainerRef::block(self, pos))
+            }
+        };
         let loot_table = LootTable::get(&loot_table_key);
-        let container = ContainerRef::block(self, pos);
         let luck = player.map(|player| self.attribute_value(player, Attribute::Luck) as f32);
         let mut params = LootParams::new(self);
         params.origin = Some(crisp_core::Vec3::at_center_of(pos));
