@@ -38,6 +38,7 @@ use crate::world::level::storage::RespawnData;
 use crate::world::InteractionHand;
 
 pub const DIMENSIONS: EntityDimensions = EntityDimensions { width: 0.6, height: 1.8, eye_height: 1.62 };
+const GAME_EVENT_WIN_GAME: u8 = 4;
 
 const CREATIVE_BLOCK_INTERACTION_RANGE_MODIFIER: AttributeModifier =
     AttributeModifier { id: Cow::Borrowed("minecraft:creative_mode_block_range"), amount: 0.5, operation: Operation::AddValue };
@@ -81,6 +82,7 @@ pub struct ServerPlayer {
     pub respawn_config: Option<RespawnConfig>,
     pub is_changing_dimension: bool,
     pub seen_credits: bool,
+    pub won_game: bool,
     pub entered_nether_position: Option<Vec3>,
     pub sleep_counter: i32,
     pub health: f32,
@@ -154,6 +156,7 @@ impl ServerPlayer {
             respawn_config: None,
             is_changing_dimension: false,
             seen_credits: false,
+            won_game: false,
             entered_nether_position: None,
             sleep_counter: 0,
             health: 20.0,
@@ -663,6 +666,20 @@ impl ServerLevel {
         let p = self.player(id);
         for effect in effects {
             p.connection.send_raw(remove_mob_effect(id, effect.effect));
+        }
+    }
+
+    pub fn show_end_credits(&mut self, id: EntityId) {
+        self.player_remove(id, crate::world::entity::RemovalReason::ChangedDimension);
+        self.update_sleeping_player_list();
+        let p = self.player_mut(id);
+        if !p.won_game {
+            p.won_game = true;
+            p.connection.send(clientbound::GAME_EVENT, |w| {
+                w.u8(GAME_EVENT_WIN_GAME);
+                w.f32(0.0);
+            });
+            p.seen_credits = true;
         }
     }
 

@@ -136,7 +136,7 @@ fn base_values_outlive_death_and_effects_do_not() {
     run(&mut server, "attribute Alice max_health modifier add test:boost 4 add_value");
     run(&mut server, "effect give Alice speed");
     server.levels[0].kill(alice);
-    server.respawn(alice);
+    server.respawn(alice, false, crate::world::entity::RemovalReason::Killed);
     assert_eq!(server.levels[0].max_health(alice), 30.0);
     assert_eq!(server.levels[0].player(alice).health, 30.0);
     assert!(server.levels[0].player(alice).living.active_effects.is_empty());

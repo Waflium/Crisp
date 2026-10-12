@@ -117,6 +117,7 @@ pub struct ServerLevel {
     pub world_border: WorldBorder,
     pub raids: crate::world::entity::raid::raids::Raids,
     pub pending_portal_teleport: Option<crate::world::level::block::portal::PendingPortalTeleport>,
+    pub global_level_events: Vec<(i32, BlockPos, i32)>,
     entity_tick_range: Option<(usize, usize)>,
     pub rain_level: f32,
     pub o_rain_level: f32,
@@ -228,6 +229,7 @@ impl ServerLevel {
             world_border: WorldBorder::new(Settings::DEFAULT, None),
             raids: crate::world::entity::raid::raids::Raids::load(None),
             pending_portal_teleport: None,
+            global_level_events: Vec::new(),
             entity_tick_range: None,
             environment_attributes: EnvironmentAttributeSystem::default(),
             clock_ticks: ServerClockManager::new().clocks.iter().map(|c| c.total_ticks).collect(),
@@ -876,6 +878,14 @@ impl ServerLevel {
             if dx * dx + dy * dy + dz * dz < range * range {
                 p.connection.send_raw(packet.to_vec());
             }
+        }
+    }
+
+    pub fn global_level_event(&mut self, event: i32, pos: BlockPos, data: i32) {
+        if self.game_rules.get_bool(crisp_data::game_rule::GLOBAL_SOUND_EVENTS) {
+            self.global_level_events.push((event, pos, data));
+        } else {
+            self.level_event(None, event, pos, data);
         }
     }
 

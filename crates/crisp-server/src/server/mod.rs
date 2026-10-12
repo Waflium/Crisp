@@ -786,6 +786,7 @@ impl Server {
                     self.player_mut(id).disconnect("multiplayer.disconnect.invalid_packet");
                 }
                 self.entity_level_mut(id).entity_moved(id);
+                self.send_global_level_events();
                 if self.player(id).disconnected {
                     self.remove_player(conn, None);
                 }
@@ -1401,8 +1402,43 @@ impl Server {
         self.levels[index].tick_after_time(runs);
         while self.levels[index].tick_entities() {
             self.handle_pending_portal_teleport(index);
+            self.send_global_level_events();
         }
         self.levels[index].tick_after_entities();
+        self.send_global_level_events();
+    }
+
+    pub fn send_global_level_events(&mut self) {
+        for index in 0..self.levels.len() {
+            if self.levels[index].global_level_events.is_empty() {
+                continue;
+            }
+            for (event, pos, data) in std::mem::take(&mut self.levels[index].global_level_events) {
+                for &id in &self.player_list {
+                    let Some(level) = self.level_of(id) else { continue };
+                    let player = self.levels[level].player(id);
+                    let position = player.entity.position();
+                    let sound_pos = if level == index {
+                        let center_of_block = crisp_core::Vec3::at_center_of(pos);
+                        if position.distance_to_sqr(center_of_block) < (32 * 32) as f64 {
+                            center_of_block
+                        } else {
+                            let direction_to_event = center_of_block.subtract(position).normalize();
+                            position.add_vec(direction_to_event.scale(32.0))
+                        }
+                    } else {
+                        position
+                    };
+                    let sound_pos = BlockPos::containing_vec(sound_pos);
+                    player.connection.send(clientbound::LEVEL_EVENT, |p| {
+                        p.i32(event);
+                        p.position(sound_pos.x, sound_pos.y, sound_pos.z);
+                        p.i32(data);
+                        p.bool(true);
+                    });
+                }
+            }
+        }
     }
 
     pub fn tick_times_nanos(&self) -> &[i64; 100] {

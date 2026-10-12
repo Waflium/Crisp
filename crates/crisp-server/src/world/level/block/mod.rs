@@ -236,7 +236,8 @@ mod copper_golem_statue_block;
 pub mod crafter_block;
 mod creaking_heart_block;
 mod decorated_pot_block;
-mod end_portal_frame_block;
+pub mod end_portal_block;
+pub mod end_portal_frame_block;
 mod ender_chest_block;
 mod horizontal_directional_block;
 mod huge_mushroom_block;
@@ -247,6 +248,7 @@ mod moving_piston_block;
 pub mod nether_portal_block;
 mod piston_base_block;
 pub mod portal;
+pub mod state;
 mod pointed_dripstone_block;
 mod rod_block;
 mod shelf_block;
@@ -832,6 +834,7 @@ fn for_class(class: &str, block: Block) -> Option<Box<dyn BlockBehaviour>> {
         "CrafterBlock" => Box::new(crafter_block::CrafterBlock),
         "CreakingHeartBlock" => Box::new(creaking_heart_block::CreakingHeartBlock),
         "DecoratedPotBlock" => Box::new(decorated_pot_block::DecoratedPotBlock),
+        "EndPortalBlock" => Box::new(end_portal_block::EndPortalBlock),
         "EndPortalFrameBlock" => Box::new(end_portal_frame_block::EndPortalFrameBlock),
         "EnderChestBlock" => Box::new(ender_chest_block::EnderChestBlock),
         "HorizontalDirectionalBlock" => Box::new(horizontal_directional_block::HorizontalDirectionalBlock),

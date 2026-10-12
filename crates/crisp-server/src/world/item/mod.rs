@@ -12,6 +12,7 @@ pub mod glow_ink_sac_item;
 pub mod ink_sac_item;
 pub mod sign_applicator;
 pub mod enchantment;
+pub mod ender_eye_item;
 pub mod flint_and_steel_item;
 mod item_stack;
 pub mod honeycomb_item;
@@ -63,6 +64,7 @@ pub fn use_on(level: &mut ServerLevel, player: EntityId, hand: InteractionHand, 
         }
         Some(&"SpawnEggItem") => return spawn_egg_item::use_on(level, player, hand, hit, stack),
         Some(&"HoneycombItem") => return honeycomb_item::use_on(level, player, hand, hit, stack),
+        Some(&"EnderEyeItem") => return ender_eye_item::use_on(level, player, hand, hit, stack),
         _ => {}
     }
     match &BLOCK_ITEMS[stack.item.0 as usize] {

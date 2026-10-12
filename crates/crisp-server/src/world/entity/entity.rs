@@ -2135,9 +2135,13 @@ impl ServerLevel {
     fn capture_portal_teleport(&mut self, id: EntityId, portal: Portal, entry_position: BlockPos) -> PendingPortalTeleport {
         let entity = self.portal_entity(id);
         let destination = portal.get_destination_dimension(self.dimension);
-        let removed = entity.data.is_some() && destination != self.dimension && self.is_allowed_to_enter_portal(destination);
+        let removed = entity.data.is_some() && destination.is_none_or(|destination| destination != self.dimension && self.is_allowed_to_enter_portal(destination));
         if removed {
             self.entity_mut(id).removal = Some(RemovalReason::ChangedDimension);
+            let from_or_to_end = self.dimension == crate::server::THE_END || destination == Some(crate::server::THE_END);
+            if from_or_to_end && let Some(LevelEntity::FallingBlock(falling)) = self.entities.get_mut(&id) {
+                falling.force_tick_after_teleport_to_duplicate = true;
+            }
         }
         PendingPortalTeleport { entity, portal, entry_position, removed }
     }

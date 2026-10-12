@@ -10,7 +10,10 @@ use crate::world::entity::attributes::Attribute;
 use crate::world::entity::data::{DataValue, Pose, ids};
 use crate::world::entity::player::player::get_default_dimensions;
 use crate::world::entity::vehicle::dismount_helper::DismountType;
+use crate::world::entity::living_entity::update_mob_effect;
+use crate::world::level::portal::teleport_transition::{PostTeleportTransition, TeleportTransition};
 use crate::world::entity::{EntityId, RemovalReason};
+use crisp_core::mth;
 use crate::world::level::BlockGetter;
 use crate::world::level::block::{abstract_bed_block, respawn_anchor_block};
 use crate::world::level::update_flags::UPDATE_ALL;
@@ -84,10 +87,19 @@ impl Server {
         if packet.reader().varint()? != PERFORM_RESPAWN {
             return Ok(());
         }
+        if self.player(id).won_game {
+            self.player_mut(id).won_game = false;
+            self.respawn(id, true, RemovalReason::ChangedDimension);
+            let p = self.player_mut(id);
+            p.reset_position();
+            p.movement.waiting_for_respawn = false;
+            p.movement.client_loaded_timeout_timer = 60;
+            return Ok(());
+        }
         if self.player(id).health > 0.0 {
             return Ok(());
         }
-        self.respawn(id);
+        self.respawn(id, false, RemovalReason::Killed);
         let p = self.player_mut(id);
         p.reset_position();
         p.movement.waiting_for_respawn = false;
@@ -96,6 +108,13 @@ impl Server {
             self.entity_level_mut(id).set_game_mode(id, GameType::Spectator);
         }
         Ok(())
+    }
+
+    pub fn find_respawn_teleport_transition(&mut self, id: EntityId, consume_spawn_block: bool, post_teleport_transition: PostTeleportTransition) -> TeleportTransition {
+        let respawn = self.find_respawn_position_and_use_spawn_block(id, consume_spawn_block);
+        let mut transition = TeleportTransition::new(respawn.level, respawn.position, Vec3::ZERO, respawn.y_rot, respawn.x_rot, post_teleport_transition);
+        transition.missing_respawn_block = respawn.missing_respawn_block;
+        transition
     }
 
     fn find_respawn_position_and_use_spawn_block(&mut self, id: EntityId, consume_spawn_block: bool) -> RespawnTransition {
@@ -146,10 +165,10 @@ impl Server {
         RespawnTransition { level, position, y_rot: spawn.yaw, x_rot: spawn.pitch, missing_respawn_block }
     }
 
-    pub fn respawn(&mut self, id: EntityId) {
-        let transition = self.find_respawn_position_and_use_spawn_block(id, true);
+    pub fn respawn(&mut self, id: EntityId, keep_all_player_data: bool, removal_reason: RemovalReason) {
+        let transition = self.find_respawn_position_and_use_spawn_block(id, !keep_all_player_data);
         let old_level = self.level_of(id).expect("respawning player");
-        let old = self.levels[old_level].remove_player_immediately(id, RemovalReason::Killed);
+        let old = self.levels[old_level].remove_player_immediately(id, removal_reason);
         let level_index = transition.level;
         let old_score = old.score();
         let mut player = ServerPlayer::new(old.profile.clone(), old.client, old.connection.clone(), BlockPos::ZERO);
@@ -162,22 +181,29 @@ impl Server {
         player.keep_alive_challenge = old.keep_alive_challenge;
         player.latency = old.latency;
         player.chat = old.chat;
-        player.chat_session = old.chat_session;
+        player.chat_session = old.chat_session.clone();
         player.disconnected = old.disconnected;
         player.set_game_mode_for_player(old.game_mode.game_type, old.game_mode.previous_game_type);
         player.connection.send(clientbound::PLAYER_ABILITIES, |p| player.abilities.write(p));
         player.living.attributes.assign_base_values(&old.living.attributes);
-        player.health = player.living.attributes.value(Attribute::MaxHealth) as f32;
-        player.entity.data.set(ids::HEALTH, DataValue::Float(player.health));
-        if self.game_rules.get_bool(crisp_data::game_rule::KEEP_INVENTORY) || old.game_mode.game_type == GameType::Spectator {
-            for slot in 5..crate::world::item::SLOTS {
-                player.inventory.slots[slot] = old.inventory.slots[slot].clone();
+        if keep_all_player_data {
+            player.living.attributes.assign_permanent_modifiers(&old.living.attributes);
+            player.health = mth::clamp_f(old.health, 0.0, player.living.attributes.value(Attribute::MaxHealth) as f32);
+            player.entity.data.set(ids::HEALTH, DataValue::Float(player.health));
+            player.food_data = old.food_data;
+            self.levels[level_index].players.insert(id, player);
+            for effect in &old.living.active_effects {
+                self.levels[level_index].add_effect(id, effect.clone(), None);
             }
-            player.inventory.selected = old.inventory.selected;
-            player.experience.level = old.experience.level;
-            player.experience.total = old.experience.total;
-            player.experience.progress = old.experience.progress;
-            player.set_score(old_score);
+            player = self.levels[level_index].players.shift_remove(&id).expect("restored player");
+            transfer_inventory_xp_and_score(&mut player, &old.inventory, &old.experience, old_score);
+            player.entity.portal_process = old.entity.portal_process;
+        } else {
+            player.health = player.living.attributes.value(Attribute::MaxHealth) as f32;
+            player.entity.data.set(ids::HEALTH, DataValue::Float(player.health));
+            if self.game_rules.get_bool(crisp_data::game_rule::KEEP_INVENTORY) || old.game_mode.game_type == GameType::Spectator {
+                transfer_inventory_xp_and_score(&mut player, &old.inventory, &old.experience, old_score);
+            }
         }
         player.experience.enchantment_seed = old.experience.enchantment_seed;
         player.ender_chest_inventory = old.ender_chest_inventory;
@@ -208,13 +234,16 @@ impl Server {
         }
         out.send(clientbound::RESPAWN, |p| {
             self.create_common_spawn_info(p, level_index, &player);
-            p.u8(0);
+            p.u8(keep_all_player_data as u8);
         });
         let (pos, y_rot, x_rot) = (player.entity.position(), player.entity.y_rot, player.entity.x_rot);
         player.teleport(pos, y_rot, x_rot);
         out.send(clientbound::SET_DEFAULT_SPAWN_POSITION, |p| self.write_spawn(p));
         self.send_difficulty_update(&out);
         player.send_experience();
+        for effect in &player.living.active_effects {
+            out.send_raw(update_mob_effect(id, effect, false));
+        }
         out.send(clientbound::POST_EFFECTS, |p| p.varint(0));
         self.send_level_info(&out, level_index);
         self.send_player_permission_level_to(level_index, &player);
@@ -222,7 +251,8 @@ impl Server {
         self.player_list.retain(|&p| p != id);
         self.player_list.push(id);
         self.levels[level_index].init_inventory_menu(id);
-        if let Some(respawn_config) = self.player(id).respawn_config.clone()
+        if !keep_all_player_data
+            && let Some(respawn_config) = self.player(id).respawn_config.clone()
             && let Some(respawn_level) = self.get_level(&respawn_config.respawn_data.dimension)
         {
             let respawn_position = respawn_config.respawn_data.pos;
@@ -242,6 +272,22 @@ impl Server {
             }
         }
     }
+}
+
+fn transfer_inventory_xp_and_score(
+    player: &mut ServerPlayer,
+    old_inventory: &crate::world::item::Inventory,
+    old_experience: &crate::world::entity::player::experience::Experience,
+    old_score: i32,
+) {
+    for slot in 5..crate::world::item::SLOTS {
+        player.inventory.slots[slot] = old_inventory.slots[slot].clone();
+    }
+    player.inventory.selected = old_inventory.selected;
+    player.experience.level = old_experience.level;
+    player.experience.total = old_experience.total;
+    player.experience.progress = old_experience.progress;
+    player.set_score(old_score);
 }
 
 fn calculate_look_at_yaw(position: Vec3, look_at_block_pos: BlockPos) -> f32 {

@@ -17,7 +17,7 @@ use crate::world::level::block::portal::{Portal, PortalEntity};
 use crate::world::level::portal::portal_forcer;
 use crate::world::level::portal::portal_shape::{self, PortalShape};
 use crate::world::level::portal::teleport_transition::{PostTeleportTransition, TeleportTransition};
-use crate::server::THE_NETHER;
+use crate::server::{OVERWORLD, THE_NETHER};
 use crate::world::level::{BlockGetter, LevelAccessor};
 
 pub struct NetherPortalBlock;
@@ -85,7 +85,7 @@ pub fn get_portal_transition_time(level: &ServerLevel, entity: EntityId) -> i32 
 }
 
 pub fn get_portal_destination(server: &mut Server, current_level: usize, entity: &PortalEntity, portal_entry_pos: BlockPos) -> Option<TeleportTransition> {
-    let new_dimension = Portal::NetherPortal.get_destination_dimension(server.levels[current_level].dimension);
+    let new_dimension = if server.levels[current_level].dimension == THE_NETHER { OVERWORLD } else { THE_NETHER };
     let new_level = server.get_level(new_dimension)?;
     let to_nether = server.levels[new_level].dimension == THE_NETHER;
     let teleportation_scale = get_teleportation_scale(server.levels[current_level].dimension_type(), server.levels[new_level].dimension_type());

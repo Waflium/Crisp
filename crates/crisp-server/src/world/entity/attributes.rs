@@ -254,6 +254,16 @@ impl AttributeInstance {
         self.add_modifier(modifier, true);
     }
 
+    pub fn add_permanent_modifiers(&mut self, modifiers: Vec<AttributeModifier>) {
+        for modifier in modifiers {
+            self.add_permanent_modifier(modifier);
+        }
+    }
+
+    pub fn permanent_modifiers(&self) -> impl Iterator<Item = &AttributeModifier> {
+        self.modifiers.iter().filter(|(_, permanent)| *permanent).map(|(m, _)| m)
+    }
+
     pub fn remove_modifier(&mut self, id: &str) -> bool {
         let Some(index) = self.modifiers.iter().position(|(m, _)| m.id == id) else { return false };
         let (modifier, _) = self.modifiers.remove(index);
@@ -438,6 +448,14 @@ impl AttributeMap {
             instance.set_base_value(base_value);
         }
         true
+    }
+
+    pub fn assign_permanent_modifiers(&mut self, other: &AttributeMap) {
+        for other in &other.instances {
+            if let Some(instance) = self.instance(other.attribute) {
+                instance.add_permanent_modifiers(other.permanent_modifiers().cloned().collect());
+            }
+        }
     }
 
     pub fn assign_base_values(&mut self, other: &AttributeMap) {

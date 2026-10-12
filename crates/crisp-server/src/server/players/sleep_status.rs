@@ -44,13 +44,13 @@ impl ServerLevel {
                 vec![Arg::Int(self.sleep_status.amount_sleeping()), Arg::Int(self.sleep_status.sleepers_needed(percentage))],
             )
         };
-        for &id in self.players.keys() {
+        for id in self.level_players() {
             self.send_overlay_message(id, &message);
         }
     }
 
     pub fn update_sleeping_player_list(&mut self) {
-        if !self.players.is_empty() && self.update_sleep_status() {
+        if !self.level_players().is_empty() && self.update_sleep_status() {
             self.announce_sleep_status();
         }
     }
@@ -62,14 +62,14 @@ impl ServerLevel {
 
     pub fn wake_up_all_players(&mut self) {
         self.sleep_status.remove_all_sleepers();
-        let sleeping: Vec<EntityId> = self.players.keys().copied().filter(|&id| self.is_sleeping(id)).collect();
+        let sleeping: Vec<EntityId> = self.level_players().into_iter().filter(|&id| self.is_sleeping(id)).collect();
         for id in sleeping {
             self.stop_sleep_in_bed(id, false, false);
         }
     }
 
     pub fn are_enough_deep_sleeping(&self, sleep_percentage_needed: i32) -> bool {
-        let deep_sleepers = self.players.keys().filter(|&&id| self.is_sleeping_long_enough(id)).count() as i32;
+        let deep_sleepers = self.level_players().into_iter().filter(|&id| self.is_sleeping_long_enough(id)).count() as i32;
         deep_sleepers >= self.sleep_status.sleepers_needed(sleep_percentage_needed)
     }
 
@@ -77,7 +77,7 @@ impl ServerLevel {
         let old_active_players = self.sleep_status.active_players;
         let old_sleeping_players = self.sleep_status.sleeping_players;
         let (mut active_players, mut sleeping_players) = (0, 0);
-        let ids: Vec<EntityId> = self.players.keys().copied().collect();
+        let ids = self.level_players();
         for id in ids {
             if !self.is_spectator(id) {
                 active_players += 1;
