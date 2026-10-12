@@ -104,7 +104,7 @@ impl CommandContext {
     }
 
     pub fn get_score_holders(&self, server: &Server, source: &CommandSourceStack, name: &str) -> Result<Vec<ScoreHolder>, CommandSyntaxException> {
-        self.get_score_holders_with(server, source, name, || server.level.scoreboard.tracked_players())
+        self.get_score_holders_with(server, source, name, || server.scoreboard.borrow().tracked_players())
     }
 }
 

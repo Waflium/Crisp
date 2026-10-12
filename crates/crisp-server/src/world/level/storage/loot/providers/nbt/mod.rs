@@ -31,7 +31,7 @@ impl NbtProvider {
             NbtProvider::Context(LootContextArg::Entity(target)) => target.get(&context.params).map(|entity| context.params.level.entity_tag_to_compare(entity)),
             NbtProvider::Context(LootContextArg::BlockEntity) => context.params.block_entity.map(|entity| entity.save_with_full_metadata()),
             NbtProvider::Context(_) => None,
-            NbtProvider::Storage(id) => Some(Nbt::Compound(context.level().command_storage.get(id))),
+            NbtProvider::Storage(id) => Some(Nbt::Compound(context.level().command_storage.borrow_mut().get(id))),
         }
     }
 }

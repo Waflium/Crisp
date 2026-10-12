@@ -67,7 +67,7 @@ fn resolve_contents(server: &Server, source: &CommandSourceStack, entity: Option
                 Some(entity) if holder.is_wildcard() => ScoreHolder::for_entity(&server.level, entity),
                 _ => holder,
             };
-            let scoreboard = &server.level.scoreboard;
+            let scoreboard = server.scoreboard.borrow();
             let score = scoreboard
                 .get_objective(objective)
                 .and_then(|o| scoreboard.get_player_score_info(holder.scoreboard_name(), o.id()).map(|score| score.format_value(&o.number_format_or_default(NumberFormat::no_style()))));

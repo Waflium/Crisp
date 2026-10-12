@@ -31,7 +31,7 @@ fn component_hex(component: &Component) -> String {
 }
 
 fn set(level: &mut ServerLevel, holder: &str, objective: u32, value: i32) {
-    let mut score = level.scoreboard.get_or_create_player_score(&ScoreHolder::for_name_only(holder), objective, false);
+    let mut score = level.scoreboard.borrow_mut().get_or_create_player_score(&ScoreHolder::for_name_only(holder), objective, false);
     score.set(level, value).unwrap();
 }
 
@@ -45,19 +45,19 @@ fn maps_iterate_as_vanilla() {
     let mut objectives = Vec::new();
     for i in 0..40 {
         let name = if i % 2 == 0 { format!("obj{i}") } else { format!("o_{}", i * 7919) };
-        objectives.push(level.scoreboard.add_objective(&name, ObjectiveCriteria::DUMMY, Component::literal(name.clone()), RenderType::Integer, false, None));
+        objectives.push(level.scoreboard.borrow_mut().add_objective(&name, ObjectiveCriteria::DUMMY, Component::literal(name.clone()), RenderType::Integer, false, None));
     }
     for i in (0..40).step_by(3) {
-        level.scoreboard.remove_objective(objectives[i]);
+        level.scoreboard.borrow_mut().remove_objective(objectives[i]);
     }
-    let stored = level.scoreboard.store();
+    let stored = level.scoreboard.borrow().store();
     let streamed = joined(stored.get("Objectives").unwrap().as_list().iter().map(|o| o.get("Name").unwrap().as_str().unwrap()));
     assert_eq!(
         streamed,
         "obj10,o_150461,o_245489,o_87109,obj16,o_102947,o_7919,obj32,o_197975,o_134623,o_39595,o_182137,obj34,obj22,o_55433,obj4,obj28,obj26,obj2,obj8,o_293003,obj20,o_277165,obj14,obj38,o_229651"
     );
     assert_eq!(
-        joined(level.scoreboard.objectives().map(|o| o.name())),
+        joined(level.scoreboard.borrow().objectives().map(|o| o.name())),
         "o_229651,obj38,obj14,o_277165,obj20,o_293003,obj8,obj2,obj26,obj28,obj4,o_55433,obj22,obj34,o_182137,o_39595,o_134623,o_197975,obj32,o_7919,o_102947,obj16,o_87109,o_245489,o_150461,obj10"
     );
 
@@ -68,34 +68,35 @@ fn maps_iterate_as_vanilla() {
     }
     for i in 0..70 {
         if i % 7 != 3 {
-            level.scoreboard.reset_all_player_scores(&name(i));
+            level.scoreboard.borrow_mut().reset_all_player_scores(&name(i));
         }
     }
-    let tracked: Vec<String> = level.scoreboard.tracked_players().into_iter().map(|h| h.name).collect();
+    let mut scoreboard = level.scoreboard.borrow_mut();
+    let tracked: Vec<String> = scoreboard.tracked_players().into_iter().map(|h| h.name).collect();
     assert_eq!(tracked.join(","), "Player17,Player59,Player24,Player52,Player38,Player31,#fake45,Player66,Player3,#fake10");
-    assert_eq!(joined(level.scoreboard.list_player_scores(first).iter().map(|e| e.owner)), "#fake10,Player3,Player66,#fake45,Player31,Player38,Player52,Player24,Player59,Player17");
+    assert_eq!(joined(scoreboard.list_player_scores(first).iter().map(|e| e.owner)), "#fake10,Player3,Player66,#fake45,Player31,Player38,Player52,Player24,Player59,Player17");
 
-    level.scoreboard.add_player_team("crowd");
+    scoreboard.add_player_team("crowd");
     for i in 0..30 {
-        level.scoreboard.add_player_to_team(&format!("member{}", i * 31), "crowd");
+        scoreboard.add_player_to_team(&format!("member{}", i * 31), "crowd");
     }
     for i in (0..30).step_by(4) {
-        level.scoreboard.remove_player_from_team(&format!("member{}", i * 31), "crowd");
+        scoreboard.remove_player_from_team(&format!("member{}", i * 31), "crowd");
     }
     assert_eq!(
-        joined(level.scoreboard.get_player_team("crowd").unwrap().players()),
+        joined(scoreboard.get_player_team("crowd").unwrap().players()),
         "member217,member837,member279,member310,member155,member682,member465,member62,member589,member403,member527,member806,member341,member186,member31,member651,member434,member775,member93,member558,member899,member713"
     );
     for name in ["red", "blue", "green", "a", "zz", "Team1"] {
-        level.scoreboard.add_player_team(name);
+        scoreboard.add_player_team(name);
     }
-    assert_eq!(joined(level.scoreboard.player_teams().map(|t| t.name())), "a,blue,Team1,green,crowd,red,zz");
+    assert_eq!(joined(scoreboard.player_teams().map(|t| t.name())), "a,blue,Team1,green,crowd,red,zz");
 }
 
 #[test]
 fn packets_match_vanilla() {
-    let mut level = testing::level();
-    let scoreboard = &mut level.scoreboard;
+    let level = testing::level();
+    let mut scoreboard = level.scoreboard.borrow_mut();
     let gold_bold = Style { color: Some(ChatFormatting::Gold.color()), bold: Some(true), ..Style::default() };
     let foo = scoreboard.add_objective(
         "foo",
@@ -106,13 +107,13 @@ fn packets_match_vanilla() {
         Some(NumberFormat::Styled(gold_bold)),
     );
     let bar = scoreboard.add_objective("bar", ObjectiveCriteria::DEATH_COUNT, Component::literal("bar"), RenderType::Integer, false, None);
-    assert_eq!(body(set_objective_packet(scoreboard_objective(&level, foo), METHOD_ADD)), "03666f6f000a080005636f6c6f720003726564080004746578740003466f6f000101010a080005636f6c6f720004676f6c64010004626f6c640100");
-    assert_eq!(body(set_objective_packet(scoreboard_objective(&level, foo), METHOD_REMOVE)), "03666f6f01");
-    level.scoreboard.set_number_format(bar, Some(NumberFormat::Fixed(Component::literal("-"))));
-    assert_eq!(body(set_objective_packet(scoreboard_objective(&level, bar), METHOD_CHANGE)), "03626172020800036261720001020800012d");
-    level.scoreboard.set_number_format(bar, Some(NumberFormat::Blank));
-    assert_eq!(body(set_objective_packet(scoreboard_objective(&level, bar), METHOD_CHANGE)), "0362617202080003626172000100");
-    assert_eq!(body(set_display_objective_packet(DisplaySlot::Sidebar, Some(scoreboard_objective(&level, foo)))), "0103666f6f");
+    assert_eq!(body(set_objective_packet(scoreboard.objective(foo), METHOD_ADD)), "03666f6f000a080005636f6c6f720003726564080004746578740003466f6f000101010a080005636f6c6f720004676f6c64010004626f6c640100");
+    assert_eq!(body(set_objective_packet(scoreboard.objective(foo), METHOD_REMOVE)), "03666f6f01");
+    scoreboard.set_number_format(bar, Some(NumberFormat::Fixed(Component::literal("-"))));
+    assert_eq!(body(set_objective_packet(scoreboard.objective(bar), METHOD_CHANGE)), "03626172020800036261720001020800012d");
+    scoreboard.set_number_format(bar, Some(NumberFormat::Blank));
+    assert_eq!(body(set_objective_packet(scoreboard.objective(bar), METHOD_CHANGE)), "0362617202080003626172000100");
+    assert_eq!(body(set_display_objective_packet(DisplaySlot::Sidebar, Some(scoreboard.objective(foo)))), "0103666f6f");
     assert_eq!(body(set_display_objective_packet(DisplaySlot::TeamRed, None)), "0f00");
     assert_eq!(body(set_score_packet("alice", "foo", 5, None, None)), "05616c69636503666f6f050000");
     let display = Component::literal("X").with_color(ChatFormatting::Aqua);
@@ -123,7 +124,6 @@ fn packets_match_vanilla() {
     assert_eq!(body(reset_score_packet("alice", None)), "05616c69636500");
     assert_eq!(body(reset_score_packet("alice", Some("foo"))), "05616c6963650103666f6f");
 
-    let scoreboard = &mut level.scoreboard;
     scoreboard.add_player_team("red");
     scoreboard.set_team_display_name("red", Component::literal("Reds"));
     scoreboard.set_color("red", Some(TeamColor::Red));
@@ -145,13 +145,9 @@ fn packets_match_vanilla() {
     );
     assert_eq!(component_hex(&red.formatted_name(Component::literal("alice"))), "0a080005636f6c6f7200037265640900056578747261080000000300045b525d200005616c696365000008000474657874000000");
     assert_eq!(
-        component_hex(&level.scoreboard.objective(foo).formatted_display_name()),
+        component_hex(&scoreboard.objective(foo).formatted_display_name()),
         "0a090004776974680a00000001080005636f6c6f720003726564080004746578740003466f6f0a000b686f7665725f6576656e74080006616374696f6e000973686f775f7465787408000576616c75650003666f6f00000800097472616e736c6174650014636861742e7371756172655f627261636b65747300"
     );
-}
-
-fn scoreboard_objective(level: &ServerLevel, id: u32) -> &super::objective::Objective {
-    level.scoreboard.objective(id)
 }
 
 const SAVE: &str = concat!(
@@ -174,27 +170,30 @@ const SAVE: &str = concat!(
 #[test]
 fn save_data_matches_vanilla() {
     let mut level = testing::level();
-    let scoreboard = &mut level.scoreboard;
-    let kills = scoreboard.add_objective("kills", ObjectiveCriteria::KILL_COUNT_ALL, Component::literal("Kills"), RenderType::Integer, true, None);
-    let plain = scoreboard.add_objective("plain", ObjectiveCriteria::DUMMY, Component::literal("plain"), RenderType::Integer, false, None);
-    let hearts = scoreboard.add_objective(
-        "hp",
-        ObjectiveCriteria::HEALTH,
-        Component::literal("HP").with_color(ChatFormatting::Red),
-        RenderType::Hearts,
-        false,
-        Some(NumberFormat::Fixed(Component::literal("?"))),
-    );
-    scoreboard.add_objective("trig", ObjectiveCriteria::TRIGGER, Component::literal("trig"), RenderType::Integer, false, Some(NumberFormat::sidebar_default()));
+    let (kills, plain, hearts) = {
+        let mut scoreboard = level.scoreboard.borrow_mut();
+        let kills = scoreboard.add_objective("kills", ObjectiveCriteria::KILL_COUNT_ALL, Component::literal("Kills"), RenderType::Integer, true, None);
+        let plain = scoreboard.add_objective("plain", ObjectiveCriteria::DUMMY, Component::literal("plain"), RenderType::Integer, false, None);
+        let hearts = scoreboard.add_objective(
+            "hp",
+            ObjectiveCriteria::HEALTH,
+            Component::literal("HP").with_color(ChatFormatting::Red),
+            RenderType::Hearts,
+            false,
+            Some(NumberFormat::Fixed(Component::literal("?"))),
+        );
+        scoreboard.add_objective("trig", ObjectiveCriteria::TRIGGER, Component::literal("trig"), RenderType::Integer, false, Some(NumberFormat::sidebar_default()));
+        (kills, plain, hearts)
+    };
     set(&mut level, "alice", kills, 3);
     set(&mut level, "carol", plain, 0);
-    let mut bob = level.scoreboard.get_or_create_player_score(&ScoreHolder::for_name_only("bob"), plain, false);
+    let mut bob = level.scoreboard.borrow_mut().get_or_create_player_score(&ScoreHolder::for_name_only("bob"), plain, false);
     bob.set(&mut level, -7).unwrap();
     bob.unlock(&mut level);
     bob.set_display(&mut level, Some(Component::literal("Bobby")));
     bob.number_format_override(&mut level, Some(NumberFormat::Blank));
     set(&mut level, "#global", plain, 42);
-    let scoreboard = &mut level.scoreboard;
+    let mut scoreboard = level.scoreboard.borrow_mut();
     scoreboard.set_display_objective(DisplaySlot::Sidebar, Some(kills));
     scoreboard.set_display_objective(DisplaySlot::List, Some(hearts));
     scoreboard.set_display_objective(DisplaySlot::TeamGold, Some(plain));
@@ -212,14 +211,15 @@ fn save_data_matches_vanilla() {
 
     let bytes = unhex(SAVE);
     let tag = Nbt::read(&mut Reader::new(&bytes)).unwrap();
-    let mut loaded = testing::level();
-    loaded.scoreboard.load(&tag);
+    let loaded = testing::level();
+    let mut loaded = loaded.scoreboard.borrow_mut();
+    loaded.load(&tag);
     let mut w = Writer::new();
-    loaded.scoreboard.store().write(&mut w);
+    loaded.store().write(&mut w);
     assert_eq!(hex(w.as_slice()), SAVE);
-    let bob = loaded.scoreboard.get_objective("plain").map(|o| o.id()).and_then(|o| loaded.scoreboard.get_player_score_info("bob", o)).unwrap();
+    let bob = loaded.get_objective("plain").map(|o| o.id()).and_then(|o| loaded.get_player_score_info("bob", o)).unwrap();
     assert_eq!((bob.value, bob.locked, bob.display.clone()), (-7, false, Some(Component::literal("Bobby"))));
-    assert!(loaded.scoreboard.get_players_team("alice").is_some_and(|t| t.name() == "blue"));
+    assert!(loaded.get_players_team("alice").is_some_and(|t| t.name() == "blue"));
 }
 
 #[test]

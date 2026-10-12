@@ -133,7 +133,7 @@ impl Drop for LootContext<'_> {
     fn drop(&mut self) {
         if let ContextRandom::Sequence(key, random) = &self.random {
             let seed = self.params.level.seed;
-            *self.params.level.random_sequences.get(key, seed) = random.clone();
+            *self.params.level.random_sequences.borrow_mut().get(key, seed) = random.clone();
         }
     }
 }
@@ -168,7 +168,7 @@ impl<'a> LootContextBuilder<'a> {
             (None, _) if level_random => ContextRandom::Level,
             (None, Some(key)) => {
                 let seed = params.level.seed;
-                ContextRandom::Sequence(key.to_string(), params.level.random_sequences.get(key, seed).clone())
+                ContextRandom::Sequence(key.to_string(), params.level.random_sequences.borrow_mut().get(key, seed).clone())
             }
             (None, None) => ContextRandom::Level,
         };

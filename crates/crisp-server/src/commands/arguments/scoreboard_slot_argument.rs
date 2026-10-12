@@ -35,7 +35,7 @@ impl CommandContext {
 
     pub fn get_team(&self, server: &Server, name: &str) -> Result<String, CommandSyntaxException> {
         let id = self.get_string(name);
-        match server.level.scoreboard.get_player_team(id) {
+        match server.scoreboard.borrow().get_player_team(id) {
             Some(team) => Ok(team.name().to_string()),
             None => Err(ERROR_TEAM_NOT_FOUND.create(id)),
         }

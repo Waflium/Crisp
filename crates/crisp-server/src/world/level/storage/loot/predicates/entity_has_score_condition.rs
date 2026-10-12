@@ -25,9 +25,12 @@ impl EntityHasScoreCondition {
     }
 
     fn has_score(&self, context: &mut LootContext, holder: &ScoreHolder, objective_name: &str, range: &IntRangePredicate) -> bool {
-        let scoreboard = &context.params.level.scoreboard;
-        let Some(objective) = scoreboard.get_objective(objective_name) else { return false };
-        let Some(value) = scoreboard.get_player_score_info(holder.scoreboard_name(), objective.id()).map(|score| score.value) else { return false };
+        let value = {
+            let scoreboard = context.params.level.scoreboard.borrow();
+            let Some(objective) = scoreboard.get_objective(objective_name) else { return false };
+            let Some(value) = scoreboard.get_player_score_info(holder.scoreboard_name(), objective.id()).map(|score| score.value) else { return false };
+            value
+        };
         range.test(context, value)
     }
 }

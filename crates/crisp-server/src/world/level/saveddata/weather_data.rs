@@ -44,12 +44,13 @@ mod tests {
         let mut level = testing::level();
         level.random = LegacyRandomSource::new(42);
         level.tick();
-        assert_eq!((level.weather.thunder_time, level.weather.rain_time), (33830, 140065));
-        assert!(!level.weather.raining);
+        let weather = level.weather.get();
+        assert_eq!((weather.thunder_time, weather.rain_time), (33830, 140065));
+        assert!(!weather.raining);
 
-        level.weather.rain_time = 1;
+        level.weather.set(super::WeatherData { rain_time: 1, ..weather });
         level.tick();
-        assert!(level.weather.raining);
+        assert!(level.weather.get().raining);
         let mut ticks = 1;
         while !level.is_raining() {
             level.tick();

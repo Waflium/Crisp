@@ -70,7 +70,7 @@ fn number_format(server: &Server, context: &CommandContext, source: &CommandSour
 }
 
 fn formatted(server: &Server, objective: ObjectiveId) -> Component {
-    server.level.scoreboard.objective(objective).formatted_display_name()
+    server.scoreboard.borrow().objective(objective).formatted_display_name()
 }
 
 fn feedback_name(server: &Server, holder: &ScoreHolder) -> Component {
@@ -80,7 +80,7 @@ fn feedback_name(server: &Server, holder: &ScoreHolder) -> Component {
 pub fn get_score(server: &mut Server, context: &CommandContext, source: &CommandSourceStack) -> Result {
     let target = context.get_score_holder(server, source, "target")?;
     let objective = context.get_objective(server, "objective")?;
-    let scoreboard = &server.level.scoreboard;
+    let scoreboard = server.scoreboard.borrow();
     let Some(score) = scoreboard.get_player_score_info(target.scoreboard_name(), objective) else {
         return Err(ERROR_NO_VALUE.create(scoreboard.objective(objective).name(), feedback_name(server, &target)));
     };
@@ -107,9 +107,9 @@ pub fn perform_operation(server: &mut Server, context: &CommandContext, source: 
     let mut tracker = CommandResponseTracker::new();
     let level = &mut server.level;
     for target in targets {
-        let mut score = level.scoreboard.get_or_create_player_score(&target, target_objective, false);
+        let mut score = level.scoreboard.borrow_mut().get_or_create_player_score(&target, target_objective, false);
         for from in &sources {
-            let mut source_score = level.scoreboard.get_or_create_player_score(from, source_objective, false);
+            let mut source_score = level.scoreboard.borrow_mut().get_or_create_player_score(from, source_objective, false);
             apply_operation(level, operation, &mut score, &mut source_score)?;
         }
         let value = score.get(level);
@@ -157,13 +157,13 @@ fn read_only(_: crate::world::scores::scoreboard::ReadOnlyScore) -> CommandSynta
 pub fn enable_trigger(server: &mut Server, context: &CommandContext, source: &CommandSourceStack) -> Result {
     let targets = context.get_score_holders(server, source, "targets")?;
     let objective = context.get_objective(server, "objective")?;
-    if *server.level.scoreboard.objective(objective).criteria() != ObjectiveCriteria::TRIGGER {
+    if *server.scoreboard.borrow().objective(objective).criteria() != ObjectiveCriteria::TRIGGER {
         return Err(ERROR_NOT_TRIGGER.create());
     }
     let mut tracker = CommandResponseTracker::new();
     let level = &mut server.level;
     for target in targets {
-        let mut score = level.scoreboard.get_or_create_player_score(&target, objective, false);
+        let mut score = level.scoreboard.borrow_mut().get_or_create_player_score(&target, objective, false);
         if score.locked(level) {
             score.unlock(level);
             tracker.track(target);
@@ -184,7 +184,7 @@ pub fn reset_scores(server: &mut Server, context: &CommandContext, source: &Comm
     let targets = context.get_score_holders(server, source, "targets")?;
     let mut tracker = CommandResponseTracker::new();
     for target in targets {
-        server.level.scoreboard.reset_all_player_scores(target.scoreboard_name());
+        server.scoreboard.borrow_mut().reset_all_player_scores(target.scoreboard_name());
         tracker.track(target);
     }
     tracker.send_feedback(
@@ -201,7 +201,7 @@ pub fn reset_score(server: &mut Server, context: &CommandContext, source: &Comma
     let objective = context.get_objective(server, "objective")?;
     let mut tracker = CommandResponseTracker::new();
     for target in targets {
-        server.level.scoreboard.reset_single_player_score(target.scoreboard_name(), objective);
+        server.scoreboard.borrow_mut().reset_single_player_score(target.scoreboard_name(), objective);
         tracker.track(target);
     }
     tracker.send_feedback(
@@ -220,7 +220,7 @@ pub fn set_score(server: &mut Server, context: &CommandContext, source: &Command
     let mut tracker = CommandResponseTracker::new();
     let level = &mut server.level;
     for target in targets {
-        let mut score = level.scoreboard.get_or_create_player_score(&target, objective, false);
+        let mut score = level.scoreboard.borrow_mut().get_or_create_player_score(&target, objective, false);
         score.set(level, value).map_err(read_only)?;
         tracker.track_value(target, value);
     }
@@ -245,7 +245,7 @@ pub fn set_score_display(server: &mut Server, context: &CommandContext, source: 
     let mut tracker = CommandResponseTracker::new();
     let level = &mut server.level;
     for target in targets {
-        let mut score = level.scoreboard.get_or_create_player_score(&target, objective, false);
+        let mut score = level.scoreboard.borrow_mut().get_or_create_player_score(&target, objective, false);
         score.set_display(level, display.clone());
         tracker.track(target);
     }
@@ -293,7 +293,7 @@ pub fn set_score_number_format(server: &mut Server, context: &CommandContext, so
     let mut tracker = CommandResponseTracker::new();
     let level = &mut server.level;
     for target in targets {
-        let mut score = level.scoreboard.get_or_create_player_score(&target, objective, false);
+        let mut score = level.scoreboard.borrow_mut().get_or_create_player_score(&target, objective, false);
         score.number_format_override(level, format.clone());
         tracker.track(target);
     }
@@ -314,7 +314,7 @@ fn change_score(server: &mut Server, context: &CommandContext, source: &CommandS
     let mut tracker = CommandResponseTracker::new();
     let level = &mut server.level;
     for target in targets {
-        let mut score = level.scoreboard.get_or_create_player_score(&target, objective, false);
+        let mut score = level.scoreboard.borrow_mut().get_or_create_player_score(&target, objective, false);
         let current = score.get(level);
         score.set(level, current.wrapping_add(sign.wrapping_mul(value))).map_err(read_only)?;
         let new = score.get(level);
@@ -345,7 +345,7 @@ pub fn remove_score(server: &mut Server, context: &CommandContext, source: &Comm
 }
 
 pub fn list_tracked_players(server: &mut Server, _context: &CommandContext, source: &CommandSourceStack) -> Result {
-    let entities = server.level.scoreboard.tracked_players();
+    let entities = server.scoreboard.borrow().tracked_players();
     let count = entities.len() as i32;
     if entities.is_empty() {
         source.send_success(server, || Component::translatable("commands.scoreboard.players.list.empty"), false);
@@ -364,7 +364,7 @@ pub fn list_tracked_players(server: &mut Server, _context: &CommandContext, sour
 
 pub fn list_tracked_player_scores(server: &mut Server, context: &CommandContext, source: &CommandSourceStack) -> Result {
     let entity = context.get_score_holder(server, source, "target")?;
-    let scores = server.level.scoreboard.list_player_scores_of(entity.scoreboard_name());
+    let scores = server.scoreboard.borrow().list_player_scores_of(entity.scoreboard_name());
     let count = scores.len() as i32;
     if scores.is_empty() {
         source.send_success(server, || Component::translatable_with("commands.scoreboard.players.list.entity.empty", vec![feedback_name(server, &entity).into()]), false);
@@ -383,10 +383,10 @@ pub fn list_tracked_player_scores(server: &mut Server, context: &CommandContext,
 
 pub fn clear_display_slot(server: &mut Server, context: &CommandContext, source: &CommandSourceStack) -> Result {
     let slot = context.get_display_slot("slot");
-    if server.level.scoreboard.get_display_objective(slot).is_none() {
+    if server.scoreboard.borrow().get_display_objective(slot).is_none() {
         return Err(ERROR_DISPLAY_SLOT_ALREADY_EMPTY.create());
     }
-    server.level.scoreboard.set_display_objective(slot, None);
+    server.scoreboard.borrow_mut().set_display_objective(slot, None);
     source.send_success(server, || Component::translatable_with("commands.scoreboard.objectives.display.cleared", vec![slot.serialized_name().into()]), true);
     Ok(0)
 }
@@ -394,14 +394,14 @@ pub fn clear_display_slot(server: &mut Server, context: &CommandContext, source:
 pub fn set_display_slot(server: &mut Server, context: &CommandContext, source: &CommandSourceStack) -> Result {
     let slot = context.get_display_slot("slot");
     let objective = context.get_objective(server, "objective")?;
-    if server.level.scoreboard.get_display_objective(slot) == Some(objective) {
+    if server.scoreboard.borrow().get_display_objective(slot) == Some(objective) {
         return Err(ERROR_DISPLAY_SLOT_ALREADY_SET.create());
     }
-    server.level.scoreboard.set_display_objective(slot, Some(objective));
+    server.scoreboard.borrow_mut().set_display_objective(slot, Some(objective));
     source.send_success(
         server,
         || {
-            let display_name = server.level.scoreboard.objective(objective).display_name().clone();
+            let display_name = server.scoreboard.borrow().objective(objective).display_name().clone();
             Component::translatable_with("commands.scoreboard.objectives.display.set", vec![slot.serialized_name().into(), display_name.into()])
         },
         true,
@@ -412,9 +412,9 @@ pub fn set_display_slot(server: &mut Server, context: &CommandContext, source: &
 pub fn set_display_name(server: &mut Server, context: &CommandContext, source: &CommandSourceStack) -> Result {
     let objective = context.get_objective(server, "objective")?;
     let display_name = context.get_resolved_component(server, source, "displayName")?;
-    if *server.level.scoreboard.objective(objective).display_name() != display_name {
-        server.level.scoreboard.set_objective_display_name(objective, display_name);
-        let name = server.level.scoreboard.objective(objective).name().to_string();
+    if *server.scoreboard.borrow().objective(objective).display_name() != display_name {
+        server.scoreboard.borrow_mut().set_objective_display_name(objective, display_name);
+        let name = server.scoreboard.borrow().objective(objective).name().to_string();
         source.send_success(server, || Component::translatable_with("commands.scoreboard.objectives.modify.displayname", vec![name.into(), formatted(server, objective).into()]), true);
     }
     Ok(0)
@@ -423,9 +423,9 @@ pub fn set_display_name(server: &mut Server, context: &CommandContext, source: &
 pub fn set_display_auto_update(server: &mut Server, context: &CommandContext, source: &CommandSourceStack) -> Result {
     let objective = context.get_objective(server, "objective")?;
     let display_auto_update = context.get_bool("value");
-    if server.level.scoreboard.objective(objective).display_auto_update() != display_auto_update {
-        server.level.scoreboard.set_display_auto_update(objective, display_auto_update);
-        let name = server.level.scoreboard.objective(objective).name().to_string();
+    if server.scoreboard.borrow().objective(objective).display_auto_update() != display_auto_update {
+        server.scoreboard.borrow_mut().set_display_auto_update(objective, display_auto_update);
+        let name = server.scoreboard.borrow().objective(objective).name().to_string();
         let key = if display_auto_update { "commands.scoreboard.objectives.modify.displayAutoUpdate.enable" } else { "commands.scoreboard.objectives.modify.displayAutoUpdate.disable" };
         source.send_success(server, || Component::translatable_with(key, vec![name.into(), formatted(server, objective).into()]), true);
     }
@@ -436,8 +436,8 @@ pub fn set_objective_format(server: &mut Server, context: &CommandContext, sourc
     let objective = context.get_objective(server, "objective")?;
     let format = number_format(server, context, source)?;
     let set = format.is_some();
-    server.level.scoreboard.set_number_format(objective, format);
-    let name = server.level.scoreboard.objective(objective).name().to_string();
+    server.scoreboard.borrow_mut().set_number_format(objective, format);
+    let name = server.scoreboard.borrow().objective(objective).name().to_string();
     let key = if set { "commands.scoreboard.objectives.modify.objectiveFormat.set" } else { "commands.scoreboard.objectives.modify.objectiveFormat.clear" };
     source.send_success(server, || Component::translatable_with(key, vec![name.into()]), true);
     Ok(0)
@@ -446,8 +446,8 @@ pub fn set_objective_format(server: &mut Server, context: &CommandContext, sourc
 pub fn set_render_type(server: &mut Server, context: &CommandContext, source: &CommandSourceStack) -> Result {
     let objective = context.get_objective(server, "objective")?;
     let render_type = RenderType::by_name(last_node(context)).expect("a render type literal");
-    if server.level.scoreboard.objective(objective).render_type() != render_type {
-        server.level.scoreboard.set_render_type(objective, render_type);
+    if server.scoreboard.borrow().objective(objective).render_type() != render_type {
+        server.scoreboard.borrow_mut().set_render_type(objective, render_type);
         source.send_success(server, || Component::translatable_with("commands.scoreboard.objectives.modify.rendertype", vec![formatted(server, objective).into()]), true);
     }
     Ok(0)
@@ -456,27 +456,29 @@ pub fn set_render_type(server: &mut Server, context: &CommandContext, source: &C
 pub fn remove_objective(server: &mut Server, context: &CommandContext, source: &CommandSourceStack) -> Result {
     let objective = context.get_objective(server, "objective")?;
     let display = formatted(server, objective);
-    server.level.scoreboard.remove_objective(objective);
+    server.scoreboard.borrow_mut().remove_objective(objective);
     source.send_success(server, || Component::translatable_with("commands.scoreboard.objectives.remove.success", vec![display.into()]), true);
-    Ok(server.level.scoreboard.objective_count() as i32)
+    Ok(server.scoreboard.borrow().objective_count() as i32)
 }
 
 pub fn add_objective(server: &mut Server, context: &CommandContext, source: &CommandSourceStack) -> Result {
     let name = context.get_string("objective").to_string();
     let criteria = context.get_criteria("criteria").clone();
     let display_name = if context.has_argument("displayName") { context.get_resolved_component(server, source, "displayName")? } else { Component::literal(name.clone()) };
-    let scoreboard = &mut server.level.scoreboard;
-    if scoreboard.get_objective(&name).is_some() {
-        return Err(ERROR_OBJECTIVE_ALREADY_EXISTS.create());
-    }
-    let render_type = criteria.default_render_type();
-    let objective = scoreboard.add_objective(&name, criteria, display_name, render_type, false, None);
+    let objective = {
+        let mut scoreboard = server.scoreboard.borrow_mut();
+        if scoreboard.get_objective(&name).is_some() {
+            return Err(ERROR_OBJECTIVE_ALREADY_EXISTS.create());
+        }
+        let render_type = criteria.default_render_type();
+        scoreboard.add_objective(&name, criteria, display_name, render_type, false, None)
+    };
     source.send_success(server, || Component::translatable_with("commands.scoreboard.objectives.add.success", vec![formatted(server, objective).into()]), true);
-    Ok(server.level.scoreboard.objective_count() as i32)
+    Ok(server.scoreboard.borrow().objective_count() as i32)
 }
 
 pub fn list_objectives(server: &mut Server, _context: &CommandContext, source: &CommandSourceStack) -> Result {
-    let scoreboard = &server.level.scoreboard;
+    let scoreboard = server.scoreboard.borrow();
     let count = scoreboard.objective_count() as i32;
     if count == 0 {
         source.send_success(server, || Component::translatable("commands.scoreboard.objectives.list.empty"), false);
@@ -500,7 +502,7 @@ pub fn suggest_triggers(
     mut builder: crate::commands::suggestion::SuggestionsBuilder,
 ) -> std::result::Result<crate::commands::suggestion::Suggestions, CommandSyntaxException> {
     let targets = context.get_score_holders(server, source, "targets")?;
-    let scoreboard = &server.level.scoreboard;
+    let scoreboard = server.scoreboard.borrow();
     let mut result = Vec::new();
     for objective in scoreboard.objectives() {
         if *objective.criteria() == ObjectiveCriteria::TRIGGER

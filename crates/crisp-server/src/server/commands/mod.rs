@@ -469,7 +469,7 @@ mod tests {
         run(&mut server, "data remove storage t:s name");
         run(&mut server, "data remove storage t:s list");
         run(&mut server, "data remove storage t:s a");
-        assert_eq!(server.level.command_storage.keys(), Vec::<String>::new());
+        assert_eq!(server.command_storage.borrow().keys(), Vec::<String>::new());
     }
 
     #[test]

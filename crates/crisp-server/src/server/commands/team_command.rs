@@ -58,7 +58,7 @@ fn last_node(context: &CommandContext) -> &'static str {
 }
 
 fn formatted(server: &Server, team: &str) -> Component {
-    server.level.scoreboard.get_player_team(team).expect("a team").formatted_display_name()
+    server.scoreboard.borrow().get_player_team(team).expect("a team").formatted_display_name()
 }
 
 fn feedback_name(server: &Server, holder: &ScoreHolder) -> Component {
@@ -69,7 +69,7 @@ pub fn leave_team(server: &mut Server, context: &CommandContext, source: &Comman
     let members = context.get_score_holders(server, source, "members")?;
     let mut tracker = CommandResponseTracker::new();
     for member in members {
-        let left = server.level.scoreboard.remove_player_from_team_any(member.scoreboard_name());
+        let left = server.scoreboard.borrow_mut().remove_player_from_team_any(member.scoreboard_name());
         tracker.track_value(member, left as i32);
     }
     tracker.send_feedback(
@@ -90,7 +90,7 @@ pub fn join_team(server: &mut Server, context: &CommandContext, source: &Command
     };
     let mut tracker = CommandResponseTracker::new();
     for member in members {
-        let joined = server.level.scoreboard.add_player_to_team(member.scoreboard_name(), &team);
+        let joined = server.scoreboard.borrow_mut().add_player_to_team(member.scoreboard_name(), &team);
         tracker.track_value(member, joined as i32);
     }
     tracker.send_feedback(
@@ -105,10 +105,10 @@ pub fn join_team(server: &mut Server, context: &CommandContext, source: &Command
 pub fn set_name_tag_visibility(server: &mut Server, context: &CommandContext, source: &CommandSourceStack) -> Result {
     let team = context.get_team(server, "team")?;
     let visibility = Visibility::by_name(last_node(context)).expect("a visibility literal");
-    if server.level.scoreboard.get_player_team(&team).unwrap().name_tag_visibility() == visibility {
+    if server.scoreboard.borrow().get_player_team(&team).unwrap().name_tag_visibility() == visibility {
         return Err(ERROR_TEAM_NAMETAG_VISIBLITY_UNCHANGED.create());
     }
-    server.level.scoreboard.set_name_tag_visibility(&team, visibility);
+    server.scoreboard.borrow_mut().set_name_tag_visibility(&team, visibility);
     source.send_success(
         server,
         || Component::translatable_with("commands.team.option.nametagVisibility.success", vec![formatted(server, &team).into(), visibility.display_name().into()]),
@@ -120,10 +120,10 @@ pub fn set_name_tag_visibility(server: &mut Server, context: &CommandContext, so
 pub fn set_death_message_visibility(server: &mut Server, context: &CommandContext, source: &CommandSourceStack) -> Result {
     let team = context.get_team(server, "team")?;
     let visibility = Visibility::by_name(last_node(context)).expect("a visibility literal");
-    if server.level.scoreboard.get_player_team(&team).unwrap().death_message_visibility() == visibility {
+    if server.scoreboard.borrow().get_player_team(&team).unwrap().death_message_visibility() == visibility {
         return Err(ERROR_TEAM_DEATH_MESSAGE_VISIBLITY_UNCHANGED.create());
     }
-    server.level.scoreboard.set_death_message_visibility(&team, visibility);
+    server.scoreboard.borrow_mut().set_death_message_visibility(&team, visibility);
     source.send_success(
         server,
         || Component::translatable_with("commands.team.option.deathMessageVisibility.success", vec![formatted(server, &team).into(), visibility.display_name().into()]),
@@ -135,10 +135,10 @@ pub fn set_death_message_visibility(server: &mut Server, context: &CommandContex
 pub fn set_collision(server: &mut Server, context: &CommandContext, source: &CommandSourceStack) -> Result {
     let team = context.get_team(server, "team")?;
     let rule = CollisionRule::by_name(last_node(context)).expect("a collision rule literal");
-    if server.level.scoreboard.get_player_team(&team).unwrap().collision_rule() == rule {
+    if server.scoreboard.borrow().get_player_team(&team).unwrap().collision_rule() == rule {
         return Err(ERROR_TEAM_COLLISION_UNCHANGED.create());
     }
-    server.level.scoreboard.set_collision_rule(&team, rule);
+    server.scoreboard.borrow_mut().set_collision_rule(&team, rule);
     source.send_success(server, || Component::translatable_with("commands.team.option.collisionRule.success", vec![formatted(server, &team).into(), rule.display_name().into()]), true);
     Ok(0)
 }
@@ -146,10 +146,10 @@ pub fn set_collision(server: &mut Server, context: &CommandContext, source: &Com
 pub fn set_friendly_sight(server: &mut Server, context: &CommandContext, source: &CommandSourceStack) -> Result {
     let team = context.get_team(server, "team")?;
     let allowed = context.get_bool("allowed");
-    if server.level.scoreboard.get_player_team(&team).unwrap().can_see_friendly_invisibles() == allowed {
+    if server.scoreboard.borrow().get_player_team(&team).unwrap().can_see_friendly_invisibles() == allowed {
         return Err(if allowed { ERROR_TEAM_ALREADY_FRIENDLYINVISIBLES_ENABLED.create() } else { ERROR_TEAM_ALREADY_FRIENDLYINVISIBLES_DISABLED.create() });
     }
-    server.level.scoreboard.set_see_friendly_invisibles(&team, allowed);
+    server.scoreboard.borrow_mut().set_see_friendly_invisibles(&team, allowed);
     let key = if allowed { "commands.team.option.seeFriendlyInvisibles.enabled" } else { "commands.team.option.seeFriendlyInvisibles.disabled" };
     source.send_success(server, || Component::translatable_with(key, vec![formatted(server, &team).into()]), true);
     Ok(0)
@@ -158,10 +158,10 @@ pub fn set_friendly_sight(server: &mut Server, context: &CommandContext, source:
 pub fn set_friendly_fire(server: &mut Server, context: &CommandContext, source: &CommandSourceStack) -> Result {
     let team = context.get_team(server, "team")?;
     let allowed = context.get_bool("allowed");
-    if server.level.scoreboard.get_player_team(&team).unwrap().is_allow_friendly_fire() == allowed {
+    if server.scoreboard.borrow().get_player_team(&team).unwrap().is_allow_friendly_fire() == allowed {
         return Err(if allowed { ERROR_TEAM_ALREADY_FRIENDLYFIRE_ENABLED.create() } else { ERROR_TEAM_ALREADY_FRIENDLYFIRE_DISABLED.create() });
     }
-    server.level.scoreboard.set_allow_friendly_fire(&team, allowed);
+    server.scoreboard.borrow_mut().set_allow_friendly_fire(&team, allowed);
     let key = if allowed { "commands.team.option.friendlyfire.enabled" } else { "commands.team.option.friendlyfire.disabled" };
     source.send_success(server, || Component::translatable_with(key, vec![formatted(server, &team).into()]), true);
     Ok(0)
@@ -170,10 +170,10 @@ pub fn set_friendly_fire(server: &mut Server, context: &CommandContext, source: 
 pub fn set_display_name(server: &mut Server, context: &CommandContext, source: &CommandSourceStack) -> Result {
     let team = context.get_team(server, "team")?;
     let display_name = context.get_resolved_component(server, source, "displayName")?;
-    if *server.level.scoreboard.get_player_team(&team).unwrap().display_name() == display_name {
+    if *server.scoreboard.borrow().get_player_team(&team).unwrap().display_name() == display_name {
         return Err(ERROR_TEAM_ALREADY_NAME.create());
     }
-    server.level.scoreboard.set_team_display_name(&team, display_name);
+    server.scoreboard.borrow_mut().set_team_display_name(&team, display_name);
     source.send_success(server, || Component::translatable_with("commands.team.option.name.success", vec![formatted(server, &team).into()]), true);
     Ok(0)
 }
@@ -181,32 +181,32 @@ pub fn set_display_name(server: &mut Server, context: &CommandContext, source: &
 pub fn set_color(server: &mut Server, context: &CommandContext, source: &CommandSourceStack) -> Result {
     let team = context.get_team(server, "team")?;
     let color = context.get_team_color("value");
-    if server.level.scoreboard.get_player_team(&team).unwrap().color() == Some(color) {
+    if server.scoreboard.borrow().get_player_team(&team).unwrap().color() == Some(color) {
         return Err(ERROR_TEAM_ALREADY_COLOR.create());
     }
-    server.level.scoreboard.set_color(&team, Some(color));
+    server.scoreboard.borrow_mut().set_color(&team, Some(color));
     source.send_success(server, || Component::translatable_with("commands.team.option.color.success", vec![formatted(server, &team).into(), color.serialized_name().into()]), true);
     Ok(0)
 }
 
 pub fn clear_color(server: &mut Server, context: &CommandContext, source: &CommandSourceStack) -> Result {
     let team = context.get_team(server, "team")?;
-    if server.level.scoreboard.get_player_team(&team).unwrap().color().is_none() {
+    if server.scoreboard.borrow().get_player_team(&team).unwrap().color().is_none() {
         return Err(ERROR_TEAM_ALREADY_COLOR.create());
     }
-    server.level.scoreboard.set_color(&team, None);
+    server.scoreboard.borrow_mut().set_color(&team, None);
     source.send_success(server, || Component::translatable_with("commands.team.option.color.clear.success", vec![formatted(server, &team).into()]), true);
     Ok(0)
 }
 
 pub fn empty_team(server: &mut Server, context: &CommandContext, source: &CommandSourceStack) -> Result {
     let team = context.get_team(server, "team")?;
-    let members: Vec<String> = server.level.scoreboard.get_player_team(&team).unwrap().players().map(String::from).collect();
+    let members: Vec<String> = server.scoreboard.borrow().get_player_team(&team).unwrap().players().map(String::from).collect();
     if members.is_empty() {
         return Err(ERROR_TEAM_ALREADY_EMPTY.create());
     }
     for member in &members {
-        server.level.scoreboard.remove_player_from_team(member, &team);
+        server.scoreboard.borrow_mut().remove_player_from_team(member, &team);
     }
     let count = members.len() as i32;
     source.send_success(server, || Component::translatable_with("commands.team.empty.success", vec![Arg::Int(count), formatted(server, &team).into()]), true);
@@ -216,27 +216,29 @@ pub fn empty_team(server: &mut Server, context: &CommandContext, source: &Comman
 pub fn delete_team(server: &mut Server, context: &CommandContext, source: &CommandSourceStack) -> Result {
     let team = context.get_team(server, "team")?;
     let display = formatted(server, &team);
-    server.level.scoreboard.remove_player_team(&team);
+    server.scoreboard.borrow_mut().remove_player_team(&team);
     source.send_success(server, || Component::translatable_with("commands.team.remove.success", vec![display.into()]), true);
-    Ok(server.level.scoreboard.team_count() as i32)
+    Ok(server.scoreboard.borrow().team_count() as i32)
 }
 
 pub fn create_team(server: &mut Server, context: &CommandContext, source: &CommandSourceStack) -> Result {
     let name = context.get_string("team").to_string();
     let display_name = if context.has_argument("displayName") { context.get_resolved_component(server, source, "displayName")? } else { Component::literal(name.clone()) };
-    let scoreboard = &mut server.level.scoreboard;
-    if scoreboard.get_player_team(&name).is_some() {
-        return Err(ERROR_TEAM_ALREADY_EXISTS.create());
+    {
+        let mut scoreboard = server.scoreboard.borrow_mut();
+        if scoreboard.get_player_team(&name).is_some() {
+            return Err(ERROR_TEAM_ALREADY_EXISTS.create());
+        }
+        scoreboard.add_player_team(&name);
+        scoreboard.set_team_display_name(&name, display_name);
     }
-    scoreboard.add_player_team(&name);
-    scoreboard.set_team_display_name(&name, display_name);
     source.send_success(server, || Component::translatable_with("commands.team.add.success", vec![formatted(server, &name).into()]), true);
-    Ok(server.level.scoreboard.team_count() as i32)
+    Ok(server.scoreboard.borrow().team_count() as i32)
 }
 
 pub fn list_members(server: &mut Server, context: &CommandContext, source: &CommandSourceStack) -> Result {
     let team = context.get_team(server, "team")?;
-    let mut members: Vec<String> = server.level.scoreboard.get_player_team(&team).unwrap().players().map(String::from).collect();
+    let mut members: Vec<String> = server.scoreboard.borrow().get_player_team(&team).unwrap().players().map(String::from).collect();
     let count = members.len() as i32;
     if members.is_empty() {
         source.send_success(server, || Component::translatable_with("commands.team.list.members.empty", vec![formatted(server, &team).into()]), false);
@@ -257,7 +259,7 @@ pub fn list_members(server: &mut Server, context: &CommandContext, source: &Comm
 }
 
 pub fn list_teams(server: &mut Server, _context: &CommandContext, source: &CommandSourceStack) -> Result {
-    let scoreboard = &server.level.scoreboard;
+    let scoreboard = server.scoreboard.borrow();
     let count = scoreboard.team_count() as i32;
     if count == 0 {
         source.send_success(server, || Component::translatable("commands.team.list.teams.empty"), false);
@@ -277,7 +279,7 @@ pub fn list_teams(server: &mut Server, _context: &CommandContext, source: &Comma
 pub fn set_prefix(server: &mut Server, context: &CommandContext, source: &CommandSourceStack) -> Result {
     let team = context.get_team(server, "team")?;
     let prefix = context.get_resolved_component(server, source, "prefix")?;
-    server.level.scoreboard.set_player_prefix(&team, prefix.clone());
+    server.scoreboard.borrow_mut().set_player_prefix(&team, prefix.clone());
     source.send_success(server, || Component::translatable_with("commands.team.option.prefix.success", vec![prefix.into()]), false);
     Ok(1)
 }
@@ -285,7 +287,7 @@ pub fn set_prefix(server: &mut Server, context: &CommandContext, source: &Comman
 pub fn set_suffix(server: &mut Server, context: &CommandContext, source: &CommandSourceStack) -> Result {
     let team = context.get_team(server, "team")?;
     let suffix = context.get_resolved_component(server, source, "suffix")?;
-    server.level.scoreboard.set_player_suffix(&team, suffix.clone());
+    server.scoreboard.borrow_mut().set_player_suffix(&team, suffix.clone());
     source.send_success(server, || Component::translatable_with("commands.team.option.suffix.success", vec![suffix.into()]), false);
     Ok(1)
 }

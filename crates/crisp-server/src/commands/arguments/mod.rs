@@ -676,11 +676,11 @@ pub fn list_suggestions(
         ArgumentType::Entity { .. } | ArgumentType::GameProfile => {
             return selector_suggestions(&builder, source, |b| shared_suggestion_provider::suggest(player_names(), b));
         }
-        ArgumentType::Objective => shared_suggestion_provider::suggest(server.level.scoreboard.objectives().map(|o| o.name().to_string()), &mut builder),
+        ArgumentType::Objective => shared_suggestion_provider::suggest(server.scoreboard.borrow().objectives().map(|o| o.name().to_string()), &mut builder),
         ArgumentType::ObjectiveCriteria => shared_suggestion_provider::suggest(crate::world::scores::criteria::all_names(), &mut builder),
         ArgumentType::Operation => shared_suggestion_provider::suggest(["=", "+=", "-=", "*=", "/=", "%=", "<", ">", "><"], &mut builder),
         ArgumentType::ScoreboardSlot => shared_suggestion_provider::suggest(DisplaySlot::VALUES.map(DisplaySlot::serialized_name), &mut builder),
-        ArgumentType::Team => shared_suggestion_provider::suggest(server.level.scoreboard.player_teams().map(|t| t.name().to_string()), &mut builder),
+        ArgumentType::Team => shared_suggestion_provider::suggest(server.scoreboard.borrow().player_teams().map(|t| t.name().to_string()), &mut builder),
         ArgumentType::TeamColor => shared_suggestion_provider::suggest(TeamColor::VALUES.map(TeamColor::serialized_name), &mut builder),
         _ => {}
     }

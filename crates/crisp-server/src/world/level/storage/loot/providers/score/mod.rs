@@ -33,7 +33,7 @@ impl ScoreboardNameProvider {
 
     pub fn score_value(&self, context: &LootContext, score: &str) -> Option<i32> {
         let score_holder = self.get_score_holder(context)?;
-        let scoreboard = &context.params.level.scoreboard;
+        let scoreboard = context.params.level.scoreboard.borrow();
         let objective = scoreboard.get_objective(score)?;
         scoreboard.get_player_score_info(score_holder.scoreboard_name(), objective.id()).map(|info| info.value)
     }

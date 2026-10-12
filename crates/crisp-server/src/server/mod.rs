@@ -22,8 +22,10 @@ pub mod server_links;
 pub mod server_scoreboard;
 pub mod world_stem;
 
+use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, VecDeque};
 use std::path::{Path, PathBuf};
+use std::rc::Rc;
 use std::sync::{Arc, RwLock};
 use std::time::{Duration, Instant};
 
@@ -68,6 +70,8 @@ use crate::world::stopwatches::Stopwatches;
 use self::level::ticket::TicketStorage;
 use self::server_tick_rate_manager::ServerTickRateManager;
 use self::bossevents::custom_boss_events::CustomBossEvents;
+use crate::world::level::saveddata::weather_data::WeatherData;
+use crate::world::scores::scoreboard::Scoreboard;
 use crate::world::scores::scoreboard_save_data::ScoreboardSaveData;
 use crate::world::level::storage::{RespawnData, WorldData, WorldDir, read_dat, write_dat};
 use level::ServerLevel;
@@ -138,6 +142,10 @@ pub struct Server {
     connections: HashMap<ConnId, EntityId>,
     pub clocks: ServerClockManager,
     pub game_rules: GameRules,
+    pub weather: Rc<Cell<WeatherData>>,
+    pub scoreboard: Rc<RefCell<Scoreboard>>,
+    pub command_storage: Rc<RefCell<CommandStorage>>,
+    pub random_sequences: Rc<RefCell<RandomSequences>>,
     pub ops: players::ServerOpList,
     pub bans: players::StoredUserList<players::UserBanEntry>,
     pub ip_bans: players::StoredUserList<players::IpBanEntry>,
@@ -275,9 +283,19 @@ impl Server {
         if new_world {
             load_listener.finish(level::progress::Stage::PrepareGlobalSpawn);
         }
+        let weather = Rc::new(Cell::new(weather));
+        let scoreboard_save_data = ScoreboardSaveData::load(world_dir.as_ref().map(WorldDir::data_folder));
+        let scoreboard = Rc::new(RefCell::new(Scoreboard::default()));
+        scoreboard.borrow_mut().load(scoreboard_save_data.data());
+        let command_storage = Rc::new(RefCell::new(CommandStorage::new(world_dir.as_ref().map(WorldDir::data_folder))));
+        let random_sequences = Rc::new(RefCell::new(RandomSequences::load(world_dir.as_ref().map(WorldDir::data_folder))));
         level.game_rules = game_rules.clone();
+        level.weather = weather.clone();
+        level.scoreboard = scoreboard.clone();
+        level.command_storage = command_storage.clone();
+        level.random_sequences = random_sequences.clone();
         level.biome_zoom_seed = crate::world::level::biome::obfuscate_seed(seed);
-        level.prepare_weather(weather);
+        level.prepare_weather();
         level.sync_clocks(&clocks);
         level.overworld_clock_time = clocks.clocks[ServerClockManager::id_of(OVERWORLD).unwrap()].total_ticks;
         level.update_sky_brightness();
@@ -293,11 +311,7 @@ impl Server {
         level.allow_flight = config.allow_flight;
         level.set_max_chained_neighbor_updates(config.max_chained_neighbor_updates);
         level.entity_broadcast_range_percentage = config.entity_broadcast_range_percentage;
-        let scoreboard_save_data = ScoreboardSaveData::load(world_dir.as_ref().map(WorldDir::data_folder));
-        level.scoreboard.load(scoreboard_save_data.data());
         level.seed = seed;
-        level.command_storage = CommandStorage::new(world_dir.as_ref().map(WorldDir::data_folder));
-        level.random_sequences = RandomSequences::load(world_dir.as_ref().map(WorldDir::data_folder));
         let (config_replies_to_status, config_accepts_transfers) = (config.replies_to_status, config.accepts_transfers);
         let mut server = Server {
             config,
@@ -306,6 +320,10 @@ impl Server {
             connections: HashMap::new(),
             clocks,
             game_rules,
+            weather,
+            scoreboard,
+            command_storage,
+            random_sequences,
             ops: lists.ops,
             bans: lists.bans,
             ip_bans: lists.ip_bans,
@@ -487,12 +505,13 @@ impl Server {
     }
 
     pub fn set_weather_parameters(&mut self, clear_time: i32, rain_time: i32, raining: bool, thundering: bool) {
-        let weather = &mut self.level.weather;
+        let mut weather = self.weather.get();
         weather.clear_weather_time = clear_time;
         weather.rain_time = rain_time;
         weather.thunder_time = rain_time;
         weather.raining = raining;
         weather.thundering = thundering;
+        self.weather.set(weather);
     }
 
     pub fn save_everything(&mut self, silent: bool, flush: bool, force: bool) -> bool {
@@ -512,7 +531,7 @@ impl Server {
 
     fn save_all_level_chunks(&mut self, silent: bool, flush: bool, force: bool) -> bool {
         let Some(dir) = &self.world_dir else { return false };
-        self.level.scoreboard.store_to_save_data_if_dirty(&mut self.scoreboard_save_data);
+        self.scoreboard.borrow_mut().store_to_save_data_if_dirty(&mut self.scoreboard_save_data);
         if !silent {
             info!("Saving chunks for level 'ServerLevel[{}]'/{}", self.config.level_name, self.level.dimension);
         }
@@ -545,7 +564,7 @@ impl Server {
             difficulty_locked: self.difficulty_locked,
             hardcore: self.hardcore,
             clocks: self.clocks.to_nbt(),
-            weather: self.level.weather,
+            weather: self.weather.get(),
             generator: self.level.chunks.generator.clone(),
             generate_structures: self.generate_structures,
             initialized: true,
@@ -557,8 +576,8 @@ impl Server {
         if data.save(dir).is_err() {
             error!("Failed to save level {}", dir.root.display());
         }
-        log_save_failure("command_storage.dat", self.level.command_storage.save());
-        log_save_failure("random_sequences.dat", self.level.random_sequences.save());
+        log_save_failure("command_storage.dat", self.command_storage.borrow_mut().save());
+        log_save_failure("random_sequences.dat", self.random_sequences.borrow_mut().save());
         log_save_failure("scheduled_events.dat", self.scheduled_events.save());
         log_save_failure("custom_boss_events.dat", self.custom_boss_events.save());
         log_save_failure("stopwatches.dat", self.stopwatches.save());
@@ -804,7 +823,7 @@ impl Server {
         });
         out.send(clientbound::COMMANDS, |p| crate::commands::write_commands_packet(p, &CommandSourceStack::for_new_player(self, &player)));
         crate::stats::server_recipe_book::send_initial_recipe_book(&out, &player.recipe_book);
-        level.scoreboard.update_entire_scoreboard(&out);
+        level.scoreboard.borrow().update_entire_scoreboard(&out);
         let (pos, y_rot, x_rot) = (player.entity.position(), player.entity.y_rot, player.entity.x_rot);
         player.teleport(pos, y_rot, x_rot);
         if self.status.read().unwrap().is_some() && !cookie.transferred {

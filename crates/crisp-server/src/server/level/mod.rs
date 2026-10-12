@@ -20,6 +20,9 @@ pub mod threaded_level_light_engine;
 pub mod ticket;
 pub mod world_gen_region;
 
+use std::cell::{Cell, RefCell};
+use std::rc::Rc;
+
 use crate::util::FastIndexMap;
 
 use crisp_core::random::{LegacyRandomSource, RandomSource};
@@ -98,16 +101,16 @@ struct NeighborUpdater {
 pub struct ServerLevel {
     pub level_name: String,
     pub seed: i64,
-    pub command_storage: crate::world::level::storage::command_storage::CommandStorage,
-    pub random_sequences: crate::world::random_sequences::RandomSequences,
+    pub command_storage: Rc<RefCell<crate::world::level::storage::command_storage::CommandStorage>>,
+    pub random_sequences: Rc<RefCell<crate::world::random_sequences::RandomSequences>>,
     pub game_rules: GameRules,
     pub spawn_protection: SpawnProtection,
     pub difficulty: crate::world::difficulty::Difficulty,
     pub no_save: bool,
     pub allow_flight: bool,
     pub entity_broadcast_range_percentage: i32,
-    pub weather: WeatherData,
-    pub scoreboard: Scoreboard,
+    pub weather: Rc<Cell<WeatherData>>,
+    pub scoreboard: Rc<RefCell<Scoreboard>>,
     pub world_border: WorldBorder,
     pub raids: crate::world::entity::raid::raids::Raids,
     pub rain_level: f32,
@@ -181,15 +184,15 @@ impl ServerLevel {
         let mut level = ServerLevel {
             level_name: String::new(),
             seed: 0,
-            command_storage: crate::world::level::storage::command_storage::CommandStorage::new(None),
-            random_sequences: crate::world::random_sequences::RandomSequences::load(None),
+            command_storage: Rc::new(RefCell::new(crate::world::level::storage::command_storage::CommandStorage::new(None))),
+            random_sequences: Rc::new(RefCell::new(crate::world::random_sequences::RandomSequences::load(None))),
             game_rules: GameRules::default(),
             difficulty: crate::world::difficulty::Difficulty::Easy,
             no_save: false,
             allow_flight: false,
             entity_broadcast_range_percentage: 100,
             spawn_protection: SpawnProtection::default(),
-            weather: WeatherData::default(),
+            weather: Rc::default(),
             rain_level: 0.0,
             o_rain_level: 0.0,
             thunder_level: 0.0,
@@ -218,7 +221,7 @@ impl ServerLevel {
             block_events: Vec::new(),
             game_time: 0,
             redstone_torch_toggles: Vec::new(),
-            scoreboard: Scoreboard::default(),
+            scoreboard: Rc::default(),
             world_border: WorldBorder::new(Settings::DEFAULT, None),
             raids: crate::world::entity::raid::raids::Raids::load(None),
             environment_attributes: EnvironmentAttributeSystem::default(),
@@ -248,8 +251,8 @@ impl ServerLevel {
         self.environment_attributes.invalidate_tick_cache();
     }
 
-    pub fn prepare_weather(&mut self, weather: WeatherData) {
-        self.weather = weather;
+    pub fn prepare_weather(&mut self) {
+        let weather = self.weather.get();
         if weather.raining {
             self.rain_level = 1.0;
             if weather.thundering {
@@ -283,7 +286,8 @@ impl ServerLevel {
         let was_raining = self.is_raining();
         if self.can_have_weather() {
             if self.game_rules.get_bool(crisp_data::game_rule::ADVANCE_WEATHER) {
-                let w = &mut self.weather;
+                let mut weather = self.weather.get();
+                let w = &mut weather;
                 if w.clear_weather_time > 0 {
                     w.clear_weather_time -= 1;
                     w.thunder_time = if w.thundering { 0 } else { 1 };
@@ -313,11 +317,13 @@ impl ServerLevel {
                         w.rain_time = sample(&mut self.random, RAIN_DELAY);
                     }
                 }
+                self.weather.set(weather);
             }
+            let weather = self.weather.get();
             self.o_thunder_level = self.thunder_level;
-            self.thunder_level = mth::clamp_f(self.thunder_level + if self.weather.thundering { 0.01 } else { -0.01 }, 0.0, 1.0);
+            self.thunder_level = mth::clamp_f(self.thunder_level + if weather.thundering { 0.01 } else { -0.01 }, 0.0, 1.0);
             self.o_rain_level = self.rain_level;
-            self.rain_level = mth::clamp_f(self.rain_level + if self.weather.raining { 0.01 } else { -0.01 }, 0.0, 1.0);
+            self.rain_level = mth::clamp_f(self.rain_level + if weather.raining { 0.01 } else { -0.01 }, 0.0, 1.0);
         }
         if self.o_rain_level != self.rain_level {
             self.broadcast_game_event(GAME_EVENT_RAIN_LEVEL_CHANGE, self.rain_level);
@@ -894,7 +900,7 @@ impl ServerLevel {
 
     pub fn add_player(&mut self, player: ServerPlayer) {
         let (id, uuid) = (player.entity.id, player.entity.uuid);
-        self.scoreboard.server.add_connection(id, player.connection.clone());
+        self.scoreboard.borrow_mut().server.add_connection(id, player.connection.clone());
         self.world_border.listener.add_connection(id, player.connection.clone());
         self.players.insert(id, player);
         self.update_player_names_array();
@@ -908,7 +914,7 @@ impl ServerLevel {
     }
 
     pub fn remove_player(&mut self, id: EntityId) -> Option<ServerPlayer> {
-        self.scoreboard.server.remove_connection(id);
+        self.scoreboard.borrow_mut().server.remove_connection(id);
         self.world_border.listener.remove_connection(id);
         self.player_left_level(id);
         let player = self.players.shift_remove(&id);
@@ -1015,11 +1021,12 @@ impl ServerLevel {
     }
 
     pub fn reset_weather_cycle(&mut self) {
-        let w = &mut self.weather;
+        let mut w = self.weather.get();
         w.rain_time = 0;
         w.raining = false;
         w.thunder_time = 0;
         w.thundering = false;
+        self.weather.set(w);
     }
 
     pub fn find_closest_biome_3d(

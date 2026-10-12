@@ -10,12 +10,11 @@ static ERROR_NOT_ON_TEAM: SimpleCommandExceptionType = SimpleCommandExceptionTyp
 
 pub fn team_msg(server: &mut Server, context: &CommandContext, source: &CommandSourceStack) -> Result<i32, CommandSyntaxException> {
     let entity = source.entity_or_exception()?;
-    let Some(team) = server.level.team_of(entity) else { return Err(ERROR_NOT_ON_TEAM.create()) };
-    let team_name = team.name().to_string();
-    let display_name = team
-        .formatted_display_name()
-        .with_hover(HoverEvent::ShowText(Box::new(Component::translatable("chat.type.team.hover"))))
-        .with_click(ClickEvent::SuggestCommand("/teammsg ".into()));
+    let Some((team_name, display_name)) = server.level.team_of(entity).map(|team| (team.name().to_string(), team.formatted_display_name())) else {
+        return Err(ERROR_NOT_ON_TEAM.create());
+    };
+    let display_name =
+        display_name.with_hover(HoverEvent::ShowText(Box::new(Component::translatable("chat.type.team.hover")))).with_click(ClickEvent::SuggestCommand("/teammsg ".into()));
     let receivers: Vec<EntityId> = server
         .level
         .players

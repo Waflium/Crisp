@@ -499,13 +499,13 @@ fn weather() {
     let mut server = server();
     let console = CommandSourceStack::server(&server);
     assert_eq!(run(&mut server, "weather thunder 10s"), ["Set the weather to rain and thunder"]);
-    let w = server.level.weather;
+    let w = server.weather.get();
     assert_eq!((w.clear_weather_time, w.rain_time, w.thunder_time, w.raining, w.thundering), (0, 200, 200, true, true));
     assert_eq!(exec(&mut server, &console, "weather rain"), Ok(-1));
-    let w = server.level.weather;
+    let w = server.weather.get();
     assert!((12000..=24000).contains(&w.rain_time) && w.raining && !w.thundering);
     assert_eq!(exec(&mut server, &console, "weather clear 5"), Ok(5));
-    let w = server.level.weather;
+    let w = server.weather.get();
     assert_eq!((w.clear_weather_time, w.rain_time, w.thunder_time, w.raining, w.thundering), (5, 0, 0, false, false));
 }
 

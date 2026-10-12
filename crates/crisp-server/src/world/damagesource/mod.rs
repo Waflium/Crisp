@@ -88,12 +88,13 @@ impl ServerLevel {
     pub fn display_name(&self, id: EntityId) -> Component {
         match self.players.get(&id) {
             Some(p) => self.player_display_name(&p.profile.name, p.profile.uuid),
-            None => self.entities.get(&id).map_or_else(Component::empty, |e| e.display_name(self.team_of(id))),
+            None => self.entities.get(&id).map_or_else(Component::empty, |e| e.display_name(self.team_of(id).as_deref())),
         }
     }
 
     pub fn player_display_name(&self, name: &str, uuid: u128) -> Component {
-        let team = if self.scoreboard.team_count() == 0 { None } else { self.scoreboard.get_players_team(name) };
+        let scoreboard = self.scoreboard.borrow();
+        let team = if scoreboard.team_count() == 0 { None } else { scoreboard.get_players_team(name) };
         let formatted = PlayerTeam::format_name_for_team(team, Component::literal(name));
         crate::network::chat::decorate_display_name(formatted, name, uuid)
     }

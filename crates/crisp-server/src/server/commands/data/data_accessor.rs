@@ -43,7 +43,7 @@ impl DataAccessor {
     pub fn get_data(&self, server: &mut Server) -> Result<Nbt, CommandSyntaxException> {
         Ok(match self {
             DataAccessor::Entity(entity) => server.level.entity_tag_to_compare(*entity),
-            DataAccessor::Storage(id) => Nbt::Compound(server.level.command_storage.get(id)),
+            DataAccessor::Storage(id) => Nbt::Compound(server.command_storage.borrow_mut().get(id)),
             DataAccessor::Block(pos) => server.level.block_entity_data(*pos).ok_or_else(|| ERROR_NOT_A_BLOCK_ENTITY.create())?,
         })
     }
@@ -59,7 +59,7 @@ impl DataAccessor {
                 entity.entity_mut().uuid = uuid;
                 server.level.entity_moved(*id);
             }
-            DataAccessor::Storage(id) => server.level.command_storage.set(id, into_fields(tag)),
+            DataAccessor::Storage(id) => server.command_storage.borrow_mut().set(id, into_fields(tag)),
             DataAccessor::Block(pos) => {
                 let level = &mut server.level;
                 let Some(entity) = level.get_block_entity(*pos) else { return Err(ERROR_NOT_A_BLOCK_ENTITY.create()) };
@@ -74,7 +74,7 @@ impl DataAccessor {
 
     pub fn write_back(&self, server: &mut Server, tag: &Nbt) {
         match self {
-            DataAccessor::Storage(id) => server.level.command_storage.write_back(id, into_fields(tag.clone())),
+            DataAccessor::Storage(id) => server.command_storage.borrow_mut().write_back(id, into_fields(tag.clone())),
             DataAccessor::Entity(_) | DataAccessor::Block(_) => {}
         }
     }
@@ -142,6 +142,6 @@ pub fn suggest_storage(
     _source: &CommandSourceStack,
     mut builder: crate::commands::suggestion::SuggestionsBuilder,
 ) -> Result<crate::commands::suggestion::Suggestions, CommandSyntaxException> {
-    crate::commands::shared_suggestion_provider::suggest_resource(server.level.command_storage.keys(), &mut builder);
+    crate::commands::shared_suggestion_provider::suggest_resource(server.command_storage.borrow_mut().keys(), &mut builder);
     Ok(builder.build())
 }

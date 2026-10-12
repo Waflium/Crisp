@@ -398,7 +398,7 @@ impl ServerLevel {
         }
         if reason.is_some_and(RemovalReason::should_destroy) {
             let name = self.scoreboard_name(id);
-            self.scoreboard.entity_removed(&name);
+            self.scoreboard.borrow_mut().entity_removed(&name);
         }
         let uuid = self.entities[&id].entity().uuid;
         self.entity_manager.known_uuids.remove(&uuid);

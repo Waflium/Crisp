@@ -327,16 +327,16 @@ mod tests {
     fn joining_player_gets_teams_then_shown_objectives() {
         let mut server = Server::new(crate::ServerConfig { level_type: crate::LevelType::Flat, ..crate::ServerConfig::default() }).unwrap();
         let level = &mut server.level;
-        let foo = level.scoreboard.add_objective("foo", ObjectiveCriteria::DUMMY, Component::literal("Foo"), RenderType::Integer, false, None);
-        let hidden = level.scoreboard.add_objective("hidden", ObjectiveCriteria::DUMMY, Component::literal("h"), RenderType::Integer, false, None);
+        let foo = level.scoreboard.borrow_mut().add_objective("foo", ObjectiveCriteria::DUMMY, Component::literal("Foo"), RenderType::Integer, false, None);
+        let hidden = level.scoreboard.borrow_mut().add_objective("hidden", ObjectiveCriteria::DUMMY, Component::literal("h"), RenderType::Integer, false, None);
         for (holder, objective) in [("a", foo), ("a", hidden), ("b", foo)] {
-            let mut score = level.scoreboard.get_or_create_player_score(&ScoreHolder::for_name_only(holder), objective, false);
+            let mut score = level.scoreboard.borrow_mut().get_or_create_player_score(&ScoreHolder::for_name_only(holder), objective, false);
             score.set(level, 3).unwrap();
         }
-        level.scoreboard.add_player_team("red");
-        level.scoreboard.add_player_to_team("Alice", "red");
-        level.scoreboard.set_display_objective(DisplaySlot::List, Some(foo));
-        level.scoreboard.set_display_objective(DisplaySlot::Sidebar, Some(foo));
+        level.scoreboard.borrow_mut().add_player_team("red");
+        level.scoreboard.borrow_mut().add_player_to_team("Alice", "red");
+        level.scoreboard.borrow_mut().set_display_objective(DisplaySlot::List, Some(foo));
+        level.scoreboard.borrow_mut().set_display_objective(DisplaySlot::Sidebar, Some(foo));
 
         let (out, mut rx) = Outbound::capture();
         let profile = Profile { uuid: 7, name: "Alice".into(), properties: Vec::new() };
@@ -346,31 +346,35 @@ mod tests {
         assert_eq!(id(&sent[commands + 1]), clientbound::RECIPE_BOOK_SETTINGS);
         assert_eq!(id(&sent[commands + 2]), clientbound::RECIPE_BOOK_ADD);
         let commands = commands + 2;
-        let scoreboard = &server.level.scoreboard;
-        let objective = scoreboard.objective(foo);
-        let mut expected = vec![set_player_team_add_or_modify_packet(scoreboard.get_player_team("red").unwrap(), true), set_objective_packet(objective, METHOD_ADD)];
-        expected.push(set_display_objective_packet(DisplaySlot::List, Some(objective)));
-        expected.push(set_display_objective_packet(DisplaySlot::Sidebar, Some(objective)));
-        for entry in scoreboard.list_player_scores(foo) {
-            expected.push(set_score_packet(entry.owner, "foo", 3, None, None));
+        {
+            let scoreboard = server.scoreboard.borrow();
+            let objective = scoreboard.objective(foo);
+            let mut expected = vec![set_player_team_add_or_modify_packet(scoreboard.get_player_team("red").unwrap(), true), set_objective_packet(objective, METHOD_ADD)];
+            expected.push(set_display_objective_packet(DisplaySlot::List, Some(objective)));
+            expected.push(set_display_objective_packet(DisplaySlot::Sidebar, Some(objective)));
+            for entry in scoreboard.list_player_scores(foo) {
+                expected.push(set_score_packet(entry.owner, "foo", 3, None, None));
+            }
+            assert_eq!(sent[commands + 1..commands + 1 + expected.len()], expected[..]);
+            assert_eq!(id(&sent[commands + 1 + expected.len()]), clientbound::PLAYER_POSITION);
         }
-        assert_eq!(sent[commands + 1..commands + 1 + expected.len()], expected[..]);
-        assert_eq!(id(&sent[commands + 1 + expected.len()]), clientbound::PLAYER_POSITION);
 
         let player = server.connections[&1];
         let level = &mut server.level;
-        let mut score = level.scoreboard.get_or_create_player_score(&ScoreHolder::for_entity(level, player), hidden, false);
+        let mut score = level.scoreboard.borrow_mut().get_or_create_player_score(&ScoreHolder::for_entity(level, player), hidden, false);
         score.set(level, 1).unwrap();
         assert_eq!(packets(&mut rx), Vec::<Vec<u8>>::new(), "hidden objectives are not tracked");
-        level.scoreboard.set_display_objective(DisplaySlot::Sidebar, Some(hidden));
-        let scoreboard = &level.scoreboard;
-        let mut expected = vec![set_display_objective_packet(DisplaySlot::Sidebar, Some(scoreboard.objective(hidden)))];
-        expected.extend(scoreboard.start_tracking_packets(hidden));
-        assert_eq!(packets(&mut rx), expected);
-        level.scoreboard.remove_objective(hidden);
+        level.scoreboard.borrow_mut().set_display_objective(DisplaySlot::Sidebar, Some(hidden));
+        {
+            let scoreboard = level.scoreboard.borrow();
+            let mut expected = vec![set_display_objective_packet(DisplaySlot::Sidebar, Some(scoreboard.objective(hidden)))];
+            expected.extend(scoreboard.start_tracking_packets(hidden));
+            assert_eq!(packets(&mut rx), expected);
+        }
+        level.scoreboard.borrow_mut().remove_objective(hidden);
         let ids: Vec<i32> = packets(&mut rx).iter().map(|p| id(p)).collect();
         assert_eq!(ids, [clientbound::SET_OBJECTIVE]);
-        level.scoreboard.reset_all_player_scores("b");
+        level.scoreboard.borrow_mut().reset_all_player_scores("b");
         assert_eq!(packets(&mut rx), [reset_score_packet("b", None)]);
     }
 }

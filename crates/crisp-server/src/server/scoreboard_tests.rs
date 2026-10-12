@@ -35,7 +35,7 @@ fn join(server: &mut Server, name: &str) -> (EntityId, UnboundedReceiver<Vec<u8>
     let id = testing::player_with_profile(&mut server.level, profile, Vec3::new(0.5, -60.0, 0.5), 0.0, 0.0);
     let (out, packets) = Outbound::capture();
     server.level.player_mut(id).connection = out.clone();
-    server.level.scoreboard.server.add_connection(id, out);
+    server.scoreboard.borrow_mut().server.add_connection(id, out);
     server.level.handle_player_loaded(id);
     (id, packets)
 }
@@ -45,7 +45,7 @@ fn packet_ids(packets: &mut UnboundedReceiver<Vec<u8>>) -> Vec<i32> {
 }
 
 fn score(server: &Server, holder: &str, objective: &str) -> Option<i32> {
-    let scoreboard = &server.level.scoreboard;
+    let scoreboard = server.scoreboard.borrow();
     scoreboard.get_player_score_info(holder, scoreboard.get_objective(objective)?.id()).map(|s| s.value)
 }
 
@@ -143,10 +143,10 @@ fn removed_entities_lose_their_scores_and_team() {
     run(&mut server, "team add red");
     run(&mut server, "scoreboard players set @e[type=item] foo 4");
     run(&mut server, "team join red @e[type=item]");
-    assert_eq!(server.level.scoreboard.tracked_players().len(), 1);
+    assert_eq!(server.scoreboard.borrow().tracked_players().len(), 1);
     run(&mut server, "kill @e[type=item]");
-    assert!(server.level.scoreboard.tracked_players().is_empty());
-    assert_eq!(server.level.scoreboard.get_player_team("red").unwrap().player_count(), 0);
+    assert!(server.scoreboard.borrow().tracked_players().is_empty());
+    assert_eq!(server.scoreboard.borrow().get_player_team("red").unwrap().player_count(), 0);
 }
 
 #[test]

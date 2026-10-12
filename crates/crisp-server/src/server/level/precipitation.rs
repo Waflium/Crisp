@@ -131,6 +131,7 @@ mod tests {
     use crate::server::level::testing;
     use crate::world::level::BlockGetter;
     use crate::world::level::chunk::{Biome, FlatLevelSource};
+    use crate::world::level::saveddata::weather_data::WeatherData;
     use crate::world::level::update_flags::UPDATE_ALL;
 
     fn snowy_level() -> ServerLevel {
@@ -138,7 +139,7 @@ mod tests {
         let chunks = ChunkCache::new(&crisp_data::DIMENSION_TYPES[0], source, None);
         let mut level = ServerLevel::new(crate::server::OVERWORLD, 0, chunks, None, 10, 10);
         testing::player(&mut level, Vec3::new(8.5, -60.0, 8.5), 0.0, 0.0);
-        level.weather.raining = true;
+        level.weather.set(WeatherData { raining: true, ..WeatherData::default() });
         level.rain_level = 1.0;
         level
     }
@@ -160,7 +161,7 @@ mod tests {
     fn plains_get_rain() {
         let mut level = testing::level();
         testing::player(&mut level, Vec3::new(8.5, -60.0, 8.5), 0.0, 0.0);
-        level.weather.raining = true;
+        level.weather.set(WeatherData { raining: true, ..WeatherData::default() });
         level.rain_level = 1.0;
         assert!(level.is_raining_at(BlockPos::new(1, -60, 1)));
         level.tick_precipitation(BlockPos::new(1, 0, 1));

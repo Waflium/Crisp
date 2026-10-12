@@ -19,7 +19,7 @@ fn player_and_objective(server: &Server, context: &CommandContext, source: &Comm
 }
 
 fn formatted(server: &Server, objective: ObjectiveId) -> Component {
-    server.level.scoreboard.objective(objective).formatted_display_name()
+    server.scoreboard.borrow().objective(objective).formatted_display_name()
 }
 
 pub fn add_value(server: &mut Server, context: &CommandContext, source: &CommandSourceStack) -> Result {
@@ -49,14 +49,16 @@ pub fn simple_trigger(server: &mut Server, context: &CommandContext, source: &Co
 }
 
 fn get_score(server: &mut Server, holder: &ScoreHolder, objective: ObjectiveId) -> std::result::Result<ScoreAccess, CommandSyntaxException> {
-    let scoreboard = &mut server.level.scoreboard;
-    if *scoreboard.objective(objective).criteria() != ObjectiveCriteria::TRIGGER {
-        return Err(ERROR_INVALID_OBJECTIVE.create());
-    }
-    if !scoreboard.get_player_score_info(holder.scoreboard_name(), objective).is_some_and(|score| !score.locked) {
-        return Err(ERROR_NOT_PRIMED.create());
-    }
-    let mut score = scoreboard.get_or_create_player_score(holder, objective, false);
+    let mut score = {
+        let mut scoreboard = server.scoreboard.borrow_mut();
+        if *scoreboard.objective(objective).criteria() != ObjectiveCriteria::TRIGGER {
+            return Err(ERROR_INVALID_OBJECTIVE.create());
+        }
+        if !scoreboard.get_player_score_info(holder.scoreboard_name(), objective).is_some_and(|score| !score.locked) {
+            return Err(ERROR_NOT_PRIMED.create());
+        }
+        scoreboard.get_or_create_player_score(holder, objective, false)
+    };
     score.lock(&mut server.level);
     Ok(score)
 }
@@ -70,7 +72,7 @@ pub fn suggest_objectives(
     let mut result = Vec::new();
     if let Some(entity) = source.entity {
         let holder = ScoreHolder::for_entity(&server.level, entity);
-        let scoreboard = &server.level.scoreboard;
+        let scoreboard = server.scoreboard.borrow();
         for objective in scoreboard.objectives() {
             if *objective.criteria() == ObjectiveCriteria::TRIGGER
                 && scoreboard.get_player_score_info(holder.scoreboard_name(), objective.id()).is_some_and(|score| !score.locked)

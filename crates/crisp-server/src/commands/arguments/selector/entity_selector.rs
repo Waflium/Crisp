@@ -67,7 +67,7 @@ impl EntityPredicate {
                 Some(player) => (player.game_mode.game_type == *mode) ^ *inverted,
                 None => false,
             },
-            EntityPredicate::Team { name, inverted } => (server.level.team_of(id).map_or("", |t| t.name()) == name) != *inverted,
+            EntityPredicate::Team { name, inverted } => (server.level.team_of(id).as_deref().map_or("", |t| t.name()) == name) != *inverted,
             EntityPredicate::Type { entity_type, inverted } => (e.entity_type == *entity_type) != *inverted,
             EntityPredicate::TypeTag { tag, inverted } => crisp_data::tag("minecraft:entity_type", tag).contains(&e.entity_type) != *inverted,
             EntityPredicate::Tag { tag, inverted } => {
@@ -75,7 +75,7 @@ impl EntityPredicate {
             }
             EntityPredicate::Nbt { tag, inverted } => compare_nbt(tag, Some(&server.level.entity_tag_to_compare(id))) != *inverted,
             EntityPredicate::Scores(expected) => {
-                let scoreboard = &server.level.scoreboard;
+                let scoreboard = server.scoreboard.borrow();
                 let holder = server.level.scoreboard_name(id);
                 expected.iter().all(|(objective, range)| {
                     scoreboard

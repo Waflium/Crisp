@@ -27,8 +27,8 @@ fn random_sample(server: &mut Server, context: &CommandContext, source: &Command
     }
     let value = if context.has_argument("sequence") {
         let seed = server.seed;
-        let random = server.level.random_sequences.get(context.get_identifier("sequence"), seed);
-        crisp_core::mth::random_between_inclusive(random, min, max)
+        let mut random_sequences = server.random_sequences.borrow_mut();
+        crisp_core::mth::random_between_inclusive(random_sequences.get(context.get_identifier("sequence"), seed), min, max)
     } else {
         crisp_core::mth::random_between_inclusive(&mut server.level.random, min, max)
     };
@@ -49,7 +49,7 @@ fn reset_success(server: &Server, source: &CommandSourceStack, sequence: &str) -
 pub fn reset_sequence(server: &mut Server, context: &CommandContext, source: &CommandSourceStack) -> Result<i32, CommandSyntaxException> {
     let sequence = context.get_identifier("sequence");
     let seed = server.seed;
-    server.level.random_sequences.reset(sequence, seed);
+    server.random_sequences.borrow_mut().reset(sequence, seed);
     Ok(reset_success(server, source, sequence))
 }
 
@@ -62,7 +62,7 @@ pub fn reset_sequence_with(server: &mut Server, context: &CommandContext, source
     let sequence = context.get_identifier("sequence");
     let (salt, include_world_seed, include_sequence_id) = seed_defaults(context);
     let seed = server.seed;
-    server.level.random_sequences.reset_with(sequence, seed, salt, include_world_seed, include_sequence_id);
+    server.random_sequences.borrow_mut().reset_with(sequence, seed, salt, include_world_seed, include_sequence_id);
     Ok(reset_success(server, source, sequence))
 }
 
@@ -72,14 +72,14 @@ fn reset_all_success(server: &Server, source: &CommandSourceStack, count: i32) -
 }
 
 pub fn reset_all_sequences(server: &mut Server, _context: &CommandContext, source: &CommandSourceStack) -> Result<i32, CommandSyntaxException> {
-    let count = server.level.random_sequences.clear();
+    let count = server.random_sequences.borrow_mut().clear();
     Ok(reset_all_success(server, source, count))
 }
 
 pub fn reset_all_sequences_and_set_new_defaults(server: &mut Server, context: &CommandContext, source: &CommandSourceStack) -> Result<i32, CommandSyntaxException> {
     let (salt, include_world_seed, include_sequence_id) = seed_defaults(context);
-    server.level.random_sequences.set_seed_defaults(salt, include_world_seed, include_sequence_id);
-    let count = server.level.random_sequences.clear();
+    server.random_sequences.borrow_mut().set_seed_defaults(salt, include_world_seed, include_sequence_id);
+    let count = server.random_sequences.borrow_mut().clear();
     Ok(reset_all_success(server, source, count))
 }
 
@@ -89,6 +89,6 @@ pub fn suggest_random_sequence(
     _source: &CommandSourceStack,
     mut builder: crate::commands::suggestion::SuggestionsBuilder,
 ) -> Result<crate::commands::suggestion::Suggestions, CommandSyntaxException> {
-    crate::commands::shared_suggestion_provider::suggest(server.level.random_sequences.keys(), &mut builder);
+    crate::commands::shared_suggestion_provider::suggest(server.random_sequences.borrow_mut().keys(), &mut builder);
     Ok(builder.build())
 }

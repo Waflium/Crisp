@@ -169,7 +169,7 @@ impl EnchantmentEntityEffect {
                 }
                 if *join_team && let Some(team) = level.team_of(entity).map(|team| team.name().to_string()) {
                     let name = level.scoreboard_name(spawned);
-                    level.scoreboard.add_player_to_team(&name, &team);
+                    level.scoreboard.borrow_mut().add_player_to_team(&name, &team);
                 }
                 let e = level.entity_mut(spawned);
                 let (y_rot, x_rot) = (e.y_rot, e.x_rot);

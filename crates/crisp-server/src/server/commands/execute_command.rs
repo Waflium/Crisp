@@ -307,7 +307,7 @@ fn check_score(server: &Server, context: &CommandContext, source: &CommandSource
     let target = context.get_score_holder(server, source, "target")?;
     let target_objective = context.get_objective(server, "targetObjective")?;
     let comparison = name(context, 4);
-    let scoreboard = &server.level.scoreboard;
+    let scoreboard = server.scoreboard.borrow();
     if comparison == "matches" {
         let range = context.get_int_range("range");
         return Ok(scoreboard.get_player_score_info(target.scoreboard_name(), target_objective).is_some_and(|score| range.matches(score.value)));
@@ -346,7 +346,7 @@ pub fn store_score(server: &mut Server, context: &CommandContext, source: &Comma
     Ok(vec![source.with_chained_callback(move |server, success, result| {
         for name in &names {
             let level = &mut server.level;
-            let mut score = level.scoreboard.get_or_create_player_score(name, objective, false);
+            let mut score = level.scoreboard.borrow_mut().get_or_create_player_score(name, objective, false);
             let value = if store_result { result } else { success as i32 };
             if score.set(level, value).is_err() {
                 sender.send_failure(server, crate::commands::unexpected_error("Cannot modify read-only score").message);

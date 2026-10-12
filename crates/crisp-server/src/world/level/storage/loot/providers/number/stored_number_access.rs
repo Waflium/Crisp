@@ -16,7 +16,7 @@ impl StoredNumberAccess {
     }
 
     pub fn get_numeric_tag(&self, context: &mut LootContext) -> Option<Nbt> {
-        let value = Nbt::Compound(context.level().command_storage.get(&self.storage));
+        let value = Nbt::Compound(context.level().command_storage.borrow_mut().get(&self.storage));
         let selected_tags = self.path.get(&value).ok()?;
         match selected_tags.as_slice() {
             [tag @ (Nbt::Byte(_) | Nbt::Short(_) | Nbt::Int(_) | Nbt::Long(_) | Nbt::Float(_) | Nbt::Double(_))] => Some(tag.clone()),
