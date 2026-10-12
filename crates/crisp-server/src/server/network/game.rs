@@ -157,6 +157,10 @@ impl ServerLevel {
                 self.handle_container_button_click(id, container_id, button_id);
             }
             serverbound::CONTAINER_CLICK => self.handle_container_click(id, &mut r)?,
+            serverbound::RENAME_ITEM => {
+                let name = r.string(32767)?.to_string();
+                self.handle_rename_item(id, &name);
+            }
             serverbound::CONTAINER_SLOT_STATE_CHANGED => {
                 let slot_id = r.varint()?;
                 let container_id = r.varint()?;
@@ -596,6 +600,17 @@ impl ServerLevel {
         if self.players.contains_key(&id) && self.player(id).container_menu.is_none() {
             self.player_mut(id).container_menu = Some(menu);
         }
+    }
+
+    fn handle_rename_item(&mut self, id: EntityId, name: &str) {
+        if self.player(id).container_menu.as_ref().is_none_or(|menu| menu.kind != MenuKind::Anvil) {
+            return;
+        }
+        let Some(mut menu) = self.player_mut(id).container_menu.take() else { return };
+        if self.menu_still_valid(&menu, id) {
+            self.anvil_menu_set_item_name(&mut menu, id, name);
+        }
+        self.restore_container_menu(id, menu);
     }
 
     fn handle_container_slot_state_changed(&mut self, id: EntityId, slot_id: i32, container_id: i32, new_state: bool) {

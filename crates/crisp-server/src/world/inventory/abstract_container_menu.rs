@@ -4,6 +4,10 @@ use crisp_data::{EquipmentSlot, registry, registry_id};
 
 use super::beacon_menu::PAYMENT_SLOT;
 use super::crafter_menu::{INV_SLOT_START, SLOT_COUNT, USE_ROW_SLOT_END};
+use super::anvil_menu::{self, AnvilMenu};
+use super::item_combiner_menu;
+use super::smithing_menu::{self, SmithingMenu};
+use super::stonecutter_menu::{self, StonecutterMenu};
 use super::enchantment_menu::EnchantmentMenu;
 use super::result_container::ResultContainer;
 use super::slot::{Slot, SlotContainer, SlotKind, brewing_stand_fuel_may_place_item, is_fuel};
@@ -44,6 +48,9 @@ pub enum MenuKind {
     Beacon,
     Enchantment,
     Crafter,
+    Stonecutter,
+    Smithing,
+    Anvil,
 }
 
 impl MenuKind {
@@ -65,6 +72,9 @@ impl MenuKind {
             MenuKind::Beacon => "minecraft:beacon",
             MenuKind::Enchantment => "minecraft:enchantment",
             MenuKind::Crafter => "minecraft:crafter_3x3",
+            MenuKind::Stonecutter => "minecraft:stonecutter",
+            MenuKind::Smithing => "minecraft:smithing",
+            MenuKind::Anvil => "minecraft:anvil",
         }
     }
 }
@@ -193,6 +203,9 @@ pub struct AbstractContainerMenu {
     pub access: Option<BlockPos>,
     pub containers: Vec<MenuContainer>,
     pub enchantment: Option<EnchantmentMenu>,
+    pub stonecutter: Option<StonecutterMenu>,
+    pub smithing: Option<SmithingMenu>,
+    pub anvil: Option<AnvilMenu>,
     pub placing_recipe: bool,
     pub slots: Vec<Slot>,
     last_slots: Vec<ItemStack>,
@@ -219,6 +232,9 @@ impl AbstractContainerMenu {
             access: None,
             containers: Vec::new(),
             enchantment: None,
+            stonecutter: None,
+            smithing: None,
+            anvil: None,
             placing_recipe: false,
             slots: Vec::new(),
             last_slots: Vec::new(),
@@ -285,6 +301,23 @@ impl AbstractContainerMenu {
                 menu.remote_data_slots = vec![0; 10];
             }
             MenuKind::Crafter => (0..SLOT_COUNT).for_each(|i| menu.add_slot(Slot::new(c, i, SlotKind::Crafter))),
+            MenuKind::Stonecutter => {
+                menu.containers.push(MenuContainer::Simple(SimpleContainer::new(SimpleContainerKind::Plain, 1)));
+                menu.containers.push(MenuContainer::Result(ResultContainer::default()));
+                menu.add_slot(Slot::new(SlotContainer::Menu(stonecutter_menu::CONTAINER), 0, SlotKind::Normal));
+                menu.add_slot(Slot::new(SlotContainer::Menu(stonecutter_menu::RESULT_CONTAINER), 1, SlotKind::StonecutterResult));
+                menu.data_prev = vec![0; 1];
+                menu.remote_data_slots = vec![0; 1];
+            }
+            MenuKind::Smithing | MenuKind::Anvil => {
+                let result_slot = if kind == MenuKind::Smithing { smithing_menu::RESULT_SLOT } else { anvil_menu::RESULT_SLOT };
+                menu.containers.push(MenuContainer::Simple(SimpleContainer::new(SimpleContainerKind::Plain, result_slot)));
+                menu.containers.push(MenuContainer::Result(ResultContainer::default()));
+                (0..result_slot).for_each(|i| menu.add_slot(Slot::new(SlotContainer::Menu(item_combiner_menu::INPUT_SLOTS), i, SlotKind::ItemCombinerInput)));
+                menu.add_slot(Slot::new(SlotContainer::Menu(item_combiner_menu::RESULT_SLOTS), result_slot, SlotKind::ItemCombinerResult));
+                menu.data_prev = vec![0; 1];
+                menu.remote_data_slots = vec![0; 1];
+            }
         }
         for i in 9..36 {
             menu.add_slot(Slot::new(SlotContainer::Inventory, i, SlotKind::Normal));
@@ -431,7 +464,11 @@ impl ServerLevel {
     }
 
     fn can_take_item_for_pick_all(menu: &AbstractContainerMenu, index: usize) -> bool {
-        !matches!(menu.slots[index].kind, SlotKind::Result { .. })
+        match menu.slots[index].kind {
+            SlotKind::Result { .. } | SlotKind::StonecutterResult => false,
+            SlotKind::ItemCombinerResult => menu.kind != MenuKind::Smithing,
+            _ => true,
+        }
     }
 
     pub(super) fn menu_data(&mut self, menu: &AbstractContainerMenu, id: usize) -> i32 {
@@ -440,6 +477,15 @@ impl ServerLevel {
         }
         if let Some(enchantment) = &menu.enchantment {
             return enchantment.get(id);
+        }
+        if let Some(stonecutter) = &menu.stonecutter {
+            return stonecutter.get_selected_recipe_index();
+        }
+        if let Some(smithing) = &menu.smithing {
+            return smithing.get_has_recipe_error();
+        }
+        if let Some(anvil) = &menu.anvil {
+            return anvil.get_cost();
         }
         if let Some(ContainerRef::Lectern { pos, .. }) = menu.container {
             return if id == crate::world::level::block::entity::lectern_block_entity::DATA_PAGE { self.lectern(pos).map_or(0, |lectern| lectern.get_page()) } else { 0 };
@@ -488,16 +534,22 @@ impl ServerLevel {
     }
 
     pub fn menu_container_set_changed(&mut self, menu: &mut AbstractContainerMenu, player: EntityId, c: usize) {
-        if let MenuContainer::Simple(_) = menu.containers[c]
-            && menu.kind == MenuKind::Enchantment
-        {
+        let slots_changed = match menu.containers[c] {
+            MenuContainer::Simple(_) => matches!(menu.kind, MenuKind::Enchantment | MenuKind::Stonecutter | MenuKind::Smithing | MenuKind::Anvil),
+            MenuContainer::Result(_) => matches!(menu.kind, MenuKind::Smithing | MenuKind::Anvil),
+            MenuContainer::Crafting(_) => false,
+        };
+        if slots_changed {
             self.menu_slots_changed(menu, player, c);
         }
     }
 
-    pub fn menu_slots_changed(&mut self, menu: &mut AbstractContainerMenu, player: EntityId, _c: usize) {
+    pub fn menu_slots_changed(&mut self, menu: &mut AbstractContainerMenu, player: EntityId, c: usize) {
         match menu.kind {
+            MenuKind::Smithing => self.smithing_menu_slots_changed(menu, player, c),
+            MenuKind::Anvil => self.item_combiner_menu_slots_changed(menu, player, c),
             MenuKind::Enchantment => self.enchantment_menu_slots_changed(menu, player),
+            MenuKind::Stonecutter => self.stonecutter_menu_slots_changed(menu, player),
             MenuKind::Inventory => self.slot_changed_crafting_grid(menu, player, None),
             MenuKind::Crafting => {
                 if !menu.placing_recipe && menu.access.is_some() {
@@ -738,7 +790,7 @@ impl ServerLevel {
         self.player_drop(player, stack, true, Prediction::Predicted);
     }
 
-    fn move_item_stack_to(&mut self, menu: &mut AbstractContainerMenu, player: EntityId, stack: &mut ItemStack, start: usize, end: usize, backwards: bool) -> bool {
+    pub(super) fn move_item_stack_to(&mut self, menu: &mut AbstractContainerMenu, player: EntityId, stack: &mut ItemStack, start: usize, end: usize, backwards: bool) -> bool {
         let mut anything_changed = false;
         let order: Vec<usize> = if backwards { (start..end).rev().collect() } else { (start..end).collect() };
         if stack.is_stackable() {
@@ -892,6 +944,21 @@ impl ServerLevel {
                 }
             }
             MenuKind::Lectern => false,
+            MenuKind::Smithing | MenuKind::Anvil => self.item_combiner_menu_quick_move_stack(menu, player, index, &mut stack),
+            MenuKind::Stonecutter => {
+                if index == stonecutter_menu::RESULT_SLOT {
+                    self.move_item_stack_to(menu, player, &mut stack, stonecutter_menu::INV_SLOT_START, stonecutter_menu::USE_ROW_SLOT_END, true)
+                } else if index == stonecutter_menu::INPUT_SLOT {
+                    self.move_item_stack_to(menu, player, &mut stack, stonecutter_menu::INV_SLOT_START, stonecutter_menu::USE_ROW_SLOT_END, false)
+                } else if RecipeManager::get().stonecutter_recipes().accepts_input(&stack) {
+                    self.move_item_stack_to(menu, player, &mut stack, stonecutter_menu::INPUT_SLOT, stonecutter_menu::RESULT_SLOT, false)
+                } else if (stonecutter_menu::INV_SLOT_START..stonecutter_menu::INV_SLOT_END).contains(&index) {
+                    self.move_item_stack_to(menu, player, &mut stack, stonecutter_menu::USE_ROW_SLOT_START, stonecutter_menu::USE_ROW_SLOT_END, false)
+                } else {
+                    !((stonecutter_menu::USE_ROW_SLOT_START..stonecutter_menu::USE_ROW_SLOT_END).contains(&index)
+                        && !self.move_item_stack_to(menu, player, &mut stack, stonecutter_menu::INV_SLOT_START, stonecutter_menu::INV_SLOT_END, false))
+                }
+            }
             MenuKind::Crafter => {
                 if index < SLOT_COUNT {
                     self.move_item_stack_to(menu, player, &mut stack, INV_SLOT_START, USE_ROW_SLOT_END, true)
@@ -939,16 +1006,39 @@ impl ServerLevel {
         self.slot_put(menu, player, index, stack.clone());
         if stack.is_empty() {
             self.slot_set_by_player(menu, player, index, ItemStack::empty());
+            if menu.kind == MenuKind::Stonecutter {
+                self.slot_set_changed(menu, player, index);
+            }
         } else {
             self.slot_set_changed(menu, player, index);
         }
-        if matches!(menu.kind, MenuKind::Inventory | MenuKind::Crafting | MenuKind::Furnace(_) | MenuKind::Dispenser | MenuKind::BrewingStand | MenuKind::Beacon | MenuKind::Enchantment | MenuKind::Crafter) {
+        if matches!(
+            menu.kind,
+            MenuKind::Inventory
+                | MenuKind::Crafting
+                | MenuKind::Furnace(_)
+                | MenuKind::Dispenser
+                | MenuKind::BrewingStand
+                | MenuKind::Beacon
+                | MenuKind::Enchantment
+                | MenuKind::Crafter
+                | MenuKind::Stonecutter
+                | MenuKind::Smithing
+                | MenuKind::Anvil
+        ) {
             if stack.count == clicked.count {
                 return ItemStack::empty();
             }
             self.slot_on_take(menu, player, index, &stack);
-            if index == 0 && let MenuKind::Inventory | MenuKind::Crafting = menu.kind {
-                self.player_drop(player, stack, false, Prediction::Predicted);
+            match menu.kind {
+                MenuKind::Inventory | MenuKind::Crafting if index == 0 => self.player_drop(player, stack, false, Prediction::Predicted),
+                MenuKind::Stonecutter => {
+                    if index == stonecutter_menu::RESULT_SLOT {
+                        self.player_drop(player, stack, false, Prediction::Predicted);
+                    }
+                    self.menu_broadcast_changes(menu, player);
+                }
+                _ => {}
             }
         }
         clicked
@@ -1063,6 +1153,11 @@ impl ServerLevel {
             MenuKind::Crafting => self.still_valid_access(menu.access, player, crisp_data::blocks::CRAFTING_TABLE),
             MenuKind::Beacon => self.still_valid_access(menu.access, player, crisp_data::blocks::BEACON),
             MenuKind::Enchantment => self.still_valid_access(menu.access, player, crisp_data::blocks::ENCHANTING_TABLE),
+            MenuKind::Stonecutter => self.still_valid_access(menu.access, player, crisp_data::blocks::STONECUTTER),
+            MenuKind::Smithing => self.still_valid_access(menu.access, player, crisp_data::blocks::SMITHING_TABLE),
+            MenuKind::Anvil => menu.access.is_none_or(|pos| {
+                crate::world::level::BlockGetter::block_state(self, pos).block().is(&crisp_data::block_tags::ANVIL) && self.is_within_block_interaction_range(player, pos, 4.0)
+            }),
             _ => menu.container.is_none_or(|container| self.container_still_valid(container, player)),
         }
     }
@@ -1093,6 +1188,8 @@ impl ServerLevel {
             }
             MenuKind::Beacon => self.beacon_menu_removed(menu, player),
             MenuKind::Enchantment => self.enchantment_menu_removed(menu, player),
+            MenuKind::Stonecutter => self.stonecutter_menu_removed(menu, player),
+            MenuKind::Smithing | MenuKind::Anvil => self.item_combiner_menu_removed(menu, player),
             _ => {}
         }
     }

@@ -10,3 +10,19 @@ pub fn strip_color(input: &str) -> String {
     }
     out
 }
+
+pub fn is_allowed_chat_character(ch: char) -> bool {
+    ch != '\u{a7}' && ch >= ' ' && ch != '\u{7f}'
+}
+
+pub fn filter_text(input: &str) -> String {
+    input.chars().filter(|&c| is_allowed_chat_character(c)).collect()
+}
+
+pub fn is_whitespace(codepoint: char) -> bool {
+    codepoint.is_whitespace() && codepoint != '\u{85}' || matches!(codepoint, '\u{1c}'..='\u{1f}')
+}
+
+pub fn is_blank(string: Option<&str>) -> bool {
+    string.is_none_or(|string| string.chars().all(is_whitespace))
+}

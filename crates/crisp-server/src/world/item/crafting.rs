@@ -28,6 +28,7 @@ pub mod recipe_map;
 pub mod recipe_property_set;
 pub mod recipe_type;
 pub mod repair_item_recipe;
+pub mod selectable_recipe;
 pub mod shaped_recipe;
 pub mod shaped_recipe_pattern;
 pub mod shapeless_recipe;

@@ -19,6 +19,9 @@ pub enum MenuProvider {
     DoubleChest { first: BlockPos, second: BlockPos },
     EnderChest,
     Crafting(BlockPos),
+    Stonecutter(BlockPos),
+    Smithing(BlockPos),
+    Anvil(BlockPos),
 }
 
 fn menu_kind(entity: &BlockEntity) -> Option<MenuKind> {
@@ -120,6 +123,9 @@ impl ServerLevel {
                 Some((AbstractContainerMenu::new(container_id, MenuKind::Chest { rows: 3 }, Some(container)), Component::translatable("container.enderchest")))
             }
             MenuProvider::Crafting(pos) => Some((AbstractContainerMenu::crafting(container_id, pos), Component::translatable("container.crafting"))),
+            MenuProvider::Stonecutter(pos) => Some((AbstractContainerMenu::stonecutter(container_id, pos), Component::translatable("container.stonecutter"))),
+            MenuProvider::Smithing(pos) => Some((AbstractContainerMenu::smithing(container_id, pos), Component::translatable("container.upgrade"))),
+            MenuProvider::Anvil(pos) => Some((AbstractContainerMenu::anvil(container_id, pos), Component::translatable("container.repair"))),
             MenuProvider::DoubleChest { first, second } => {
                 let name = self.double_chest_name(first, second);
                 if !(self.can_open(first, player) && self.can_open(second, player)) {

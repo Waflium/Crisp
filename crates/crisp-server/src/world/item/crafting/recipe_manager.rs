@@ -4,7 +4,7 @@ use crisp_core::hash_map::FastMap;
 use crisp_protocol::Writer;
 
 use super::display::slot_display::write_holder_set;
-use super::stonecutter_recipe::StonecutterRecipe;
+use super::selectable_recipe::{SingleInputEntry, SingleInputSet};
 
 use super::brewing_input::BrewingInput;
 use super::crafting_input::CraftingInput;
@@ -104,11 +104,11 @@ pub fn write_update_recipes(w: &mut Writer) {
         w.varint(items.len() as i32);
         items.iter().for_each(|item| w.varint(item.0 as i32));
     }
-    let stonecutter_recipes: Vec<&StonecutterRecipe> = recipe_manager.stonecutter_recipes().filter_map(RecipeHolder::stonecutter).collect();
-    w.varint(stonecutter_recipes.len() as i32);
-    for recipe in stonecutter_recipes {
-        write_holder_set(w, recipe.input().values());
-        recipe.result_display().write(w);
+    let stonecutter_recipes = recipe_manager.stonecutter_recipes();
+    w.varint(stonecutter_recipes.size() as i32);
+    for entry in stonecutter_recipes.entries() {
+        write_holder_set(w, entry.input.values());
+        entry.recipe.stonecutter().expect("a stonecutter recipe").result_display().write(w);
     }
 }
 
@@ -190,8 +190,14 @@ impl RecipeManager {
         &self.property_sets
     }
 
-    pub fn stonecutter_recipes(&self) -> impl Iterator<Item = &RecipeHolder> {
-        self.stonecutter_recipes.iter().filter_map(|id| self.recipes.by_key(id))
+    pub fn stonecutter_recipes(&'static self) -> SingleInputSet {
+        let entries = self
+            .stonecutter_recipes
+            .iter()
+            .filter_map(|id| self.recipes.by_key(id))
+            .filter_map(|recipe| Some(SingleInputEntry { input: recipe.stonecutter()?.input(), recipe }))
+            .collect();
+        SingleInputSet::new(entries)
     }
 
     pub fn get_recipes(&self) -> &[RecipeHolder] {

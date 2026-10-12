@@ -1,6 +1,7 @@
 use crisp_data::{EquipmentSlot, items};
 
-use super::abstract_container_menu::AbstractContainerMenu;
+use super::abstract_container_menu::{AbstractContainerMenu, MenuKind};
+use super::smithing_menu;
 use crate::server::level::ServerLevel;
 use crate::world::container::ContainerRef;
 use crate::world::entity::EntityId;
@@ -34,6 +35,9 @@ pub enum SlotKind {
     Offhand,
     Crafter,
     NonInteractiveResult,
+    StonecutterResult,
+    ItemCombinerInput,
+    ItemCombinerResult,
 }
 
 #[derive(Clone, Debug)]
@@ -138,7 +142,8 @@ impl ServerLevel {
             SlotKind::Normal | SlotKind::Offhand | SlotKind::EnchantmentItem => true,
             SlotKind::ShulkerBox => !stack.get_item().info().block.is_some_and(|b| b.is_instance_of("ShulkerBoxBlock")),
             SlotKind::FurnaceFuel => is_fuel(stack) || is_bucket(stack),
-            SlotKind::FurnaceResult { .. } | SlotKind::Result { .. } | SlotKind::NonInteractiveResult => false,
+            SlotKind::FurnaceResult { .. } | SlotKind::Result { .. } | SlotKind::NonInteractiveResult | SlotKind::StonecutterResult | SlotKind::ItemCombinerResult => false,
+            SlotKind::ItemCombinerInput => menu.kind != MenuKind::Smithing || smithing_menu::may_place(menu.slots[index].slot, stack),
             SlotKind::Crafter => !self.crafter_menu_is_slot_disabled(menu, index),
             SlotKind::BrewingStandPotion => PotionIngredient::is_potion_input(stack),
             SlotKind::BrewingStandIngredients => RecipeManager::get().property_set(BREWING_REAGENTS).test(stack),
@@ -152,6 +157,10 @@ impl ServerLevel {
     pub fn slot_may_pickup(&mut self, menu: &AbstractContainerMenu, player: EntityId, index: usize) -> bool {
         if menu.slots[index].kind == SlotKind::NonInteractiveResult {
             return false;
+        }
+        if menu.slots[index].kind == SlotKind::ItemCombinerResult {
+            let has_item = self.slot_has_item(menu, player, index);
+            return self.item_combiner_menu_may_pickup(menu, player, has_item);
         }
         if let SlotKind::Armor(_) = menu.slots[index].kind {
             let item_stack = self.slot_get(menu, player, index);
@@ -206,6 +215,11 @@ impl ServerLevel {
             }
             SlotKind::Result { .. } => self.result_slot_on_take(menu, player, index),
             SlotKind::NonInteractiveResult => {}
+            SlotKind::StonecutterResult => {
+                self.stonecutter_result_slot_on_take(menu, player);
+                self.slot_set_changed(menu, player, index);
+            }
+            SlotKind::ItemCombinerResult => self.item_combiner_menu_on_take(menu, player, carried),
             _ => self.slot_set_changed(menu, player, index),
         }
     }

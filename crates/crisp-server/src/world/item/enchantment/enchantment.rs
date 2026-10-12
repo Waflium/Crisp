@@ -195,6 +195,10 @@ impl Enchantment {
         self.definition.max_level
     }
 
+    pub fn get_anvil_cost(&self) -> i32 {
+        self.definition.anvil_cost
+    }
+
     pub fn min_cost(&self, level: i32) -> i32 {
         self.definition.min_cost.calculate(level)
     }

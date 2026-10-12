@@ -8,6 +8,7 @@ use super::{BlockBehaviour, BlockHitResult};
 use crate::server::level::ServerLevel;
 use crate::world::InteractionResult;
 use crate::world::entity::EntityId;
+use crate::world::inventory::menu_provider::MenuProvider;
 use crate::world::item::context::BlockPlaceContext;
 
 pub struct StonecutterBlock;
@@ -25,7 +26,8 @@ impl BlockBehaviour for StonecutterBlock {
         Some(block.default_state().set(HORIZONTAL_FACING, ctx.horizontal_direction().opposite()))
     }
 
-    fn use_without_item(&self, _state: BlockState, _level: &mut ServerLevel, _pos: BlockPos, _player: EntityId, _hit: &BlockHitResult) -> InteractionResult {
+    fn use_without_item(&self, _state: BlockState, level: &mut ServerLevel, pos: BlockPos, player: EntityId, _hit: &BlockHitResult) -> InteractionResult {
+        level.open_menu(player, MenuProvider::Stonecutter(pos));
         InteractionResult::SUCCESS
     }
 }

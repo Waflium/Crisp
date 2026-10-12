@@ -315,6 +315,10 @@ async fn main() -> anyhow::Result<()> {
                             })
                             .await?;
                         }
+                        ["rename", rest @ ..] => {
+                            let name = rest.join(" ");
+                            send(&mut wr, codec, play::serverbound::RENAME_ITEM, |w| w.string(&name)).await?;
+                        }
                         ["slot_state", slot_id, new_state] => {
                             let (slot_id, new_state): (i32, bool) = (slot_id.parse()?, new_state.parse()?);
                             send(&mut wr, codec, play::serverbound::CONTAINER_SLOT_STATE_CHANGED, |w| {

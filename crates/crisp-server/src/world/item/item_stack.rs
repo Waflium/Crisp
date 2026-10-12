@@ -175,7 +175,7 @@ impl ItemStack {
         result
     }
 
-    fn get_int(&self, ty: DataComponentType, default: i32) -> i32 {
+    pub fn get_int(&self, ty: DataComponentType, default: i32) -> i32 {
         self.get(ty).map_or(default, codec::as_i32)
     }
 
@@ -198,6 +198,13 @@ impl ItemStack {
 
     pub fn is_damageable_item(&self) -> bool {
         self.has(dc::MAX_DAMAGE) && !self.has(dc::UNBREAKABLE) && self.has(dc::DAMAGE)
+    }
+
+    pub fn is_valid_repair_item(&self, repair_item: &ItemStack) -> bool {
+        self.get(dc::REPAIRABLE)
+            .and_then(|repairable| repairable.get("items"))
+            .and_then(|items| crate::core::holder_set::HolderSet::decode("minecraft:item", items).ok())
+            .is_some_and(|items| items.contains(repair_item.get_item().0 as i32))
     }
 
     pub fn is_damaged(&self) -> bool {
