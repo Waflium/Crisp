@@ -66,9 +66,9 @@ impl TestPlayer {
 
 fn join(server: &mut Server, name: &str, pos: Vec3) -> TestPlayer {
     let profile = Profile { uuid: offline_uuid(name), name: name.into(), properties: Vec::new() };
-    let id = testing::player_with_profile(&mut server.level, profile, pos, 0.0, 0.0);
+    let id = testing::server_player_with_profile(server, profile, pos, 0.0, 0.0);
     let (out, packets) = Outbound::capture();
-    server.level.player_mut(id).connection = out;
+    server.levels[0].player_mut(id).connection = out;
     server.name_to_id_cache.add(crate::server::players::NameAndId { id: offline_uuid(name), name: name.into() });
     TestPlayer { id, packets }
 }
@@ -76,7 +76,7 @@ fn join(server: &mut Server, name: &str, pos: Vec3) -> TestPlayer {
 fn drop_item(server: &mut Server, pos: Vec3) -> EntityId {
     let item = ItemEntity::new(pos, ItemStack::new(crisp_data::items::STONE, 1));
     let id = item.entity.id;
-    server.level.add_fresh_entity(LevelEntity::Item(item));
+    server.levels[0].add_fresh_entity(LevelEntity::Item(item));
     id
 }
 
@@ -94,7 +94,7 @@ fn gamemode() {
     assert_eq!(run(&mut server, "gamemode creative"), ["A player is required to run this command here"]);
     let mut alice = join(&mut server, "Alice", ORIGIN);
     assert_eq!(run(&mut server, "gamemode creative Alice"), ["Set Alice's game mode to Creative Mode"]);
-    let p = server.level.player(alice.id);
+    let p = server.levels[0].player(alice.id);
     assert_eq!((p.game_mode.game_type, p.game_mode.previous_game_type), (GameType::Creative, Some(GameType::Survival)));
     let abilities = bytes(|w| {
         w.u8(1 | 4 | 8);
@@ -127,7 +127,7 @@ fn gamemode() {
     assert_eq!(exec(&mut server, &console, "gamemode creative @a"), Ok(0));
     let own = CommandSourceStack::server(&server).with_entity(alice.id);
     assert_eq!(run_as(&mut server, &own, "gamemode spectator"), ["Set own game mode to Spectator Mode"]);
-    assert!(server.level.player(alice.id).abilities.flying);
+    assert!(server.levels[0].player(alice.id).abilities.flying);
     assert_eq!(
         run(&mut server, "gamemode creative @e"),
         ["Only players may be affected by this command, but the provided selector includes entities", "gamemode creative @e<--[HERE]"]
@@ -141,11 +141,11 @@ fn defaultgamemode() {
     let alice = join(&mut server, "Alice", ORIGIN);
     assert_eq!(run(&mut server, "defaultgamemode adventure"), ["The default game mode is now Adventure Mode"]);
     assert_eq!(server.default_game_type, GameType::Adventure);
-    assert_eq!(server.level.player(alice.id).game_mode.game_type, GameType::Survival);
+    assert_eq!(server.levels[0].player(alice.id).game_mode.game_type, GameType::Survival);
     server.config.force_game_mode = true;
     let console = CommandSourceStack::server(&server);
     assert_eq!(exec(&mut server, &console, "defaultgamemode creative"), Ok(1));
-    assert_eq!(server.level.player(alice.id).game_mode.game_type, GameType::Creative);
+    assert_eq!(server.levels[0].player(alice.id).game_mode.game_type, GameType::Creative);
 }
 
 #[test]
@@ -229,9 +229,9 @@ fn kick() {
     assert_eq!(run(&mut server, "kick Alice"), ["Kicked Alice: Kicked by an operator"]);
     let reason = bytes(|w| Component::translatable("multiplayer.disconnect.kicked").write(w));
     assert_eq!(alice.packets(), [(clientbound::DISCONNECT, reason)]);
-    assert!(server.level.player(alice.id).disconnected);
+    assert!(server.levels[0].player(alice.id).disconnected);
     assert_eq!(run(&mut server, "kick Bob Go away @s"), ["Kicked Bob: Go away "]);
-    assert!(server.level.player(bob.id).disconnected);
+    assert!(server.levels[0].player(bob.id).disconnected);
     assert_eq!(run(&mut server, "kick Carol"), ["No player was found"]);
 }
 
@@ -270,7 +270,7 @@ fn teleport() {
     let bob = join(&mut server, "Bob", Vec3::new(20.5, -50.0, -3.25));
     assert_eq!(run(&mut server, "tp 1 2 3"), ["An entity is required to run this command here"]);
     assert_eq!(run(&mut server, "teleport Alice 10 -60 10"), ["Teleported Alice to 10.500000, -60.000000, 10.500000"]);
-    assert_eq!(server.level.player(alice.id).entity.position(), Vec3::new(10.5, -60.0, 10.5));
+    assert_eq!(server.levels[0].player(alice.id).entity.position(), Vec3::new(10.5, -60.0, 10.5));
     let position = |id: i32, relatives: i32, pos: Vec3| {
         bytes(|w| {
             w.varint(id);
@@ -284,17 +284,17 @@ fn teleport() {
     };
     assert_eq!(alice.packets(), [(clientbound::PLAYER_POSITION, position(1, 8 | 16, Vec3::new(10.5, -60.0, 10.5)))]);
     run(&mut server, "tp Alice ~1 ~ ~-0.5");
-    assert_eq!(server.level.player(alice.id).entity.position(), Vec3::new(1.0, -60.0, -0.5));
+    assert_eq!(server.levels[0].player(alice.id).entity.position(), Vec3::new(1.0, -60.0, -0.5));
     assert_eq!(alice.packets(), [(clientbound::PLAYER_POSITION, position(2, 255, Vec3::new(-9.5, 0.0, -11.0)))]);
     assert_eq!(run(&mut server, "tp Alice Bob"), ["Teleported Alice to Bob"]);
-    assert_eq!(server.level.player(alice.id).entity.position(), server.level.player(bob.id).entity.position());
+    assert_eq!(server.levels[0].player(alice.id).entity.position(), server.levels[0].player(bob.id).entity.position());
     assert_eq!(run(&mut server, "tp @a Bob"), ["Teleported 2 entities to Bob"]);
     assert_eq!(run(&mut server, "tp @a 0 -60 0 90 45"), ["Teleported 2 entities to 0.500000, -60.000000, 0.500000"]);
-    let a = &server.level.player(alice.id).entity;
+    let a = &server.levels[0].player(alice.id).entity;
     assert_eq!((a.y_rot, a.x_rot), (90.0, 45.0));
     assert_eq!(run(&mut server, "tp Alice 0 20000000 0"), ["Invalid position for teleport"]);
     assert_eq!(run(&mut server, "tp Alice 0 -60 0 facing 5.5 -60 0.5"), ["Teleported Alice to 0.500000, -60.000000, 0.500000"]);
-    let a = &server.level.player(alice.id).entity;
+    let a = &server.levels[0].player(alice.id).entity;
     assert_eq!((a.y_rot, a.x_rot, a.y_head_rot), (-90.0, 0.0, -90.0));
     alice.packets();
     run(&mut server, "tp Alice 0 -60 0 facing entity Bob eyes");
@@ -302,7 +302,7 @@ fn teleport() {
     assert_eq!(run(&mut server, "tp @e[type=item] 0 0 0"), ["No entity was found"]);
     let item = drop_item(&mut server, ORIGIN);
     assert_eq!(run(&mut server, "tp @e[type=item] 3 -55 3"), ["Teleported Stone to 3.500000, -55.000000, 3.500000"]);
-    let e = server.level.entity(item);
+    let e = server.levels[0].entity(item);
     assert_eq!((e.position(), e.on_ground), (Vec3::new(3.5, -55.0, 3.5), true));
     assert_eq!(run(&mut server, "tp Alice @n[type=item]"), ["Teleported Alice to Stone"]);
     assert_eq!(run(&mut server, "tp Alice @e"), ["Incorrect argument for command", "tp Alice @e<--[HERE]"]);
@@ -316,17 +316,17 @@ fn kill() {
     assert_eq!(run(&mut server, "kill @e[type=item]"), ["No entity was found"]);
     let item = drop_item(&mut server, ORIGIN);
     assert_eq!(run(&mut server, "kill @e[type=item]"), ["Killed Stone"]);
-    assert!(server.level.entity_ref(item).is_none());
+    assert!(server.levels[0].entity_ref(item).is_none());
     drop_item(&mut server, ORIGIN);
     drop_item(&mut server, ORIGIN);
     let console = CommandSourceStack::server(&server);
     assert_eq!(exec(&mut server, &console, "kill @e[type=!player]"), Ok(2));
     assert_eq!(run(&mut server, "kill Alice"), ["Killed Alice"]);
-    assert_eq!(server.level.player(alice.id).health, 20.0);
-    server.level.handle_player_loaded(alice.id);
+    assert_eq!(server.levels[0].player(alice.id).health, 20.0);
+    server.levels[0].handle_player_loaded(alice.id);
     assert_eq!(run(&mut server, "kill Alice"), ["Killed Alice"]);
-    assert_eq!(server.level.player(alice.id).health, 0.0);
-    assert!(server.level.entity_ref(alice.id).is_some());
+    assert_eq!(server.levels[0].player(alice.id).health, 0.0);
+    assert!(server.levels[0].entity_ref(alice.id).is_some());
 }
 
 #[test]
@@ -336,10 +336,10 @@ fn spawnpoint() {
     join(&mut server, "Bob", ORIGIN);
     assert_eq!(run(&mut server, "spawnpoint"), ["A player is required to run this command here"]);
     assert_eq!(run(&mut server, "spawnpoint Alice 1 2 3"), ["Set spawn point to 1, 2, 3 [0.0, 0.0] in minecraft:overworld for Alice"]);
-    let respawn = server.level.player(alice.id).respawn_config.clone().unwrap();
+    let respawn = server.levels[0].player(alice.id).respawn_config.clone().unwrap();
     assert_eq!((respawn.respawn_data.pos, respawn.forced), (crisp_core::BlockPos::new(1, 2, 3), true));
     assert_eq!(run(&mut server, "spawnpoint @a ~ ~ ~ 270 -100"), ["Set spawn point to 0, -60, 0 [-90.0, -90.0] in minecraft:overworld for 2 players"]);
-    assert_eq!(server.level.player(alice.id).respawn_config.as_ref().unwrap().respawn_data.pitch, -90.0);
+    assert_eq!(server.levels[0].player(alice.id).respawn_config.as_ref().unwrap().respawn_data.pitch, -90.0);
     assert_eq!(run(&mut server, "spawnpoint Alice 0 20000000 0"), ["That position is outside the allowed boundaries"]);
     let own = CommandSourceStack::server(&server).with_entity(alice.id).with_position(Vec3::new(5.7, 1.0, -0.2));
     assert_eq!(run_as(&mut server, &own, "spawnpoint"), ["Set spawn point to 5, 1, -1 [0.0, 0.0] in minecraft:overworld for Alice"]);
@@ -350,7 +350,7 @@ fn setworldspawn() {
     let mut server = server();
     let mut alice = join(&mut server, "Alice", ORIGIN);
     assert_eq!(run(&mut server, "setworldspawn 5 -60 5"), ["Set the world spawn point to 5, -60, 5 [0.0, 0.0] in minecraft:overworld"]);
-    assert_eq!(server.spawn, crisp_core::BlockPos::new(5, -60, 5));
+    assert_eq!(server.spawn.pos, crisp_core::BlockPos::new(5, -60, 5));
     let spawn = bytes(|w| {
         w.string("minecraft:overworld");
         w.position(5, -60, 5);
@@ -361,7 +361,7 @@ fn setworldspawn() {
     assert_eq!(run(&mut server, "setworldspawn 5 -60 5"), ["Set the world spawn point to 5, -60, 5 [0.0, 0.0] in minecraft:overworld"]);
     assert!(alice.packets().is_empty());
     assert_eq!(run(&mut server, "setworldspawn 1 2 3 200 100"), ["Set the world spawn point to 1, 2, 3 [-160.0, 90.0] in minecraft:overworld"]);
-    assert_eq!((server.spawn_yaw, server.spawn_pitch), (-160.0, 90.0));
+    assert_eq!((server.spawn.yaw, server.spawn.pitch), (-160.0, 90.0));
     assert_eq!(run(&mut server, "setworldspawn 30000000 0 0"), ["That position is outside the allowed boundaries"]);
 }
 
@@ -479,19 +479,19 @@ fn tag() {
     assert_eq!(run(&mut server, "tag @e add a"), ["Added tag 'a' to 2 entities"]);
     assert_eq!(run(&mut server, "tag @e add b"), ["Added tag 'b' to Stone"]);
     assert_eq!(run(&mut server, "tag Alice add b"), ["Target either already has the tag or has too many tags"]);
-    assert_eq!(server.level.entity(alice.id).tags, ["b", "a"]);
+    assert_eq!(server.levels[0].entity(alice.id).tags, ["b", "a"]);
     assert_eq!(run(&mut server, "tag Alice list"), ["Alice has 2 tag(s): a, b"]);
     assert_eq!(run(&mut server, "tag @e list"), ["The 2 entities have 2 total tag(s): a, b"]);
     let console = CommandSourceStack::server(&server);
     assert_eq!(exec(&mut server, &console, "tag @e list"), Ok(2));
     assert_eq!(exec(&mut server, &console, "tag @e remove a"), Ok(2));
     assert_eq!(run(&mut server, "tag @e remove a"), ["Target does not have this tag"]);
-    assert_eq!(server.level.entity(item).tags, ["b"]);
+    assert_eq!(server.levels[0].entity(item).tags, ["b"]);
     assert_eq!(run(&mut server, "tag @e[tag=b] list"), ["The 2 entities have 1 total tag(s): b"]);
-    let saved = server.level.player(alice.id).to_nbt("minecraft:overworld");
+    let saved = server.levels[0].player(alice.id).to_nbt("minecraft:overworld");
     let bob = join(&mut server, "Bob", ORIGIN);
-    server.level.player_mut(bob.id).load_nbt(&saved);
-    assert_eq!(server.level.entity(bob.id).tags, ["b"]);
+    server.levels[0].player_mut(bob.id).load_nbt(&saved);
+    assert_eq!(server.levels[0].entity(bob.id).tags, ["b"]);
 }
 
 #[test]
@@ -515,7 +515,7 @@ fn rotate() {
     let mut alice = join(&mut server, "Alice", ORIGIN);
     alice.packets();
     assert_eq!(run(&mut server, "rotate Alice 90 100"), ["Rotated Alice"]);
-    let e = server.level.entity(alice.id);
+    let e = server.levels[0].entity(alice.id);
     assert_eq!((e.y_rot, e.x_rot), (90.0, 90.0));
     let rotation = |y: f32, ry: bool, x: f32, rx: bool| {
         (
@@ -530,12 +530,12 @@ fn rotate() {
     };
     assert_eq!(alice.packets(), [rotation(90.0, false, 100.0, false)]);
     run(&mut server, "rotate Alice ~10 ~");
-    let e = server.level.entity(alice.id);
+    let e = server.levels[0].entity(alice.id);
     assert_eq!((e.y_rot, e.x_rot), (10.0, 0.0));
     assert_eq!(alice.packets(), [rotation(-80.0, true, -90.0, true)]);
     let item = drop_item(&mut server, Vec3::new(0.5, -60.0, 5.5));
     assert_eq!(run(&mut server, "rotate @e[type=item,limit=1] facing 0.5 -60 10.5"), ["Rotated Stone"]);
-    assert_eq!(server.level.entity(item).y_rot, 0.0);
+    assert_eq!(server.levels[0].entity(item).y_rot, 0.0);
 }
 
 #[test]
@@ -592,7 +592,7 @@ fn teammsg() {
     let as_alice = CommandSourceStack::player(&server, alice.id);
     assert_eq!(exec(&mut server, &as_alice, "tm hi"), Ok(2));
     let name = server.entity_display_name(alice.id);
-    let team = server.level.team_of(alice.id).unwrap().formatted_display_name();
+    let team = server.levels[0].team_of(alice.id).unwrap().formatted_display_name();
     let team = team
         .with_hover(crate::network::chat::HoverEvent::ShowText(Box::new(Component::translatable("chat.type.team.hover"))))
         .with_click(crate::network::chat::ClickEvent::SuggestCommand("/teammsg ".into()));
@@ -637,15 +637,15 @@ fn data_on_entities() {
     let mut server = server();
     let alice = join(&mut server, "Alice", ORIGIN);
     let item = drop_item(&mut server, ORIGIN);
-    let uuid = server.level.entity(item).uuid;
+    let uuid = server.levels[0].entity(item).uuid;
     assert_eq!(run(&mut server, "data get entity @e[type=item,limit=1] Item.count"), ["Stone has the following entity data: 1"]);
     assert_eq!(run(&mut server, "data merge entity @e[type=item,limit=1] {Item:{id:\"minecraft:dirt\",count:5},Tags:[\"x\"],UUID:[I;1,2,3,4]}"), ["Modified entity data of Dirt"]);
-    let LevelEntity::Item(loaded) = &server.level.entities[&item] else { panic!("not an item") };
+    let LevelEntity::Item(loaded) = &server.levels[0].entities[&item] else { panic!("not an item") };
     assert_eq!((loaded.item.item, loaded.item.count), (crisp_data::items::DIRT, 5));
     assert_eq!((loaded.entity.uuid, loaded.entity.tags.clone()), (uuid, vec!["x".to_string()]));
     assert_eq!(run(&mut server, "data get entity @e[type=item,limit=1] Item.count 2"), ["Item.count on Dirt after scale factor of 2.00 is 10"]);
     assert_eq!(run(&mut server, "data merge entity Alice {Invulnerable:1b}"), ["Unable to modify player data"]);
-    server.level.player_mut(alice.id).inventory.slots[36] = Some(ItemStack::new(crisp_data::items::STONE, 1));
+    server.levels[0].player_mut(alice.id).inventory.slots[36] = Some(ItemStack::new(crisp_data::items::STONE, 1));
     assert_eq!(find(&server, ORIGIN, "@a[nbt={SelectedItem:{id:\"minecraft:stone\"}}]"), Ok(vec![alice.id]));
     assert_eq!(find(&server, ORIGIN, "@e[nbt=!{Tags:[\"x\"]}]"), Ok(vec![alice.id]));
     assert_eq!(find(&server, ORIGIN, "@e[nbt={Tags:[\"x\"]}]"), Ok(vec![item]));
@@ -708,8 +708,8 @@ fn forceload() {
     let console = CommandSourceStack::server(&server);
     assert_eq!(run(&mut server, "forceload query"), ["No force loaded chunks were found in minecraft:overworld"]);
     assert_eq!(run(&mut server, "forceload add 100 100"), ["Marked chunk [6, 6] in minecraft:overworld to be force loaded"]);
-    server.level.chunks.run_until_idle();
-    assert!(server.level.chunks.is_position_ticking(ChunkPos::new(6, 6)));
+    server.levels[0].chunks.run_until_idle();
+    assert!(server.levels[0].chunks.is_position_ticking(ChunkPos::new(6, 6)));
     assert_eq!(run(&mut server, "forceload add 100 100"), ["No chunks were marked for force loading"]);
     assert_eq!(run(&mut server, "forceload add 90 90 130 100"), ["Marked 7 chunks in minecraft:overworld from [5, 5] to [8, 6] to be force loaded"]);
     assert_eq!(run(&mut server, "forceload query"), ["8 force loaded chunks were found in minecraft:overworld at: [5, 5], [6, 5], [7, 5], [8, 5], [5, 6], [6, 6], [7, 6], [8, 6]"]);
@@ -720,9 +720,9 @@ fn forceload() {
     server.save_everything(true, true, true);
     drop(server);
     let mut server = Server::new(config()).unwrap();
-    assert_eq!(server.level.chunks.force_loaded_chunks().len(), 7);
+    assert_eq!(server.levels[0].chunks.force_loaded_chunks().len(), 7);
     assert_eq!(run(&mut server, "forceload remove all"), ["Unmarked all force loaded chunks in minecraft:overworld"]);
-    assert!(server.level.chunks.force_loaded_chunks().is_empty());
+    assert!(server.levels[0].chunks.force_loaded_chunks().is_empty());
     let _ = std::fs::remove_dir_all(dir);
 }
 
@@ -731,8 +731,8 @@ fn tick() {
     let mut server = server();
     let mut alice = join(&mut server, "Alice", ORIGIN);
     let item = drop_item(&mut server, Vec3::new(0.5, -50.0, 0.5));
-    server.level.chunks.run_until_idle();
-    server.level.process_chunk_events();
+    server.levels[0].chunks.run_until_idle();
+    server.levels[0].process_chunk_events();
     server.tick();
     alice.packets();
     assert_eq!(run(&mut server, "tick step"), ["Unable to step the game - the game must be frozen first"]);
@@ -742,20 +742,20 @@ fn tick() {
         w.bool(true);
     });
     assert_eq!(alice.packets(), [(clientbound::TICKING_STATE, state)]);
-    let (time, y) = (server.level.game_time, server.level.entity(item).y());
+    let (time, y) = (server.levels[0].game_time, server.levels[0].entity(item).y());
     for _ in 0..5 {
         server.tick();
     }
-    assert_eq!((server.level.game_time, server.level.entity(item).y()), (time, y));
+    assert_eq!((server.levels[0].game_time, server.levels[0].entity(item).y()), (time, y));
     assert_eq!(run(&mut server, "tick step 2"), ["Stepping 2 tick(s)"]);
     for _ in 0..5 {
         server.tick();
     }
-    assert_eq!(server.level.game_time, time + 2);
-    assert_ne!(server.level.entity(item).y(), y);
+    assert_eq!(server.levels[0].game_time, time + 2);
+    assert_ne!(server.levels[0].entity(item).y(), y);
     assert_eq!(run(&mut server, "tick step stop"), ["No tick step in progress"]);
     assert_eq!(run(&mut server, "tick rate 40"), ["Set the target tick rate to 40.0 per second"]);
-    assert_eq!(server.level.tick_rate_manager.nanoseconds_per_tick(), 25_000_000);
+    assert_eq!(server.tick_rate_manager.nanoseconds_per_tick(), 25_000_000);
     let query = run(&mut server, "tick query");
     assert_eq!(query[0], "The game is frozen");
     assert!(query[1].starts_with("Target tick rate: 40.0 per second.\nAverage time per tick: "), "{query:?}");
@@ -772,7 +772,7 @@ fn tick() {
     server.console_log.borrow_mut().clear();
     assert!(!server.check_should_sprint_this_tick());
     assert!(server.console_log.borrow()[0].starts_with("Sprint completed with "));
-    assert!(!server.tick_rate_manager.is_sprinting() && !server.level.tick_rate_manager.is_frozen());
+    assert!(!server.tick_rate_manager.is_sprinting() && !server.tick_rate_manager.is_frozen());
 }
 
 #[test]
@@ -781,14 +781,14 @@ fn swing() {
     let mut alice = join(&mut server, "Alice", ORIGIN);
     let mut bob = join(&mut server, "Bob", Vec3::new(2.5, -60.0, 0.5));
     let item = drop_item(&mut server, Vec3::new(4.5, -60.0, 6.5));
-    server.level.chunks.run_until_idle();
-    server.level.handle_player_loaded(alice.id);
-    server.level.handle_player_loaded(bob.id);
-    server.level.finish_chunk_work();
+    server.levels[0].chunks.run_until_idle();
+    server.levels[0].handle_player_loaded(alice.id);
+    server.levels[0].handle_player_loaded(bob.id);
+    server.levels[0].finish_chunk_work();
     for _ in 0..10 {
         for id in [alice.id, bob.id] {
-            server.level.send_next_chunks(id);
-            server.level.player_mut(id).chunk_sender.on_chunk_batch_received(64.0);
+            server.levels[0].send_next_chunks(id);
+            server.levels[0].player_mut(id).chunk_sender.on_chunk_batch_received(64.0);
         }
     }
     server.tick();
@@ -808,12 +808,12 @@ fn swing() {
         )
     };
     let punch = crate::network::connection::Packet { id: crisp_data::packets::play::serverbound::PUNCH, data: Vec::new() };
-    server.level.handle_game_packet(alice.id, &punch).unwrap();
+    server.levels[0].handle_game_packet(alice.id, &punch).unwrap();
     assert!(alice.packets().is_empty());
     assert_eq!(bob.packets(), [swing(alice.id, 0, 1, 6)]);
     server.tick();
     bob.packets();
-    server.level.handle_game_packet(alice.id, &punch).unwrap();
+    server.levels[0].handle_game_packet(alice.id, &punch).unwrap();
     assert!(!bob.packet_ids().contains(&clientbound::SWING_ANIMATION));
     assert_eq!(run(&mut server, "swing Bob offhand stab 10t"), ["Made Bob swing an arm"]);
     let swings = |p: &mut TestPlayer| p.packets().into_iter().filter(|p| p.0 == clientbound::SWING_ANIMATION).collect::<Vec<_>>();
@@ -847,10 +847,10 @@ fn stopwatch_transfer_and_damage() {
     assert_eq!(run(&mut server, "transfer example.org"), ["A player is required to run this command here"]);
 
     assert_eq!(run(&mut server, "damage Alice 3"), ["Target is invulnerable to the given damage type"]);
-    server.level.handle_player_loaded(alice.id);
+    server.levels[0].handle_player_loaded(alice.id);
     assert_eq!(run(&mut server, "damage Alice 3"), ["Applied 3.0 damage to Alice"]);
-    assert_eq!(server.level.player(alice.id).health, 17.0);
-    server.level.player_mut(alice.id).abilities.invulnerable = true;
+    assert_eq!(server.levels[0].player(alice.id).health, 17.0);
+    server.levels[0].player_mut(alice.id).abilities.invulnerable = true;
     assert_eq!(run(&mut server, "damage Alice 3 minecraft:mob_attack by Alice"), ["Target is invulnerable to the given damage type"]);
     assert_eq!(exec(&mut server, &console, "damage Alice 5 minecraft:out_of_world at 0 0 0"), Ok(1));
 }

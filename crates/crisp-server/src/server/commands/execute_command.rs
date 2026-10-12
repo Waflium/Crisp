@@ -9,7 +9,6 @@ use super::function_command::modify_sender_for_execution;
 use super::look_at::anchor_apply;
 use crate::commands::{CommandFn, CustomModifierFn, ModifierFn};
 use crate::commands::arguments::ArgumentValue;
-use crate::commands::arguments::ERROR_INVALID_DIMENSION;
 use crate::commands::arguments::function_argument;
 use crate::commands::brigadier::{CommandContext, CommandSyntaxException, Dynamic2CommandExceptionType, DynamicCommandExceptionType, SimpleCommandExceptionType, tr};
 use crate::commands::execution::tasks::{BuildContexts, IsolatedCall};
@@ -29,7 +28,7 @@ fn entities(server: &Server, context: &CommandContext, source: &CommandSourceSta
 }
 
 fn rotation_of(server: &Server, entity: EntityId) -> (f32, f32) {
-    let e = server.level.entity(entity);
+    let e = server.entity_level(entity).entity(entity);
     (e.x_rot, e.y_rot)
 }
 
@@ -39,7 +38,13 @@ pub fn as_targets(server: &mut Server, context: &CommandContext, source: &Comman
 
 pub fn at_targets(server: &mut Server, context: &CommandContext, source: &CommandSourceStack) -> Sources {
     let targets = entities(server, context, source, "targets")?;
-    Ok(targets.into_iter().map(|e| source.with_position(server.level.entity(e).position()).with_rotation(rotation_of(server, e))).collect())
+    Ok(targets
+        .into_iter()
+        .map(|e| {
+            let level = server.level_of(e).expect("target on this server");
+            source.with_level(server, level).with_position(server.levels[level].entity(e).position()).with_rotation(rotation_of(server, e))
+        })
+        .collect())
 }
 
 pub fn positioned(server: &mut Server, context: &CommandContext, source: &CommandSourceStack) -> Sources {
@@ -49,7 +54,7 @@ pub fn positioned(server: &mut Server, context: &CommandContext, source: &Comman
 
 pub fn positioned_as(server: &mut Server, context: &CommandContext, source: &CommandSourceStack) -> Sources {
     let targets = entities(server, context, source, "targets")?;
-    Ok(targets.into_iter().map(|e| source.with_position(server.level.entity(e).position())).collect())
+    Ok(targets.into_iter().map(|e| source.with_position(server.entity_level(e).entity(e).position())).collect())
 }
 
 pub fn rotated(_server: &mut Server, context: &CommandContext, source: &CommandSourceStack) -> Sources {
@@ -67,7 +72,7 @@ pub fn facing_entity(server: &mut Server, context: &CommandContext, source: &Com
         other => panic!("anchor is {other:?}"),
     };
     let targets = entities(server, context, source, "targets")?;
-    Ok(targets.into_iter().map(|e| source.facing(server, anchor_apply(&server.level, anchor, e))).collect())
+    Ok(targets.into_iter().map(|e| source.facing(server, anchor_apply(server.entity_level(e), anchor, e))).collect())
 }
 
 pub fn facing_pos(server: &mut Server, context: &CommandContext, source: &CommandSourceStack) -> Sources {
@@ -93,17 +98,9 @@ pub fn anchored(_server: &mut Server, context: &CommandContext, source: &Command
     Ok(vec![source.with_anchor(anchor)])
 }
 
-fn dimension(server: &Server, context: &CommandContext) -> Result<(), CommandSyntaxException> {
-    let id = context.get_identifier("dimension");
-    if id != server.level.dimension {
-        return Err(ERROR_INVALID_DIMENSION.create(id));
-    }
-    Ok(())
-}
-
 pub fn in_dimension(server: &mut Server, context: &CommandContext, source: &CommandSourceStack) -> Sources {
-    dimension(server, context)?;
-    Ok(vec![source.clone()])
+    let level = context.get_dimension(server, "dimension")?;
+    Ok(vec![source.with_level(server, level)])
 }
 
 fn expected(context: &CommandContext) -> bool {
@@ -151,7 +148,7 @@ pub fn if_entity_run(server: &mut Server, context: &CommandContext, source: &Com
 
 fn is_chunk_loaded(server: &Server, context: &CommandContext, source: &CommandSourceStack) -> bool {
     let pos = context.get_coordinates("pos").block_pos(server, source);
-    let level = &server.level;
+    let level = &server.levels[source.level];
     level.chunks.has_chunk(pos.chunk()) && level.in_entity_ticking_range(pos.chunk()) && level.entity_manager.are_entities_loaded(pos.chunk().pack())
 }
 
@@ -166,13 +163,13 @@ pub fn if_loaded_run(server: &mut Server, context: &CommandContext, source: &Com
 }
 
 pub fn if_dimension(server: &mut Server, context: &CommandContext, source: &CommandSourceStack) -> Sources {
-    dimension(server, context)?;
-    expect(context, source, true)
+    let level = context.get_dimension(server, "dimension")?;
+    expect(context, source, level == source.level)
 }
 
 pub fn if_dimension_run(server: &mut Server, context: &CommandContext, source: &CommandSourceStack) -> Result<i32, CommandSyntaxException> {
-    dimension(server, context)?;
-    conditional(server, context, source, true)
+    let level = context.get_dimension(server, "dimension")?;
+    conditional(server, context, source, level == source.level)
 }
 
 static ERROR_AREA_TOO_LARGE: crate::commands::brigadier::Dynamic2CommandExceptionType =
@@ -181,7 +178,7 @@ static ERROR_AREA_TOO_LARGE: crate::commands::brigadier::Dynamic2CommandExceptio
 fn test_block(server: &mut Server, context: &CommandContext, source: &CommandSourceStack) -> Result<bool, CommandSyntaxException> {
     let pos = crate::commands::arguments::coordinates::get_loaded_block_pos(server, context, source, "pos")?;
     let predicate = context.get_block_predicate("block").clone();
-    Ok(predicate.test(&mut server.level, pos))
+    Ok(predicate.test(&mut server.levels[source.level], pos))
 }
 
 pub fn if_block(server: &mut Server, context: &CommandContext, source: &CommandSourceStack) -> Sources {
@@ -209,21 +206,22 @@ fn check_regions(server: &mut Server, context: &CommandContext, source: &Command
     if area > 32768 {
         return Err(ERROR_AREA_TOO_LARGE.create(32768, area));
     }
+    let level = &mut server.levels[source.level];
     let mut count = 0;
     for z in from.min.z..=from.max.z {
         for y in from.min.y..=from.max.y {
             for x in from.min.x..=from.max.x {
                 let source_pos = crisp_core::BlockPos::new(x, y, z);
                 let destination_pos = crisp_core::BlockPos::new(x + offset.x, y + offset.y, z + offset.z);
-                let source_block = server.level.block_state(source_pos);
+                let source_block = level.block_state(source_pos);
                 if skip_air && source_block.is_block(crisp_data::blocks::AIR) {
                     continue;
                 }
-                if source_block != server.level.block_state(destination_pos) {
+                if source_block != level.block_state(destination_pos) {
                     return Ok(None);
                 }
-                let source_entity = server.level.get_block_entity(source_pos).map(|e| (e.ty(), e.components().clone(), e.save_custom_only()));
-                let destination_entity = server.level.get_block_entity(destination_pos).map(|e| (e.ty(), e.components().clone(), e.save_custom_only()));
+                let source_entity = level.get_block_entity(source_pos).map(|e| (e.ty(), e.components().clone(), e.save_custom_only()));
+                let destination_entity = level.get_block_entity(destination_pos).map(|e| (e.ty(), e.components().clone(), e.save_custom_only()));
                 if let Some(source_entity) = source_entity
                     && destination_entity.as_ref() != Some(&source_entity)
                 {
@@ -345,7 +343,8 @@ pub fn store_score(server: &mut Server, context: &CommandContext, source: &Comma
     let sender = source.clone();
     Ok(vec![source.with_chained_callback(move |server, success, result| {
         for name in &names {
-            let level = &mut server.level;
+            let index = server.score_holder_level(name);
+            let level = &mut server.levels[index];
             let mut score = level.scoreboard.borrow_mut().get_or_create_player_score(name, objective, false);
             let value = if store_result { result } else { success as i32 };
             if score.set(level, value).is_err() {
@@ -406,7 +405,7 @@ pub fn if_data_run(server: &mut Server, context: &CommandContext, source: &Comma
 
 pub fn summon(server: &mut Server, context: &CommandContext, source: &CommandSourceStack) -> Sources {
     let entity_type = super::summon_command::summonable_entity_type(context, "entity")?;
-    let id = super::summon_command::create_entity(server, &entity_type, source.position, &Nbt::Compound(Vec::new()), true)?;
+    let id = super::summon_command::create_entity(server, source, &entity_type, source.position, &Nbt::Compound(Vec::new()), true)?;
     Ok(vec![source.with_entity(id)])
 }
 

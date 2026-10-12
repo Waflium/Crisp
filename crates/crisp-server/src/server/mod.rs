@@ -34,8 +34,8 @@ use crisp_core::random::{LegacyRandomSource, RandomSource};
 
 use crisp_core::BlockPos;
 use crisp_data::packets::play::{clientbound, serverbound};
-use crisp_data::{DIMENSION_TYPES, SyncedRegistry, WORLD_VERSION, game_rule};
-use crisp_protocol::nbt::{Nbt, text};
+use crisp_data::{DIMENSION_TYPES, SyncedRegistry, game_rule};
+use crisp_protocol::nbt::text;
 use sha2::{Digest, Sha256};
 use tokio::sync::mpsc;
 
@@ -67,13 +67,12 @@ use crate::world::level::timers::timer_queue::TimerQueue;
 use self::players::NameAndId;
 use self::players::cached_user_name_to_id_resolver::CachedUserNameToIdResolver;
 use crate::world::stopwatches::Stopwatches;
-use self::level::ticket::TicketStorage;
 use self::server_tick_rate_manager::ServerTickRateManager;
 use self::bossevents::custom_boss_events::CustomBossEvents;
 use crate::world::level::saveddata::weather_data::WeatherData;
 use crate::world::scores::scoreboard::Scoreboard;
 use crate::world::scores::scoreboard_save_data::ScoreboardSaveData;
-use crate::world::level::storage::{RespawnData, WorldData, WorldDir, read_dat, write_dat};
+use crate::world::level::storage::{RespawnData, WorldData, WorldDir, write_dat};
 use level::ServerLevel;
 use self::network::prepare_spawn_task::PrepareSpawnTask;
 use level::game_mode::GameType;
@@ -138,7 +137,9 @@ struct PendingLogin {
 pub struct Server {
     pub config: ServerConfig,
     pub settings: Option<dedicated::dedicated_server_settings::DedicatedServerSettings>,
-    pub level: ServerLevel,
+    pub levels: Vec<ServerLevel>,
+    pub player_list: Vec<EntityId>,
+    player_names_array: Arc<RwLock<Arc<[String]>>>,
     connections: HashMap<ConnId, EntityId>,
     pub clocks: ServerClockManager,
     pub game_rules: GameRules,
@@ -170,9 +171,7 @@ pub struct Server {
     session_id: Option<u128>,
     #[cfg(test)]
     pub console_log: std::cell::RefCell<Vec<String>>,
-    pub spawn: BlockPos,
-    pub spawn_yaw: f32,
-    pub spawn_pitch: f32,
+    pub spawn: RespawnData,
     effective_respawn_data: RespawnData,
     pub default_game_type: GameType,
     pub difficulty: Difficulty,
@@ -264,14 +263,7 @@ impl Server {
         let entity_storage = world_dir.as_ref().map(|d| RegionStorage::new(d.entities(OVERWORLD), config.sync_chunk_writes));
         let mut level = ServerLevel::new(OVERWORLD, dimension_type_id, chunks, entity_storage, config.view_distance, config.simulation_distance);
         if let Some(dir) = &world_dir {
-            match read_dat(&chunk_tickets_file(dir)) {
-                Ok(tag) => {
-                    if let Some(data) = tag.as_ref().and_then(|t| t.get("data")) {
-                        level.chunks.distance_manager.ticket_storage = TicketStorage::from_nbt(data);
-                    }
-                }
-                Err(_) => error!("Error loading saved data: SavedDataType[minecraft:chunk_tickets]"),
-            }
+            level.load_chunk_tickets(dir);
         }
         if new_world {
             load_listener.start(level::progress::Stage::PrepareGlobalSpawn, 0);
@@ -312,11 +304,15 @@ impl Server {
         level.set_max_chained_neighbor_updates(config.max_chained_neighbor_updates);
         level.entity_broadcast_range_percentage = config.entity_broadcast_range_percentage;
         level.seed = seed;
+        let tick_rate_manager = ServerTickRateManager::default();
+        level.tick_rate_manager = tick_rate_manager.shared();
         let (config_replies_to_status, config_accepts_transfers) = (config.replies_to_status, config.accepts_transfers);
         let mut server = Server {
             config,
             settings: None,
-            level,
+            levels: vec![level],
+            player_list: Vec::new(),
+            player_names_array: Arc::default(),
             connections: HashMap::new(),
             clocks,
             game_rules,
@@ -333,7 +329,7 @@ impl Server {
             seed,
             tick_count: 0,
             ticks_until_autosave: AUTOSAVE_INTERVAL,
-            tick_rate_manager: ServerTickRateManager::default(),
+            tick_rate_manager,
             tick_times_nanos: [0; 100],
             aggregated_tick_times_nanos: 0,
             pending_logins: Vec::new(),
@@ -348,10 +344,8 @@ impl Server {
             session_id: None,
             #[cfg(test)]
             console_log: Default::default(),
-            spawn: spawn.pos,
-            spawn_yaw: spawn.yaw,
-            spawn_pitch: spawn.pitch,
-            effective_respawn_data: spawn,
+            effective_respawn_data: spawn.clone(),
+            spawn,
             default_game_type: game_type,
             difficulty,
             difficulty_locked,
@@ -384,9 +378,7 @@ impl Server {
 
     pub fn watchdog_snapshot(&self) -> dedicated::server_watchdog::ServerSnapshot {
         let players: Vec<String> = self
-            .level
-            .players
-            .values()
+            .players()
             .map(|p| {
                 let pos = p.entity.position();
                 format!(
@@ -395,28 +387,7 @@ impl Server {
                 )
             })
             .collect();
-        let entity_type_name = |entity_type: i32| crisp_data::registry::ENTITY_TYPE.get(entity_type as usize).copied().unwrap_or("");
-        let entity_types = get_type_count(
-            self.level.players.values().map(|p| entity_type_name(p.entity.entity_type)).chain(self.level.entities.values().map(|e| entity_type_name(e.entity().entity_type))),
-        );
-        let tickers = &self.level.chunks.block_entity_tickers.list;
-        let block_entity_types = get_type_count(tickers.iter().map(|&(_, pos)| {
-            self.level.chunks.loaded_chunk(pos.chunk()).and_then(|chunk| chunk.block_entities.map.get(&pos)).map_or("<null>", |be| be.ty().name())
-        }));
-        let entity_manager_stats = self.level.entity_manager.gather_stats();
-        let level_stats = format!(
-            "{}: players: {}, entities: {} [{}], block_entities: {} [{}], block_ticks: {}, fluid_ticks: {}, chunk_source: Chunks[S] W: {} E: {}",
-            self.level.dimension,
-            self.level.players.len(),
-            entity_manager_stats,
-            entity_types,
-            tickers.len(),
-            block_entity_types,
-            self.level.chunks.block_ticks.count(),
-            self.level.chunks.fluid_ticks.count(),
-            self.level.chunks.loaded_chunks_count(),
-            entity_manager_stats
-        );
+        let level_stats = self.levels.iter().map(|level| format!("{}: {}", level.dimension, level.get_watchdog_stats())).collect::<Vec<_>>().join(",\n");
         dedicated::server_watchdog::ServerSnapshot {
             player_count: format!("{} / {}; [{}]", players.len(), self.config.max_players, players.join(", ")),
             random_tick_rate: self.game_rules.get_int(crisp_data::game_rule::RANDOM_TICK_SPEED).to_string(),
@@ -427,30 +398,105 @@ impl Server {
 
     fn prepare_levels(&mut self, listener: &mut level::progress::LoggingLevelLoadListener) {
         const PREPARE_LEVELS_DEFAULT_DELAY: Duration = Duration::from_millis(10);
-        let mut counter = level::progress::ChunkLoadCounter::track(&mut self.level.chunks, ChunkCache::activate_all_deactivated_tickets);
+        let mut counter = level::progress::ChunkLoadCounter::default();
+        for (index, level) in self.levels.iter_mut().enumerate() {
+            counter.track(index, &mut level.chunks, ChunkCache::activate_all_deactivated_tickets);
+        }
         listener.start(level::progress::Stage::LoadInitialChunks, counter.total_chunks());
         loop {
-            let ready = counter.ready_chunks(&self.level.chunks);
+            let ready = counter.ready_chunks(&self.levels);
             listener.update(level::progress::Stage::LoadInitialChunks, ready, counter.total_chunks());
-            let deadline = Instant::now() + PREPARE_LEVELS_DEFAULT_DELAY;
-            while let Some(wait) = deadline.checked_duration_since(Instant::now()).filter(|w| !w.is_zero()) {
-                if !self.level.poll_chunk_task() {
-                    self.level.wait_for_chunk_work(wait);
-                }
-            }
-            if counter.pending_chunks(&self.level.chunks) == 0 {
+            self.wait_until_next_tick(Instant::now() + PREPARE_LEVELS_DEFAULT_DELAY);
+            if counter.pending_chunks(&self.levels) == 0 {
                 break;
             }
         }
         listener.finish(level::progress::Stage::LoadInitialChunks);
     }
 
+    fn wait_until_next_tick(&mut self, deadline: Instant) {
+        let wakeup = self.overworld().chunks.main_thread_wakeup();
+        while let Some(wait) = deadline.checked_duration_since(Instant::now()).filter(|w| !w.is_zero()) {
+            let seen = wakeup.generation();
+            if !self.poll_task() {
+                wakeup.wait(seen, wait);
+            }
+        }
+    }
+
+    fn poll_task(&mut self) -> bool {
+        let mut did_something = false;
+        for level in &mut self.levels {
+            did_something |= level.poll_chunk_task();
+        }
+        did_something
+    }
+
+    pub fn overworld(&self) -> &ServerLevel {
+        &self.levels[0]
+    }
+
+    pub fn overworld_mut(&mut self) -> &mut ServerLevel {
+        &mut self.levels[0]
+    }
+
+    pub fn get_level(&self, dimension: &str) -> Option<usize> {
+        self.levels.iter().position(|level| level.dimension == dimension)
+    }
+
+    pub fn players(&self) -> impl Iterator<Item = &ServerPlayer> {
+        self.player_list.iter().map(|&id| self.player(id))
+    }
+
+    pub fn player_ids(&self) -> Vec<EntityId> {
+        self.player_list.clone()
+    }
+
+    pub fn player_count(&self) -> usize {
+        self.player_list.len()
+    }
+
+    pub fn get_player(&self, id: EntityId) -> Option<&ServerPlayer> {
+        self.levels.iter().find_map(|level| level.players.get(&id))
+    }
+
+    pub fn get_player_mut(&mut self, id: EntityId) -> Option<&mut ServerPlayer> {
+        self.levels.iter_mut().find_map(|level| level.players.get_mut(&id))
+    }
+
+    pub fn player(&self, id: EntityId) -> &ServerPlayer {
+        self.get_player(id).expect("player on this server")
+    }
+
+    pub fn player_mut(&mut self, id: EntityId) -> &mut ServerPlayer {
+        self.get_player_mut(id).expect("player on this server")
+    }
+
+    pub fn has_player(&self, id: EntityId) -> bool {
+        self.levels.iter().any(|level| level.players.contains_key(&id))
+    }
+
+    pub fn level_of(&self, entity: EntityId) -> Option<usize> {
+        self.levels.iter().position(|level| level.players.contains_key(&entity) || level.entities.contains_key(&entity))
+    }
+
+    pub fn entity_level(&self, entity: EntityId) -> &ServerLevel {
+        &self.levels[self.level_of(entity).expect("entity on this server")]
+    }
+
+    pub fn entity_level_mut(&mut self, entity: EntityId) -> &mut ServerLevel {
+        let index = self.level_of(entity).expect("entity on this server");
+        &mut self.levels[index]
+    }
+
     pub fn set_difficulty(&mut self, difficulty: Difficulty, ignore_lock: bool) {
         if ignore_lock || !self.difficulty_locked {
             self.difficulty = if self.hardcore { Difficulty::Hard } else { difficulty };
-            self.level.difficulty = self.difficulty;
-            self.level.chunks.difficulty = self.difficulty;
-            for player in self.level.players.values() {
+            for level in &mut self.levels {
+                level.difficulty = self.difficulty;
+                level.chunks.difficulty = self.difficulty;
+            }
+            for player in self.players() {
                 self.send_difficulty_update(&player.connection);
             }
         }
@@ -469,8 +515,8 @@ impl Server {
 
     pub fn enforce_game_type_for_players(&mut self, game_type: Option<GameType>) -> i32 {
         let Some(game_type) = game_type else { return 0 };
-        let ids: Vec<EntityId> = self.level.players.keys().copied().collect();
-        ids.into_iter().filter(|&id| self.level.set_game_mode(id, game_type)).count() as i32
+        let ids = self.player_ids();
+        ids.into_iter().filter(|&id| self.entity_level_mut(id).set_game_mode(id, game_type)).count() as i32
     }
 
     fn calculate_game_mode_for_new_player(&self, loaded: Option<GameType>) -> GameType {
@@ -478,22 +524,23 @@ impl Server {
     }
 
     pub fn set_respawn_data(&mut self, data: RespawnData) {
-        let old = RespawnData::of(OVERWORLD, self.spawn, self.spawn_yaw, self.spawn_pitch);
-        if old == data {
+        if self.spawn == data {
             return;
         }
-        self.spawn = data.pos;
-        self.spawn_yaw = data.yaw;
-        self.spawn_pitch = data.pitch;
-        for player in self.level.players.values() {
+        for player in self.players() {
             player.connection.send(clientbound::SET_DEFAULT_SPAWN_POSITION, |p| write_respawn_data(p, &data));
         }
+        self.spawn = data;
         self.update_effective_respawn_data();
     }
 
     fn update_effective_respawn_data(&mut self) {
-        let data = RespawnData::of(OVERWORLD, self.spawn, self.spawn_yaw, self.spawn_pitch);
-        self.effective_respawn_data = self.level.get_world_border_adjusted_respawn_data(data);
+        let respawn_level = self.find_respawn_dimension();
+        self.effective_respawn_data = self.levels[respawn_level].get_world_border_adjusted_respawn_data(self.spawn.clone());
+    }
+
+    pub fn find_respawn_dimension(&self) -> usize {
+        self.get_level(&self.spawn.dimension).unwrap_or(0)
     }
 
     pub fn respawn_data(&self) -> &RespawnData {
@@ -515,9 +562,8 @@ impl Server {
     }
 
     pub fn save_everything(&mut self, silent: bool, flush: bool, force: bool) -> bool {
-        let ids: Vec<EntityId> = self.level.players.keys().copied().collect();
-        for id in ids {
-            self.save_player(self.level.player(id));
+        for player in self.players() {
+            self.save_player(player);
         }
         self.save_all_chunks(silent, flush, force)
     }
@@ -532,40 +578,24 @@ impl Server {
     fn save_all_level_chunks(&mut self, silent: bool, flush: bool, force: bool) -> bool {
         let Some(dir) = &self.world_dir else { return false };
         self.scoreboard.borrow_mut().store_to_save_data_if_dirty(&mut self.scoreboard_save_data);
-        if !silent {
-            info!("Saving chunks for level 'ServerLevel[{}]'/{}", self.config.level_name, self.level.dimension);
-        }
-        if !(self.level.no_save && !force) {
-            log_save_failure("world_border.dat", self.level.world_border.save());
-            log_save_failure("raids.dat", self.level.raids.save());
-            let tickets = &mut self.level.chunks.distance_manager.ticket_storage;
-            if tickets.dirty {
-                let file = Nbt::Compound(vec![("data".into(), tickets.to_nbt()), ("DataVersion".into(), Nbt::Int(WORLD_VERSION))]);
-                match write_dat(&chunk_tickets_file(dir), &file) {
-                    Ok(()) => tickets.dirty = false,
-                    Err(_) => error!("Could not save data to chunk_tickets.dat"),
-                }
+        for level in &mut self.levels {
+            if !silent {
+                info!("Saving chunks for level 'ServerLevel[{}]'/{}", self.config.level_name, level.dimension);
             }
-            if self.level.chunks.save(self.level.game_time, flush).is_err() {
-                warn!("Failed to synchronize chunks");
-            }
-            if flush {
-                self.level.save_all_entities();
-            } else {
-                self.level.auto_save_entities();
-            }
+            let no_save = level.no_save && !force;
+            level.save(dir, flush, no_save);
         }
         let data = WorldData {
             seed: self.seed,
-            game_time: self.level.game_time,
-            spawn: RespawnData::of(OVERWORLD, self.spawn, self.spawn_yaw, self.spawn_pitch),
+            game_time: self.overworld().game_time,
+            spawn: self.spawn.clone(),
             game_type: self.default_game_type,
             difficulty: self.difficulty,
             difficulty_locked: self.difficulty_locked,
             hardcore: self.hardcore,
             clocks: self.clocks.to_nbt(),
             weather: self.weather.get(),
-            generator: self.level.chunks.generator.clone(),
+            generator: self.overworld().chunks.generator.clone(),
             generate_structures: self.generate_structures,
             initialized: true,
             server_brands: self.server_brands.clone(),
@@ -586,11 +616,14 @@ impl Server {
     }
 
     fn refresh_spawn_protection(&mut self) {
-        let protection = &mut self.level.spawn_protection;
-        protection.radius = self.config.spawn_protection;
-        protection.spawn = self.effective_respawn_data.pos;
-        protection.ops.clear();
-        protection.ops.extend(self.ops.entries().into_iter().map(|e| e.user.id));
+        let ops: Vec<u128> = self.ops.entries().into_iter().map(|e| e.user.id).collect();
+        for level in &mut self.levels {
+            let protection = &mut level.spawn_protection;
+            protection.radius = self.config.spawn_protection;
+            protection.dimension = self.effective_respawn_data.dimension.clone();
+            protection.spawn = self.effective_respawn_data.pos;
+            protection.ops.clone_from(&ops);
+        }
     }
 
     fn auto_save(&mut self) {
@@ -599,12 +632,14 @@ impl Server {
     }
 
     pub fn set_auto_save(&mut self, enable: bool) -> bool {
-        if self.level.no_save == enable {
-            self.level.no_save = !enable;
-            true
-        } else {
-            false
+        let mut success = false;
+        for level in &mut self.levels {
+            if level.no_save == enable {
+                level.no_save = !enable;
+                success = true;
+            }
         }
+        success
     }
 
     pub fn halt(&mut self) {
@@ -621,13 +656,13 @@ impl Server {
         resources.update_components_and_static_registry_tags();
         resources.finalize_recipe_loading();
         crate::world::level::levelgen::structure::templatesystem::structure_template_manager::on_resource_manager_reload(&resource_manager);
-        for player in self.level.players.values() {
+        for player in self.players() {
             self.save_player(player);
         }
-        for player in self.level.players.values() {
+        for player in self.players() {
             player.connection.send(clientbound::UPDATE_TAGS, crate::network::configuration::write_tags);
         }
-        for player in self.level.players.values() {
+        for player in self.players() {
             player.connection.send(clientbound::UPDATE_RECIPES, crate::world::item::crafting::recipe_manager::write_update_recipes);
             crate::stats::server_recipe_book::send_initial_recipe_book(&player.connection, &player.recipe_book);
         }
@@ -639,33 +674,37 @@ impl Server {
         self.notification_manager.server_shutting_down();
         info!("Stopping server");
         info!("Saving players");
-        let ids: Vec<EntityId> = self.level.players.keys().copied().collect();
-        for &id in &ids {
-            self.save_player(self.level.player(id));
+        for player in self.players() {
+            self.save_player(player);
         }
         self.remove_all();
         info!("Saving worlds");
-        self.level.no_save = false;
-        while self.level.chunks.has_work() {
+        for level in &mut self.levels {
+            level.no_save = false;
+        }
+        while self.levels.iter().any(|level| level.chunks.has_work()) {
             let next_tick = Instant::now() + Duration::from_millis(1);
-            self.level.chunks.deactivate_tickets_on_closing();
-            self.level.tick_chunk_source_without_chunks();
-            while let Some(wait) = next_tick.checked_duration_since(Instant::now()).filter(|w| !w.is_zero()) {
-                if !self.level.poll_chunk_task() {
-                    self.level.wait_for_chunk_work(wait);
-                }
+            for level in &mut self.levels {
+                level.chunks.deactivate_tickets_on_closing();
+                level.tick_chunk_source_without_chunks();
             }
+            self.wait_until_next_tick(next_tick);
         }
         self.save_all_chunks(false, true, false);
-        self.level.close();
+        for level in &mut self.levels {
+            level.close();
+        }
     }
 
     pub fn modify_clock(&mut self, clock: usize) {
         let advance_time = self.game_rules.get_bool(game_rule::ADVANCE_TIME);
-        for p in self.level.players.values() {
-            p.connection.send(clientbound::SET_TIME, |w| self.clocks.write_set_time(w, self.level.game_time, &[clock], advance_time));
+        let game_time = self.overworld().game_time;
+        for p in self.players() {
+            p.connection.send(clientbound::SET_TIME, |w| self.clocks.write_set_time(w, game_time, &[clock], advance_time));
         }
-        self.level.sync_clocks(&self.clocks);
+        for level in &mut self.levels {
+            level.sync_clocks(&self.clocks);
+        }
     }
 
     pub fn set_game_rule(&mut self, rule: crisp_data::GameRule, value: i32) {
@@ -673,7 +712,7 @@ impl Server {
         self.notification_manager.on_game_rule_changed(rule, value);
         if rule == game_rule::REDUCED_DEBUG_INFO {
             let event = if value != 0 { 22 } else { 23 };
-            for p in self.level.players.values() {
+            for p in self.players() {
                 p.connection.send(clientbound::ENTITY_EVENT, |w| {
                     w.i32(p.entity.id);
                     w.u8(event);
@@ -681,22 +720,26 @@ impl Server {
             }
         } else if rule == game_rule::LIMITED_CRAFTING || rule == game_rule::IMMEDIATE_RESPAWN {
             let event = if rule == game_rule::LIMITED_CRAFTING { GAME_EVENT_LIMITED_CRAFTING } else { GAME_EVENT_IMMEDIATE_RESPAWN };
-            for p in self.level.players.values() {
+            for p in self.players() {
                 p.connection.send(clientbound::GAME_EVENT, |w| {
                     w.u8(event);
                     w.f32(if value != 0 { 1.0 } else { 0.0 });
                 });
             }
         } else if rule == game_rule::ADVANCE_TIME {
-            for p in self.level.players.values() {
+            for p in self.players() {
                 p.connection.send(clientbound::SET_TIME, |w| self.full_time_sync(w));
             }
         }
     }
 
     fn save_player(&self, player: &ServerPlayer) {
+        self.save_player_data(self.entity_level(player.entity.id).dimension, player);
+    }
+
+    fn save_player_data(&self, dimension: &str, player: &ServerPlayer) {
         let Some(dir) = &self.world_dir else { return };
-        if write_dat(&dir.player(player.profile.uuid), &player.to_nbt(self.level.dimension)).is_err() {
+        if write_dat(&dir.player(player.profile.uuid), &player.to_nbt(dimension)).is_err() {
             warn!("Failed to save player data for {}", player.profile.name);
         }
     }
@@ -706,7 +749,7 @@ impl Server {
             Event::Join { conn, profile, cookie, out, address } => self.place_new_player(conn, profile, cookie, out, address),
             Event::Packet { conn, packet } => {
                 let Some(&id) = self.connections.get(&conn) else { return };
-                self.level.player_mut(id).received_packets += 1;
+                self.player_mut(id).received_packets += 1;
                 let result = match packet.id {
                     serverbound::CHAT => self.handle_chat(id, &packet),
                     serverbound::CHAT_COMMAND => self.handle_chat_command(id, &packet),
@@ -717,13 +760,13 @@ impl Server {
                     serverbound::CLIENT_COMMAND => self.handle_client_command(id, &packet),
                     serverbound::CHANGE_GAME_MODE => self.handle_change_game_mode(id, &packet),
                     serverbound::RESOURCE_PACK => self.handle_resource_pack_response(id, &packet),
-                    _ => self.level.handle_game_packet(id, &packet),
+                    _ => self.entity_level_mut(id).handle_game_packet(id, &packet),
                 };
                 if result.is_err() {
-                    self.level.player_mut(id).disconnect("multiplayer.disconnect.invalid_packet");
+                    self.player_mut(id).disconnect("multiplayer.disconnect.invalid_packet");
                 }
-                self.level.entity_moved(id);
-                if self.level.player(id).disconnected {
+                self.entity_level_mut(id).entity_moved(id);
+                if self.player(id).disconnected {
                     self.remove_player(conn, None);
                 }
             }
@@ -738,7 +781,7 @@ impl Server {
     }
 
     fn full_time_sync(&self, p: &mut crisp_protocol::Writer) {
-        self.clocks.write_set_time(p, self.level.game_time, &self.clocks.all(), self.game_rules.get_bool(game_rule::ADVANCE_TIME));
+        self.clocks.write_set_time(p, self.overworld().game_time, &self.clocks.all(), self.game_rules.get_bool(game_rule::ADVANCE_TIME));
     }
 
     fn place_new_player(&mut self, conn: ConnId, profile: Profile, cookie: CommonListenerCookie, out: Outbound, address: std::net::SocketAddr) {
@@ -749,27 +792,28 @@ impl Server {
         player.chat = ChatState::new(player.profile.uuid, &self.config);
         player.set_game_mode_for_player(self.calculate_game_mode_for_new_player(None), None);
         let saved = self.load_player_data(&player.profile.name, player.profile.uuid);
+        let prepared = self.prepare_spawn_tasks.iter().position(|t| t.uuid == player.profile.uuid && t.reply.is_none());
+        let (level_index, position, y_rot, x_rot) = match prepared {
+            Some(index) => {
+                let task = self.prepare_spawn_tasks.swap_remove(index);
+                self.levels[task.level].wait_for_entities_around(BlockPos::containing(task.position.x, task.position.y, task.position.z).chunk(), 3);
+                (task.level, task.position, task.angle.0, task.angle.1)
+            }
+            None => self.spawn_position(saved.as_ref()),
+        };
         if let Some(nbt) = &saved {
             player.load_nbt(nbt);
-            if let Some(bed_position) = ServerPlayer::saved_sleeping_pos(nbt).filter(|&pos| self.level.has_chunk_at(pos)) {
-                let state = crate::world::level::BlockGetter::block_state(&mut self.level, bed_position);
+            let level = &mut self.levels[level_index];
+            if let Some(bed_position) = ServerPlayer::saved_sleeping_pos(nbt).filter(|&pos| level.has_chunk_at(pos)) {
+                let state = crate::world::level::BlockGetter::block_state(level, bed_position);
                 if let Some(kind) = crate::world::level::block::abstract_bed_block::kind(state.block()) {
-                    self.level.set_block(bed_position, state.set(crisp_data::properties::OCCUPIED, false), crate::world::level::update_flags::UPDATE_ALL);
-                    crate::world::level::block::abstract_bed_block::on_stop_sleeping(kind, &mut self.level, bed_position);
+                    level.set_block(bed_position, state.set(crisp_data::properties::OCCUPIED, false), crate::world::level::update_flags::UPDATE_ALL);
+                    crate::world::level::block::abstract_bed_block::on_stop_sleeping(kind, level, bed_position);
                 }
             }
             let (game_type, previous) = ServerPlayer::saved_game_types(nbt);
             player.set_game_mode_for_player(self.calculate_game_mode_for_new_player(game_type), previous);
         }
-        let prepared = self.prepare_spawn_tasks.iter().position(|t| t.uuid == player.profile.uuid && t.reply.is_none());
-        let (position, y_rot, x_rot) = match prepared {
-            Some(index) => {
-                let task = self.prepare_spawn_tasks.swap_remove(index);
-                self.level.wait_for_entities_around(BlockPos::containing(task.position.x, task.position.y, task.position.z).chunk(), 3);
-                (task.position, task.angle.0, task.angle.1)
-            }
-            None => self.spawn_position(saved.as_ref()),
-        };
         player.entity.set_pos(position);
         player.entity.y_rot = y_rot;
         player.entity.x_rot = x_rot;
@@ -785,14 +829,16 @@ impl Server {
         );
         player.address = Some(address);
         let config = &self.config;
-        let level = &self.level;
+        let level = &self.levels[level_index];
         let out = player.connection.clone();
         let id = player.entity.id;
         out.send(clientbound::LOGIN, |p| {
             p.i32(id);
             p.bool(self.hardcore);
-            p.varint(1);
-            p.string(level.dimension);
+            p.varint(self.levels.len() as i32);
+            for level in &self.levels {
+                p.string(level.dimension);
+            }
             p.varint(config.max_players as i32);
             p.varint(config.view_distance);
             p.varint(config.simulation_distance);
@@ -821,7 +867,7 @@ impl Server {
             p.i32(id);
             p.u8(EVENT_PERMISSION_LEVEL_ALL + permission as u8);
         });
-        out.send(clientbound::COMMANDS, |p| crate::commands::write_commands_packet(p, &CommandSourceStack::for_new_player(self, &player)));
+        out.send(clientbound::COMMANDS, |p| crate::commands::write_commands_packet(p, &CommandSourceStack::for_new_player(self, level_index, &player)));
         crate::stats::server_recipe_book::send_initial_recipe_book(&out, &player.recipe_book);
         level.scoreboard.borrow().update_entire_scoreboard(&out);
         let (pos, y_rot, x_rot) = (player.entity.position(), player.entity.y_rot, player.entity.x_rot);
@@ -838,8 +884,8 @@ impl Server {
         }
         out.send(clientbound::PLAYER_INFO_UPDATE, |p| {
             p.u8(0xFF);
-            p.varint(level.players.len() as i32);
-            level.players.values().for_each(|o| o.write_info(p));
+            p.varint(self.player_count() as i32);
+            self.players().for_each(|o| o.write_info(p));
         });
         out.send(clientbound::PLAYER_INFO_UPDATE, |p| {
             p.u8(0xFF);
@@ -864,7 +910,7 @@ impl Server {
             Component::translatable_with("multiplayer.player.joined.renamed", vec![display_name.into(), old_name.into()]).with_color(ChatFormatting::Yellow)
         };
         self.send_system_message(&message);
-        for other in level.players.values() {
+        for other in self.players() {
             other.connection.send(clientbound::SYSTEM_CHAT, |p| {
                 message.write(p);
                 p.bool(false);
@@ -876,9 +922,12 @@ impl Server {
             });
         }
         self.connections.insert(conn, id);
-        self.level.add_player(player);
-        self.custom_boss_events.on_player_connect(&self.level, id);
-        let level = &mut self.level;
+        self.player_list.push(id);
+        self.scoreboard.borrow_mut().server.add_connection(id, out.clone());
+        self.levels[level_index].add_player(player);
+        self.update_player_names_array();
+        self.custom_boss_events.on_player_connect(&self.levels, id);
+        let level = &mut self.levels[level_index];
         let others: Vec<(EntityId, u128, BlockPos)> =
             level.players.values().filter(|o| o.entity.id != id).map(|o| (o.entity.id, o.profile.uuid, o.entity.block_position())).collect();
         let player = level.player_mut(id);
@@ -914,13 +963,13 @@ impl Server {
         if self.send_all_player_info_in > 600 {
             let packet = crate::network::connection::encode(clientbound::PLAYER_INFO_UPDATE, |p| {
                 p.u8(1 << 4);
-                p.varint(self.level.players.len() as i32);
-                for player in self.level.players.values() {
+                p.varint(self.player_count() as i32);
+                for player in self.players() {
                     p.uuid(player.profile.uuid);
                     p.varint(player.latency);
                 }
             });
-            for player in self.level.players.values() {
+            for player in self.players() {
                 player.connection.send_raw(packet.clone());
             }
             self.send_all_player_info_in = 0;
@@ -930,13 +979,13 @@ impl Server {
     fn run_all_tasks(&mut self) {
         while let Some(task) = self.tasks.pop_front() {
             match task {
-                Task::Chat { player, body, signature } if self.level.players.contains_key(&player) => self.run_chat(player, body, signature),
-                Task::Command { player, command } if self.level.players.contains_key(&player) => self.run_unsigned_command(player, &command),
-                Task::SignedCommand { player, command, time_stamp, salt, arguments, last_seen } if self.level.players.contains_key(&player) => {
+                Task::Chat { player, body, signature } if self.has_player(player) => self.run_chat(player, body, signature),
+                Task::Command { player, command } if self.has_player(player) => self.run_unsigned_command(player, &command),
+                Task::SignedCommand { player, command, time_stamp, salt, arguments, last_seen } if self.has_player(player) => {
                     self.run_signed_command(player, &command, time_stamp, salt, arguments, last_seen);
                 }
-                Task::Chained { player, run } if self.level.players.contains_key(&player) => run(self),
-                Task::CommandSuggestions { player } if self.level.players.contains_key(&player) => self.try_process_command_suggestions(player),
+                Task::Chained { player, run } if self.has_player(player) => run(self),
+                Task::CommandSuggestions { player } if self.has_player(player) => self.try_process_command_suggestions(player),
                 Task::Rcon { command, reply } => {
                     self.rcon_buffer.borrow_mut().clear();
                     let source = CommandSourceStack::rcon(self);
@@ -970,7 +1019,7 @@ impl Server {
     }
 
     fn build_player_status(&mut self) -> serde_json::Value {
-        let players: Vec<&ServerPlayer> = self.level.players.values().collect();
+        let players: Vec<&ServerPlayer> = self.levels.iter().flat_map(|level| level.players.values()).collect();
         let mut players_json = serde_json::json!({ "max": self.config.max_players, "online": players.len() });
         if self.config.hides_online_players {
             return players_json;
@@ -1007,7 +1056,7 @@ impl Server {
                 }
                 login.waiting_for_dupe = self.disconnect_all_players_with_profile(login.profile.uuid);
             }
-            if login.waiting_for_dupe && self.level.players.values().any(|p| p.profile.uuid == login.profile.uuid) {
+            if login.waiting_for_dupe && self.players().any(|p| p.profile.uuid == login.profile.uuid) {
                 self.pending_logins.push(login);
                 continue;
             }
@@ -1019,7 +1068,7 @@ impl Server {
             });
             let _ = login.reply.send(Verdict::Accept { session_id });
         }
-        if self.level.players.is_empty() && self.pending_logins.is_empty() && self.connections.is_empty() {
+        if self.player_count() == 0 && self.pending_logins.is_empty() && self.connections.is_empty() {
             self.session_id = None;
         }
     }
@@ -1043,7 +1092,7 @@ impl Server {
             });
         }
         let bypass = self.ops.get(profile.uuid).is_some_and(|e| e.bypasses_player_limit);
-        (self.level.players.len() >= self.config.max_players as usize && !bypass).then(|| Component::translatable("multiplayer.disconnect.server_full"))
+        (self.player_count() >= self.config.max_players as usize && !bypass).then(|| Component::translatable("multiplayer.disconnect.server_full"))
     }
 
     pub fn enforce_secure_profile(&self) -> bool {
@@ -1059,7 +1108,7 @@ impl Server {
 
     pub(crate) fn kick_if_idle(&mut self, id: EntityId) -> bool {
         let timeout = self.config.player_idle_timeout;
-        let player = self.level.player_mut(id);
+        let player = self.player_mut(id);
         if timeout > 0 && player.last_action_time.elapsed() > Duration::from_secs(timeout as u64 * 60) {
             player.disconnect("multiplayer.disconnect.idling");
             return true;
@@ -1069,7 +1118,7 @@ impl Server {
 
     fn tick_second(&mut self, id: EntityId) -> bool {
         let rate_limit_packets_per_second = self.config.rate_limit_packets_per_second;
-        let player = self.level.player_mut(id);
+        let player = self.player_mut(id);
         let tick_count = player.connection_tick_count;
         player.connection_tick_count = tick_count.wrapping_add(1);
         if tick_count % 20 != 0 {
@@ -1096,9 +1145,9 @@ impl Server {
     pub fn kick_unlisted_players(&mut self) {
         if self.config.enforce_whitelist && self.config.white_list {
             let unlisted: Vec<EntityId> =
-                self.level.players.values().filter(|p| !self.whitelist.contains_key(&format_uuid(p.profile.uuid))).map(|p| p.entity.id).collect();
+                self.players().filter(|p| !self.whitelist.contains_key(&format_uuid(p.profile.uuid))).map(|p| p.entity.id).collect();
             for id in unlisted {
-                self.level.player_mut(id).disconnect("multiplayer.disconnect.not_whitelisted");
+                self.player_mut(id).disconnect("multiplayer.disconnect.not_whitelisted");
             }
         }
     }
@@ -1108,9 +1157,9 @@ impl Server {
     }
 
     fn disconnect_all_players_with_profile(&mut self, uuid: u128) -> bool {
-        let dupes: Vec<EntityId> = self.level.players.values().filter(|p| p.profile.uuid == uuid).map(|p| p.entity.id).collect();
+        let dupes: Vec<EntityId> = self.players().filter(|p| p.profile.uuid == uuid).map(|p| p.entity.id).collect();
         for &id in &dupes {
-            self.level.player_mut(id).disconnect("multiplayer.disconnect.duplicate_login");
+            self.player_mut(id).disconnect("multiplayer.disconnect.duplicate_login");
         }
         !dupes.is_empty()
     }
@@ -1123,13 +1172,13 @@ impl Server {
 
     pub fn broadcast_system_message(&self, message: &Component, overlay: bool) {
         self.send_system_message(message);
-        for &id in self.level.players.keys() {
-            self.send_player_system_message(id, message, overlay);
+        for player in self.players() {
+            self.send_player_system_message(player.entity.id, message, overlay);
         }
     }
 
     pub fn send_player_system_message(&self, id: EntityId, message: &Component, overlay: bool) {
-        let Some(player) = self.level.players.get(&id) else { return };
+        let Some(player) = self.get_player(id) else { return };
         if player.client.chat_visibility == ChatVisibility::Hidden && !overlay {
             return;
         }
@@ -1140,14 +1189,19 @@ impl Server {
     }
 
     pub fn entity_name(&self, id: EntityId) -> String {
-        match self.level.players.get(&id) {
+        let Some(level) = self.level_of(id) else { return String::new() };
+        let level = &self.levels[level];
+        match level.players.get(&id) {
             Some(p) => p.profile.name.clone(),
-            None => self.level.entities.get(&id).map_or_else(String::new, |e| e.name().get_string()),
+            None => level.entities.get(&id).map_or_else(String::new, |e| e.name().get_string()),
         }
     }
 
     pub fn entity_display_name(&self, id: EntityId) -> Component {
-        self.level.display_name(id)
+        match self.level_of(id) {
+            Some(level) => self.levels[level].display_name(id),
+            None => Component::empty(),
+        }
     }
 
     pub fn profile_permission_level(&self, uuid: u128) -> i32 {
@@ -1159,7 +1213,7 @@ impl Server {
     }
 
     pub fn send_player_permission_level(&self, id: EntityId) {
-        let Some(player) = self.level.players.get(&id) else { return };
+        let Some(player) = self.get_player(id) else { return };
         let level = self.profile_permission_level(player.profile.uuid);
         player.connection.send(clientbound::ENTITY_EVENT, |p| {
             p.i32(id);
@@ -1169,10 +1223,15 @@ impl Server {
         player.connection.send(clientbound::COMMANDS, |p| crate::commands::write_commands_packet(p, &source));
     }
 
+    fn update_player_names_array(&self) {
+        let names: Arc<[String]> = self.players().map(|p| p.profile.name.clone()).collect();
+        *self.player_names_array.write().unwrap() = names;
+    }
+
     fn remove_all(&mut self) {
         let mut i = 0;
-        while let Some(&id) = self.level.players.get_index(i).map(|(id, _)| id) {
-            self.level.player_mut(id).disconnect("multiplayer.disconnect.server_shutdown");
+        while let Some(&id) = self.player_list.get(i) {
+            self.player_mut(id).disconnect("multiplayer.disconnect.server_shutdown");
             if let Some(conn) = self.connections.iter().find_map(|(&conn, &player)| (player == id).then_some(conn)) {
                 self.remove_player(conn, None);
             }
@@ -1182,28 +1241,37 @@ impl Server {
 
     fn remove_player(&mut self, conn: ConnId, reason: Option<Component>) {
         let Some(id) = self.connections.remove(&conn) else { return };
-        if self.level.is_sleeping(id) {
-            self.level.stop_sleep_in_bed(id, true, false);
+        let Some(level_index) = self.level_of(id) else { return };
+        let level = &mut self.levels[level_index];
+        if level.is_sleeping(id) {
+            level.stop_sleep_in_bed(id, true, false);
         }
-        self.level.player_mut(id).disconnected = true;
-        self.level.remove_player_menus(id);
-        let Some(player) = self.level.remove_player(id) else { return };
-        self.custom_boss_events.on_player_disconnect(&self.level, id);
+        level.player_mut(id).disconnected = true;
+        level.remove_player_menus(id);
+        let Some(player) = level.remove_player(id) else { return };
+        self.player_list.retain(|&p| p != id);
+        self.scoreboard.borrow_mut().server.remove_connection(id);
+        self.update_player_names_array();
+        self.custom_boss_events.on_player_disconnect(&self.levels, id);
         let reason = player.disconnect_reason.clone().or_else(|| reason.map(|r| r.get_string())).unwrap_or_else(|| "Disconnected".into());
         info!("{} lost connection: {reason}", player.profile.name);
         self.invalidate_status();
-        self.save_player(&player);
+        self.save_player_data(self.levels[level_index].dimension, &player);
         self.notification_manager.player_left(&NameAndId { id: player.profile.uuid, name: player.profile.name.clone() });
-        let message = player_joined_or_left(self.level.player_display_name(&player.profile.name, player.profile.uuid), false);
+        let message = player_joined_or_left(self.levels[level_index].player_display_name(&player.profile.name, player.profile.uuid), false);
         self.send_system_message(&message);
-        for other in self.level.players.values_mut() {
+        for other in self.players() {
             other.connection.send(clientbound::SYSTEM_CHAT, |p| {
                 message.write(p);
                 p.bool(false);
             });
+        }
+        for other in self.levels[level_index].players.values_mut() {
             if other.waypoints.remove(&id).is_some() {
                 other.connection.send_raw(waypoint(1, player.profile.uuid, None));
             }
+        }
+        for other in self.players() {
             other.connection.send(clientbound::PLAYER_INFO_REMOVE, |p| {
                 p.varint(1);
                 p.uuid(player.profile.uuid);
@@ -1215,7 +1283,7 @@ impl Server {
         let start = Instant::now();
         let empty_tick_threshold = self.config.pause_when_empty_seconds * 20;
         if empty_tick_threshold > 0 {
-            if self.level.players.is_empty() && !self.tick_rate_manager.is_sprinting() {
+            if self.player_count() == 0 && !self.tick_rate_manager.is_sprinting() {
                 self.empty_ticks += 1;
             } else {
                 self.empty_ticks = 0;
@@ -1232,40 +1300,31 @@ impl Server {
             }
         }
         self.tick_count += 1;
-        self.level.tick_rate_manager.tick();
+        self.tick_rate_manager.tick();
         ServerFunctionManager::tick(self);
-        if self.level.tick_rate_manager.runs_normally() {
+        if self.tick_rate_manager.runs_normally() {
             self.clocks.tick(self.game_rules.get_bool(game_rule::ADVANCE_TIME));
         }
-        self.level.sync_clocks(&self.clocks);
-        self.level.overworld_clock_time = self.clocks.clocks[ServerClockManager::id_of(OVERWORLD).unwrap()].total_ticks;
+        let overworld_clock_time = self.clocks.clocks[ServerClockManager::id_of(OVERWORLD).unwrap()].total_ticks;
+        for level in &mut self.levels {
+            level.sync_clocks(&self.clocks);
+            level.overworld_clock_time = overworld_clock_time;
+        }
         if self.tick_count % 20 == 0 {
-            for p in self.level.players.values() {
+            let game_time = self.overworld().game_time;
+            for p in self.players() {
                 p.connection.send(clientbound::SET_TIME, |w| {
-                    w.i64(self.level.game_time);
+                    w.i64(game_time);
                     w.varint(0);
                 });
             }
         }
         self.update_effective_respawn_data();
-        let runs = self.level.tick_until_sleep();
-        if self.level.should_wake_up_all_players() {
-            let clock = ServerClockManager::id_of(OVERWORLD).unwrap();
-            if self.game_rules.get_bool(game_rule::ADVANCE_TIME) {
-                self.clocks.move_to_time_marker(clock, "minecraft:wake_up_from_sleep");
-                self.modify_clock(clock);
-            }
-            self.level.wake_up_all_players_after_clock();
+        for index in 0..self.levels.len() {
+            self.tick_level(index);
         }
-        self.level.update_sky_brightness();
-        if runs {
-            let time = self.level.tick_time();
-            TimerQueue::tick(self, time);
-        }
-        self.level.tick_after_time(runs);
-        let ids: Vec<EntityId> = self.level.players.keys().copied().collect();
-        for id in ids {
-            let connected = self.level.tick_connection(id);
+        for id in self.player_ids() {
+            let connected = self.entity_level_mut(id).tick_connection(id);
             if connected {
                 self.tick_command_suggestions(id);
             }
@@ -1281,9 +1340,8 @@ impl Server {
         self.handle_console_inputs();
         self.tick_player_list();
         self.update_waypoints();
-        let ids: Vec<EntityId> = self.level.players.keys().copied().collect();
-        for id in ids {
-            self.level.send_next_chunks(id);
+        for id in self.player_ids() {
+            self.entity_level_mut(id).send_next_chunks(id);
         }
         self.server_activity_monitor.tick();
         if self.last_status.is_none_or(|t| t.elapsed() >= STATUS_EXPIRE_TIME) {
@@ -1300,24 +1358,54 @@ impl Server {
         self.tick_times_nanos[tick_index] = tick_time;
     }
 
+    fn tick_level(&mut self, index: usize) {
+        if index != 0 {
+            let game_time = self.overworld().game_time;
+            let level = &mut self.levels[index];
+            level.game_time = game_time;
+            level.chunks.game_time = game_time;
+        }
+        let level = &mut self.levels[index];
+        let runs = level.tick_until_sleep();
+        if level.should_wake_up_all_players() {
+            let default_clock = level.dimension_type().default_clock.and_then(ServerClockManager::id_of);
+            if self.game_rules.get_bool(game_rule::ADVANCE_TIME)
+                && let Some(clock) = default_clock
+            {
+                self.clocks.move_to_time_marker(clock, "minecraft:wake_up_from_sleep");
+                self.modify_clock(clock);
+            }
+            self.levels[index].wake_up_all_players_after_clock();
+        }
+        let level = &mut self.levels[index];
+        level.update_sky_brightness();
+        if runs && index == 0 {
+            let time = level.tick_time();
+            TimerQueue::tick(self, time);
+        }
+        self.levels[index].tick_after_time(runs);
+    }
+
     pub fn tick_times_nanos(&self) -> &[i64; 100] {
         &self.tick_times_nanos
     }
 
     fn update_waypoints(&mut self) {
-        let positions: Vec<(EntityId, u128, BlockPos)> =
-            self.level.players.values().map(|p| (p.entity.id, p.profile.uuid, p.entity.block_position())).collect();
-        for viewer in self.level.players.values_mut() {
-            for &(id, uuid, block) in &positions {
-                if id == viewer.entity.id {
-                    continue;
+        for level in &mut self.levels {
+            let positions: Vec<(EntityId, u128, BlockPos)> =
+                level.players.values().map(|p| (p.entity.id, p.profile.uuid, p.entity.block_position())).collect();
+            for viewer in level.players.values_mut() {
+                for &(id, uuid, block) in &positions {
+                    if id == viewer.entity.id {
+                        continue;
+                    }
+                    match viewer.waypoints.get(&id) {
+                        None => viewer.connection.send_raw(waypoint(0, uuid, Some(block))),
+                        Some(&old) if old != block => viewer.connection.send_raw(waypoint(2, uuid, Some(block))),
+                        Some(_) => continue,
+                    }
+                    viewer.waypoints.insert(id, block);
                 }
-                match viewer.waypoints.get(&id) {
-                    None => viewer.connection.send_raw(waypoint(0, uuid, Some(block))),
-                    Some(&old) if old != block => viewer.connection.send_raw(waypoint(2, uuid, Some(block))),
-                    Some(_) => continue,
-                }
-                viewer.waypoints.insert(id, block);
             }
         }
     }
@@ -1379,7 +1467,7 @@ fn write_respawn_data(p: &mut crisp_protocol::Writer, data: &RespawnData) {
     p.f32(data.pitch);
 }
 
-fn log_save_failure(file_name: &str, result: std::io::Result<()>) {
+pub(crate) fn log_save_failure(file_name: &str, result: std::io::Result<()>) {
     if result.is_err() {
         error!("Could not save data to {file_name}");
     }
@@ -1490,10 +1578,6 @@ pub fn get_selected_packs(pack_repository: &PackRepository, disable_inactive: bo
     DataPackConfig { enabled: selected.into_iter().map(str::to_string).collect(), disabled }
 }
 
-fn chunk_tickets_file(dir: &WorldDir) -> std::path::PathBuf {
-    dir.dimension_data_folder(OVERWORLD).join("minecraft").join("chunk_tickets.dat")
-}
-
 #[allow(clippy::too_many_arguments)]
 pub fn run(
     config: ServerConfig,
@@ -1570,13 +1654,13 @@ pub fn run(
     };
     server.attach_notification_manager(notification_manager, server_activity_monitor, listener_settings);
     if let Some(management_server) = &management_server {
-        management_server.set_waker(server.level.chunks.waker());
+        management_server.set_waker(server.overworld().chunks.waker());
     }
     server.settings = settings;
     info!("Done ({:.3}s)! For help, type \"help\"", started.elapsed().as_secs_f64());
     server.services = services;
     server.status = status;
-    server.level.player_names_array = player_names_array;
+    server.player_names_array = player_names_array;
     let mut query_thread_gs4 = None;
     let mut rcon_thread = None;
     if let Some(properties) = server.settings.as_ref().map(|s| s.properties().clone()) {
@@ -1588,7 +1672,7 @@ pub fn run(
                 server_name: server.config.motd.clone(),
                 max_players: server.config.max_players,
                 level_id_name: server.config.level_name.clone(),
-                player_names_array: server.level.player_names_array.clone(),
+                player_names_array: server.player_names_array.clone(),
             };
             query_thread_gs4 = rcon::query_thread_gs4::QueryThreadHandle::create(interface, properties.query_port, &runtime);
         }
@@ -1598,7 +1682,7 @@ pub fn run(
         }
     }
     let timing = dedicated::server_watchdog::ServerTiming::new();
-    timing.set_next_tick_time(Instant::now(), server.level.tick_rate_manager.milliseconds_per_tick());
+    timing.set_next_tick_time(Instant::now(), server.tick_rate_manager.milliseconds_per_tick());
     if let Ok(mut snapshot) = timing.snapshot.lock() {
         *snapshot = server.watchdog_snapshot();
     }
@@ -1661,7 +1745,7 @@ fn run_server_loop(server: &mut Server, events: &mut mpsc::UnboundedReceiver<Eve
             last_overload_warning = next_tick;
             Duration::ZERO
         } else {
-            let this_tick = Duration::from_nanos(server.level.tick_rate_manager.nanoseconds_per_tick() as u64);
+            let this_tick = Duration::from_nanos(server.tick_rate_manager.nanoseconds_per_tick() as u64);
             if let Some(behind) = Instant::now().checked_duration_since(next_tick)
                 && behind > OVERLOADED_THRESHOLD + 20 * this_tick
                 && next_tick.saturating_duration_since(last_overload_warning) >= OVERLOADED_WARNING_INTERVAL + 100 * this_tick
@@ -1675,30 +1759,36 @@ fn run_server_loop(server: &mut Server, events: &mut mpsc::UnboundedReceiver<Eve
         };
         let sprinting = this_tick.is_zero();
         next_tick += this_tick;
-        timing.set_next_tick_time(next_tick, server.level.tick_rate_manager.milliseconds_per_tick());
+        timing.set_next_tick_time(next_tick, server.tick_rate_manager.milliseconds_per_tick());
         if ticks.is_multiple_of(SNAPSHOT_INTERVAL)
             && let Ok(mut snapshot) = timing.snapshot.lock()
         {
             *snapshot = server.watchdog_snapshot();
         }
         ticks += 1;
-        server.level.chunks.tick_deadline = Some(next_tick);
+        for level in &mut server.levels {
+            level.chunks.tick_deadline = Some(next_tick);
+        }
         server.refresh_spawn_protection();
         while let Ok(event) = events.try_recv() {
             server.handle(event);
         }
-        server.level.chunks.run_light_updates();
-        server.level.process_chunk_events();
+        for level in &mut server.levels {
+            level.chunks.run_light_updates();
+            level.process_chunk_events();
+        }
         server.tick();
         server.run_all_tasks();
         server.mark_ready();
+        let wakeup = server.overworld().chunks.main_thread_wakeup();
         loop {
+            let seen = wakeup.generation();
             while let Ok(task) = tasks.try_recv() {
                 task(server);
             }
             let Some(wait) = next_tick.checked_duration_since(Instant::now()).filter(|w| !w.is_zero()) else { break };
-            if !server.level.poll_chunk_task() {
-                server.level.wait_for_chunk_work(wait);
+            if !server.poll_task() {
+                wakeup.wait(seen, wait);
             }
         }
         if sprinting {
@@ -1718,14 +1808,14 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
         let config = ServerConfig { seed: Some(12345), world: Some(dir.clone()), ..ServerConfig::default() };
         let mut server = Server::new(config.clone()).unwrap();
-        let spawn = server.spawn;
+        let spawn = server.spawn.pos;
         assert!(((spawn.x >> 4) - 6).abs() <= 5 && ((spawn.z >> 4) + 2).abs() <= 5, "{spawn:?}");
-        assert!(crisp_core::shapes::is_face_full(server.level.chunks.block_state(spawn.below()).collision_voxel_shape(), crisp_core::Direction::Up), "{spawn:?}");
+        assert!(crisp_core::shapes::is_face_full(server.levels[0].chunks.block_state(spawn.below()).collision_voxel_shape(), crisp_core::Direction::Up), "{spawn:?}");
         assert!(server.save_everything(true, true, true));
         drop(server);
         let server = Server::new(config).unwrap();
-        assert_eq!(server.spawn, spawn);
-        assert!(matches!(&server.level.chunks.generator, ChunkGenerator::Noise(g) if g.seed() == 12345));
+        assert_eq!(server.spawn.pos, spawn);
+        assert!(matches!(&server.levels[0].chunks.generator, ChunkGenerator::Noise(g) if g.seed() == 12345));
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -1733,14 +1823,4 @@ mod tests {
     fn hashed_seed_matches_vanilla() {
         assert_eq!(super::hashed_seed(-8153440939324367893), 0x441855f4320ff0d7);
     }
-}
-
-fn get_type_count<'a>(values: impl Iterator<Item = &'a str>) -> String {
-    let mut count_by_type: crisp_core::fastutil::Object2ObjectOpenHashMap<i32> = crisp_core::fastutil::Object2ObjectOpenHashMap::new(16, 0.75);
-    for ty in values {
-        *count_by_type.get_or_insert_with(ty, || 0) += 1;
-    }
-    let mut entries: Vec<(&str, i32)> = count_by_type.stream().map(|(ty, &count)| (ty, count)).collect();
-    entries.sort_by(|a, b| b.1.cmp(&a.1));
-    entries.iter().take(5).map(|(ty, count)| format!("{ty}:{count}")).collect::<Vec<_>>().join(",")
 }

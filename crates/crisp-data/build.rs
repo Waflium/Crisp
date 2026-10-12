@@ -322,6 +322,10 @@ fn f32_literal(v: &Value) -> String {
     format!("{:?}", v.as_f64().unwrap() as f32)
 }
 
+fn f64_literal(v: &Value) -> String {
+    format!("{:?}", v.as_f64().unwrap())
+}
+
 fn blocks(
     out: &mut String,
     extracted: &Value,
@@ -1007,11 +1011,14 @@ fn dimension_types(out: &mut String, data: &Path, entries: &[String]) -> anyhow:
         let attributes = v.get("attributes").map_or("{}".to_owned(), Value::to_string);
         writeln!(
             out,
-            "DimensionType {{ name: {id:?}, min_y: {}, height: {}, has_skylight: {}, has_ceiling: {}, has_fixed_time: {}, ambient_light: {}, infiniburn: &block_tags::{}, default_clock: {:?}, attributes: {attributes:?}, timelines: {:?} }},",
+            "DimensionType {{ name: {id:?}, min_y: {}, height: {}, logical_height: {}, coordinate_scale: {}, has_skylight: {}, has_ceiling: {}, has_ender_dragon_fight: {}, has_fixed_time: {}, ambient_light: {}, infiniburn: &block_tags::{}, default_clock: {:?}, attributes: {attributes:?}, timelines: {:?} }},",
             v["min_y"],
             v["height"],
+            v["logical_height"],
+            f64_literal(&v["coordinate_scale"]),
             v["has_skylight"],
             v["has_ceiling"],
+            v["has_ender_dragon_fight"].as_bool().unwrap_or(false),
             v["has_fixed_time"].as_bool().unwrap_or(false),
             f32_literal(&v["ambient_light"]),
             const_name(v["infiniburn"].as_str().unwrap().trim_start_matches('#')),

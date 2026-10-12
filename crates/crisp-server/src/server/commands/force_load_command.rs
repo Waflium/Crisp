@@ -22,8 +22,8 @@ fn chunk_arg(pos: ChunkPos) -> Arg {
     Component::literal(chunk_string(pos)).into()
 }
 
-fn dimension_arg(server: &Server) -> Arg {
-    Component::literal(server.level.dimension).into()
+fn dimension_arg(server: &Server, source: &CommandSourceStack) -> Arg {
+    Component::literal(server.levels[source.level].dimension).into()
 }
 
 fn column_pos(server: &Server, context: &CommandContext, source: &CommandSourceStack, name: &str) -> (i32, i32) {
@@ -34,38 +34,38 @@ fn column_pos(server: &Server, context: &CommandContext, source: &CommandSourceS
 pub fn query_force_load(server: &mut Server, context: &CommandContext, source: &CommandSourceStack) -> Result<i32, CommandSyntaxException> {
     let (x, z) = column_pos(server, context, source, "pos");
     let pos = ChunkPos::new(x >> 4, z >> 4);
-    if !server.level.chunks.force_loaded_chunks().contains(pos.pack()) {
-        return Err(ERROR_NOT_TICKING.create(chunk_string(pos), server.level.dimension));
+    if !server.levels[source.level].chunks.force_loaded_chunks().contains(pos.pack()) {
+        return Err(ERROR_NOT_TICKING.create(chunk_string(pos), server.levels[source.level].dimension));
     }
-    source.send_success(server, || Component::translatable_with("commands.forceload.query.success", vec![chunk_arg(pos), dimension_arg(server)]), false);
+    source.send_success(server, || Component::translatable_with("commands.forceload.query.success", vec![chunk_arg(pos), dimension_arg(server, source)]), false);
     Ok(1)
 }
 
 pub fn list_force_load(server: &mut Server, _context: &CommandContext, source: &CommandSourceStack) -> Result<i32, CommandSyntaxException> {
-    let mut chunks: Vec<i64> = server.level.chunks.force_loaded_chunks().iter().collect();
+    let mut chunks: Vec<i64> = server.levels[source.level].chunks.force_loaded_chunks().iter().collect();
     let count = chunks.len() as i32;
     if count > 0 {
         chunks.sort();
         let list = chunks.into_iter().map(|c| chunk_string(ChunkPos::unpack(c))).collect::<Vec<_>>().join(", ");
         let message = if count == 1 {
-            Component::translatable_with("commands.forceload.list.single", vec![dimension_arg(server), list.into()])
+            Component::translatable_with("commands.forceload.list.single", vec![dimension_arg(server, source), list.into()])
         } else {
-            Component::translatable_with("commands.forceload.list.multiple", vec![count.into(), dimension_arg(server), list.into()])
+            Component::translatable_with("commands.forceload.list.multiple", vec![count.into(), dimension_arg(server, source), list.into()])
         };
         source.send_success(server, || message.clone(), false);
     } else {
-        source.send_failure(server, Component::translatable_with("commands.forceload.added.none", vec![dimension_arg(server)]));
+        source.send_failure(server, Component::translatable_with("commands.forceload.added.none", vec![dimension_arg(server, source)]));
     }
     Ok(count)
 }
 
 pub fn remove_all(server: &mut Server, _context: &CommandContext, source: &CommandSourceStack) -> Result<i32, CommandSyntaxException> {
-    let chunks: Vec<i64> = server.level.chunks.force_loaded_chunks().iter().collect();
+    let chunks: Vec<i64> = server.levels[source.level].chunks.force_loaded_chunks().iter().collect();
     for chunk in chunks {
         let pos = ChunkPos::unpack(chunk);
-        server.level.set_chunk_forced(pos.x, pos.z, false);
+        server.levels[source.level].set_chunk_forced(pos.x, pos.z, false);
     }
-    source.send_success(server, || Component::translatable_with("commands.forceload.removed.all", vec![dimension_arg(server)]), true);
+    source.send_success(server, || Component::translatable_with("commands.forceload.removed.all", vec![dimension_arg(server, source)]), true);
     Ok(0)
 }
 
@@ -92,7 +92,7 @@ fn change_force_load(server: &mut Server, context: &CommandContext, source: &Com
     let mut tracker = CommandResponseTracker::new();
     for x in min_chunk_x..=max_chunk_x {
         for z in min_chunk_z..=max_chunk_z {
-            let changed = server.level.set_chunk_forced(x, z, add);
+            let changed = server.levels[source.level].set_chunk_forced(x, z, add);
             tracker.track_value(ChunkPos::new(x, z), changed as i32);
         }
     }
@@ -108,7 +108,7 @@ fn change_force_load(server: &mut Server, context: &CommandContext, source: &Com
         true,
         ElementType::NonZero,
         Some(on_zero),
-        |pos, _| Component::translatable_with(single, vec![chunk_arg(pos), dimension_arg(server)]),
-        |count, _| Component::translatable_with(multiple, vec![count.into(), dimension_arg(server), chunk_arg(min), chunk_arg(max)]),
+        |pos, _| Component::translatable_with(single, vec![chunk_arg(pos), dimension_arg(server, source)]),
+        |count, _| Component::translatable_with(multiple, vec![count.into(), dimension_arg(server, source), chunk_arg(min), chunk_arg(max)]),
     )
 }

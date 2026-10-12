@@ -257,6 +257,11 @@ impl<T: Copy + Eq + Hash> LevelTicks<T> {
     }
 
     pub fn copy_area(&mut self, area: &BoundingBox, offset: BlockPos) {
+        let ticks = self.ticks_in_area(area);
+        self.copy_area_from(ticks, offset);
+    }
+
+    pub fn ticks_in_area(&self, area: &BoundingBox) -> Vec<ScheduledTick<T>> {
         let mut ticks: Vec<ScheduledTick<T>> = Vec::new();
         for x in area.min.x >> 4..=area.max.x >> 4 {
             for z in area.min.z >> 4..=area.max.z >> 4 {
@@ -265,6 +270,10 @@ impl<T: Copy + Eq + Hash> LevelTicks<T> {
                 }
             }
         }
+        ticks
+    }
+
+    pub fn copy_area_from(&mut self, ticks: Vec<ScheduledTick<T>>, offset: BlockPos) {
         let (Some(min), Some(max)) = (ticks.iter().map(|t| t.sub_tick_order).min(), ticks.iter().map(|t| t.sub_tick_order).max()) else { return };
         for tick in ticks {
             let pos = tick.pos.offset(offset.x, offset.y, offset.z);

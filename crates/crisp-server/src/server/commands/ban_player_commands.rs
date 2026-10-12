@@ -44,8 +44,9 @@ pub fn ban_players(server: &mut Server, context: &CommandContext, source: &Comma
             || Component::translatable_with("commands.ban.success", vec![Arg::Component(Component::literal(player.name.as_str())), Arg::Component(message)]),
             true,
         );
-        if let Some(online) = server.level.players.values().find(|p| p.profile.uuid == player.id).map(|p| p.entity.id) {
-            server.level.player_mut(online).disconnect("multiplayer.disconnect.banned");
+        let online = server.players().find(|p| p.profile.uuid == player.id).map(|p| p.entity.id);
+        if let Some(online) = online {
+            server.player_mut(online).disconnect("multiplayer.disconnect.banned");
         }
     }
     if count == 0 {
@@ -76,7 +77,7 @@ pub fn ban_ip(server: &mut Server, context: &CommandContext, source: &CommandSou
     let ip = if is_inet_address(&target) {
         target
     } else {
-        match server.level.players.values().find(|p| p.profile.name.eq_ignore_ascii_case(&target)) {
+        match server.players().find(|p| p.profile.name.eq_ignore_ascii_case(&target)) {
             Some(player) => player.ip_address(),
             None => return Err(ERROR_INVALID_IP.create()),
         }
@@ -84,7 +85,7 @@ pub fn ban_ip(server: &mut Server, context: &CommandContext, source: &CommandSou
     if server.ip_bans.contains_key(&ip) {
         return Err(ERROR_IP_ALREADY_BANNED.create());
     }
-    let players: Vec<EntityId> = server.level.players.values().filter(|p| p.ip_address() == ip).map(|p| p.entity.id).collect();
+    let players: Vec<EntityId> = server.players().filter(|p| p.ip_address() == ip).map(|p| p.entity.id).collect();
     let entry = IpBanEntry { ip: ip.clone(), ban: Ban::new(Some(source.text_name(server)), None, reason) };
     let message = entry.ban.reason_message();
     server.ip_bans.add(entry);
@@ -94,7 +95,7 @@ pub fn ban_ip(server: &mut Server, context: &CommandContext, source: &CommandSou
         source.send_success(server, || Component::translatable_with("commands.banip.info", vec![Arg::Int(players.len() as i32), Arg::Component(names)]), true);
     }
     for &id in &players {
-        server.level.player_mut(id).disconnect("multiplayer.disconnect.ip_banned");
+        server.player_mut(id).disconnect("multiplayer.disconnect.ip_banned");
     }
     Ok(players.len() as i32)
 }

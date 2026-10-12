@@ -1,7 +1,7 @@
 use crisp_core::hash_map::{FastMap, FastSet};
 use std::collections::{HashMap, VecDeque};
 use std::io;
-use std::sync::mpsc::{Receiver, RecvTimeoutError, Sender};
+use std::sync::mpsc::{Receiver, RecvTimeoutError};
 use std::time::{Duration, Instant};
 
 use indexmap::IndexSet;
@@ -13,7 +13,7 @@ use crisp_protocol::Writer;
 use super::chunk_holder::{ChunkGenerationTask, ChunkHolders, FutureId, RangeThen, RangeWait, UNLOADED, Waiter};
 use super::chunk_level::{self, ChunkStatus, FullChunkStatus};
 use super::chunk_task_dispatcher::ChunkTaskPriorityQueue;
-use super::chunk_workers::{self, ChunkToSave, IoWorker, WorkResult};
+use super::chunk_workers::{self, ChunkToSave, IoWorker, MainThreadWakeup, ResultSender, WorkResult};
 use super::distance_manager::DistanceManager;
 use super::threaded_level_light_engine::{LightTask, TaskType, ThreadedLevelLightEngine};
 use super::ticket::{Ticket, TicketType};
@@ -66,7 +66,7 @@ pub struct ChunkCache {
     pub distance_manager: DistanceManager,
     holders: ChunkHolders,
     worldgen_queue: ChunkTaskPriorityQueue<u64>,
-    results: (Sender<WorkResult>, Receiver<WorkResult>),
+    results: (ResultSender, Receiver<WorkResult>),
     jobs: HashMap<u64, Job>,
     next_token: u64,
     in_flight: usize,
@@ -441,8 +441,16 @@ impl ChunkCache {
         self.run_worldgen()
     }
 
-    pub fn waker(&self) -> Sender<WorkResult> {
+    pub fn waker(&self) -> ResultSender {
         self.results.0.clone()
+    }
+
+    pub fn main_thread_wakeup(&self) -> Arc<MainThreadWakeup> {
+        self.results.0.wakeup.clone()
+    }
+
+    pub fn set_main_thread_wakeup(&mut self, wakeup: Arc<MainThreadWakeup>) {
+        self.results.0.wakeup = wakeup;
     }
 
     pub fn wait_for_work(&mut self, timeout: Duration) {

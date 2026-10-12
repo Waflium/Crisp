@@ -14,17 +14,18 @@ pub fn rotate(server: &mut Server, context: &CommandContext, source: &CommandSou
     let entity = context.get_entity(server, source, "target")?;
     let rotation = context.get_coordinates("rotation");
     let (x_rot, y_rot) = rotation.rotation(source);
-    let e = server.level.entity(entity);
+    let level = server.entity_level_mut(entity);
+    let e = level.entity(entity);
     let (relative_y, relative_x) = (rotation.is_y_relative(), rotation.is_x_relative());
     let y_rot = if relative_y { y_rot - e.y_rot } else { y_rot };
     let x_rot = if relative_x { x_rot - e.x_rot } else { x_rot };
-    server.level.force_set_rotation(entity, y_rot, relative_y, x_rot, relative_x);
+    level.force_set_rotation(entity, y_rot, relative_y, x_rot, relative_x);
     Ok(success(server, source, entity))
 }
 
 fn rotate_facing(server: &mut Server, context: &CommandContext, source: &CommandSourceStack, facing: LookAt) -> Result<i32, CommandSyntaxException> {
     let entity = context.get_entity(server, source, "target")?;
-    facing.perform(&mut server.level, source, entity);
+    facing.perform(server.entity_level_mut(entity), source, entity);
     Ok(success(server, source, entity))
 }
 

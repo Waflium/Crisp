@@ -416,8 +416,8 @@ mod tests {
         assert_eq!(run(&mut server, "execute if entity @e run seed").len(), 0);
         assert_eq!(run(&mut server, "execute in minecraft:the_nether run seed"), ["Unknown dimension 'minecraft:the_nether'"]);
         run(&mut server, "execute positioned 10.7 70 -3.2 align xz run setworldspawn");
-        assert_eq!((server.spawn.x, server.spawn.y, server.spawn.z), (10, 70, -4));
-        crate::server::level::testing::player(&mut server.level, crisp_core::Vec3::new(5.5, -60.0, 5.5), 0.0, 0.0);
+        assert_eq!((server.spawn.pos.x, server.spawn.pos.y, server.spawn.pos.z), (10, 70, -4));
+        crate::server::level::testing::server_player(&mut server, crisp_core::Vec3::new(5.5, -60.0, 5.5), 0.0, 0.0);
         assert_eq!(run(&mut server, "execute if entity @a"), ["Test passed. Count: 1"]);
         server.tick();
         assert_eq!(run(&mut server, "execute if block 0 -61 0 minecraft:grass_block"), ["Test passed"]);
@@ -426,7 +426,7 @@ mod tests {
         assert_eq!(run(&mut server, "execute if blocks 0 -64 0 2 -60 2 5 -64 5 masked"), ["Test passed. Count: 36"]);
         assert_eq!(run(&mut server, "execute unless blocks 0 -64 0 2 -60 2 5 -63 5 all"), ["Test passed"]);
         run(&mut server, "execute at @a run setworldspawn");
-        assert_eq!((server.spawn.x, server.spawn.y, server.spawn.z), (5, -60, 5));
+        assert_eq!((server.spawn.pos.x, server.spawn.pos.y, server.spawn.pos.z), (5, -60, 5));
     }
 
     #[test]
@@ -434,7 +434,7 @@ mod tests {
         let mut server = Server::new(ServerConfig { level_type: LevelType::Flat, ..ServerConfig::default() }).unwrap();
         assert_eq!(run(&mut server, "gamerule random_tick_speed"), ["Game rule random_tick_speed is currently set to 3"]);
         assert_eq!(run(&mut server, "gamerule minecraft:random_tick_speed 10"), ["Game rule random_tick_speed is now set to 10"]);
-        assert_eq!(server.level.game_rules.get_int(crisp_data::game_rule::RANDOM_TICK_SPEED), 10);
+        assert_eq!(server.levels[0].game_rules.get_int(crisp_data::game_rule::RANDOM_TICK_SPEED), 10);
         assert_eq!(run(&mut server, "gamerule random_tick_speed 10"), ["Game rule random_tick_speed is already set to 10"]);
         assert_eq!(run(&mut server, "gamerule keep_inventory true"), ["Game rule keep_inventory is now set to true"]);
     }
@@ -493,12 +493,12 @@ mod tests {
     #[test]
     fn idle_players_are_kicked() {
         let mut server = Server::new(crate::ServerConfig { level_type: crate::LevelType::Flat, ..crate::ServerConfig::default() }).unwrap();
-        let id = crate::server::level::testing::player(&mut server.level, crisp_core::Vec3::new(5.5, -60.0, 5.5), 0.0, 0.0);
+        let id = crate::server::level::testing::server_player(&mut server, crisp_core::Vec3::new(5.5, -60.0, 5.5), 0.0, 0.0);
         assert_eq!(run(&mut server, "setidletimeout 1"), ["The player idle timeout is now 1 minute(s)"]);
         assert!(!server.kick_if_idle(id));
-        server.level.player_mut(id).last_action_time -= std::time::Duration::from_secs(61);
+        server.levels[0].player_mut(id).last_action_time -= std::time::Duration::from_secs(61);
         assert!(server.kick_if_idle(id));
-        assert!(server.level.player(id).disconnected);
+        assert!(server.levels[0].player(id).disconnected);
     }
 
     #[test]
@@ -509,7 +509,7 @@ mod tests {
         assert_eq!(run(&mut server, "summon item 0 -60 0 {Item:{id:\"stone\",count:2}}"), ["Summoned new Stone"]);
         assert_eq!(run(&mut server, "summon player"), ["Can't summon entity of type minecraft:player"]);
         assert_eq!(run(&mut server, "summon tnt 0 30000001 0"), ["Invalid position for summon"]);
-        assert_eq!(server.level.entities.len(), 2);
+        assert_eq!(server.levels[0].entities.len(), 2);
     }
 }
 

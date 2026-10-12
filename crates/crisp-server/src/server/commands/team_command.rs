@@ -62,7 +62,7 @@ fn formatted(server: &Server, team: &str) -> Component {
 }
 
 fn feedback_name(server: &Server, holder: &ScoreHolder) -> Component {
-    holder.feedback_display_name(&server.level)
+    holder.feedback_display_name(&server.levels[server.score_holder_level(holder)])
 }
 
 pub fn leave_team(server: &mut Server, context: &CommandContext, source: &CommandSourceStack) -> Result {
@@ -86,7 +86,8 @@ pub fn join_team(server: &mut Server, context: &CommandContext, source: &Command
     let members = if context.has_argument("members") {
         context.get_score_holders(server, source, "members")?
     } else {
-        vec![ScoreHolder::for_entity(&server.level, source.entity_or_exception()?)]
+        let entity = source.entity_or_exception()?;
+        vec![ScoreHolder::for_entity(server.entity_level(entity), entity)]
     };
     let mut tracker = CommandResponseTracker::new();
     for member in members {

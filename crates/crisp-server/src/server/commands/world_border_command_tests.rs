@@ -68,13 +68,13 @@ fn size() {
     assert_eq!(run(&mut server, "worldborder set 59999970"), ["Double must not be more than 5.9999968E7: found 5.999997E7", "...order set 59999970<--[HERE]"]);
     assert_eq!(run(&mut server, "worldborder set 50 10"), ["Shrinking the world border to 50.0 block(s) wide over 0.50 second(s)"]);
     for _ in 0..4 {
-        server.level.tick();
+        server.levels[0].tick();
     }
     assert_eq!(run(&mut server, "worldborder get"), ["The world border is currently 80 block(s) wide"]);
     assert_eq!(run(&mut server, "worldborder add 10 5"), ["Growing the world border to 90.0 block(s) wide over 0.55 second(s)"]);
-    assert_eq!((server.level.world_border.get_lerp_time(), server.level.world_border.get_lerp_target()), (11, 90.0));
+    assert_eq!((server.levels[0].world_border.get_lerp_time(), server.levels[0].world_border.get_lerp_target()), (11, 90.0));
     assert_eq!(exec(&mut server, "worldborder add -40.5"), Ok(-40));
-    assert_eq!(server.level.world_border.get_lerp_time(), 0);
+    assert_eq!(server.levels[0].world_border.get_lerp_time(), 0);
     assert_eq!(exec(&mut server, "worldborder get"), Ok(40));
     run(&mut server, "worldborder set 59999960");
     assert_eq!(run(&mut server, "worldborder add 10"), ["World border cannot be bigger than 5.999997E7 blocks wide"]);
@@ -87,11 +87,11 @@ fn size() {
 fn center() {
     let mut server = server();
     assert_eq!(run(&mut server, "worldborder center 10.7 -3.2"), ["Set the center of the world border to 10.70, -3.20"]);
-    let border = &server.level.world_border;
+    let border = &server.levels[0].world_border;
     assert_eq!((border.get_center_x(), border.get_center_z()), (10.7f32 as f64, -3.2f32 as f64));
     assert_eq!(run(&mut server, "worldborder center 10.7 -3.2"), ["Nothing changed. The world border is already centered there"]);
     assert_eq!(exec(&mut server, "worldborder center 5 5"), Ok(0));
-    assert_eq!((server.level.world_border.get_center_x(), server.level.world_border.get_center_z()), (5.5, 5.5));
+    assert_eq!((server.levels[0].world_border.get_center_x(), server.levels[0].world_border.get_center_z()), (5.5, 5.5));
     assert_eq!(run(&mut server, "worldborder center 30000000 0"), ["World border cannot be further out than 2.9999984E7 blocks"]);
     assert_eq!(run(&mut server, "worldborder center 29999984 -29999984"), ["Set the center of the world border to 29999984.00, -29999984.00"]);
 }
@@ -100,7 +100,7 @@ fn center() {
 fn damage_and_warnings() {
     let mut server = server();
     assert_eq!(run(&mut server, "worldborder damage amount 0.2"), ["Set the world border damage to 0.20 per block each second"]);
-    assert_eq!(server.level.world_border.get_damage_per_block(), 0.2f32 as f64);
+    assert_eq!(server.levels[0].world_border.get_damage_per_block(), 0.2f32 as f64);
     assert_eq!(run(&mut server, "worldborder damage amount 0.2"), ["Nothing changed. The world border damage is already that amount"]);
     assert_eq!(exec(&mut server, "worldborder damage amount 2.5"), Ok(2));
     assert_eq!(run(&mut server, "worldborder damage buffer 5"), ["Nothing changed. The world border damage buffer is already that distance"]);
@@ -112,7 +112,7 @@ fn damage_and_warnings() {
     assert_eq!(run(&mut server, "worldborder warning time 15s"), ["Nothing changed. The world border warning is already that amount of time"]);
     assert_eq!(run(&mut server, "worldborder warning time 15"), ["Set the world border warning time to 0.75 second(s)"]);
     assert_eq!(exec(&mut server, "worldborder warning time 1d"), Ok(24000));
-    assert_eq!(server.level.world_border.get_warning_time(), 24000);
+    assert_eq!(server.levels[0].world_border.get_warning_time(), 24000);
 }
 
 #[test]
@@ -121,7 +121,7 @@ fn players_are_told() {
     run(&mut server, "worldborder center 3 -4");
     run(&mut server, "worldborder set 100 40");
     run(&mut server, "worldborder warning time 20");
-    server.level.tick();
+    server.levels[0].tick();
     let mut rx = join(&mut server, "Alice");
     let joined = packets(&mut rx);
     let initialize = joined.iter().find(|p| p.0 == clientbound::INITIALIZE_BORDER).expect("the border");
@@ -179,14 +179,14 @@ fn the_spawn_stays_inside_the_border() {
     server.tick();
     let moved = crisp_core::BlockPos::new(100, -60, 100);
     assert_eq!(server.respawn_data().pos, moved);
-    assert_eq!(server.spawn, crisp_core::BlockPos::new(0, -60, 0), "the world spawn itself stays");
+    assert_eq!(server.spawn.pos, crisp_core::BlockPos::new(0, -60, 0), "the world spawn itself stays");
     let mut rx = join(&mut server, "Alice");
     let spawn = packets(&mut rx).into_iter().find(|p| p.0 == clientbound::SET_DEFAULT_SPAWN_POSITION).unwrap();
     let mut r = Reader::new(&spawn.1);
     assert_eq!(r.string(32767).unwrap(), "minecraft:overworld");
     assert_eq!(r.position().unwrap(), (100, -60, 100));
     let player = server.connections[&1];
-    let joined = server.level.entity(player).block_position();
+    let joined = server.levels[0].entity(player).block_position();
     assert!(joined.x.abs() <= 1 && joined.z.abs() <= 1 && joined.y == -60, "new players search around the world spawn itself: {joined:?}");
 }
 
@@ -199,7 +199,7 @@ fn saved_with_the_overworld() {
     run(&mut first, "worldborder set 1000 100");
     run(&mut first, "worldborder damage buffer 2");
     for _ in 0..25 {
-        first.level.tick();
+        first.levels[0].tick();
     }
     run(&mut first, "save-off");
     first.save_everything(true, true, false);
@@ -207,12 +207,12 @@ fn saved_with_the_overworld() {
     assert!(!file.exists());
     first.save_everything(true, true, true);
     assert!(file.exists());
-    let size = first.level.world_border.get_size();
+    let size = first.levels[0].world_border.get_size();
     let second = Server::new(config.clone()).unwrap();
-    let border = &second.level.world_border;
+    let border = &second.levels[0].world_border;
     assert_eq!((border.get_size(), border.get_lerp_time(), border.get_lerp_target(), border.get_safe_zone()), (size, 75, 1000.0, 2.0));
     let small = Server::new(crate::ServerConfig { max_world_size: 200, ..config }).unwrap();
-    let border = &small.level.world_border;
+    let border = &small.levels[0].world_border;
     assert_eq!((border.get_min_x(), border.get_max_x(), border.get_absolute_max_size()), (-200.0, 200.0, 200));
     std::fs::remove_dir_all(dir).unwrap();
 }

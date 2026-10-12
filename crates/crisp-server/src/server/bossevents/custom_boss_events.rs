@@ -52,8 +52,8 @@ impl CustomBossEvents {
         self.events.get_mut(id)
     }
 
-    pub fn create(&mut self, level: &mut ServerLevel, id: &str, name: Component) -> &mut CustomBossEvent {
-        let event = CustomBossEvent::new(create_insecure_uuid(&mut level.random), id.to_string(), name);
+    pub fn create(&mut self, random: &mut LegacyRandomSource, id: &str, name: Component) -> &mut CustomBossEvent {
+        let event = CustomBossEvent::new(create_insecure_uuid(random), id.to_string(), name);
         self.events.insert(id.to_string(), event);
         self.dirty = true;
         self.events.get_mut(id).unwrap()
@@ -73,15 +73,15 @@ impl CustomBossEvents {
         self.events.iter().map(|(_, e)| e)
     }
 
-    pub fn on_player_connect(&mut self, level: &ServerLevel, player: EntityId) {
+    pub fn on_player_connect(&mut self, levels: &[ServerLevel], player: EntityId) {
         for event in self.events.values_mut() {
-            event.on_player_connect(level, player);
+            event.on_player_connect(levels, player);
         }
     }
 
-    pub fn on_player_disconnect(&mut self, level: &ServerLevel, player: EntityId) {
+    pub fn on_player_disconnect(&mut self, levels: &[ServerLevel], player: EntityId) {
         for event in self.events.values_mut() {
-            event.on_player_disconnect(level, player);
+            event.on_player_disconnect(levels, player);
         }
     }
 

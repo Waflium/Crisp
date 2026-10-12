@@ -22,7 +22,7 @@ fn send_message(server: &mut Server, source: &CommandSourceStack, targets: &[(En
     for (player, name) in targets {
         let outgoing = ChatType::MsgCommandOutgoing.bind(source.display_name(server)).with_target_name(name.clone());
         source_send_chat_message(server, source, message, &outgoing);
-        if let Some(player) = server.level.players.get_mut(player) {
+        if let Some(player) = server.get_player_mut(*player) {
             player.send_chat_message(message, &incoming);
         }
     }

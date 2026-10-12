@@ -84,7 +84,7 @@ pub fn system_message(server: &mut Server, params: &Value, client: ClientInfo) -
         }
         None => {
             log(client, format_args!("Broadcast system message (overlay: {}): '{}'", system_message.overlay, component.get_string()));
-            let ids: Vec<_> = server.level.players.keys().copied().collect();
+            let ids = server.player_ids();
             for player in ids {
                 server.send_player_system_message(player, &component, system_message.overlay);
             }

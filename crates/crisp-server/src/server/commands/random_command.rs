@@ -30,7 +30,7 @@ fn random_sample(server: &mut Server, context: &CommandContext, source: &Command
         let mut random_sequences = server.random_sequences.borrow_mut();
         crisp_core::mth::random_between_inclusive(random_sequences.get(context.get_identifier("sequence"), seed), min, max)
     } else {
-        crisp_core::mth::random_between_inclusive(&mut server.level.random, min, max)
+        crisp_core::mth::random_between_inclusive(&mut server.levels[source.level].random, min, max)
     };
     if announce {
         let message = Component::translatable_with("commands.random.roll", vec![source.display_name(server).into(), value.into(), min.into(), max.into()]);

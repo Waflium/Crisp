@@ -32,11 +32,11 @@ fn run(server: &mut Server, command: &str) -> Vec<String> {
 
 fn join(server: &mut Server, name: &str) -> (EntityId, UnboundedReceiver<Vec<u8>>) {
     let profile = Profile { uuid: offline_uuid(name), name: name.into(), properties: Vec::new() };
-    let id = testing::player_with_profile(&mut server.level, profile, Vec3::new(0.5, -60.0, 0.5), 0.0, 0.0);
+    let id = testing::server_player_with_profile(server, profile, Vec3::new(0.5, -60.0, 0.5), 0.0, 0.0);
     let (out, packets) = Outbound::capture();
-    server.level.player_mut(id).connection = out.clone();
+    server.levels[0].player_mut(id).connection = out.clone();
     server.scoreboard.borrow_mut().server.add_connection(id, out);
-    server.level.handle_player_loaded(id);
+    server.levels[0].handle_player_loaded(id);
     (id, packets)
 }
 
@@ -83,9 +83,9 @@ fn friendly_fire_follows_the_team() {
     run(&mut server, "team join red @a[name=!Carol]");
     run(&mut server, "team modify red friendlyFire false");
     let attack = DamageSource { causing_entity: Some(bob), direct_entity: Some(bob), ..DamageSource::new(damage_types::MOB_ATTACK) };
-    assert!(!server.level.hurt_server(alice, attack, 2.0));
+    assert!(!server.levels[0].hurt_server(alice, attack, 2.0));
     run(&mut server, "team leave Bob");
-    assert!(server.level.hurt_server(alice, attack, 2.0));
+    assert!(server.levels[0].hurt_server(alice, attack, 2.0));
 }
 
 #[test]
@@ -97,7 +97,7 @@ fn criteria_keep_scores_and_deaths_are_told_to_whom_the_team_says() {
     let (alice, _) = join(&mut server, "Alice");
     let (_, mut bob) = join(&mut server, "Bob");
     let (_, mut carol) = join(&mut server, "Carol");
-    server.level.tick_connection(alice);
+    server.levels[0].tick_connection(alice);
     let values: Vec<Option<i32>> = ["hp", "food", "air", "armor", "xp", "level", "deaths"].iter().map(|o| score(&server, "Alice", o)).collect();
     assert_eq!(values, [Some(20), Some(20), Some(300), Some(0), Some(0), Some(0), None]);
     run(&mut server, "team add red");
@@ -105,7 +105,7 @@ fn criteria_keep_scores_and_deaths_are_told_to_whom_the_team_says() {
     run(&mut server, "team modify red deathMessageVisibility hideForOtherTeams");
     packet_ids(&mut bob);
     packet_ids(&mut carol);
-    server.level.kill(alice);
+    server.levels[0].kill(alice);
     assert_eq!(score(&server, "Alice", "deaths"), Some(1));
     assert!(packet_ids(&mut bob).contains(&clientbound::SYSTEM_CHAT), "teammates hear of it");
     assert!(!packet_ids(&mut carol).contains(&clientbound::SYSTEM_CHAT), "others don't");
@@ -138,7 +138,7 @@ fn removed_entities_lose_their_scores_and_team() {
     let mut server = server(None);
     join(&mut server, "Alice");
     let item = ItemEntity::new(Vec3::new(0.5, -60.0, 0.5), ItemStack::new(crisp_data::items::STONE, 1));
-    server.level.add_fresh_entity(LevelEntity::Item(item));
+    server.levels[0].add_fresh_entity(LevelEntity::Item(item));
     run(&mut server, "scoreboard objectives add foo dummy");
     run(&mut server, "team add red");
     run(&mut server, "scoreboard players set @e[type=item] foo 4");

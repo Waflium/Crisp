@@ -130,6 +130,7 @@ pub struct CommandSourceStack {
     pub source: CommandSource,
     pub position: Vec3,
     pub rotation: (f32, f32),
+    pub level: usize,
     pub permission: i32,
     pub names: Names,
     pub entity: Option<EntityId>,
@@ -145,6 +146,7 @@ impl CommandSourceStack {
             source: CommandSource::Server,
             position: Vec3::at_lower_corner_of(server.respawn_data().pos),
             rotation: (0.0, 0.0),
+            level: server.find_respawn_dimension(),
             permission: 4,
             names: Names::Constant(Component::literal("Server")),
             entity: None,
@@ -160,11 +162,13 @@ impl CommandSourceStack {
     }
 
     pub fn player(server: &Server, id: EntityId) -> CommandSourceStack {
-        let player = server.level.player(id);
+        let level = server.level_of(id).expect("player on this server");
+        let player = server.levels[level].player(id);
         CommandSourceStack {
             source: CommandSource::Player(id),
             position: player.entity.position(),
             rotation: (player.entity.x_rot, player.entity.y_rot),
+            level,
             permission: server.profile_permission_level(player.profile.uuid),
             names: Names::ForEntity,
             entity: Some(id),
@@ -175,11 +179,12 @@ impl CommandSourceStack {
         }
     }
 
-    pub fn for_new_player(server: &Server, player: &crate::server::level::server_player::ServerPlayer) -> CommandSourceStack {
+    pub fn for_new_player(server: &Server, level: usize, player: &crate::server::level::server_player::ServerPlayer) -> CommandSourceStack {
         CommandSourceStack {
             source: CommandSource::Player(player.entity.id),
             position: player.entity.position(),
             rotation: (player.entity.x_rot, player.entity.y_rot),
+            level,
             permission: server.profile_permission_level(player.profile.uuid),
             names: Names::ForEntity,
             entity: Some(player.entity.id),
@@ -213,7 +218,7 @@ impl CommandSourceStack {
     }
 
     pub fn player_id(&self, server: &Server) -> Option<EntityId> {
-        self.entity.filter(|e| server.level.players.contains_key(e))
+        self.entity.filter(|&e| server.has_player(e))
     }
 
     pub fn player_or_exception(&self, server: &Server) -> Result<EntityId, CommandSyntaxException> {
@@ -234,6 +239,15 @@ impl CommandSourceStack {
 
     pub fn with_rotation(&self, rotation: (f32, f32)) -> CommandSourceStack {
         CommandSourceStack { rotation, ..self.clone() }
+    }
+
+    pub fn with_level(&self, server: &Server, level: usize) -> CommandSourceStack {
+        if level == self.level {
+            return self.clone();
+        }
+        let scale = server.levels[self.level].dimension_type().coordinate_scale / server.levels[level].dimension_type().coordinate_scale;
+        let position = Vec3::new(self.position.x * scale, self.position.y, self.position.z * scale);
+        CommandSourceStack { position, level, ..self.clone() }
     }
 
     pub fn facing(&self, server: &Server, pos: Vec3) -> CommandSourceStack {
@@ -308,7 +322,7 @@ impl CommandSourceStack {
             .with_color(ChatFormatting::Gray)
             .italic();
         if server.game_rules.get_bool(game_rule::SEND_COMMAND_FEEDBACK) {
-            for player in server.level.players.values() {
+            for player in server.players() {
                 if self.source != CommandSource::Player(player.entity.id) && server.is_op(player.profile.uuid) {
                     server.send_player_system_message(player.entity.id, &broadcast, false);
                 }

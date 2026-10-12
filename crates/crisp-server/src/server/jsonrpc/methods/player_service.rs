@@ -8,7 +8,7 @@ use crate::server::jsonrpc::codec::{self, DecodeResult, Fields};
 use crate::server::players::NameAndId;
 
 pub fn players(server: &Server) -> Vec<PlayerDto> {
-    server.level.players.values().map(|p| PlayerDto::from(&NameAndId { id: p.profile.uuid, name: p.profile.name.clone() })).collect()
+    server.players().map(|p| PlayerDto::from(&NameAndId { id: p.profile.uuid, name: p.profile.name.clone() })).collect()
 }
 
 pub fn get(server: &mut Server, _client: ClientInfo) -> Value {
@@ -39,9 +39,9 @@ pub fn kick(server: &mut Server, params: &Value, client: ClientInfo) -> Result<V
             (None, None) => None,
         };
         let Some(player) = found else { continue };
-        log(client, format_args!("Remove player '{}'", server.level.player(player).profile.name));
+        log(client, format_args!("Remove player '{}'", server.player(player).profile.name));
         let reason = dto.message.and_then(|m| m.as_component()).unwrap_or_else(|| Component::translatable("multiplayer.disconnect.kicked"));
-        server.level.player_mut(player).disconnect_with(reason);
+        server.player_mut(player).disconnect_with(reason);
         kicked.push(dto.player.encode());
     }
     Ok(Value::Array(kicked))

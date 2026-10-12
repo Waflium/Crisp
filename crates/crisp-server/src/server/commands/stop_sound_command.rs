@@ -22,7 +22,7 @@ fn stop_sound(server: &mut Server, context: &CommandContext, source: &CommandSou
     let sound_source = context.nodes.get(2).and_then(|n| SoundSource::by_name(CommandNode::get(n.node).name));
     let sound = context.has_argument("sound").then(|| context.get_identifier("sound").to_string());
     for &player in &targets {
-        server.level.player(player).connection.send(clientbound::STOP_SOUND, |w| match (sound_source, &sound) {
+        server.player(player).connection.send(clientbound::STOP_SOUND, |w| match (sound_source, &sound) {
             (Some(s), Some(name)) => {
                 w.u8(3);
                 w.varint(s as i32);

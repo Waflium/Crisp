@@ -13,7 +13,7 @@ pub fn add_tag(server: &mut Server, context: &CommandContext, source: &CommandSo
     let name = context.get_string("name");
     let mut response = CommandResponseTracker::new();
     for entity in context.get_entities(server, source, "targets")? {
-        let added = server.level.entity_mut(entity).add_tag(name);
+        let added = server.entity_level_mut(entity).entity_mut(entity).add_tag(name);
         response.track_value(entity, added as i32);
     }
     send_with_name(server, source, response, || ERROR_ADD_FAILED.create(), "add", name)
@@ -23,7 +23,7 @@ pub fn remove_tag(server: &mut Server, context: &CommandContext, source: &Comman
     let name = context.get_string("name");
     let mut response = CommandResponseTracker::new();
     for entity in context.get_entities(server, source, "targets")? {
-        let removed = server.level.entity_mut(entity).remove_tag(name);
+        let removed = server.entity_level_mut(entity).entity_mut(entity).remove_tag(name);
         response.track_value(entity, removed as i32);
     }
     send_with_name(server, source, response, || ERROR_REMOVE_FAILED.create(), "remove", name)
@@ -52,7 +52,7 @@ pub fn list_tags(server: &mut Server, context: &CommandContext, source: &Command
     let mut response = CommandResponseTracker::new();
     let mut tags: Vec<String> = Vec::new();
     for entity in context.get_entities(server, source, "targets")? {
-        let entity_tags = &server.level.entity(entity).tags;
+        let entity_tags = &server.entity_level(entity).entity(entity).tags;
         for tag in entity_tags {
             if !tags.contains(tag) {
                 tags.push(tag.clone());
@@ -96,7 +96,7 @@ pub fn suggest_tags(
 ) -> Result<crate::commands::suggestion::Suggestions, CommandSyntaxException> {
     let mut tags: Vec<&str> = Vec::new();
     for entity in context.get_entities(server, source, "targets")? {
-        for tag in &server.level.entity(entity).tags {
+        for tag in &server.entity_level(entity).entity(entity).tags {
             if !tags.contains(&tag.as_str()) {
                 tags.push(tag);
             }

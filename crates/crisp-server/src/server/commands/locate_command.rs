@@ -35,8 +35,9 @@ pub fn locate_structure(server: &mut Server, context: &CommandContext, source: &
     let target = get_holders(tag, id).ok_or_else(|| ERROR_STRUCTURE_INVALID.create(as_printable(tag, id)))?;
     let source_pos = BlockPos::containing_vec(source.position);
     let stopwatch = Instant::now();
-    let generator = server.level.chunks.generator.clone();
-    let nearest = generator.find_nearest_map_structure(&mut server.level, &target, source_pos, MAX_STRUCTURE_SEARCH_RADIUS, false);
+    let level = &mut server.levels[source.level];
+    let generator = level.chunks.generator.clone();
+    let nearest = generator.find_nearest_map_structure(level, &target, source_pos, MAX_STRUCTURE_SEARCH_RADIUS, false);
     let elapsed = stopwatch.elapsed();
     let Some((found_pos, found)) = nearest else { return Err(ERROR_STRUCTURE_NOT_FOUND.create(as_printable(tag, id))) };
     let found_name = if tag { format!("#{id} ({})", found.key()) } else { id.to_string() };
@@ -51,7 +52,7 @@ pub fn locate_biome(server: &mut Server, context: &CommandContext, source: &Comm
         true => registry_tag("minecraft:worldgen/biome", id).is_some_and(|ids| ids.contains(&(biome.0 as i32))),
         false => biome.name() == id,
     };
-    let nearest = server.level.find_closest_biome_3d(
+    let nearest = server.levels[source.level].find_closest_biome_3d(
         biome_test,
         source_pos,
         MAX_BIOME_SEARCH_RADIUS,

@@ -65,11 +65,11 @@ impl Server {
     }
 
     pub fn player_by_uuid(&self, uuid: u128) -> Option<EntityId> {
-        self.level.players.values().find(|p| p.profile.uuid == uuid).map(|p| p.entity.id)
+        self.players().find(|p| p.profile.uuid == uuid).map(|p| p.entity.id)
     }
 
     pub fn player_by_name(&self, name: &str) -> Option<EntityId> {
-        self.level.players.values().find(|p| p.profile.name.eq_ignore_ascii_case(name)).map(|p| p.entity.id)
+        self.players().find(|p| p.profile.name.eq_ignore_ascii_case(name)).map(|p| p.entity.id)
     }
 
     pub fn find_player(&self, id: Option<u128>, name: Option<&str>) -> Option<EntityId> {
@@ -81,11 +81,11 @@ impl Server {
     }
 
     pub fn players_with_address(&self, ip: &str) -> Vec<EntityId> {
-        self.level.players.values().filter(|p| p.ip_address() == ip).map(|p| p.entity.id).collect()
+        self.players().filter(|p| p.ip_address() == ip).map(|p| p.entity.id).collect()
     }
 
     pub fn is_auto_save(&self) -> bool {
-        !self.level.no_save
+        self.levels.iter().any(|level| !level.no_save)
     }
 
     pub fn set_dedicated_difficulty(&mut self, difficulty: Difficulty) {
@@ -111,7 +111,9 @@ impl Server {
 
     pub fn set_allow_flight(&mut self, allowed: bool) {
         self.config.allow_flight = allowed;
-        self.level.allow_flight = allowed;
+        for level in &mut self.levels {
+            level.allow_flight = allowed;
+        }
         self.update_property("allow-flight", allowed.to_string());
     }
 
@@ -141,19 +143,23 @@ impl Server {
     pub fn set_view_distance(&mut self, view_distance: i32) {
         self.config.view_distance = view_distance;
         self.update_property("view-distance", view_distance.to_string());
-        for player in self.level.players.values() {
+        for player in self.players() {
             player.connection.send(clientbound::SET_CHUNK_CACHE_RADIUS, |p| p.varint(view_distance));
         }
-        self.level.chunks.set_view_distance(view_distance);
+        for level in &mut self.levels {
+            level.chunks.set_view_distance(view_distance);
+        }
     }
 
     pub fn set_simulation_distance(&mut self, simulation_distance: i32) {
         self.config.simulation_distance = simulation_distance;
         self.update_property("simulation-distance", simulation_distance.to_string());
-        for player in self.level.players.values() {
+        for player in self.players() {
             player.connection.send(clientbound::SET_SIMULATION_DISTANCE, |p| p.varint(simulation_distance));
         }
-        self.level.set_simulation_distance(simulation_distance);
+        for level in &mut self.levels {
+            level.set_simulation_distance(simulation_distance);
+        }
     }
 
     pub fn accepts_transfers(&self) -> bool {
@@ -201,7 +207,9 @@ impl Server {
 
     pub fn set_entity_broadcast_range_percentage(&mut self, percentage: i32) {
         self.config.entity_broadcast_range_percentage = percentage;
-        self.level.entity_broadcast_range_percentage = percentage;
+        for level in &mut self.levels {
+            level.entity_broadcast_range_percentage = percentage;
+        }
         self.update_property("entity-broadcast-range-percentage", percentage.to_string());
     }
 }

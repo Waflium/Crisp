@@ -38,7 +38,7 @@ fn give_item(server: &mut Server, source: &CommandSourceStack, input: &ItemInput
             let size = max_stack_size.min(remaining);
             remaining -= size;
             let mut copy_to_drop = prototype.copy_with_count(size);
-            let level = &mut server.level;
+            let level = server.entity_level_mut(player);
             let p = level.player_mut(player);
             let infinite_materials = p.abilities.instabuild;
             let (added, _) = p.inventory.add_stack(&mut copy_to_drop, infinite_materials);

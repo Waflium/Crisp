@@ -44,7 +44,7 @@ pub fn damage_by(server: &mut Server, context: &CommandContext, source: &Command
 }
 
 fn damage(server: &mut Server, source: &CommandSourceStack, target: crate::world::entity::EntityId, amount: f32, damage_source: DamageSource) -> Result<i32> {
-    if !server.level.hurt_server(target, damage_source, amount) {
+    if !server.entity_level_mut(target).hurt_server(target, damage_source, amount) {
         return Err(ERROR_INVULNERABLE.create());
     }
     source.send_success(server, || Component::translatable_with("commands.damage.success", vec![Arg::Float(amount), server.entity_display_name(target).into()]), true);

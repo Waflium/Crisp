@@ -5,9 +5,8 @@ use crisp_data::commands::CommandNode;
 use crisp_data::{BlockState, blocks, game_rule};
 
 use crate::commands::CommandFn;
-use crate::commands::arguments::ERROR_INVALID_DIMENSION;
 use crate::commands::arguments::blocks::BlockPredicate;
-use crate::commands::arguments::coordinates::{ERROR_NOT_LOADED, get_loaded_block_pos};
+use crate::commands::arguments::coordinates::{ERROR_NOT_LOADED, get_loaded_block_pos_in};
 use crate::commands::brigadier::{CommandContext, CommandSyntaxException, Dynamic2CommandExceptionType, SimpleCommandExceptionType, tr};
 use crate::commands::source::CommandSourceStack;
 use crate::network::chat::{Arg, Component};
@@ -58,25 +57,16 @@ pub fn executors() -> Vec<(String, CommandFn)> {
     out
 }
 
-fn get_dimension(server: &Server, context: &CommandContext, name: &str) -> Result<(), CommandSyntaxException> {
-    let id = context.get_identifier(name);
-    if id != server.level.dimension {
-        return Err(ERROR_INVALID_DIMENSION.create(id));
-    }
-    Ok(())
-}
-
 pub fn clone(server: &mut Server, context: &CommandContext, source: &CommandSourceStack) -> Result<i32, CommandSyntaxException> {
     let literal = |name: &str| context.nodes.iter().any(|n| CommandNode::get(n.node).name == name);
-    let from_dimension = |server: &Server| if context.has_argument("sourceDimension") { get_dimension(server, context, "sourceDimension") } else { Ok(()) };
-    from_dimension(server)?;
-    let begin = get_loaded_block_pos(server, context, source, "begin")?;
-    from_dimension(server)?;
-    let end = get_loaded_block_pos(server, context, source, "end")?;
-    if context.has_argument("targetDimension") {
-        get_dimension(server, context, "targetDimension")?;
-    }
-    let destination = get_loaded_block_pos(server, context, source, "destination")?;
+    let from_dimension =
+        |server: &Server| if context.has_argument("sourceDimension") { context.get_dimension(server, "sourceDimension") } else { Ok(source.level) };
+    let begin_level = from_dimension(server)?;
+    let begin = get_loaded_block_pos_in(server, begin_level, context, source, "begin")?;
+    let end_level = from_dimension(server)?;
+    let end = get_loaded_block_pos_in(server, end_level, context, source, "end")?;
+    let destination_level = if context.has_argument("targetDimension") { context.get_dimension(server, "targetDimension")? } else { source.level };
+    let destination = get_loaded_block_pos_in(server, destination_level, context, source, "destination")?;
     let filter = if context.has_argument("filter") {
         Filter::Predicate(context.get_block_predicate("filter"))
     } else if literal("masked") {
@@ -91,7 +81,7 @@ pub fn clone(server: &mut Server, context: &CommandContext, source: &CommandSour
     } else {
         Mode::Normal
     };
-    clone_blocks(server, source, begin, end, destination, filter, mode, literal("strict"))
+    clone_blocks(server, source, (begin_level, begin), end, (destination_level, destination), filter, mode, literal("strict"))
 }
 
 fn has_chunks_at(level: &ServerLevel, pos0: BlockPos, pos1: BlockPos) -> bool {
@@ -105,16 +95,22 @@ fn has_chunks_at(level: &ServerLevel, pos0: BlockPos, pos1: BlockPos) -> bool {
 struct CloneBlockInfo {
     pos: BlockPos,
     state: BlockState,
+    block_entity_info: Option<CloneBlockEntityInfo>,
     previous_state_at_destination: BlockState,
+}
+
+struct CloneBlockEntityInfo {
+    tag: crisp_protocol::nbt::Nbt,
+    components: crate::world::item::component::DataComponentMap,
 }
 
 #[allow(clippy::too_many_arguments)]
 fn clone_blocks(
     server: &mut Server,
     source: &CommandSourceStack,
-    start: BlockPos,
+    (from_dimension, start): (usize, BlockPos),
     end: BlockPos,
-    destination_pos: BlockPos,
+    (to_dimension, destination_pos): (usize, BlockPos),
     filter: Filter,
     mode: Mode,
     strict: bool,
@@ -123,19 +119,19 @@ fn clone_blocks(
     let length = from.length();
     let destination_end = destination_pos.offset(length.x, length.y, length.z);
     let destination = BoundingBox::from_corners(destination_pos, destination_end);
-    if !mode.can_overlap() && destination.intersects(&from) {
+    if !mode.can_overlap() && from_dimension == to_dimension && destination.intersects(&from) {
         return Err(ERROR_OVERLAP.create());
     }
     let area = from.x_span() as i64 * from.y_span() as i64 * from.z_span() as i64;
-    let limit = server.level.game_rules.get_int(game_rule::MAX_BLOCK_MODIFICATIONS);
+    let limit = server.levels[source.level].game_rules.get_int(game_rule::MAX_BLOCK_MODIFICATIONS);
     if area > limit as i64 {
         return Err(ERROR_AREA_TOO_LARGE.create(limit, Arg::Long(area)));
     }
-    let level = &mut server.level;
-    if !has_chunks_at(level, start, end) || !has_chunks_at(level, destination_pos, destination_end) {
+    if !has_chunks_at(&server.levels[from_dimension], start, end) || !has_chunks_at(&server.levels[to_dimension], destination_pos, destination_end) {
         return Err(ERROR_NOT_LOADED.create());
     }
     let mut solid = Vec::new();
+    let mut block_entities = Vec::new();
     let mut other = Vec::new();
     let mut clear = VecDeque::new();
     let offset = BlockPos::new(destination.min.x - from.min.x, destination.min.y - from.min.y, destination.min.z - from.min.z);
@@ -144,6 +140,7 @@ fn clone_blocks(
             for x in from.min.x..=from.max.x {
                 let source_pos = BlockPos::new(x, y, z);
                 let destination_pos = source_pos.offset(offset.x, offset.y, offset.z);
+                let level = &mut server.levels[from_dimension];
                 let state = level.block_state(source_pos);
                 let passes = match filter {
                     Filter::All => true,
@@ -153,12 +150,18 @@ fn clone_blocks(
                 if !passes {
                     continue;
                 }
-                let info = CloneBlockInfo { pos: destination_pos, state, previous_state_at_destination: level.block_state(destination_pos) };
-                if !state.is_solid_render() && !state.is_collision_shape_full_block() {
-                    other.push(info);
+                let block_entity_info =
+                    level.get_block_entity(source_pos).map(|entity| CloneBlockEntityInfo { tag: entity.save_custom_only(), components: entity.components().clone() });
+                let collision_full = state.is_collision_shape_full_block();
+                let previous_state_at_destination = server.levels[to_dimension].block_state(destination_pos);
+                if let Some(block_entity_info) = block_entity_info {
+                    block_entities.push(CloneBlockInfo { pos: destination_pos, state, block_entity_info: Some(block_entity_info), previous_state_at_destination });
+                    clear.push_back(source_pos);
+                } else if !state.is_solid_render() && !collision_full {
+                    other.push(CloneBlockInfo { pos: destination_pos, state, block_entity_info: None, previous_state_at_destination });
                     clear.push_front(source_pos);
                 } else {
-                    solid.push(info);
+                    solid.push(CloneBlockInfo { pos: destination_pos, state, block_entity_info: None, previous_state_at_destination });
                     clear.push_back(source_pos);
                 }
             }
@@ -166,6 +169,7 @@ fn clone_blocks(
     }
     let default_flags = 2 | if strict { 816 } else { 0 };
     if mode == Mode::Move {
+        let level = &mut server.levels[from_dimension];
         for &pos in &clear {
             level.set_block(pos, blocks::BARRIER.default_state(), default_flags | 816);
         }
@@ -174,7 +178,12 @@ fn clone_blocks(
             level.set_block(pos, blocks::AIR.default_state(), standard_flags);
         }
     }
-    let infos: Vec<CloneBlockInfo> = solid.into_iter().chain(other).collect();
+    let block_entity_count = block_entities.len();
+    let solid_count = solid.len();
+    let mut infos: Vec<CloneBlockInfo> = solid;
+    infos.extend(block_entities);
+    infos.extend(other);
+    let level = &mut server.levels[to_dimension];
     for info in infos.iter().rev() {
         level.set_block(info.pos, blocks::BARRIER.default_state(), default_flags | 816);
     }
@@ -184,12 +193,23 @@ fn clone_blocks(
             count += 1;
         }
     }
+    for info in &mut infos[solid_count..solid_count + block_entity_count] {
+        if let Some(block_entity_info) = info.block_entity_info.take()
+            && let Some(new_block_entity) = level.get_block_entity(info.pos)
+        {
+            new_block_entity.load_custom_only(&block_entity_info.tag);
+            new_block_entity.set_components(block_entity_info.components);
+            level.block_entity_set_changed(info.pos);
+        }
+        level.set_block(info.pos, info.state, default_flags);
+    }
     if !strict {
         for info in infos.iter().rev() {
             level.update_neighbours_on_block_set(info.pos, info.previous_state_at_destination);
         }
     }
-    level.chunks.block_ticks.copy_area(&from, offset);
+    let ticks = server.levels[from_dimension].chunks.block_ticks.ticks_in_area(&from);
+    server.levels[to_dimension].chunks.block_ticks.copy_area_from(ticks, offset);
     if count == 0 {
         return Err(ERROR_FAILED.create());
     }

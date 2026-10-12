@@ -19,11 +19,12 @@ fn kill(server: &mut Server, source: &CommandSourceStack, victims: &[EntityId]) 
     let mut tracker = CommandResponseTracker::new();
     for &entity in victims {
         tracker.track(server.entity_display_name(entity));
-        if server.level.is_living(entity) {
-            server.level.kill(entity);
+        let level = server.entity_level_mut(entity);
+        if level.is_living(entity) {
+            level.kill(entity);
         } else {
-            server.level.entity_mut(entity).removal = Some(RemovalReason::Killed);
-            server.level.remove_entity(entity);
+            level.entity_mut(entity).removal = Some(RemovalReason::Killed);
+            level.remove_entity(entity);
         }
     }
     tracker.send_feedback(

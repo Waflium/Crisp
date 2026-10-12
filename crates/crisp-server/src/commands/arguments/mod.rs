@@ -1,6 +1,7 @@
 pub mod blocks;
 pub mod component_argument;
 pub mod coordinates;
+pub mod dimension_argument;
 pub mod item;
 pub mod nbt_path_argument;
 pub mod entity_argument;
@@ -619,7 +620,7 @@ pub fn list_suggestions(
     source: &CommandSourceStack,
     mut builder: SuggestionsBuilder,
 ) -> Suggestions {
-    let player_names = || server.level.players.values().map(|p| p.profile.name.clone()).collect::<Vec<String>>();
+    let player_names = || server.players().map(|p| p.profile.name.clone()).collect::<Vec<String>>();
     let validator = |input: &str| {
         let units: Vec<u16> = input.encode_utf16().collect();
         type_of(node).parse(&mut StringReader::new(&units), source).is_ok()
@@ -657,7 +658,7 @@ pub fn list_suggestions(
             shared_suggestion_provider::suggest(["d", "s", "t", ""], &mut units);
             return units.build();
         }
-        ArgumentType::Dimension => shared_suggestion_provider::suggest_resource([server.level.dimension], &mut builder),
+        ArgumentType::Dimension => shared_suggestion_provider::suggest_resource(server.levels.iter().map(|level| level.dimension), &mut builder),
         ArgumentType::Resource { registry } => {
             shared_suggestion_provider::suggest_resource(crisp_data::registry_entries(registry).unwrap_or_default().iter(), &mut builder)
         }

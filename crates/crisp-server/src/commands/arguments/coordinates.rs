@@ -129,7 +129,7 @@ impl Coordinates {
 
 pub fn anchor_position(server: &Server, anchor: Anchor, source: &CommandSourceStack) -> Vec3 {
     let pos = source.position;
-    match (anchor, source.entity.and_then(|e| server.level.entity_ref(e))) {
+    match (anchor, source.entity.and_then(|e| server.level_of(e).and_then(|level| server.levels[level].entity_ref(e)))) {
         (Anchor::Eyes, Some(entity)) => Vec3::new(pos.x, pos.y + entity.dimensions.eye_height as f64, pos.z),
         _ => pos,
     }
@@ -262,10 +262,15 @@ pub fn parse_swizzle(reader: &mut StringReader) -> Result<u8, CommandSyntaxExcep
 }
 
 pub fn get_loaded_block_pos(server: &Server, context: &CommandContext, source: &CommandSourceStack, name: &str) -> Result<BlockPos, CommandSyntaxException> {
+    get_loaded_block_pos_in(server, source.level, context, source, name)
+}
+
+pub fn get_loaded_block_pos_in(server: &Server, level: usize, context: &CommandContext, source: &CommandSourceStack, name: &str) -> Result<BlockPos, CommandSyntaxException> {
     let pos = context.get_coordinates(name).block_pos(server, source);
-    if !server.level.has_chunk_at(pos) {
+    let level = &server.levels[level];
+    if !level.has_chunk_at(pos) {
         Err(ERROR_NOT_LOADED.create())
-    } else if !server.level.is_in_valid_bounds(pos) {
+    } else if !level.is_in_valid_bounds(pos) {
         Err(ERROR_OUT_OF_WORLD.create())
     } else {
         Ok(pos)

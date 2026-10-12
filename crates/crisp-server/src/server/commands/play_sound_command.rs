@@ -44,10 +44,13 @@ fn play_sound(server: &mut Server, context: &CommandContext, source: &CommandSou
     let (volume, pitch, min_volume) = (float("volume", 1.0), float("pitch", 1.0), float("minVolume", 0.0));
     let range = if volume > 1.0 { 16.0 * volume } else { 16.0 };
     let max_dist_sqr = (range * range) as f64;
-    let seed = server.level.random.next_long();
+    let seed = server.levels[source.level].random.next_long();
     let mut tracker: CommandResponseTracker<EntityId> = CommandResponseTracker::new();
     for player in players {
-        let p = server.level.entity(player).position();
+        if server.level_of(player) != Some(source.level) {
+            continue;
+        }
+        let p = server.levels[source.level].entity(player).position();
         let (dx, dy, dz) = (position.x - p.x, position.y - p.y, position.z - p.z);
         let dist_sqr = dx * dx + dy * dy + dz * dz;
         let (mut local_position, mut local_volume) = (position, volume);
@@ -59,7 +62,7 @@ fn play_sound(server: &mut Server, context: &CommandContext, source: &CommandSou
             local_position = Vec3::new(p.x + dx / distance * 2.0, p.y + dy / distance * 2.0, p.z + dz / distance * 2.0);
             local_volume = min_volume;
         }
-        server.level.player(player).connection.send(clientbound::SOUND, |w| {
+        server.player(player).connection.send(clientbound::SOUND, |w| {
             w.varint(0);
             w.string(&sound);
             w.bool(false);

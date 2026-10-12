@@ -105,12 +105,12 @@ fn fill_blocks(
     strict: bool,
 ) -> Result<i32, CommandSyntaxException> {
     let area = region.x_span() as i64 * region.y_span() as i64 * region.z_span() as i64;
-    let limit = server.level.game_rules.get_int(game_rule::MAX_BLOCK_MODIFICATIONS);
+    let limit = server.levels[source.level].game_rules.get_int(game_rule::MAX_BLOCK_MODIFICATIONS);
     if area > limit as i64 {
         return Err(ERROR_AREA_TOO_LARGE.create(limit, Arg::Long(area)));
     }
     let hollow_core = BlockInput { state: blocks::AIR.default_state(), properties: Vec::new(), tag: None };
-    let level = &mut server.level;
+    let level = &mut server.levels[source.level];
     let mut updated: Vec<(BlockPos, BlockState)> = Vec::new();
     let mut count = 0;
     for pos in region.positions() {

@@ -753,7 +753,7 @@ impl ServerLevel {
 impl crate::server::Server {
     pub(in crate::server) fn handle_change_game_mode(&mut self, id: EntityId, packet: &Packet) -> anyhow::Result<()> {
         let mode = GameType::by_id(packet.reader().varint()?);
-        let player = self.level.player(id);
+        let player = self.player(id);
         if self.profile_permission_level(player.profile.uuid) < 2 {
             let name = Component::translatable(&format!("selectWorld.gameMode.{}", mode.name())).get_string();
             warn!("Player {} tried to change game mode to {name} without required permissions", player.profile.name);
@@ -771,7 +771,7 @@ impl crate::server::Server {
             anyhow::bail!("unknown resource pack action {action}");
         }
         if action == DECLINED && self.config.server_resource_pack.as_ref().is_some_and(|info| info.is_required) {
-            let player = self.level.player_mut(id);
+            let player = self.player_mut(id);
             info!("Disconnecting {} due to resource pack {} rejection", player.profile.name, crate::world::level::storage::format_uuid(pack));
             player.disconnect("multiplayer.requiredTexturePrompt.disconnect");
         }

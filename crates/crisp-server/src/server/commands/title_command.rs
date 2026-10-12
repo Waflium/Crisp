@@ -27,7 +27,7 @@ fn send_packet_to_players(
 ) -> Result<i32, CommandSyntaxException> {
     let mut tracker = CommandResponseTracker::new();
     for player in context.get_players(server, source, "targets")? {
-        server.level.player(player).connection.send(id, &body);
+        server.player(player).connection.send(id, &body);
         tracker.track(player);
     }
     send_feedback(server, source, tracker, key)
@@ -46,7 +46,7 @@ fn show_title(server: &mut Server, context: &CommandContext, source: &CommandSou
     let mut tracker = CommandResponseTracker::new();
     for player in context.get_players(server, source, "targets")? {
         let resolved = component_utils::update_for_entity(server, source, title, Some(player))?;
-        server.level.player(player).connection.send(id, |p| resolved.write(p));
+        server.player(player).connection.send(id, |p| resolved.write(p));
         tracker.track(player);
     }
     send_feedback(server, source, tracker, key)

@@ -19,6 +19,12 @@ pub const METHOD_ADD: u8 = 0;
 pub const METHOD_REMOVE: u8 = 1;
 pub const METHOD_CHANGE: u8 = 2;
 
+impl super::Server {
+    pub fn score_holder_level(&self, holder: &crate::world::scores::score_holder::ScoreHolder) -> usize {
+        holder.entity.and_then(|entity| self.level_of(entity)).unwrap_or(0)
+    }
+}
+
 #[derive(Default)]
 pub struct ServerScoreboard {
     tracked_objectives: HashSet<ObjectiveId>,
@@ -326,7 +332,7 @@ mod tests {
     #[test]
     fn joining_player_gets_teams_then_shown_objectives() {
         let mut server = Server::new(crate::ServerConfig { level_type: crate::LevelType::Flat, ..crate::ServerConfig::default() }).unwrap();
-        let level = &mut server.level;
+        let level = &mut server.levels[0];
         let foo = level.scoreboard.borrow_mut().add_objective("foo", ObjectiveCriteria::DUMMY, Component::literal("Foo"), RenderType::Integer, false, None);
         let hidden = level.scoreboard.borrow_mut().add_objective("hidden", ObjectiveCriteria::DUMMY, Component::literal("h"), RenderType::Integer, false, None);
         for (holder, objective) in [("a", foo), ("a", hidden), ("b", foo)] {
@@ -360,7 +366,7 @@ mod tests {
         }
 
         let player = server.connections[&1];
-        let level = &mut server.level;
+        let level = &mut server.levels[0];
         let mut score = level.scoreboard.borrow_mut().get_or_create_player_score(&ScoreHolder::for_entity(level, player), hidden, false);
         score.set(level, 1).unwrap();
         assert_eq!(packets(&mut rx), Vec::<Vec<u8>>::new(), "hidden objectives are not tracked");

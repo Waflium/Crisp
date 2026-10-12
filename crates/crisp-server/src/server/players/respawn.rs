@@ -33,6 +33,7 @@ pub fn write_death_location(p: &mut Writer, location: &Option<(String, BlockPos)
 }
 
 struct RespawnTransition {
+    level: usize,
     position: Vec3,
     y_rot: f32,
     x_rot: f32,
@@ -41,73 +42,80 @@ struct RespawnTransition {
 
 impl Server {
     pub(in crate::server) fn handle_client_command(&mut self, id: EntityId, packet: &Packet) -> anyhow::Result<()> {
-        self.level.player_mut(id).reset_last_action_time();
+        self.player_mut(id).reset_last_action_time();
         if packet.reader().varint()? != PERFORM_RESPAWN {
             return Ok(());
         }
-        if self.level.player(id).health > 0.0 {
+        if self.player(id).health > 0.0 {
             return Ok(());
         }
         self.respawn(id);
-        let p = self.level.player_mut(id);
+        let p = self.player_mut(id);
         p.reset_position();
         p.movement.waiting_for_respawn = false;
         p.movement.client_loaded_timeout_timer = 60;
         if self.hardcore {
-            self.level.set_game_mode(id, GameType::Spectator);
+            self.entity_level_mut(id).set_game_mode(id, GameType::Spectator);
         }
         Ok(())
     }
 
-    fn find_respawn_position(&mut self, id: EntityId, consume_spawn_block: bool) -> RespawnTransition {
-        let config = self.level.player(id).respawn_config.clone();
-        if let Some(config) = config.filter(|c| c.respawn_data.dimension == OVERWORLD) {
-            return match self.find_respawn_and_use_spawn_block(&config, consume_spawn_block) {
-                Some((position, y_rot, x_rot)) => RespawnTransition { position, y_rot, x_rot, missing_respawn_block: false },
+    fn find_respawn_position_and_use_spawn_block(&mut self, id: EntityId, consume_spawn_block: bool) -> RespawnTransition {
+        let config = self.player(id).respawn_config.clone();
+        let respawn_level = self.get_level(config.as_ref().map_or(OVERWORLD, |c| c.respawn_data.dimension.as_str()));
+        if let (Some(respawn_level), Some(config)) = (respawn_level, config) {
+            return match self.find_respawn_and_use_spawn_block(respawn_level, &config, consume_spawn_block) {
+                Some((position, y_rot, x_rot)) => RespawnTransition { level: respawn_level, position, y_rot, x_rot, missing_respawn_block: false },
                 None => self.default_respawn(true),
             };
         }
         self.default_respawn(false)
     }
 
-    fn find_respawn_and_use_spawn_block(&mut self, respawn_config: &RespawnConfig, consume_spawn_block: bool) -> Option<(Vec3, f32, f32)> {
+    fn find_respawn_and_use_spawn_block(&mut self, level: usize, respawn_config: &RespawnConfig, consume_spawn_block: bool) -> Option<(Vec3, f32, f32)> {
+        let level = &mut self.levels[level];
         let respawn_data = &respawn_config.respawn_data;
         let (pos, yaw, pitch, forced) = (respawn_data.pos, respawn_data.yaw, respawn_data.pitch, respawn_config.forced);
-        let block_state = self.level.block_state(pos);
+        let block_state = level.block_state(pos);
         let block = block_state.block();
         let player_type = DismountType { dimensions: get_default_dimensions(Pose::Standing), fire_immune: false, is_player: true };
-        if block.is_instance_of("RespawnAnchorBlock") && (forced || block_state.get(RESPAWN_ANCHOR_CHARGES) > 0) && respawn_anchor_block::can_set_spawn(&self.level, pos) {
-            let stand_up_position = respawn_anchor_block::find_stand_up_position(player_type, &mut self.level, pos);
+        if block.is_instance_of("RespawnAnchorBlock") && (forced || block_state.get(RESPAWN_ANCHOR_CHARGES) > 0) && respawn_anchor_block::can_set_spawn(level, pos) {
+            let stand_up_position = respawn_anchor_block::find_stand_up_position(player_type, level, pos);
             if !forced && consume_spawn_block && stand_up_position.is_some() {
-                self.level.set_block(pos, block_state.set(RESPAWN_ANCHOR_CHARGES, block_state.get(RESPAWN_ANCHOR_CHARGES) - 1), UPDATE_ALL);
+                level.set_block(pos, block_state.set(RESPAWN_ANCHOR_CHARGES, block_state.get(RESPAWN_ANCHOR_CHARGES) - 1), UPDATE_ALL);
             }
             return stand_up_position.map(|p| (p, calculate_look_at_yaw(p, pos), 0.0));
         }
         if let Some(kind) = abstract_bed_block::kind(block)
-            && abstract_bed_block::get_bed_rule(kind, &self.level, pos).can_set_spawn(&self.level)
+            && abstract_bed_block::get_bed_rule(kind, level, pos).can_set_spawn(level)
         {
-            return abstract_bed_block::find_stand_up_position(player_type, &mut self.level, pos, block_state.get(HORIZONTAL_FACING), yaw)
+            return abstract_bed_block::find_stand_up_position(player_type, level, pos, block_state.get(HORIZONTAL_FACING), yaw)
                 .map(|p| (p, calculate_look_at_yaw(p, pos), 0.0));
         }
         if !forced {
             return None;
         }
         let free_bottom = is_possible_to_respawn_in_this(block_state);
-        let free_top = is_possible_to_respawn_in_this(self.level.block_state(pos.above()));
+        let free_top = is_possible_to_respawn_in_this(level.block_state(pos.above()));
         (free_bottom && free_top).then(|| (Vec3::new(pos.x as f64 + 0.5, pos.y as f64 + 0.1, pos.z as f64 + 0.5), yaw, pitch))
     }
 
     fn default_respawn(&mut self, missing_respawn_block: bool) -> RespawnTransition {
+        let level = self.find_respawn_dimension();
         let spawn = self.respawn_data().clone();
-        let adjusted = self.level.find_spawn(spawn.pos, self.default_game_type == GameType::Adventure);
+        let adjusted = self.levels[level].find_spawn(spawn.pos, self.default_game_type == GameType::Adventure);
         let position = Vec3::at_bottom_center_of(BlockPos::containing(adjusted.x, adjusted.y, adjusted.z));
-        RespawnTransition { position, y_rot: spawn.yaw, x_rot: spawn.pitch, missing_respawn_block }
+        RespawnTransition { level, position, y_rot: spawn.yaw, x_rot: spawn.pitch, missing_respawn_block }
     }
 
     pub fn respawn(&mut self, id: EntityId) {
-        let transition = self.find_respawn_position(id, true);
-        self.level.player_remove(id, RemovalReason::Killed);
-        let old = self.level.players.shift_remove(&id).expect("respawning player");
+        let transition = self.find_respawn_position_and_use_spawn_block(id, true);
+        let old_level = self.level_of(id).expect("respawning player");
+        self.levels[old_level].player_remove(id, RemovalReason::Killed);
+        let old = self.levels[old_level].players.shift_remove(&id).expect("respawning player");
+        self.levels[old_level].world_border.listener.remove_connection(id);
+        self.levels[old_level].update_sleeping_player_list();
+        let level_index = transition.level;
         let old_score = old.score();
         let mut player = ServerPlayer::new(old.profile.clone(), old.client, old.connection.clone(), BlockPos::ZERO);
         player.entity.id = id;
@@ -160,7 +168,7 @@ impl Server {
                 p.f32(0.0);
             });
         }
-        let level = &self.level;
+        let level = &self.levels[level_index];
         out.send(clientbound::RESPAWN, |p| {
             p.varint(level.dimension_type_id);
             p.string(level.dimension);
@@ -180,10 +188,10 @@ impl Server {
         self.send_difficulty_update(&out);
         player.send_experience();
         out.send(clientbound::POST_EFFECTS, |p| p.varint(0));
-        out.send(clientbound::INITIALIZE_BORDER, |p| write_initialize_border(p, &self.level.world_border));
+        out.send(clientbound::INITIALIZE_BORDER, |p| write_initialize_border(p, &level.world_border));
         out.send(clientbound::SET_TIME, |p| self.full_time_sync(p));
         out.send(clientbound::SET_DEFAULT_SPAWN_POSITION, |p| self.write_spawn(p));
-        self.level.write_weather_for_joining(&out);
+        level.write_weather_for_joining(&out);
         out.send(clientbound::GAME_EVENT, |p| {
             p.u8(GAME_EVENT_LEVEL_CHUNKS_LOAD_START);
             p.f32(0.0);
@@ -198,17 +206,21 @@ impl Server {
             p.i32(id);
             p.u8(crate::server::EVENT_PERMISSION_LEVEL_ALL + permission as u8);
         });
-        out.send(clientbound::COMMANDS, |p| crate::commands::write_commands_packet(p, &crate::commands::source::CommandSourceStack::for_new_player(self, &player)));
-        self.level.add_player(player);
-        self.level.init_inventory_menu(id);
-        if let Some(respawn_config) = self.level.player(id).respawn_config.clone()
-            && respawn_config.respawn_data.dimension == OVERWORLD
+        out.send(clientbound::COMMANDS, |p| {
+            crate::commands::write_commands_packet(p, &crate::commands::source::CommandSourceStack::for_new_player(self, level_index, &player))
+        });
+        self.levels[level_index].add_player(player);
+        self.player_list.retain(|&p| p != id);
+        self.player_list.push(id);
+        self.levels[level_index].init_inventory_menu(id);
+        if let Some(respawn_config) = self.player(id).respawn_config.clone()
+            && let Some(respawn_level) = self.get_level(&respawn_config.respawn_data.dimension)
         {
             let respawn_position = respawn_config.respawn_data.pos;
-            if self.level.block_state(respawn_position).is_block(crisp_data::blocks::RESPAWN_ANCHOR) {
-                let seed = self.level.random.next_long();
+            if self.levels[respawn_level].block_state(respawn_position).is_block(crisp_data::blocks::RESPAWN_ANCHOR) {
+                let seed = self.levels[level_index].random.next_long();
                 let sound = crate::world::entity::sound_event("minecraft:block.respawn_anchor.deplete");
-                self.level.player(id).connection.send(clientbound::SOUND, |p| {
+                self.player(id).connection.send(clientbound::SOUND, |p| {
                     p.varint(sound + 1);
                     p.varint(crate::server::level::SoundSource::Blocks as i32);
                     p.i32(respawn_position.x * 8);
@@ -265,24 +277,24 @@ mod tests {
     fn death_and_respawn_send_what_vanilla_sends() {
         let mut server = Server::new(ServerConfig::default()).unwrap();
         server.game_rules.set(game_rule::KEEP_INVENTORY, 1);
-        let id = testing::player(&mut server.level, Vec3::new(0.5, -60.0, 0.5), 0.0, 0.0);
+        let id = testing::server_player(&mut server, Vec3::new(0.5, -60.0, 0.5), 0.0, 0.0);
         let (out, mut packets) = Outbound::capture();
-        let p = server.level.player_mut(id);
+        let p = server.levels[0].player_mut(id);
         p.connection = out;
         p.inventory.slots[36] = Some(ItemStack::new(items::STONE, 3));
-        server.level.handle_player_loaded(id);
+        server.levels[0].handle_player_loaded(id);
         server.handle_client_command(id, &perform_respawn()).unwrap();
         assert_eq!(ids(&mut packets), Vec::<i32>::new());
-        server.level.kill(id);
+        server.levels[0].kill(id);
         let died = ids(&mut packets);
         assert_eq!(died.first(), Some(&clientbound::DAMAGE_EVENT));
         assert_eq!(&died[1..], [clientbound::PLAYER_COMBAT_KILL, clientbound::SYSTEM_CHAT, clientbound::ENTITY_EVENT]);
-        assert!(server.level.player(id).movement.waiting_for_respawn);
+        assert!(server.levels[0].player(id).movement.waiting_for_respawn);
         for _ in 0..20 {
-            server.level.tick();
-            server.level.tick_connection(id);
+            server.levels[0].tick();
+            server.levels[0].tick_connection(id);
         }
-        assert!(server.level.entity(id).is_removed());
+        assert!(server.levels[0].entity(id).is_removed());
         ids(&mut packets);
         server.handle_client_command(id, &perform_respawn()).unwrap();
         assert_eq!(
@@ -307,13 +319,13 @@ mod tests {
                 clientbound::CONTAINER_SET_CONTENT,
             ]
         );
-        let p = server.level.player(id);
+        let p = server.levels[0].player(id);
         assert_eq!((p.entity.id, p.health, p.entity.is_removed()), (id, 20.0, false));
         assert_eq!(p.inventory.slots[36], Some(ItemStack::new(items::STONE, 3)));
         assert_eq!(p.last_death_location.as_ref().map(|l| l.1), Some(crisp_core::BlockPos::new(0, -60, 0)));
         assert!(!p.movement.waiting_for_respawn);
-        server.level.tick();
-        server.level.tick_connection(id);
+        server.levels[0].tick();
+        server.levels[0].tick_connection(id);
         let next = ids(&mut packets);
         let health = next.iter().position(|&i| i == clientbound::SET_HEALTH).unwrap();
         assert_eq!(next[health + 1], clientbound::SET_EXPERIENCE);

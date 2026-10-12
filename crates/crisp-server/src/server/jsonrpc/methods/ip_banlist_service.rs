@@ -143,7 +143,7 @@ fn ban_incoming(server: &mut Server, ban: &IncomingIpBanDto, client: ClientInfo)
     if let Some(player) = &ban.player
         && let Some(online) = server.find_player(player.id, player.name.as_deref())
     {
-        let ip_ban = ban.to_ip_ban_for(server.level.player(online).ip_address());
+        let ip_ban = ban.to_ip_ban_for(server.player(online).ip_address());
         return ban_ip(server, &ip_ban, client);
     }
     Vec::new()
@@ -151,7 +151,7 @@ fn ban_incoming(server: &mut Server, ban: &IncomingIpBanDto, client: ClientInfo)
 
 fn disconnect_ip_banned(server: &mut Server, players: Vec<EntityId>) {
     for player in players {
-        server.level.player_mut(player).disconnect("multiplayer.disconnect.ip_banned");
+        server.player_mut(player).disconnect("multiplayer.disconnect.ip_banned");
     }
 }
 

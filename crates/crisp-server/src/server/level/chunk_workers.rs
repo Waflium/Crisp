@@ -1,7 +1,7 @@
 use std::collections::VecDeque;
 use std::io;
 use std::sync::mpsc::{Receiver, Sender, channel};
-use std::sync::{Condvar, LazyLock, Mutex};
+use std::sync::{Arc, Condvar, LazyLock, Mutex};
 use std::thread;
 
 use crisp_core::ChunkPos;
@@ -152,6 +152,43 @@ fn write(storage: &mut RegionStorage, pos: ChunkPos, nbt: &Nbt) {
     }
 }
 
-pub fn results() -> (Sender<WorkResult>, Receiver<WorkResult>) {
-    channel()
+#[derive(Default)]
+pub struct MainThreadWakeup {
+    generation: Mutex<u64>,
+    condvar: Condvar,
+}
+
+impl MainThreadWakeup {
+    pub fn generation(&self) -> u64 {
+        *self.generation.lock().unwrap()
+    }
+
+    pub fn wake(&self) {
+        *self.generation.lock().unwrap() += 1;
+        self.condvar.notify_all();
+    }
+
+    pub fn wait(&self, seen: u64, timeout: std::time::Duration) {
+        let generation = self.generation.lock().unwrap();
+        let _ = self.condvar.wait_timeout_while(generation, timeout, |generation| *generation == seen);
+    }
+}
+
+#[derive(Clone)]
+pub struct ResultSender {
+    sender: Sender<WorkResult>,
+    pub wakeup: Arc<MainThreadWakeup>,
+}
+
+impl ResultSender {
+    pub fn send(&self, result: WorkResult) -> Result<(), std::sync::mpsc::SendError<WorkResult>> {
+        let sent = self.sender.send(result);
+        self.wakeup.wake();
+        sent
+    }
+}
+
+pub fn results() -> (ResultSender, Receiver<WorkResult>) {
+    let (sender, receiver) = channel();
+    (ResultSender { sender, wakeup: Arc::default() }, receiver)
 }

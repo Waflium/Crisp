@@ -23,7 +23,7 @@ impl ServerFunctionManager {
     }
 
     pub fn tick(server: &mut Server) {
-        if !server.level.tick_rate_manager.runs_normally() {
+        if !server.tick_rate_manager.runs_normally() {
             return;
         }
         if server.functions.post_reload {

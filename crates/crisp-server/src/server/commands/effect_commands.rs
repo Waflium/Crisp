@@ -80,9 +80,9 @@ fn give_effect(
     let duration = compute_duration_in_ticks(seconds, effect);
     let mut tracker = CommandResponseTracker::new();
     for entity in context.get_entities(server, source, "targets")? {
-        if server.level.is_living(entity) {
+        if server.entity_level(entity).is_living(entity) {
             let instance = MobEffectInstance::with(effect, duration, amplifier, false, particles, particles);
-            let added = server.level.add_effect(entity, instance, source.entity);
+            let added = server.entity_level_mut(entity).add_effect(entity, instance, source.entity);
             tracker.track_value(entity, added as i32);
         }
     }
@@ -126,8 +126,8 @@ fn clear_targets(server: &mut Server, context: &CommandContext, source: &Command
 fn clear_effects(server: &mut Server, source: &CommandSourceStack, entities: &[EntityId]) -> Result<i32, CommandSyntaxException> {
     let mut tracker = CommandResponseTracker::new();
     for &entity in entities {
-        if server.level.is_living(entity) {
-            let removed = server.level.remove_all_effects(entity);
+        if server.entity_level(entity).is_living(entity) {
+            let removed = server.entity_level_mut(entity).remove_all_effects(entity);
             tracker.track_value(entity, removed as i32);
         }
     }
@@ -146,8 +146,8 @@ fn clear_effect(server: &mut Server, context: &CommandContext, source: &CommandS
     let effect = get_mob_effect(context, "effect");
     let mut tracker = CommandResponseTracker::new();
     for entity in context.get_entities(server, source, "targets")? {
-        if server.level.is_living(entity) {
-            let removed = server.level.remove_effect(entity, effect);
+        if server.entity_level(entity).is_living(entity) {
+            let removed = server.entity_level_mut(entity).remove_effect(entity, effect);
             tracker.track_value(entity, removed as i32);
         }
     }

@@ -81,7 +81,7 @@ pub fn set_visible(server: &mut Server, context: &CommandContext, source: &Comma
     if bar.event.visible == visible {
         return Err(if visible { ERROR_ALREADY_VISIBLE.create() } else { ERROR_ALREADY_HIDDEN.create() });
     }
-    bar.event.set_visible(&server.level, visible);
+    bar.event.set_visible(&server.levels, visible);
     bar.dirty = true;
     let key = if visible { "commands.bossbar.set.visible.success.visible" } else { "commands.bossbar.set.visible.success.hidden" };
     success(server, source, context, key, Vec::new());
@@ -94,7 +94,7 @@ pub fn set_value(server: &mut Server, context: &CommandContext, source: &Command
     if bar.value == value {
         return Err(ERROR_NO_VALUE_CHANGE.create());
     }
-    bar.set_value(&server.level, value);
+    bar.set_value(&server.levels, value);
     success(server, source, context, "commands.bossbar.set.value.success", vec![value.into()]);
     Ok(value)
 }
@@ -105,7 +105,7 @@ pub fn set_max(server: &mut Server, context: &CommandContext, source: &CommandSo
     if bar.max == max {
         return Err(ERROR_NO_MAX_CHANGE.create());
     }
-    bar.set_max(&server.level, max);
+    bar.set_max(&server.levels, max);
     success(server, source, context, "commands.bossbar.set.max.success", vec![max.into()]);
     Ok(max)
 }
@@ -120,7 +120,7 @@ pub fn set_color(server: &mut Server, context: &CommandContext, source: &Command
     if bar.event.color == color {
         return Err(ERROR_NO_COLOR_CHANGE.create());
     }
-    bar.event.set_color(&server.level, color);
+    bar.event.set_color(&server.levels, color);
     bar.dirty = true;
     success(server, source, context, "commands.bossbar.set.color.success", Vec::new());
     Ok(0)
@@ -132,7 +132,7 @@ pub fn set_style(server: &mut Server, context: &CommandContext, source: &Command
     if bar.event.overlay == style {
         return Err(ERROR_NO_STYLE_CHANGE.create());
     }
-    bar.event.set_overlay(&server.level, style);
+    bar.event.set_overlay(&server.levels, style);
     bar.dirty = true;
     success(server, source, context, "commands.bossbar.set.style.success", Vec::new());
     Ok(0)
@@ -150,7 +150,7 @@ pub fn set_name(server: &mut Server, context: &CommandContext, source: &CommandS
     if bar.event.name == name {
         return Err(ERROR_NO_NAME_CHANGE.create());
     }
-    bar.event.set_name(&server.level, name);
+    bar.event.set_name(&server.levels, name);
     bar.dirty = true;
     success(server, source, context, "commands.bossbar.set.name.success", Vec::new());
     Ok(0)
@@ -160,7 +160,7 @@ pub fn set_players(server: &mut Server, context: &CommandContext, source: &Comma
     get_boss_bar(&mut server.custom_boss_events, context)?;
     let targets = if context.has_argument("targets") { context.get_optional_players(server, source, "targets")? } else { Vec::new() };
     let bar = get_boss_bar(&mut server.custom_boss_events, context)?;
-    if !bar.set_players(&server.level, &targets) {
+    if !bar.set_players(&server.levels, &targets) {
         return Err(ERROR_NO_PLAYER_CHANGE.create());
     }
     let count = bar.event.players.len() as i32;
@@ -192,14 +192,14 @@ pub fn create_bar(server: &mut Server, context: &CommandContext, source: &Comman
         return Err(ERROR_ALREADY_EXISTS.create(id));
     }
     let name = component_utils::update_for_entity(server, source, &name, None)?;
-    server.custom_boss_events.create(&mut server.level, id, name);
+    server.custom_boss_events.create(&mut server.levels[source.level].random, id, name);
     success(server, source, context, "commands.bossbar.create.success", Vec::new());
     Ok(server.custom_boss_events.len() as i32)
 }
 
 pub fn remove_bar(server: &mut Server, context: &CommandContext, source: &CommandSourceStack) -> Result<i32> {
     let bar = get_boss_bar(&mut server.custom_boss_events, context)?;
-    bar.remove_all_players(&server.level);
+    bar.remove_all_players(&server.levels);
     let name = bar.display_name();
     server.custom_boss_events.remove(context.get_identifier("id"));
     source.send_success(server, || Component::translatable_with("commands.bossbar.remove.success", vec![name.into()]), true);

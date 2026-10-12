@@ -23,7 +23,7 @@ pub fn summonable_entity_type(context: &CommandContext, name: &str) -> Result<St
     Ok(id)
 }
 
-pub fn create_entity(server: &mut Server, entity_type: &str, pos: Vec3, nbt: &Nbt, finalize: bool) -> Result<EntityId, CommandSyntaxException> {
+pub fn create_entity(server: &mut Server, source: &CommandSourceStack, entity_type: &str, pos: Vec3, nbt: &Nbt, finalize: bool) -> Result<EntityId, CommandSyntaxException> {
     if !is_in_spawnable_bounds(BlockPos::containing(pos.x, pos.y, pos.z)) {
         return Err(INVALID_POSITION.create());
     }
@@ -37,7 +37,7 @@ pub fn create_entity(server: &mut Server, entity_type: &str, pos: Vec3, nbt: &Nb
     };
     tag.retain(|(k, _)| k != "id");
     tag.push(("id".into(), Nbt::String(entity_type.into())));
-    let level = &mut server.level;
+    let level = &mut server.levels[source.level];
     let Some(mut entity) = level.load_entity(&Nbt::Compound(tag)) else { return Err(ERROR_FAILED.create()) };
     let e = entity.entity_mut();
     e.set_pos(pos);
@@ -56,7 +56,7 @@ pub fn create_entity(server: &mut Server, entity_type: &str, pos: Vec3, nbt: &Nb
 }
 
 fn spawn_entity(server: &mut Server, source: &CommandSourceStack, entity_type: &str, pos: Vec3, nbt: &Nbt, finalize: bool) -> Result<i32, CommandSyntaxException> {
-    let id = create_entity(server, entity_type, pos, nbt, finalize)?;
+    let id = create_entity(server, source, entity_type, pos, nbt, finalize)?;
     source.send_success(server, || Component::translatable_with("commands.summon.success", vec![Arg::Component(server.entity_display_name(id))]), true);
     Ok(1)
 }

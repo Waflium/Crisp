@@ -24,13 +24,13 @@ impl Type {
 
     fn add(self, server: &mut Server, player: EntityId, amount: i32) {
         match self {
-            Type::Points => server.level.give_experience_points(player, amount),
-            Type::Levels => server.level.give_experience_levels(player, amount),
+            Type::Points => server.entity_level_mut(player).give_experience_points(player, amount),
+            Type::Levels => server.entity_level_mut(player).give_experience_levels(player, amount),
         }
     }
 
     fn set(self, server: &mut Server, player: EntityId, amount: i32) -> bool {
-        let p = server.level.player_mut(player);
+        let p = server.player_mut(player);
         match self {
             Type::Points if amount >= p.experience.xp_needed_for_next_level() => false,
             Type::Points => {
@@ -45,7 +45,7 @@ impl Type {
     }
 
     fn query(self, server: &Server, player: EntityId) -> i32 {
-        let xp = server.level.player(player).experience;
+        let xp = server.player(player).experience;
         match self {
             Type::Points => mth_floor(xp.progress * xp.xp_needed_for_next_level() as f32),
             Type::Levels => xp.level,

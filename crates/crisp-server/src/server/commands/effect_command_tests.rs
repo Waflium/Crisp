@@ -35,8 +35,8 @@ fn exec(server: &mut Server, command: &str) -> Result<i32, String> {
 }
 
 fn join(server: &mut Server, name: &str) -> EntityId {
-    let id = testing::player(&mut server.level, Vec3::new(0.5, -60.0, 0.5), 0.0, 0.0);
-    let player = server.level.player_mut(id);
+    let id = testing::server_player(server, Vec3::new(0.5, -60.0, 0.5), 0.0, 0.0);
+    let player = server.levels[0].player_mut(id);
     player.connection = Outbound::detached();
     player.profile = Profile { uuid: offline_uuid(name), name: name.into(), properties: Vec::new() };
     player.entity.uuid = player.profile.uuid;
@@ -49,23 +49,23 @@ fn effect_give() {
     let alice = join(&mut server, "Alice");
     let bob = join(&mut server, "Bob");
     assert_eq!(run(&mut server, "effect give Alice minecraft:speed"), ["Applied effect Speed to Alice"]);
-    let speed = server.level.player(alice).living.effect(mob_effects::SPEED).cloned().unwrap();
+    let speed = server.levels[0].player(alice).living.effect(mob_effects::SPEED).cloned().unwrap();
     assert_eq!((speed.duration, speed.amplifier, speed.visible, speed.show_icon), (600, 0, true, true));
     assert_eq!(run(&mut server, "effect give @a speed 30"), ["Applied effect Speed to Bob"]);
     assert_eq!(run(&mut server, "effect give @a speed 40 1 true"), ["Applied effect Speed to 2 targets"]);
-    let speed = server.level.player(bob).living.effect(mob_effects::SPEED).cloned().unwrap();
+    let speed = server.levels[0].player(bob).living.effect(mob_effects::SPEED).cloned().unwrap();
     assert_eq!((speed.duration, speed.amplifier, speed.visible, speed.show_icon), (800, 1, false, false));
     assert_eq!(exec(&mut server, "effect give @a speed 40 1 true"), Err("Unable to apply this effect (target is either immune to effects, or has something stronger)".into()));
     assert_eq!(exec(&mut server, "effect give Alice haste infinite 3"), Ok(1));
-    let haste = server.level.player(alice).living.effect(mob_effects::HASTE).cloned().unwrap();
+    let haste = server.levels[0].player(alice).living.effect(mob_effects::HASTE).cloned().unwrap();
     assert_eq!((haste.duration, haste.amplifier), (-1, 3));
     assert_eq!(run(&mut server, "effect give Alice haste infinite 2 false"), ["Unable to apply this effect (target is either immune to effects, or has something stronger)"]);
     assert_eq!(exec(&mut server, "effect give Alice instant_health 7"), Ok(1));
-    assert_eq!(server.level.player(alice).living.effect(mob_effects::INSTANT_HEALTH).unwrap().duration, 7);
+    assert_eq!(server.levels[0].player(alice).living.effect(mob_effects::INSTANT_HEALTH).unwrap().duration, 7);
     assert_eq!(run(&mut server, "effect give Bob minecraft:saturation"), ["Applied effect Saturation to Bob"]);
-    assert_eq!(server.level.player(bob).living.effect(mob_effects::SATURATION).unwrap().duration, 1);
+    assert_eq!(server.levels[0].player(bob).living.effect(mob_effects::SATURATION).unwrap().duration, 1);
     let item = ItemEntity::new(Vec3::new(0.5, -60.0, 0.5), ItemStack::new(crisp_data::items::STONE, 1));
-    server.level.add_fresh_entity(LevelEntity::Item(item));
+    server.levels[0].add_fresh_entity(LevelEntity::Item(item));
     assert_eq!(run(&mut server, "effect give @e[type=item] speed"), ["Unable to apply this effect (target is either immune to effects, or has something stronger)"]);
     assert_eq!(run(&mut server, "effect give Alice speed 0"), ["Integer must not be less than 1: found 0", "...ice speed 0<--[HERE]"]);
     assert_eq!(run(&mut server, "effect give Alice nope"), ["Can't find element 'minecraft:nope' of type 'minecraft:mob_effect'", "...Alice nope<--[HERE]"]);
@@ -87,8 +87,8 @@ fn effect_clear() {
     assert_eq!(run(&mut server, "effect clear @a"), ["Removed every effect from 2 targets"]);
     run(&mut server, "effect give Alice speed");
     assert_eq!(run(&mut server, "effect clear Alice"), ["Removed every effect from Alice"]);
-    assert!(server.level.player(alice).living.active_effects.is_empty());
-    assert_eq!(server.level.attribute_value(alice, Attribute::MovementSpeed), 0.1f32 as f64);
+    assert!(server.levels[0].player(alice).living.active_effects.is_empty());
+    assert_eq!(server.levels[0].attribute_value(alice, Attribute::MovementSpeed), 0.1f32 as f64);
 }
 
 #[test]
@@ -100,7 +100,7 @@ fn attribute() {
     assert_eq!(run(&mut server, "attribute Alice movement_speed base get"), ["The base value of attribute Speed for entity Alice is 0.10000000149011612"]);
     assert_eq!(run(&mut server, "attribute Alice flying_speed get"), ["Entity Alice has no attribute Flying Speed"]);
     assert_eq!(run(&mut server, "attribute Alice max_health base set 30"), ["The base value for attribute Max Health for entity Alice set to 30.0"]);
-    assert_eq!(server.level.max_health(alice), 30.0);
+    assert_eq!(server.levels[0].max_health(alice), 30.0);
     assert_eq!(run(&mut server, "attribute Alice max_health modifier add test:boost 2 add_multiplied_base"), [
         "Added modifier test:boost to attribute Max Health for entity Alice"
     ]);
@@ -113,7 +113,7 @@ fn attribute() {
     ]);
     assert_eq!(exec(&mut server, "attribute Alice max_health modifier value get test:boost 10"), Ok(20));
     assert_eq!(run(&mut server, "attribute Alice max_health modifier value get test:other"), ["Attribute Max Health for entity Alice has no modifier test:other"]);
-    let saved = server.level.player(alice).to_nbt("minecraft:overworld");
+    let saved = server.levels[0].player(alice).to_nbt("minecraft:overworld");
     let attributes = format!("{:?}", saved.get("attributes").unwrap());
     assert!(attributes.contains("test:boost"), "{attributes}");
     assert_eq!(run(&mut server, "attribute Alice max_health modifier remove test:boost"), ["Removed modifier test:boost from attribute Max Health for entity Alice"]);
@@ -121,10 +121,10 @@ fn attribute() {
     assert_eq!(run(&mut server, "attribute Alice max_health base reset"), ["The base value for attribute Max Health for entity Alice reset to default 20.0"]);
     assert_eq!(run(&mut server, "attribute Alice luck base reset"), ["The base value for attribute Luck for entity Alice reset to default 0.0"]);
     run(&mut server, "attribute Alice max_health base set 10");
-    server.level.refresh_dirty_attributes(alice);
-    assert_eq!(server.level.player(alice).health, 10.0);
+    server.levels[0].refresh_dirty_attributes(alice);
+    assert_eq!(server.levels[0].player(alice).health, 10.0);
     let item = ItemEntity::new(Vec3::new(0.5, -60.0, 0.5), ItemStack::new(crisp_data::items::STONE, 1));
-    server.level.add_fresh_entity(LevelEntity::Item(item));
+    server.levels[0].add_fresh_entity(LevelEntity::Item(item));
     assert_eq!(run(&mut server, "attribute @e[type=item,limit=1] luck get"), ["Stone is not a valid entity for this command"]);
 }
 
@@ -135,9 +135,9 @@ fn base_values_outlive_death_and_effects_do_not() {
     run(&mut server, "attribute Alice max_health base set 30");
     run(&mut server, "attribute Alice max_health modifier add test:boost 4 add_value");
     run(&mut server, "effect give Alice speed");
-    server.level.kill(alice);
+    server.levels[0].kill(alice);
     server.respawn(alice);
-    assert_eq!(server.level.max_health(alice), 30.0);
-    assert_eq!(server.level.player(alice).health, 30.0);
-    assert!(server.level.player(alice).living.active_effects.is_empty());
+    assert_eq!(server.levels[0].max_health(alice), 30.0);
+    assert_eq!(server.levels[0].player(alice).health, 30.0);
+    assert!(server.levels[0].player(alice).living.active_effects.is_empty());
 }

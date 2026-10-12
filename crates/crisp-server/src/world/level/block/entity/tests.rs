@@ -282,7 +282,7 @@ fn droppers_put_items_into_the_container_they_face() {
 
 fn command_server() -> crate::server::Server {
     let mut server = crate::server::Server::new(crate::ServerConfig { level_type: crate::LevelType::Flat, ..crate::ServerConfig::default() }).unwrap();
-    server.level.chunks.chunk(crisp_core::ChunkPos::new(0, 0));
+    server.levels[0].chunks.chunk(crisp_core::ChunkPos::new(0, 0));
     server
 }
 
@@ -304,13 +304,13 @@ fn data_commands_read_and_write_block_entities() {
     assert_eq!(run(&mut server, "data get block 0 -60 0 Items[0].count 1.5"), ["Items[0].count on block 0, -60, 0 after scale factor of 1.50 is 3"]);
     assert_eq!(run(&mut server, "data modify block 0 -60 0 Items[0].count set value 5b"), ["Modified block data of 0, -60, 0"]);
     let pos = BlockPos::new(0, -60, 0);
-    let c = ContainerRef::block(&server.level, pos);
-    assert_eq!(server.level.get_item(c, 3), ItemStack::new(items::DIRT, 5));
+    let c = ContainerRef::block(&server.levels[0], pos);
+    assert_eq!(server.levels[0].get_item(c, 3), ItemStack::new(items::DIRT, 5));
     assert_eq!(run(&mut server, "data get block 0 -60 0 x"), ["0, -60, 0 has the following block data: 0"]);
     assert_eq!(run(&mut server, "execute if data block 0 -60 0 Items[{id:\"minecraft:dirt\"}]"), ["Test passed. Count: 1"]);
     assert_eq!(run(&mut server, "execute if block 0 -60 0 chest{CustomName:\"Box\"}"), ["Test passed"]);
     run(&mut server, "execute store result block 0 -60 0 Items[0].count byte 1 run data get block 0 -60 0 Items[0].count 2");
-    assert_eq!(server.level.get_item(c, 3), ItemStack::new(items::DIRT, 10));
+    assert_eq!(server.levels[0].get_item(c, 3), ItemStack::new(items::DIRT, 10));
 }
 
 #[test]

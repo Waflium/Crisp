@@ -19,7 +19,7 @@ impl Server {
         let mut reader = packet.reader();
         let request_id = reader.varint()?;
         let command = reader.string(MAX_COMMAND_LENGTH)?.to_owned();
-        let provider = &mut self.level.player_mut(id).command_suggestions;
+        let provider = &mut self.player_mut(id).command_suggestions;
         if provider.last_request.replace((request_id, command)).is_none() && provider.has_budget {
             self.tasks.push_back(Task::CommandSuggestions { player: id });
         }
@@ -27,12 +27,12 @@ impl Server {
     }
 
     pub(in crate::server) fn tick_command_suggestions(&mut self, id: EntityId) {
-        self.level.player_mut(id).command_suggestions.has_budget = true;
+        self.player_mut(id).command_suggestions.has_budget = true;
         self.try_process_command_suggestions(id);
     }
 
     pub(in crate::server) fn try_process_command_suggestions(&mut self, id: EntityId) {
-        let provider = &mut self.level.player_mut(id).command_suggestions;
+        let provider = &mut self.player_mut(id).command_suggestions;
         if !provider.has_budget {
             return;
         }
@@ -40,11 +40,11 @@ impl Server {
         provider.has_budget = false;
         let source = CommandSourceStack::player(self, id);
         let Some(mut suggestions) = crate::commands::completion_suggestions(self, &source, &command) else {
-            error!("Failed to resolve command suggestions for {}", self.level.player(id).profile.name);
+            error!("Failed to resolve command suggestions for {}", self.player(id).profile.name);
             return;
         };
         suggestions.list.truncate(MAX_COMMAND_SUGGESTIONS);
-        self.level.player(id).connection.send(clientbound::COMMAND_SUGGESTIONS, |w| {
+        self.player(id).connection.send(clientbound::COMMAND_SUGGESTIONS, |w| {
             w.varint(request_id);
             w.varint(suggestions.range.start as i32);
             w.varint((suggestions.range.end - suggestions.range.start) as i32);

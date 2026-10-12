@@ -40,7 +40,7 @@ pub fn take_all_recipes(server: &mut Server, context: &CommandContext, source: &
 fn give_recipes(server: &mut Server, source: &CommandSourceStack, players: &[EntityId], recipes: &[&'static RecipeHolder]) -> Result<i32> {
     let mut response = CommandResponseTracker::new();
     for &player in players {
-        let value = server.level.award_recipes(player, recipes);
+        let value = server.entity_level_mut(player).award_recipes(player, recipes);
         response.track_value(player, value);
     }
     response.send_feedback_of(
@@ -57,7 +57,7 @@ fn give_recipes(server: &mut Server, source: &CommandSourceStack, players: &[Ent
 fn take_recipes(server: &mut Server, source: &CommandSourceStack, players: &[EntityId], recipes: &[&'static RecipeHolder]) -> Result<i32> {
     let mut response = CommandResponseTracker::new();
     for &player in players {
-        let value = server.level.reset_recipes(player, recipes);
+        let value = server.entity_level_mut(player).reset_recipes(player, recipes);
         response.track_value(player, value);
     }
     response.send_feedback_of(

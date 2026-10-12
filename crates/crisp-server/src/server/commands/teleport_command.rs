@@ -69,9 +69,9 @@ pub fn teleport_targets_to_destination(server: &mut Server, context: &CommandCon
 fn teleport_to_entity(server: &mut Server, source: &CommandSourceStack, entities: &[EntityId], destination: EntityId) -> Result<i32> {
     let mut tracker = CommandResponseTracker::new();
     for &entity in entities {
-        let d = server.level.entity(destination);
+        let d = server.entity_level(destination).entity(destination);
         let (pos, y_rot, x_rot) = (d.position(), d.y_rot, d.x_rot);
-        perform_teleport(&mut server.level, source, entity, pos, 0, y_rot, x_rot, None)?;
+        perform_teleport(server.entity_level_mut(entity), source, entity, pos, 0, y_rot, x_rot, None)?;
         tracker.track(entity);
     }
     let server = &*server;
@@ -99,12 +99,12 @@ fn teleport_to_pos(
         let relatives = relatives(destination, rotation);
         let (y_rot, x_rot) = match rot {
             None => {
-                let e = server.level.entity(entity);
+                let e = server.entity_level(entity).entity(entity);
                 (e.y_rot, e.x_rot)
             }
             Some((x, y)) => (y, x),
         };
-        perform_teleport(&mut server.level, source, entity, pos, relatives, y_rot, x_rot, look_at)?;
+        perform_teleport(server.entity_level_mut(entity), source, entity, pos, relatives, y_rot, x_rot, look_at)?;
         tracker.track(entity);
     }
     let server = &*server;

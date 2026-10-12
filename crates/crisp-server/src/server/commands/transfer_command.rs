@@ -15,7 +15,7 @@ pub fn transfer(server: &mut Server, context: &CommandContext, source: &CommandS
     let players = if context.has_argument("players") { context.get_players(server, source, "players")? } else { vec![source.player_or_exception(server)?] };
     let mut tracker: CommandResponseTracker<EntityId> = CommandResponseTracker::new();
     for player in players {
-        server.level.player(player).connection.send(clientbound::TRANSFER, |w| {
+        server.player(player).connection.send(clientbound::TRANSFER, |w| {
             w.string(&hostname);
             w.varint(port);
         });

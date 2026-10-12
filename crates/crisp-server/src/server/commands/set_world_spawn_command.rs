@@ -24,7 +24,7 @@ pub fn set_spawn_at_rotated(server: &mut Server, context: &CommandContext, sourc
 
 fn set_spawn(server: &mut Server, source: &CommandSourceStack, pos: BlockPos, rotation: &Coordinates) -> i32 {
     let (pitch, yaw) = rotation.rotation(source);
-    let dimension = server.level.dimension;
+    let dimension = server.levels[source.level].dimension;
     let respawn_data = RespawnData::of(dimension, pos, yaw, pitch);
     let (yaw, pitch) = (respawn_data.yaw, respawn_data.pitch);
     server.set_respawn_data(respawn_data);

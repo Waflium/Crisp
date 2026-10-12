@@ -10,17 +10,18 @@ static ERROR_NOT_ON_TEAM: SimpleCommandExceptionType = SimpleCommandExceptionTyp
 
 pub fn team_msg(server: &mut Server, context: &CommandContext, source: &CommandSourceStack) -> Result<i32, CommandSyntaxException> {
     let entity = source.entity_or_exception()?;
-    let Some((team_name, display_name)) = server.level.team_of(entity).map(|team| (team.name().to_string(), team.formatted_display_name())) else {
+    let Some((team_name, display_name)) =
+        server.entity_level(entity).team_of(entity).map(|team| (team.name().to_string(), team.formatted_display_name()))
+    else {
         return Err(ERROR_NOT_ON_TEAM.create());
     };
     let display_name =
         display_name.with_hover(HoverEvent::ShowText(Box::new(Component::translatable("chat.type.team.hover")))).with_click(ClickEvent::SuggestCommand("/teammsg ".into()));
     let receivers: Vec<EntityId> = server
-        .level
-        .players
-        .keys()
+        .player_list
+        .iter()
         .copied()
-        .filter(|&receiver| receiver == entity || server.level.team_of(receiver).is_some_and(|t| t.name() == team_name))
+        .filter(|&receiver| receiver == entity || server.entity_level(receiver).team_of(receiver).is_some_and(|t| t.name() == team_name))
         .collect();
     let count = receivers.len() as i32;
     if !receivers.is_empty() {
@@ -36,7 +37,7 @@ fn send_message(server: &mut Server, source: &CommandSourceStack, entity: Entity
     let outgoing = ChatType::TeamMsgCommandOutgoing.bind(name).with_target_name(team_name);
     for &receiver in receivers {
         let chat_type = if receiver == entity { &outgoing } else { &incoming };
-        if let Some(player) = server.level.players.get_mut(&receiver) {
+        if let Some(player) = server.get_player_mut(receiver) {
             player.send_chat_message(message, chat_type);
         }
     }

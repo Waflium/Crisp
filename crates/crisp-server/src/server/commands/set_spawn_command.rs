@@ -54,9 +54,9 @@ fn set_spawn(server: &mut Server, source: &CommandSourceStack, targets: &[Entity
     let (x_rot, y_rot) = rotation.rotation(source);
     let yaw = mth::wrap_degrees(y_rot);
     let pitch = mth::clamp_f(x_rot, -90.0, 90.0);
-    let respawn_data = RespawnData::of(server.level.dimension, pos, yaw, pitch);
+    let respawn_data = RespawnData::of(server.levels[source.level].dimension, pos, yaw, pitch);
     for &target in targets {
-        server.level.player_mut(target).respawn_config = Some(RespawnConfig { respawn_data: respawn_data.clone(), forced: true });
+        server.player_mut(target).respawn_config = Some(RespawnConfig { respawn_data: respawn_data.clone(), forced: true });
         tracker.track(target);
     }
     let server = &*server;

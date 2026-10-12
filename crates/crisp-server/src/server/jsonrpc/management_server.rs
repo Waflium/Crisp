@@ -28,7 +28,7 @@ pub struct ManagementServer {
     listener: Mutex<Option<tokio::task::AbortHandle>>,
     runtime: tokio::runtime::Handle,
     tasks: OnceLock<std::sync::mpsc::Sender<ServerTask>>,
-    waker: OnceLock<std::sync::mpsc::Sender<WorkResult>>,
+    waker: OnceLock<crate::server::level::chunk_workers::ResultSender>,
     ready: AtomicBool,
 }
 
@@ -130,7 +130,7 @@ impl ManagementServer {
         let _ = self.tasks.set(tasks);
     }
 
-    pub fn set_waker(&self, waker: std::sync::mpsc::Sender<WorkResult>) {
+    pub fn set_waker(&self, waker: crate::server::level::chunk_workers::ResultSender) {
         let _ = self.waker.set(waker);
     }
 

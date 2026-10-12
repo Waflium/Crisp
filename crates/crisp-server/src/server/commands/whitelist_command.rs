@@ -91,7 +91,7 @@ pub fn suggest_unlisted_players(
     _source: &CommandSourceStack,
     mut builder: crate::commands::suggestion::SuggestionsBuilder,
 ) -> Result<crate::commands::suggestion::Suggestions, CommandSyntaxException> {
-    let names = server.level.players.values().filter(|p| !server.is_white_listed(p.profile.uuid)).map(|p| p.profile.name.as_str());
+    let names = server.players().filter(|p| !server.is_white_listed(p.profile.uuid)).map(|p| p.profile.name.as_str());
     crate::commands::shared_suggestion_provider::suggest(names, &mut builder);
     Ok(builder.build())
 }

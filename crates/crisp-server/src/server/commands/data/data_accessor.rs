@@ -18,7 +18,7 @@ static ERROR_NO_PLAYERS: SimpleCommandExceptionType = SimpleCommandExceptionType
 
 pub enum DataAccessor {
     Entity(EntityId),
-    Block(BlockPos),
+    Block(usize, BlockPos),
     Storage(String),
 }
 
@@ -31,10 +31,10 @@ impl DataAccessor {
             "storage" => DataAccessor::Storage(context.get_identifier(arg).to_string()),
             "block" => {
                 let pos = get_loaded_block_pos(server, context, source, arg)?;
-                if server.level.get_block_entity(pos).is_none() {
+                if server.levels[source.level].get_block_entity(pos).is_none() {
                     return Err(ERROR_NOT_A_BLOCK_ENTITY.create());
                 }
-                DataAccessor::Block(pos)
+                DataAccessor::Block(source.level, pos)
             }
             other => unreachable!("no {other} data accessor"),
         })
@@ -42,26 +42,27 @@ impl DataAccessor {
 
     pub fn get_data(&self, server: &mut Server) -> Result<Nbt, CommandSyntaxException> {
         Ok(match self {
-            DataAccessor::Entity(entity) => server.level.entity_tag_to_compare(*entity),
+            DataAccessor::Entity(entity) => server.entity_level(*entity).entity_tag_to_compare(*entity),
             DataAccessor::Storage(id) => Nbt::Compound(server.command_storage.borrow_mut().get(id)),
-            DataAccessor::Block(pos) => server.level.block_entity_data(*pos).ok_or_else(|| ERROR_NOT_A_BLOCK_ENTITY.create())?,
+            DataAccessor::Block(level, pos) => server.levels[*level].block_entity_data(*pos).ok_or_else(|| ERROR_NOT_A_BLOCK_ENTITY.create())?,
         })
     }
 
     pub fn set_data(&self, server: &mut Server, tag: Nbt) -> Result<(), CommandSyntaxException> {
         match self {
             DataAccessor::Entity(id) => {
-                let Some(entity) = server.level.entities.get_mut(id) else { return Err(ERROR_NO_PLAYERS.create()) };
+                let level = server.entity_level_mut(*id);
+                let Some(entity) = level.entities.get_mut(id) else { return Err(ERROR_NO_PLAYERS.create()) };
                 let uuid = entity.entity().uuid;
                 if let Err(e) = entity.load(&tag) {
                     error!("{e}");
                 }
                 entity.entity_mut().uuid = uuid;
-                server.level.entity_moved(*id);
+                level.entity_moved(*id);
             }
             DataAccessor::Storage(id) => server.command_storage.borrow_mut().set(id, into_fields(tag)),
-            DataAccessor::Block(pos) => {
-                let level = &mut server.level;
+            DataAccessor::Block(level, pos) => {
+                let level = &mut server.levels[*level];
                 let Some(entity) = level.get_block_entity(*pos) else { return Err(ERROR_NOT_A_BLOCK_ENTITY.create()) };
                 entity.load_with_components(&tag);
                 level.block_entity_set_changed(*pos);
@@ -75,7 +76,7 @@ impl DataAccessor {
     pub fn write_back(&self, server: &mut Server, tag: &Nbt) {
         match self {
             DataAccessor::Storage(id) => server.command_storage.borrow_mut().write_back(id, into_fields(tag.clone())),
-            DataAccessor::Entity(_) | DataAccessor::Block(_) => {}
+            DataAccessor::Entity(_) | DataAccessor::Block(..) => {}
         }
     }
 
@@ -87,7 +88,7 @@ impl DataAccessor {
         match self {
             DataAccessor::Entity(entity) => Component::translatable_with("commands.data.entity.modified", vec![server.entity_display_name(*entity).into()]),
             DataAccessor::Storage(id) => Component::translatable_with("commands.data.storage.modified", vec![Arg::Component(Component::literal(id))]),
-            DataAccessor::Block(pos) => Component::translatable_with("commands.data.block.modified", Self::position_args(*pos)),
+            DataAccessor::Block(_, pos) => Component::translatable_with("commands.data.block.modified", Self::position_args(*pos)),
         }
     }
 
@@ -100,7 +101,7 @@ impl DataAccessor {
             DataAccessor::Storage(id) => {
                 Component::translatable_with("commands.data.storage.query", vec![Arg::Component(Component::literal(id)), Arg::Component(to_pretty_component(data))])
             }
-            DataAccessor::Block(pos) => {
+            DataAccessor::Block(_, pos) => {
                 let mut args = Self::position_args(*pos);
                 args.push(Arg::Component(to_pretty_component(data)));
                 Component::translatable_with("commands.data.block.query", args)
@@ -118,7 +119,7 @@ impl DataAccessor {
                 "commands.data.storage.get",
                 vec![path.original.as_str().into(), Arg::Component(Component::literal(id)), java_format_fixed(scale, 2).into(), value.into()],
             ),
-            DataAccessor::Block(pos) => {
+            DataAccessor::Block(_, pos) => {
                 let mut args = vec![path.original.as_str().into()];
                 args.extend(Self::position_args(*pos));
                 args.push(java_format_fixed(scale, 2).into());

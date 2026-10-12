@@ -15,7 +15,7 @@ type Result = std::result::Result<i32, CommandSyntaxException>;
 fn player_and_objective(server: &Server, context: &CommandContext, source: &CommandSourceStack) -> std::result::Result<(ScoreHolder, ObjectiveId), CommandSyntaxException> {
     let player = source.player_or_exception(server)?;
     let objective = context.get_objective(server, "objective")?;
-    Ok((ScoreHolder::for_entity(&server.level, player), objective))
+    Ok((ScoreHolder::for_entity(server.entity_level(player), player), objective))
 }
 
 fn formatted(server: &Server, objective: ObjectiveId) -> Component {
@@ -26,7 +26,8 @@ pub fn add_value(server: &mut Server, context: &CommandContext, source: &Command
     let (player, objective) = player_and_objective(server, context, source)?;
     let amount = context.get_int("value");
     let mut score = get_score(server, &player, objective)?;
-    let new_value = score.add(&mut server.level, amount).expect("triggers are writable");
+    let level = server.score_holder_level(&player);
+    let new_value = score.add(&mut server.levels[level], amount).expect("triggers are writable");
     source.send_success(server, || Component::translatable_with("commands.trigger.add.success", vec![formatted(server, objective).into(), Arg::Int(amount)]), true);
     Ok(new_value)
 }
@@ -35,7 +36,8 @@ pub fn set_value(server: &mut Server, context: &CommandContext, source: &Command
     let (player, objective) = player_and_objective(server, context, source)?;
     let amount = context.get_int("value");
     let mut score = get_score(server, &player, objective)?;
-    score.set(&mut server.level, amount).expect("triggers are writable");
+    let level = server.score_holder_level(&player);
+    score.set(&mut server.levels[level], amount).expect("triggers are writable");
     source.send_success(server, || Component::translatable_with("commands.trigger.set.success", vec![formatted(server, objective).into(), Arg::Int(amount)]), true);
     Ok(amount)
 }
@@ -43,7 +45,8 @@ pub fn set_value(server: &mut Server, context: &CommandContext, source: &Command
 pub fn simple_trigger(server: &mut Server, context: &CommandContext, source: &CommandSourceStack) -> Result {
     let (player, objective) = player_and_objective(server, context, source)?;
     let mut score = get_score(server, &player, objective)?;
-    let new_value = score.add(&mut server.level, 1).expect("triggers are writable");
+    let level = server.score_holder_level(&player);
+    let new_value = score.add(&mut server.levels[level], 1).expect("triggers are writable");
     source.send_success(server, || Component::translatable_with("commands.trigger.simple.success", vec![formatted(server, objective).into()]), true);
     Ok(new_value)
 }
@@ -59,7 +62,8 @@ fn get_score(server: &mut Server, holder: &ScoreHolder, objective: ObjectiveId) 
         }
         scoreboard.get_or_create_player_score(holder, objective, false)
     };
-    score.lock(&mut server.level);
+    let level = server.score_holder_level(holder);
+    score.lock(&mut server.levels[level]);
     Ok(score)
 }
 
@@ -71,7 +75,7 @@ pub fn suggest_objectives(
 ) -> std::result::Result<crate::commands::suggestion::Suggestions, CommandSyntaxException> {
     let mut result = Vec::new();
     if let Some(entity) = source.entity {
-        let holder = ScoreHolder::for_entity(&server.level, entity);
+        let holder = ScoreHolder::for_entity(server.entity_level(entity), entity);
         let scoreboard = server.scoreboard.borrow();
         for objective in scoreboard.objectives() {
             if *objective.criteria() == ObjectiveCriteria::TRIGGER

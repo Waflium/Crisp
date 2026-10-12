@@ -41,7 +41,7 @@ pub fn executors() -> Vec<(String, CommandFn)> {
 }
 
 fn add(server: &mut Server, context: &CommandContext, source: &CommandSourceStack) -> Result<i32, CommandSyntaxException> {
-    let border = &server.level.world_border;
+    let border = &server.levels[source.level].world_border;
     let distance = border.get_size() + context.get_double("distance");
     let ticks = if context.has_argument("time") { border.get_lerp_time() + context.get_int("time") as i64 } else { 0 };
     set_size(server, source, distance, ticks)
@@ -55,7 +55,7 @@ fn set(server: &mut Server, context: &CommandContext, source: &CommandSourceStac
 fn center(server: &mut Server, context: &CommandContext, source: &CommandSourceStack) -> Result<i32, CommandSyntaxException> {
     let pos = context.get_coordinates("pos").position(server, source);
     let (x, z) = (pos.x as f32, pos.z as f32);
-    let border = &mut server.level.world_border;
+    let border = &mut server.levels[source.level].world_border;
     if border.get_center_x() == x as f64 && border.get_center_z() == z as f64 {
         return Err(ERROR_SAME_CENTER.create());
     }
@@ -70,7 +70,7 @@ fn center(server: &mut Server, context: &CommandContext, source: &CommandSourceS
 
 fn damage_amount(server: &mut Server, context: &CommandContext, source: &CommandSourceStack) -> Result<i32, CommandSyntaxException> {
     let damage_per_block = context.get_float("damagePerBlock");
-    let border = &mut server.level.world_border;
+    let border = &mut server.levels[source.level].world_border;
     if border.get_damage_per_block() == damage_per_block as f64 {
         return Err(ERROR_SAME_DAMAGE_AMOUNT.create());
     }
@@ -82,7 +82,7 @@ fn damage_amount(server: &mut Server, context: &CommandContext, source: &Command
 
 fn damage_buffer(server: &mut Server, context: &CommandContext, source: &CommandSourceStack) -> Result<i32, CommandSyntaxException> {
     let distance = context.get_float("distance");
-    let border = &mut server.level.world_border;
+    let border = &mut server.levels[source.level].world_border;
     if border.get_safe_zone() == distance as f64 {
         return Err(ERROR_SAME_DAMAGE_BUFFER.create());
     }
@@ -93,14 +93,14 @@ fn damage_buffer(server: &mut Server, context: &CommandContext, source: &Command
 }
 
 fn get(server: &mut Server, _context: &CommandContext, source: &CommandSourceStack) -> Result<i32, CommandSyntaxException> {
-    let size = server.level.world_border.get_size();
+    let size = server.levels[source.level].world_border.get_size();
     source.send_success(server, || Component::translatable_with("commands.worldborder.get", vec![java_format_fixed(size, 0).into()]), false);
     Ok(mth::floor(size + 0.5))
 }
 
 fn warning_distance(server: &mut Server, context: &CommandContext, source: &CommandSourceStack) -> Result<i32, CommandSyntaxException> {
     let distance = context.get_int("distance");
-    let border = &mut server.level.world_border;
+    let border = &mut server.levels[source.level].world_border;
     if border.get_warning_blocks() == distance {
         return Err(ERROR_SAME_WARNING_DISTANCE.create());
     }
@@ -111,7 +111,7 @@ fn warning_distance(server: &mut Server, context: &CommandContext, source: &Comm
 
 fn warning_time(server: &mut Server, context: &CommandContext, source: &CommandSourceStack) -> Result<i32, CommandSyntaxException> {
     let ticks = context.get_int("time");
-    let border = &mut server.level.world_border;
+    let border = &mut server.levels[source.level].world_border;
     if border.get_warning_time() == ticks {
         return Err(ERROR_SAME_WARNING_TIME.create());
     }
@@ -121,7 +121,7 @@ fn warning_time(server: &mut Server, context: &CommandContext, source: &CommandS
 }
 
 fn set_size(server: &mut Server, source: &CommandSourceStack, distance: f64, ticks: i64) -> Result<i32, CommandSyntaxException> {
-    let border = &mut server.level.world_border;
+    let border = &mut server.levels[source.level].world_border;
     let current = border.get_size();
     if current == distance {
         return Err(ERROR_SAME_SIZE.create());

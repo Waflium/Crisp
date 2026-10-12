@@ -118,7 +118,7 @@ pub fn remove_user_ban(server: &mut Server, user: &NameAndId, client: ClientInfo
 
 fn disconnect_banned(server: &mut Server, id: u128) {
     if let Some(player) = server.player_by_uuid(id) {
-        server.level.player_mut(player).disconnect("multiplayer.disconnect.banned");
+        server.player_mut(player).disconnect("multiplayer.disconnect.banned");
     }
 }
 

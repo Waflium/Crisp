@@ -63,7 +63,7 @@ fn clear_inventory(server: &mut Server, source: &CommandSourceStack, players: Ve
     let mut tracker = CommandResponseTracker::new();
     let counting_only = max_count == 0;
     for id in players {
-        let level = &mut server.level;
+        let level = server.entity_level_mut(id);
         let Some(mut inventory_menu) = level.player_mut(id).inventory_menu.take() else { continue };
         let player = level.player_mut(id);
         let mut count = 0;

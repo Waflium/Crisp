@@ -74,7 +74,7 @@ fn formatted(server: &Server, objective: ObjectiveId) -> Component {
 }
 
 fn feedback_name(server: &Server, holder: &ScoreHolder) -> Component {
-    holder.feedback_display_name(&server.level)
+    holder.feedback_display_name(&server.levels[server.score_holder_level(holder)])
 }
 
 pub fn get_score(server: &mut Server, context: &CommandContext, source: &CommandSourceStack) -> Result {
@@ -105,8 +105,9 @@ pub fn perform_operation(server: &mut Server, context: &CommandContext, source: 
     let sources = context.get_score_holders(server, source, "source")?;
     let source_objective = context.get_objective(server, "sourceObjective")?;
     let mut tracker = CommandResponseTracker::new();
-    let level = &mut server.level;
     for target in targets {
+        let index = server.score_holder_level(&target);
+        let level = &mut server.levels[index];
         let mut score = level.scoreboard.borrow_mut().get_or_create_player_score(&target, target_objective, false);
         for from in &sources {
             let mut source_score = level.scoreboard.borrow_mut().get_or_create_player_score(from, source_objective, false);
@@ -161,8 +162,9 @@ pub fn enable_trigger(server: &mut Server, context: &CommandContext, source: &Co
         return Err(ERROR_NOT_TRIGGER.create());
     }
     let mut tracker = CommandResponseTracker::new();
-    let level = &mut server.level;
     for target in targets {
+        let index = server.score_holder_level(&target);
+        let level = &mut server.levels[index];
         let mut score = level.scoreboard.borrow_mut().get_or_create_player_score(&target, objective, false);
         if score.locked(level) {
             score.unlock(level);
@@ -218,8 +220,9 @@ pub fn set_score(server: &mut Server, context: &CommandContext, source: &Command
     let objective = context.get_writable_objective(server, "objective")?;
     let value = context.get_int("score");
     let mut tracker = CommandResponseTracker::new();
-    let level = &mut server.level;
     for target in targets {
+        let index = server.score_holder_level(&target);
+        let level = &mut server.levels[index];
         let mut score = level.scoreboard.borrow_mut().get_or_create_player_score(&target, objective, false);
         score.set(level, value).map_err(read_only)?;
         tracker.track_value(target, value);
@@ -243,8 +246,9 @@ pub fn set_score_display(server: &mut Server, context: &CommandContext, source: 
     let objective = context.get_objective(server, "objective")?;
     let display = if context.has_argument("name") { Some(context.get_resolved_component(server, source, "name")?) } else { None };
     let mut tracker = CommandResponseTracker::new();
-    let level = &mut server.level;
     for target in targets {
+        let index = server.score_holder_level(&target);
+        let level = &mut server.levels[index];
         let mut score = level.scoreboard.borrow_mut().get_or_create_player_score(&target, objective, false);
         score.set_display(level, display.clone());
         tracker.track(target);
@@ -291,8 +295,9 @@ pub fn set_score_number_format(server: &mut Server, context: &CommandContext, so
     let format = number_format(server, context, source)?;
     let set = format.is_some();
     let mut tracker = CommandResponseTracker::new();
-    let level = &mut server.level;
     for target in targets {
+        let index = server.score_holder_level(&target);
+        let level = &mut server.levels[index];
         let mut score = level.scoreboard.borrow_mut().get_or_create_player_score(&target, objective, false);
         score.number_format_override(level, format.clone());
         tracker.track(target);
@@ -312,8 +317,9 @@ fn change_score(server: &mut Server, context: &CommandContext, source: &CommandS
     let objective = context.get_writable_objective(server, "objective")?;
     let value = context.get_int("score");
     let mut tracker = CommandResponseTracker::new();
-    let level = &mut server.level;
     for target in targets {
+        let index = server.score_holder_level(&target);
+        let level = &mut server.levels[index];
         let mut score = level.scoreboard.borrow_mut().get_or_create_player_score(&target, objective, false);
         let current = score.get(level);
         score.set(level, current.wrapping_add(sign.wrapping_mul(value))).map_err(read_only)?;

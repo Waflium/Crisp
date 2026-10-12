@@ -27,15 +27,13 @@ fn format(server: &Server, source: &CommandSourceStack, names: Vec<Component>) -
 }
 
 pub fn list_players(server: &mut Server, _context: &CommandContext, source: &CommandSourceStack) -> Result<i32, CommandSyntaxException> {
-    let names = server.level.players.keys().map(|&id| server.entity_display_name(id)).collect();
+    let names = server.player_list.iter().map(|&id| server.entity_display_name(id)).collect();
     Ok(format(server, source, names))
 }
 
 pub fn list_players_with_uuids(server: &mut Server, _context: &CommandContext, source: &CommandSourceStack) -> Result<i32, CommandSyntaxException> {
     let names = server
-        .level
-        .players
-        .values()
+        .players()
         .map(|p| {
             Component::translatable_with(
                 "commands.list.nameAndId",

@@ -85,8 +85,8 @@ pub fn broadcast_chat_message(server: &mut Server, message: &PlayerChatMessage, 
     } else {
         info!("[Not Secure] {decorated}");
     }
-    for player in server.level.players.values_mut() {
-        player.send_chat_message(message, chat_type);
+    for player in server.player_ids() {
+        server.player_mut(player).send_chat_message(message, chat_type);
     }
 }
 
@@ -95,7 +95,7 @@ pub fn source_send_chat_message(server: &mut Server, source: &CommandSourceStack
         return;
     }
     match source.player_id(server) {
-        Some(player) => server.level.player_mut(player).send_chat_message(message, chat_type),
+        Some(player) => server.player_mut(player).send_chat_message(message, chat_type),
         None => source.send_system_message(server, &chat_type.decorate(message.decorated_content())),
     }
 }

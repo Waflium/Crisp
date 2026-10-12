@@ -23,7 +23,7 @@ pub fn set_ticking_rate(server: &mut Server, context: &CommandContext, source: &
 }
 
 pub fn tick_query(server: &mut Server, _context: &CommandContext, source: &CommandSourceStack) -> Result<i32> {
-    let manager = &server.level.tick_rate_manager;
+    let manager = &server.tick_rate_manager;
     let busy_time = nanos_to_millis_string(server.average_tick_time_nanos());
     let tick_rate = manager.tickrate();
     let rate_string = java_format_fixed(tick_rate as f64, 1);
@@ -77,7 +77,7 @@ fn set_freeze(server: &mut Server, source: &CommandSourceStack, freeze: bool) ->
         if server.tick_rate_manager.is_sprinting() {
             server.stop_sprinting();
         }
-        if server.level.tick_rate_manager.is_stepping_forward() {
+        if server.tick_rate_manager.is_stepping_forward() {
             server.stop_stepping();
         }
     }

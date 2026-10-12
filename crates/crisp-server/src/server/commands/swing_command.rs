@@ -40,8 +40,9 @@ pub fn swing_hand(server: &mut Server, context: &CommandContext, source: &Comman
 fn swing(server: &mut Server, source: &CommandSourceStack, targets: &[EntityId], hand: InteractionHand, animation: SwingAnimation) -> Result<i32> {
     let mut tracker = CommandResponseTracker::new();
     for &entity in targets {
-        if server.level.is_living(entity) {
-            server.level.swing(entity, hand, animation, true);
+        let level = server.entity_level_mut(entity);
+        if level.is_living(entity) {
+            level.swing(entity, hand, animation, true);
             tracker.track(entity);
         }
     }

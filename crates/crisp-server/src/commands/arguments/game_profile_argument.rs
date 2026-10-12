@@ -47,7 +47,7 @@ impl GameProfileResult {
 }
 
 fn name_and_id(server: &Server, id: crate::world::entity::EntityId) -> NameAndId {
-    let profile = &server.level.player(id).profile;
+    let profile = &server.player(id).profile;
     NameAndId { id: profile.uuid, name: profile.name.clone() }
 }
 

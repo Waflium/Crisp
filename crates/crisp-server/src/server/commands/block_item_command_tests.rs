@@ -18,7 +18,7 @@ fn server() -> Server {
     let mut server = Server::new(crate::ServerConfig { level_type: crate::LevelType::Flat, ..crate::ServerConfig::default() }).unwrap();
     for x in -1..=1 {
         for z in -1..=1 {
-            server.level.chunks.chunk(ChunkPos::new(x, z));
+            server.levels[0].chunks.chunk(ChunkPos::new(x, z));
         }
     }
     server
@@ -52,15 +52,15 @@ fn parse(server: &Server, command: &str) -> String {
 
 fn join(server: &mut Server, name: &str) -> EntityId {
     let profile = Profile { uuid: offline_uuid(name), name: name.into(), properties: Vec::new() };
-    testing::player_with_profile(&mut server.level, profile, Vec3::new(0.5, -60.0, 0.5), 0.0, 0.0)
+    testing::server_player_with_profile(server, profile, Vec3::new(0.5, -60.0, 0.5), 0.0, 0.0)
 }
 
 fn block(server: &mut Server, x: i32, y: i32, z: i32) -> crisp_data::BlockState {
-    server.level.block_state(BlockPos::new(x, y, z))
+    server.levels[0].block_state(BlockPos::new(x, y, z))
 }
 
 fn items_in_level(server: &Server) -> Vec<&crate::world::entity::ItemEntity> {
-    server.level.entities.values().filter_map(LevelEntity::as_item).collect()
+    server.levels[0].entities.values().filter_map(LevelEntity::as_item).collect()
 }
 
 #[test]
@@ -309,9 +309,9 @@ fn clone() {
 fn clone_copies_scheduled_ticks() {
     let mut server = server();
     run(&mut server, "setblock 0 -55 0 sand strict");
-    server.level.schedule_tick(BlockPos::new(0, -55, 0), blocks::SAND, 2);
+    server.levels[0].schedule_tick(BlockPos::new(0, -55, 0), blocks::SAND, 2);
     run(&mut server, "clone 0 -55 0 0 -55 0 3 -55 3 strict");
-    assert!(server.level.has_scheduled_tick(BlockPos::new(3, -55, 3), blocks::SAND));
+    assert!(server.levels[0].has_scheduled_tick(BlockPos::new(3, -55, 3), blocks::SAND));
 }
 
 #[test]
@@ -320,13 +320,13 @@ fn give() {
     assert_eq!(run(&mut server, "give Alice stone"), ["No player was found"]);
     let alice = join(&mut server, "Alice");
     assert_eq!(run(&mut server, "give Alice stone 70"), ["Gave 70 [Stone] to Alice"]);
-    let inventory = &server.level.player(alice).inventory;
+    let inventory = &server.levels[0].player(alice).inventory;
     assert_eq!((inventory.slots[36].clone(), inventory.slots[37].clone()), (Some(ItemStack::new(items::STONE, 64)), Some(ItemStack::new(items::STONE, 6))));
     let fake = items_in_level(&server);
     assert_eq!((fake.len(), fake[0].pickup_delay, fake[0].age, fake[0].item.count), (2, 32767, 5999, 1));
     assert_eq!(run(&mut server, "give Alice stone 6401"), ["Can't give more than 6400 of [Stone]"]);
     assert_eq!(run(&mut server, "give Alice diamond_sword[damage=5]"), ["Gave 1 [Diamond Sword] to Alice"]);
-    assert_eq!(server.level.player(alice).inventory.slots[38].as_ref().map(|s| s.damage_value()), Some(5));
+    assert_eq!(server.levels[0].player(alice).inventory.slots[38].as_ref().map(|s| s.damage_value()), Some(5));
     assert_eq!(run(&mut server, "give Alice stone[custom_name=\"Bob\"]"), ["Gave 1 [Bob] to Alice"]);
     assert_eq!(run(&mut server, "give Alice potion"), ["Gave 1 [Uncraftable Potion] to Alice"]);
     assert_eq!(run(&mut server, "give Alice diamond_sword[max_stack_size=2]"), ["Malformed item: 'Item cannot be both damageable and stackable'"]);
@@ -337,16 +337,16 @@ fn give() {
 fn give_drops_what_does_not_fit() {
     let mut server = server();
     let alice = join(&mut server, "Alice");
-    let uuid = server.level.player(alice).profile.uuid;
+    let uuid = server.levels[0].player(alice).profile.uuid;
     for slot in 9..=44 {
-        server.level.player_mut(alice).inventory.slots[slot] = Some(ItemStack::new(items::DIRT, 64));
+        server.levels[0].player_mut(alice).inventory.slots[slot] = Some(ItemStack::new(items::DIRT, 64));
     }
     assert_eq!(run(&mut server, "give Alice stone 3"), ["Gave 3 [Stone] to Alice"]);
     let drops = items_in_level(&server);
     assert_eq!((drops.len(), drops[0].item.count, drops[0].pickup_delay, drops[0].target), (1, 3, 0, Some(uuid)));
-    server.level.entities.clear();
-    server.level.player_mut(alice).game_mode.game_type = GameType::Creative;
-    server.level.player_mut(alice).abilities.instabuild = true;
+    server.levels[0].entities.clear();
+    server.levels[0].player_mut(alice).game_mode.game_type = GameType::Creative;
+    server.levels[0].player_mut(alice).abilities.instabuild = true;
     assert_eq!(run(&mut server, "give Alice stone 3"), ["Gave 3 [Stone] to Alice"]);
     let fake = items_in_level(&server);
     assert_eq!((fake.len(), fake[0].pickup_delay), (1, 32767));
@@ -363,16 +363,16 @@ fn clear() {
     run(&mut server, "give Alice iron_sword");
     assert_eq!(run(&mut server, "clear Alice stone 0"), ["Found 5 matching item(s) on player Alice"]);
     assert_eq!(run(&mut server, "clear Alice stone 2"), ["Removed 2 item(s) from player Alice"]);
-    assert_eq!(server.level.player(alice).inventory.slots[36], Some(ItemStack::new(items::STONE, 3)));
+    assert_eq!(server.levels[0].player(alice).inventory.slots[36], Some(ItemStack::new(items::STONE, 3)));
     assert_eq!(run(&mut server, "clear Alice *[damage~{damage:5}]"), ["Removed 1 item(s) from player Alice"]);
     assert_eq!(run(&mut server, "clear Alice *[damage=0] 0"), ["Found 1 matching item(s) on player Alice"]);
     assert_eq!(run(&mut server, "clear Alice *[!damage] 0"), ["Found 3 matching item(s) on player Alice"]);
     assert_eq!(run(&mut server, "clear Alice *[count=3] 0"), ["Found 3 matching item(s) on player Alice"]);
     assert_eq!(run(&mut server, "clear Alice #minecraft:swords 0"), ["Found 1 matching item(s) on player Alice"]);
-    server.level.player_mut(alice).carried = Some(ItemStack::new(items::DIRT, 4));
-    *server.level.player_mut(alice).inventory_menu.as_mut().unwrap().containers[0].get_item_mut(0) = ItemStack::new(items::DIRT, 1);
+    server.levels[0].player_mut(alice).carried = Some(ItemStack::new(items::DIRT, 4));
+    *server.levels[0].player_mut(alice).inventory_menu.as_mut().unwrap().containers[0].get_item_mut(0) = ItemStack::new(items::DIRT, 1);
     assert_eq!(run(&mut server, "clear Alice"), ["Removed 9 item(s) from player Alice"]);
-    let player = server.level.player(alice);
+    let player = server.levels[0].player(alice);
     assert!(player.carried.is_none() && player.inventory.slots.iter().all(Option::is_none));
     assert!(player.inventory_menu.as_ref().unwrap().containers[0].get_item(0).is_empty());
 }

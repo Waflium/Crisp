@@ -10,6 +10,10 @@ use crate::world::level::storage::uuid_ints;
 
 const DEFAULT_MAX: i32 = 100;
 
+fn player_in(levels: &[ServerLevel], player: EntityId) -> &crate::server::level::server_player::ServerPlayer {
+    levels.iter().find_map(|level| level.players.get(&player)).expect("player on this server")
+}
+
 pub struct CustomBossEvent {
     pub event: ServerBossEvent,
     pub custom_id: String,
@@ -26,27 +30,27 @@ impl CustomBossEvent {
         CustomBossEvent { event, custom_id, players: Vec::new(), value: 0, max: DEFAULT_MAX, dirty: false }
     }
 
-    pub fn add_player(&mut self, level: &ServerLevel, player: EntityId) {
-        self.event.add_player(level, player);
-        let uuid = level.player(player).profile.uuid;
+    pub fn add_player(&mut self, levels: &[ServerLevel], player: EntityId) {
+        self.event.add_player(levels, player);
+        let uuid = player_in(levels, player).profile.uuid;
         if !self.players.contains(&uuid) {
             self.players.push(uuid);
             self.dirty = true;
         }
     }
 
-    pub fn remove_player(&mut self, level: &ServerLevel, player: EntityId) {
-        self.event.remove_player(level, player);
-        let uuid = level.player(player).profile.uuid;
+    pub fn remove_player(&mut self, levels: &[ServerLevel], player: EntityId) {
+        self.event.remove_player(levels, player);
+        let uuid = player_in(levels, player).profile.uuid;
         if let Some(i) = self.players.iter().position(|&p| p == uuid) {
             self.players.remove(i);
             self.dirty = true;
         }
     }
 
-    pub fn remove_all_players(&mut self, level: &ServerLevel) {
+    pub fn remove_all_players(&mut self, levels: &[ServerLevel]) {
         for player in self.event.players.clone() {
-            self.event.remove_player(level, player);
+            self.event.remove_player(levels, player);
         }
         if !self.players.is_empty() {
             self.players.clear();
@@ -54,15 +58,15 @@ impl CustomBossEvent {
         }
     }
 
-    pub fn set_value(&mut self, level: &ServerLevel, value: i32) {
+    pub fn set_value(&mut self, levels: &[ServerLevel], value: i32) {
         self.value = value;
-        self.event.set_progress(level, mth::clamp_f(value as f32 / self.max as f32, 0.0, 1.0));
+        self.event.set_progress(levels, mth::clamp_f(value as f32 / self.max as f32, 0.0, 1.0));
         self.dirty = true;
     }
 
-    pub fn set_max(&mut self, level: &ServerLevel, max: i32) {
+    pub fn set_max(&mut self, levels: &[ServerLevel], max: i32) {
         self.max = max;
-        self.event.set_progress(level, mth::clamp_f(self.value as f32 / max as f32, 0.0, 1.0));
+        self.event.set_progress(levels, mth::clamp_f(self.value as f32 / max as f32, 0.0, 1.0));
         self.dirty = true;
     }
 
@@ -73,18 +77,18 @@ impl CustomBossEvent {
             .with_insertion(&self.custom_id)
     }
 
-    pub fn set_players(&mut self, level: &ServerLevel, players: &[EntityId]) -> bool {
-        let uuids: Vec<(EntityId, u128)> = players.iter().map(|&p| (p, level.player(p).profile.uuid)).collect();
+    pub fn set_players(&mut self, levels: &[ServerLevel], players: &[EntityId]) -> bool {
+        let uuids: Vec<(EntityId, u128)> = players.iter().map(|&p| (p, player_in(levels, p).profile.uuid)).collect();
         let to_remove: Vec<u128> = self.players.iter().copied().filter(|uuid| !uuids.iter().any(|(_, u)| u == uuid)).collect();
         let to_add: Vec<EntityId> = uuids.iter().filter(|(_, u)| !self.players.contains(u)).map(|&(p, _)| p).collect();
         for &uuid in &to_remove {
-            if let Some(&player) = self.event.players.iter().find(|&&p| level.player(p).profile.uuid == uuid) {
-                self.remove_player(level, player);
+            if let Some(&player) = self.event.players.iter().find(|&&p| player_in(levels, p).profile.uuid == uuid) {
+                self.remove_player(levels, player);
             }
             self.players.retain(|&p| p != uuid);
         }
         for &player in &to_add {
-            self.add_player(level, player);
+            self.add_player(levels, player);
         }
         let changed = !to_remove.is_empty() || !to_add.is_empty();
         if changed {
@@ -93,14 +97,14 @@ impl CustomBossEvent {
         changed
     }
 
-    pub fn on_player_connect(&mut self, level: &ServerLevel, player: EntityId) {
-        if self.players.contains(&level.player(player).profile.uuid) {
-            self.add_player(level, player);
+    pub fn on_player_connect(&mut self, levels: &[ServerLevel], player: EntityId) {
+        if self.players.contains(&player_in(levels, player).profile.uuid) {
+            self.add_player(levels, player);
         }
     }
 
-    pub fn on_player_disconnect(&mut self, level: &ServerLevel, player: EntityId) {
-        self.event.remove_player(level, player);
+    pub fn on_player_disconnect(&mut self, levels: &[ServerLevel], player: EntityId) {
+        self.event.remove_player(levels, player);
     }
 
     pub fn load(id: u128, custom_id: String, packed: &Nbt) -> Option<CustomBossEvent> {

@@ -155,28 +155,33 @@ impl LoggingLevelLoadListener {
     }
 }
 
+#[derive(Default)]
 pub struct ChunkLoadCounter {
-    pending: Vec<i64>,
+    pending_chunks: Vec<(usize, i64)>,
     total_chunks: i32,
 }
 
 impl ChunkLoadCounter {
-    pub fn track(chunks: &mut super::chunk_cache::ChunkCache, schedule: impl FnOnce(&mut super::chunk_cache::ChunkCache)) -> ChunkLoadCounter {
+    pub fn track(&mut self, level: usize, chunks: &mut super::chunk_cache::ChunkCache, scheduler: impl FnOnce(&mut super::chunk_cache::ChunkCache)) {
         chunks.run_distance_manager_updates();
         let already_loaded: std::collections::HashSet<i64> = chunks.chunks_with_at_least_full_status().into_iter().collect();
-        schedule(chunks);
+        scheduler(chunks);
         chunks.run_distance_manager_updates();
-        let pending: Vec<i64> = chunks.chunks_with_at_least_full_status().into_iter().filter(|key| !already_loaded.contains(key)).collect();
-        ChunkLoadCounter { total_chunks: pending.len() as i32, pending }
+        for key in chunks.chunks_with_at_least_full_status() {
+            if !already_loaded.contains(&key) {
+                self.pending_chunks.push((level, key));
+                self.total_chunks += 1;
+            }
+        }
     }
 
-    pub fn ready_chunks(&mut self, chunks: &super::chunk_cache::ChunkCache) -> i32 {
-        self.total_chunks - self.pending_chunks(chunks)
+    pub fn ready_chunks(&mut self, levels: &[super::ServerLevel]) -> i32 {
+        self.total_chunks - self.pending_chunks(levels)
     }
 
-    pub fn pending_chunks(&mut self, chunks: &super::chunk_cache::ChunkCache) -> i32 {
-        self.pending.retain(|&key| !chunks.latest_status_is_full(key));
-        self.pending.len() as i32
+    pub fn pending_chunks(&mut self, levels: &[super::ServerLevel]) -> i32 {
+        self.pending_chunks.retain(|&(level, key)| !levels[level].chunks.latest_status_is_full(key));
+        self.pending_chunks.len() as i32
     }
 
     pub fn total_chunks(&self) -> i32 {

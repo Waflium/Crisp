@@ -45,7 +45,7 @@ fn schedule(server: &mut Server, context: &CommandContext, source: &CommandSourc
     if time == 0 {
         return Err(ERROR_SAME_TICK.create());
     }
-    let tick_time = server.level.game_time + time as i64;
+    let tick_time = server.levels[source.level].game_time + time as i64;
     let queue = &mut server.scheduled_events;
     let key = match callback {
         FunctionOrTag::Function(function) => {

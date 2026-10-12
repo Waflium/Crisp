@@ -20,7 +20,7 @@ pub fn kick_with_reason(server: &mut Server, context: &CommandContext, source: &
 fn kick_players(server: &mut Server, source: &CommandSourceStack, players: &[EntityId], reason: Component) -> Result<i32, CommandSyntaxException> {
     let mut count = 0;
     for &player in players {
-        server.level.player_mut(player).disconnect_with(reason.clone());
+        server.player_mut(player).disconnect_with(reason.clone());
         source.send_success(server, || Component::translatable_with("commands.kick.success", vec![server.entity_display_name(player).into(), reason.clone().into()]), true);
         count += 1;
     }

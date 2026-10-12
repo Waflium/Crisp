@@ -48,6 +48,8 @@ use crate::world::level::entity::entity_tick_list::EntityTickList;
 use crate::world::level::gamerules::GameRules;
 use crate::world::level::pathfinder::path_type_cache::PathTypeCache;
 use crate::world::level::saveddata::weather_data::WeatherData;
+use crate::world::level::storage::{WorldDir, read_dat, write_dat};
+use crisp_protocol::nbt::Nbt;
 use crate::world::tick_rate_manager::TickRateManager;
 use crate::world::level::update_flags::*;
 use crate::world::scores::scoreboard::Scoreboard;
@@ -60,6 +62,7 @@ use server_entity::UpdateInterval;
 #[derive(Clone, Debug, Default)]
 pub struct SpawnProtection {
     pub radius: i32,
+    pub dimension: String,
     pub spawn: BlockPos,
     pub ops: Vec<u128>,
 }
@@ -123,7 +126,6 @@ pub struct ServerLevel {
     pub structure_check: crate::world::level::levelgen::structure::structure_check::StructureCheck,
     pub chunk_map: ChunkMap,
     pub players: FastIndexMap<EntityId, ServerPlayer>,
-    pub player_names_array: std::sync::Arc<std::sync::RwLock<std::sync::Arc<[String]>>>,
     pub entities: FastIndexMap<EntityId, LevelEntity>,
     pub entity_manager: PersistentEntitySectionManager,
     pub(crate) tick_list: EntityTickList,
@@ -137,7 +139,7 @@ pub struct ServerLevel {
     pub overworld_clock_time: i64,
     pub simulation_distance: i32,
     empty_time: i32,
-    pub tick_rate_manager: TickRateManager,
+    pub tick_rate_manager: Rc<TickRateManager>,
     block_events: Vec<(BlockPos, Block, i32, i32)>,
     pub game_time: i64,
     pub redstone_torch_toggles: Vec<(BlockPos, i64)>,
@@ -203,7 +205,6 @@ impl ServerLevel {
             structure_check,
             chunk_map: ChunkMap::new(view_distance),
             players: FastIndexMap::default(),
-            player_names_array: Default::default(),
             entities: FastIndexMap::default(),
             entity_manager: PersistentEntitySectionManager::new(entity_storage),
             tick_list: EntityTickList::default(),
@@ -217,7 +218,7 @@ impl ServerLevel {
             overworld_clock_time: 0,
             simulation_distance,
             empty_time: 0,
-            tick_rate_manager: TickRateManager::default(),
+            tick_rate_manager: Rc::default(),
             block_events: Vec::new(),
             game_time: 0,
             redstone_torch_toggles: Vec::new(),
@@ -232,6 +233,69 @@ impl ServerLevel {
         level.environment_attributes = EnvironmentAttributeSystem::builder().add_default_layers(level.dimension_type(), level.can_have_weather()).build();
         level.update_sky_brightness();
         level
+    }
+
+    pub fn get_watchdog_stats(&self) -> String {
+        let entity_type_name = |entity_type: i32| crisp_data::registry::ENTITY_TYPE.get(entity_type as usize).copied().unwrap_or("");
+        let entity_types = get_type_count(
+            self.players.values().map(|p| entity_type_name(p.entity.entity_type)).chain(self.entities.values().map(|e| entity_type_name(e.entity().entity_type))),
+        );
+        let tickers = &self.chunks.block_entity_tickers.list;
+        let block_entity_types = get_type_count(tickers.iter().map(|&(_, pos)| {
+            self.chunks.loaded_chunk(pos.chunk()).and_then(|chunk| chunk.block_entities.map.get(&pos)).map_or("<null>", |be| be.ty().name())
+        }));
+        let entity_manager_stats = self.entity_manager.gather_stats();
+        format!(
+            "players: {}, entities: {} [{}], block_entities: {} [{}], block_ticks: {}, fluid_ticks: {}, chunk_source: Chunks[S] W: {} E: {}",
+            self.players.len(),
+            entity_manager_stats,
+            entity_types,
+            tickers.len(),
+            block_entity_types,
+            self.chunks.block_ticks.count(),
+            self.chunks.fluid_ticks.count(),
+            self.chunks.loaded_chunks_count(),
+            entity_manager_stats
+        )
+    }
+
+    pub fn save(&mut self, dir: &WorldDir, flush: bool, no_save: bool) {
+        if no_save {
+            return;
+        }
+        self.save_level_data(dir);
+        if self.chunks.save(self.game_time, flush).is_err() {
+            warn!("Failed to synchronize chunks");
+        }
+        if flush {
+            self.save_all_entities();
+        } else {
+            self.auto_save_entities();
+        }
+    }
+
+    fn save_level_data(&mut self, dir: &WorldDir) {
+        crate::server::log_save_failure("world_border.dat", self.world_border.save());
+        crate::server::log_save_failure("raids.dat", self.raids.save());
+        let tickets = &mut self.chunks.distance_manager.ticket_storage;
+        if tickets.dirty {
+            let file = Nbt::Compound(vec![("data".into(), tickets.to_nbt()), ("DataVersion".into(), Nbt::Int(crisp_data::WORLD_VERSION))]);
+            match write_dat(&chunk_tickets_file(dir, self.dimension), &file) {
+                Ok(()) => tickets.dirty = false,
+                Err(_) => error!("Could not save data to chunk_tickets.dat"),
+            }
+        }
+    }
+
+    pub fn load_chunk_tickets(&mut self, dir: &WorldDir) {
+        match read_dat(&chunk_tickets_file(dir, self.dimension)) {
+            Ok(tag) => {
+                if let Some(data) = tag.as_ref().and_then(|t| t.get("data")) {
+                    self.chunks.distance_manager.ticket_storage = ticket::TicketStorage::from_nbt(data);
+                }
+            }
+            Err(_) => error!("Error loading saved data: SavedDataType[minecraft:chunk_tickets]"),
+        }
     }
 
     pub fn environment_attributes(&self) -> EnvironmentAttributeReader<'_, ServerLevel> {
@@ -361,6 +425,9 @@ impl ServerLevel {
 
     pub fn is_under_spawn_protection(&self, pos: BlockPos, player: EntityId) -> bool {
         let protection = &self.spawn_protection;
+        if self.dimension != protection.dimension {
+            return false;
+        }
         if protection.ops.is_empty() || protection.ops.contains(&self.player(player).profile.uuid) || protection.radius <= 0 {
             return false;
         }
@@ -900,10 +967,8 @@ impl ServerLevel {
 
     pub fn add_player(&mut self, player: ServerPlayer) {
         let (id, uuid) = (player.entity.id, player.entity.uuid);
-        self.scoreboard.borrow_mut().server.add_connection(id, player.connection.clone());
         self.world_border.listener.add_connection(id, player.connection.clone());
         self.players.insert(id, player);
-        self.update_player_names_array();
         self.entity_manager.add_player_uuid(uuid);
         self.entity_manager.visible_entity_storage.add(id, uuid);
         self.add_player_to_section(id);
@@ -914,18 +979,11 @@ impl ServerLevel {
     }
 
     pub fn remove_player(&mut self, id: EntityId) -> Option<ServerPlayer> {
-        self.scoreboard.borrow_mut().server.remove_connection(id);
         self.world_border.listener.remove_connection(id);
         self.player_left_level(id);
         let player = self.players.shift_remove(&id);
-        self.update_player_names_array();
         self.update_sleeping_player_list();
         player
-    }
-
-    fn update_player_names_array(&self) {
-        let names: std::sync::Arc<[String]> = self.players.values().map(|p| p.profile.name.clone()).collect();
-        *self.player_names_array.write().unwrap() = names;
     }
 
     pub fn player_left_level(&mut self, id: EntityId) {
@@ -1622,6 +1680,20 @@ impl SoundSource {
     }
 }
 
+fn chunk_tickets_file(dir: &WorldDir, dimension: &str) -> std::path::PathBuf {
+    dir.dimension_data_folder(dimension).join("minecraft").join("chunk_tickets.dat")
+}
+
+fn get_type_count<'a>(values: impl Iterator<Item = &'a str>) -> String {
+    let mut count_by_type: crisp_core::fastutil::Object2ObjectOpenHashMap<i32> = crisp_core::fastutil::Object2ObjectOpenHashMap::new(16, 0.75);
+    for ty in values {
+        *count_by_type.get_or_insert_with(ty, || 0) += 1;
+    }
+    let mut entries: Vec<(&str, i32)> = count_by_type.stream().map(|(ty, &count)| (ty, count)).collect();
+    entries.sort_by(|a, b| b.1.cmp(&a.1));
+    entries.iter().take(5).map(|(ty, count)| format!("{ty}:{count}")).collect::<Vec<_>>().join(",")
+}
+
 #[cfg(test)]
 pub mod testing {
     use crisp_core::{BlockPos, Vec3};
@@ -1653,6 +1725,16 @@ pub mod testing {
         let id = player.entity.id;
         level.add_player(player);
         level.finish_chunk_work();
+        id
+    }
+
+    pub fn server_player(server: &mut crate::server::Server, pos: Vec3, y_rot: f32, x_rot: f32) -> EntityId {
+        server_player_with_profile(server, Profile { uuid: 1, name: "Tester".into(), properties: Vec::new() }, pos, y_rot, x_rot)
+    }
+
+    pub fn server_player_with_profile(server: &mut crate::server::Server, profile: Profile, pos: Vec3, y_rot: f32, x_rot: f32) -> EntityId {
+        let id = player_with_profile(server.overworld_mut(), profile, pos, y_rot, x_rot);
+        server.player_list.push(id);
         id
     }
 }

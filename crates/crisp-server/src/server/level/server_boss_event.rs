@@ -139,108 +139,108 @@ impl ServerBossEvent {
         }
     }
 
-    fn send(&self, level: &ServerLevel, player: EntityId, operation: Operation) {
-        if let Some(player) = level.players.get(&player) {
+    fn send(&self, levels: &[ServerLevel], player: EntityId, operation: Operation) {
+        if let Some(player) = levels.iter().find_map(|level| level.players.get(&player)) {
             player.connection.send(clientbound::BOSS_EVENT, |w| self.write(w, operation));
         }
     }
 
-    fn broadcast(&self, level: &ServerLevel, operation: Operation) {
+    fn broadcast(&self, levels: &[ServerLevel], operation: Operation) {
         if self.visible {
             for &player in &self.players {
-                self.send(level, player, operation);
+                self.send(levels, player, operation);
             }
         }
     }
 
-    pub fn set_progress(&mut self, level: &ServerLevel, progress: f32) -> bool {
+    pub fn set_progress(&mut self, levels: &[ServerLevel], progress: f32) -> bool {
         if progress == self.progress {
             return false;
         }
         self.progress = progress;
-        self.broadcast(level, Operation::UpdateProgress);
+        self.broadcast(levels, Operation::UpdateProgress);
         true
     }
 
-    pub fn set_color(&mut self, level: &ServerLevel, color: BossBarColor) -> bool {
+    pub fn set_color(&mut self, levels: &[ServerLevel], color: BossBarColor) -> bool {
         if color == self.color {
             return false;
         }
         self.color = color;
-        self.broadcast(level, Operation::UpdateStyle);
+        self.broadcast(levels, Operation::UpdateStyle);
         true
     }
 
-    pub fn set_overlay(&mut self, level: &ServerLevel, overlay: BossBarOverlay) -> bool {
+    pub fn set_overlay(&mut self, levels: &[ServerLevel], overlay: BossBarOverlay) -> bool {
         if overlay == self.overlay {
             return false;
         }
         self.overlay = overlay;
-        self.broadcast(level, Operation::UpdateStyle);
+        self.broadcast(levels, Operation::UpdateStyle);
         true
     }
 
-    pub fn set_darken_screen(&mut self, level: &ServerLevel, darken_screen: bool) -> bool {
+    pub fn set_darken_screen(&mut self, levels: &[ServerLevel], darken_screen: bool) -> bool {
         if darken_screen == self.darken_screen {
             return false;
         }
         self.darken_screen = darken_screen;
-        self.broadcast(level, Operation::UpdateProperties);
+        self.broadcast(levels, Operation::UpdateProperties);
         true
     }
 
-    pub fn set_play_boss_music(&mut self, level: &ServerLevel, play_boss_music: bool) -> bool {
+    pub fn set_play_boss_music(&mut self, levels: &[ServerLevel], play_boss_music: bool) -> bool {
         if play_boss_music == self.play_boss_music {
             return false;
         }
         self.play_boss_music = play_boss_music;
-        self.broadcast(level, Operation::UpdateProperties);
+        self.broadcast(levels, Operation::UpdateProperties);
         true
     }
 
-    pub fn set_create_world_fog(&mut self, level: &ServerLevel, create_world_fog: bool) -> bool {
+    pub fn set_create_world_fog(&mut self, levels: &[ServerLevel], create_world_fog: bool) -> bool {
         if create_world_fog == self.create_world_fog {
             return false;
         }
         self.create_world_fog = create_world_fog;
-        self.broadcast(level, Operation::UpdateProperties);
+        self.broadcast(levels, Operation::UpdateProperties);
         true
     }
 
-    pub fn set_name(&mut self, level: &ServerLevel, name: Component) -> bool {
+    pub fn set_name(&mut self, levels: &[ServerLevel], name: Component) -> bool {
         if name == self.name {
             return false;
         }
         self.name = name;
-        self.broadcast(level, Operation::UpdateName);
+        self.broadcast(levels, Operation::UpdateName);
         true
     }
 
-    pub fn add_player(&mut self, level: &ServerLevel, player: EntityId) {
+    pub fn add_player(&mut self, levels: &[ServerLevel], player: EntityId) {
         if !self.players.contains(&player) {
             self.players.push(player);
             if self.visible {
-                self.send(level, player, Operation::Add);
+                self.send(levels, player, Operation::Add);
             }
         }
     }
 
-    pub fn remove_player(&mut self, level: &ServerLevel, player: EntityId) {
+    pub fn remove_player(&mut self, levels: &[ServerLevel], player: EntityId) {
         if let Some(i) = self.players.iter().position(|&p| p == player) {
             self.players.remove(i);
             if self.visible {
-                self.send(level, player, Operation::Remove);
+                self.send(levels, player, Operation::Remove);
             }
         }
     }
 
-    pub fn set_visible(&mut self, level: &ServerLevel, visible: bool) -> bool {
+    pub fn set_visible(&mut self, levels: &[ServerLevel], visible: bool) -> bool {
         if visible == self.visible {
             return false;
         }
         self.visible = visible;
         for &player in &self.players {
-            self.send(level, player, if visible { Operation::Add } else { Operation::Remove });
+            self.send(levels, player, if visible { Operation::Add } else { Operation::Remove });
         }
         true
     }

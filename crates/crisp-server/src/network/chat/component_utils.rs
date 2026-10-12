@@ -57,14 +57,14 @@ fn resolve_contents(server: &Server, source: &CommandSourceStack, entity: Option
                     let entities = selector.find_entities(server, source)?;
                     match entities.len() {
                         0 => ScoreHolder::for_name_only(name.clone()),
-                        1 => ScoreHolder::for_entity(&server.level, entities[0]),
+                        1 => ScoreHolder::for_entity(server.entity_level(entities[0]), entities[0]),
                         _ => return Err(ERROR_NOT_SINGLE_ENTITY.create()),
                     }
                 }
                 None => ScoreHolder::for_name_only(name.clone()),
             };
             let holder = match entity {
-                Some(entity) if holder.is_wildcard() => ScoreHolder::for_entity(&server.level, entity),
+                Some(entity) if holder.is_wildcard() => ScoreHolder::for_entity(server.entity_level(entity), entity),
                 _ => holder,
             };
             let scoreboard = server.scoreboard.borrow();

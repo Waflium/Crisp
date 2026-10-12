@@ -136,7 +136,7 @@ impl Server {
 
     pub(in crate::server) fn run_chat(&mut self, id: EntityId, body: SignedMessageBody, signature: Option<MessageSignature>) {
         let enforce_secure_chat = self.enforce_secure_profile();
-        let message = match self.level.player_mut(id).chat.decoder.unpack(signature, body, enforce_secure_chat) {
+        let message = match self.player_mut(id).chat.decoder.unpack(signature, body, enforce_secure_chat) {
             Ok(message) => message,
             Err(e) => return self.handle_message_decode_failure(id, e),
         };
@@ -162,7 +162,7 @@ impl Server {
         let units: Vec<u16> = command.encode_utf16().collect();
         let parse = brigadier::parse(StringReader::new(&units), &source);
         if self.enforce_secure_profile() && signable_command::has_signable_arguments(&parse) {
-            error!("Received unsigned command packet from {}, but the command requires signable arguments: {command}", self.level.player(id).profile.name);
+            error!("Received unsigned command packet from {}, but the command requires signable arguments: {command}", self.player(id).profile.name);
             self.send_player_system_message(id, &invalid_command_signature(), false);
         } else {
             crate::commands::perform_command(self, parse, command, &source);
@@ -227,7 +227,7 @@ impl Server {
         last_seen: LastSeenMessages,
     ) -> Result<HashMap<String, PlayerChatMessage>, DecodeException> {
         let enforce_secure_chat = self.enforce_secure_profile();
-        let decoder = &mut self.level.player_mut(id).chat.decoder;
+        let decoder = &mut self.player_mut(id).chat.decoder;
         let mut arguments = HashMap::new();
         if argument_signatures.is_empty() {
             for argument in signable {
@@ -252,12 +252,12 @@ impl Server {
     }
 
     fn handle_message_decode_failure(&mut self, id: EntityId, e: DecodeException) {
-        warn!("Failed to update secure chat state for {}: '{}'", self.level.player(id).profile.name, e.0.get_string());
+        warn!("Failed to update secure chat state for {}: '{}'", self.player(id).profile.name, e.0.get_string());
         self.send_player_system_message(id, &e.0.with_color(ChatFormatting::Red), false);
     }
 
     pub(in crate::server) fn try_handle_chat(&mut self, id: EntityId, message: &str, is_command: bool) -> bool {
-        let player = self.level.player_mut(id);
+        let player = self.player_mut(id);
         if message.chars().any(is_illegal_chat_char) {
             player.disconnect("multiplayer.disconnect.illegal_characters");
             false
@@ -275,7 +275,7 @@ impl Server {
     }
 
     fn unpack_and_apply_last_seen(&mut self, id: EntityId, update: &Update) -> Option<LastSeenMessages> {
-        let player = self.level.player_mut(id);
+        let player = self.player_mut(id);
         match player.chat.last_seen_messages.apply_update(update) {
             Ok(last_seen) => Some(last_seen),
             Err(e) => {
@@ -287,9 +287,9 @@ impl Server {
     }
 
     fn detect_rate_spam(&mut self, id: EntityId, command: bool) {
-        let uuid = self.level.player(id).profile.uuid;
+        let uuid = self.player(id).profile.uuid;
         let is_op = self.is_op(uuid);
-        let player = self.level.player_mut(id);
+        let player = self.player_mut(id);
         let throttler = if command { &mut player.chat.command_spam_throttler } else { &mut player.chat.chat_spam_throttler };
         throttler.increment();
         if !throttler.is_under_threshold() && !is_op {
@@ -299,7 +299,7 @@ impl Server {
 
     pub(in crate::server) fn handle_chat_ack(&mut self, id: EntityId, packet: &Packet) -> anyhow::Result<()> {
         let offset = packet.reader().varint()?;
-        let player = self.level.player_mut(id);
+        let player = self.player_mut(id);
         if let Err(e) = player.chat.last_seen_messages.apply_offset(offset) {
             error!("Failed to validate message acknowledgement offset from {}: {}", player.profile.name, e.0);
             player.disconnect(CHAT_VALIDATION_FAILED);
@@ -309,13 +309,13 @@ impl Server {
 
     pub(in crate::server) fn handle_chat_session_update(&mut self, id: EntityId, packet: &Packet) -> anyhow::Result<()> {
         let data = remote_chat_session::Data::read(&mut packet.reader())?;
-        let player = self.level.player(id);
+        let player = self.player(id);
         let old_key = player.chat.session.as_ref().map(|s| &s.profile_public_key.data);
         if old_key == Some(&data.profile_public_key) {
             return Ok(());
         }
         if old_key.is_some_and(|old| data.profile_public_key.expires_at < old.expires_at) {
-            self.level.player_mut(id).disconnect(EXPIRED_PROFILE_PUBLIC_KEY);
+            self.player_mut(id).disconnect(EXPIRED_PROFILE_PUBLIC_KEY);
             return Ok(());
         }
         let Some(validator) = self.services.profile_key_signature_validator() else {
@@ -326,27 +326,27 @@ impl Server {
             Ok(session) => self.reset_player_chat_state(id, session),
             Err(reason) => {
                 error!("Failed to validate profile key");
-                self.level.player_mut(id).disconnect_with(reason);
+                self.player_mut(id).disconnect_with(reason);
             }
         }
         Ok(())
     }
 
     fn reset_player_chat_state(&mut self, id: EntityId, session: RemoteChatSession) {
-        let player = self.level.player_mut(id);
+        let player = self.player_mut(id);
         player.chat.decoder = Decoder::chain(player.profile.uuid, session.session_id, session.profile_public_key.clone());
         player.chat.session = Some(session.clone());
         self.chain(id, move |server| {
-            let player = server.level.player_mut(id);
+            let player = server.player_mut(id);
             player.chat_session = Some(session);
-            let player = server.level.player(id);
+            let player = server.player(id);
             let packet = crate::network::connection::encode(clientbound::PLAYER_INFO_UPDATE, |w| {
                 w.u8(1 << 1);
                 w.varint(1);
                 w.uuid(player.profile.uuid);
                 player.write_chat_session(w);
             });
-            for other in server.level.players.values() {
+            for other in server.players() {
                 other.connection.send_raw(packet.clone());
             }
         });

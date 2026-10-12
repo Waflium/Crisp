@@ -494,6 +494,7 @@ mod spawn_protection_tests {
         assert!(level.block_state(pos).is_air());
         let pos = BlockPos::new(0, -61, 1);
         level.spawn_protection.radius = 16;
+        level.spawn_protection.dimension = crate::server::OVERWORLD.into();
         level.spawn_protection.ops = vec![12345];
         level.handle_block_break_action(player, pos, BlockBreakAction::StartDestroyBlock, Direction::Up, 320);
         assert_eq!(level.block_state(pos), blocks::GRASS_BLOCK.default_state());

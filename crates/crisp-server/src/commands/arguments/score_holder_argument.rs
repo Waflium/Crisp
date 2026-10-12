@@ -52,7 +52,7 @@ impl ScoreHolderResult {
                 if entities.is_empty() {
                     return Err(NO_ENTITIES_FOUND.create());
                 }
-                entities.into_iter().map(|e| ScoreHolder::for_entity(&server.level, e)).collect()
+                entities.into_iter().map(|e| ScoreHolder::for_entity(server.entity_level(e), e)).collect()
             }
             ScoreHolderResult::Wildcard => {
                 let results = wildcard();
@@ -63,14 +63,14 @@ impl ScoreHolderResult {
             }
             ScoreHolderResult::NameOnly(name) => vec![ScoreHolder::for_name_only(name.clone())],
             ScoreHolderResult::Uuid { text, uuid } => {
-                let level = &server.level;
-                match level.all_entities().find(|&id| level.entity(id).uuid == *uuid) {
-                    Some(entity) => vec![ScoreHolder::for_entity(level, entity)],
+                let found = server.levels.iter().find_map(|level| level.all_entities().find(|&id| level.entity(id).uuid == *uuid).map(|entity| (level, entity)));
+                match found {
+                    Some((level, entity)) => vec![ScoreHolder::for_entity(level, entity)],
                     None => vec![ScoreHolder::for_name_only(text.clone())],
                 }
             }
             ScoreHolderResult::Name(name) => match player_by_name(server, name) {
-                Some(player) => vec![ScoreHolder::for_entity(&server.level, player)],
+                Some(player) => vec![ScoreHolder::for_entity(server.entity_level(player), player)],
                 None => vec![ScoreHolder::for_name_only(name.clone())],
             },
         })
@@ -114,6 +114,6 @@ pub fn suggest_score_holders(
     source: &CommandSourceStack,
     builder: crate::commands::suggestion::SuggestionsBuilder,
 ) -> Result<crate::commands::suggestion::Suggestions, CommandSyntaxException> {
-    let names: Vec<String> = server.level.players.values().map(|p| p.profile.name.clone()).collect();
+    let names: Vec<String> = server.players().map(|p| p.profile.name.clone()).collect();
     Ok(super::selector_suggestions(&builder, source, |b| crate::commands::shared_suggestion_provider::suggest(names, b)))
 }
