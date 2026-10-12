@@ -2,6 +2,8 @@ use crisp_core::AABB;
 use crisp_protocol::nbt::Nbt;
 
 use super::entity_predicate::EntityPredicate;
+use crate::advancements::advancement_progress::AdvancementProgress;
+use crate::server::server_advancement_manager::ServerAdvancementManager;
 use crate::advancements::predicates::food_predicate::FoodPredicate;
 use crate::advancements::predicates::game_type_predicate::GameTypePredicate;
 use crate::advancements::predicates::input_predicate::InputPredicate;
@@ -46,6 +48,15 @@ impl AdvancementPredicate {
         match codec::either(tag, codec::bool_value, |t| codec::unbounded_map(t, |k| Ok(k.to_string()), codec::bool_value))? {
             Ok(done) => Ok(AdvancementPredicate::Done(done)),
             Err(criterions) => Ok(AdvancementPredicate::Criterions(criterions)),
+        }
+    }
+
+    fn test(&self, progress: &AdvancementProgress) -> bool {
+        match self {
+            AdvancementPredicate::Done(state) => progress.is_done() == *state,
+            AdvancementPredicate::Criterions(criterions) => {
+                criterions.iter().all(|(name, done)| progress.get_criterion(name).is_some_and(|criterion| criterion.is_done() == *done))
+            }
         }
     }
 }
@@ -93,12 +104,19 @@ impl PlayerPredicate {
         if !self.stats.iter().all(|stat| stat.matches(&player.stats)) {
             return false;
         }
-        if self.recipes.iter().any(|(_, present)| *present) {
+        if self.recipes.iter().any(|(recipe, present)| player.recipe_book.contains(recipe) != *present) {
             return false;
         }
         if !self.advancements.is_empty() {
-            return false;
+            let server_advancements = ServerAdvancementManager::get_bound();
+            for (id, predicate) in &self.advancements {
+                let Some(advancement) = server_advancements.get(id) else { return false };
+                if !predicate.test(level.player_mut(entity).advancements.get_or_start_progress(advancement)) {
+                    return false;
+                }
+            }
         }
+        let player = &level.players[&entity];
         let last_client_input = player.last_client_input;
         if let Some(looking_at) = &self.looking_at {
             let from = level.entity(entity).eye_position();

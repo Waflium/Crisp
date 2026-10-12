@@ -56,6 +56,24 @@ pub enum EntityPredicate {
     Scores(Vec<(String, Ints)>),
     Rotation { min: f32, max: f32, x: bool },
     Level(Ints),
+    Advancements(Vec<(String, AdvancementSelectorPredicate)>),
+}
+
+#[derive(Clone, PartialEq, Debug)]
+pub enum AdvancementSelectorPredicate {
+    Done(bool),
+    Criteria(Vec<(String, bool)>),
+}
+
+impl AdvancementSelectorPredicate {
+    fn test(&self, progress: &crate::advancements::advancement_progress::AdvancementProgress) -> bool {
+        match self {
+            AdvancementSelectorPredicate::Done(value) => progress.is_done() == *value,
+            AdvancementSelectorPredicate::Criteria(criteria) => {
+                criteria.iter().all(|(name, value)| progress.get_criterion(name).is_some_and(|criterion| criterion.is_done() == *value))
+            }
+        }
+    }
 }
 
 impl EntityPredicate {
@@ -90,6 +108,13 @@ impl EntityPredicate {
                 if min > max { rotation >= min || rotation <= max } else { rotation >= min && rotation <= max }
             }
             EntityPredicate::Level(range) => level.players.get(&id).is_some_and(|p| range.matches(p.experience.level)),
+            EntityPredicate::Advancements(expected) => {
+                let Some(player) = level.players.get(&id) else { return false };
+                let server_advancements = crate::server::server_advancement_manager::ServerAdvancementManager::get_bound();
+                expected.iter().all(|(name, predicate)| {
+                    server_advancements.get(name).is_some_and(|advancement| predicate.test(&player.advancements.get_progress(advancement)))
+                })
+            }
         }
     }
 }

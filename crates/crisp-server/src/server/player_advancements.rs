@@ -302,6 +302,17 @@ impl PlayerAdvancements {
         &mut self.progress.get_mut(advancement.id.as_str()).expect("started progress").1
     }
 
+    pub fn get_progress(&self, advancement: &'static AdvancementHolder) -> std::borrow::Cow<'_, AdvancementProgress> {
+        match self.progress.get(advancement.id.as_str()) {
+            Some((_, progress)) => std::borrow::Cow::Borrowed(progress),
+            None => {
+                let mut progress = AdvancementProgress::default();
+                progress.update(&advancement.value.requirements);
+                std::borrow::Cow::Owned(progress)
+            }
+        }
+    }
+
     fn start_progress(&mut self, holder: &'static AdvancementHolder, mut progress: AdvancementProgress) {
         progress.update(&holder.value.requirements);
         self.progress.insert(holder.id.as_str(), (holder, progress));

@@ -178,6 +178,7 @@ async fn main() -> anyhow::Result<()> {
     let mut sequence = 100;
     let mut open_container = 0;
     let mut on_ground = 1u8;
+    let mut last_entity = 0;
     loop {
         tokio::select! {
             packet = rx.recv() => {
@@ -211,6 +212,7 @@ async fn main() -> anyhow::Result<()> {
                         position = Some(pos);
                     }
                     play::clientbound::OPEN_SCREEN => open_container = Reader::new(&data).varint()?,
+                    play::clientbound::ADD_ENTITY => last_entity = Reader::new(&data).varint()?,
                     play::clientbound::DISCONNECT => break,
                     _ => {}
                 }
@@ -367,6 +369,16 @@ async fn main() -> anyhow::Result<()> {
                             .await?;
                         }
                         ["advancement_close"] => send(&mut wr, codec, play::serverbound::SEEN_ADVANCEMENTS, |w| w.varint(1)).await?,
+                        ["interact_last", hand] => {
+                            let hand: i32 = hand.parse()?;
+                            send(&mut wr, codec, play::serverbound::INTERACT, |w| {
+                                w.varint(last_entity);
+                                w.varint(hand);
+                                w.lp_vec3(0.0, 0.2, 0.0);
+                                w.bool(false);
+                            })
+                            .await?;
+                        }
                         ["seen_recipe", recipe] => {
                             let recipe: i32 = recipe.parse()?;
                             send(&mut wr, codec, play::serverbound::RECIPE_BOOK_SEEN_RECIPE, |w| w.varint(recipe)).await?;

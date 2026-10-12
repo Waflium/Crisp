@@ -56,3 +56,32 @@ impl ServerAdvancementManager {
         self.advancements.is_empty()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::server::reloadable_server_registries;
+
+    #[test]
+    fn loads_every_vanilla_advancement() {
+        let manager = ServerAdvancementManager::new(&reloadable_server_registries::get().advancements);
+        assert_eq!(manager.len(), 1866);
+        assert_eq!(manager.tree().nodes().len(), 1866);
+        assert_eq!(manager.tree().roots().count(), 6);
+        let story = manager.tree().get("minecraft:story/root").expect("story root");
+        assert_eq!((story.x, story.y), (0.0, 1.75));
+    }
+
+    #[test]
+    #[ignore]
+    fn tree_positions_match_vanilla() {
+        let expected = std::fs::read_to_string(std::env::var("TREE_ORACLE").expect("TREE_ORACLE")).unwrap();
+        let manager = ServerAdvancementManager::new(&reloadable_server_registries::get().advancements);
+        let actual: Vec<String> = manager.tree().nodes().iter().map(|node| format!("POS {} {} {}", node.holder.id, node.x.to_bits() as i32, node.y.to_bits() as i32)).collect();
+        let expected: Vec<&str> = expected.lines().collect();
+        assert_eq!(actual.len(), expected.len());
+        for (actual, expected) in actual.iter().zip(expected) {
+            assert_eq!(actual, expected);
+        }
+    }
+}

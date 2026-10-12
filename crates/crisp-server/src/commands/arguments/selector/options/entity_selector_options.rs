@@ -2,7 +2,7 @@ use crisp_data::registry;
 
 use crate::advancements::predicates::min_max_bounds::{Doubles, FloatDegrees, Ints};
 use crate::commands::arguments::read_identifier;
-use crate::commands::arguments::selector::entity_selector::{EntityPredicate, Order, player_type};
+use crate::commands::arguments::selector::entity_selector::{AdvancementSelectorPredicate, EntityPredicate, Order, player_type};
 use crate::commands::arguments::selector::entity_selector_parser::{EntitySelectorParser, SelectorSuggestions};
 use crate::commands::shared_suggestion_provider;
 use crate::commands::suggestion::SuggestionsBuilder;
@@ -287,26 +287,29 @@ fn scores(parser: &mut EntitySelectorParser) -> Result<()> {
 
 fn advancements(parser: &mut EntitySelectorParser) -> Result<()> {
     let reader = &mut *parser.reader;
-    let mut expected = 0;
+    let mut expected: Vec<(String, AdvancementSelectorPredicate)> = Vec::new();
     reader.expect('{')?;
     reader.skip_whitespace();
     while reader.can_read() && reader.peek() != b'}' as u16 {
         reader.skip_whitespace();
-        read_identifier(reader)?;
+        let name = read_identifier(reader)?;
         reader.skip_whitespace();
         reader.expect('=')?;
         reader.skip_whitespace();
-        if reader.at('{') {
+        let predicate = if reader.at('{') {
+            let mut progress: Vec<(String, bool)> = Vec::new();
             reader.skip_whitespace();
             reader.expect('{')?;
             reader.skip_whitespace();
             while reader.can_read() && reader.peek() != b'}' as u16 {
                 reader.skip_whitespace();
-                reader.read_unquoted_string();
+                let criterion = reader.read_unquoted_string();
                 reader.skip_whitespace();
                 reader.expect('=')?;
                 reader.skip_whitespace();
-                reader.read_boolean()?;
+                let value = reader.read_boolean()?;
+                progress.retain(|(name, _)| *name != criterion);
+                progress.push((criterion, value));
                 reader.skip_whitespace();
                 if reader.at(',') {
                     reader.skip();
@@ -315,18 +318,20 @@ fn advancements(parser: &mut EntitySelectorParser) -> Result<()> {
             reader.skip_whitespace();
             reader.expect('}')?;
             reader.skip_whitespace();
+            AdvancementSelectorPredicate::Criteria(progress)
         } else {
-            reader.read_boolean()?;
-        }
-        expected += 1;
+            AdvancementSelectorPredicate::Done(reader.read_boolean()?)
+        };
+        expected.retain(|(existing, _)| *existing != name);
+        expected.push((name, predicate));
         reader.skip_whitespace();
         if reader.at(',') {
             reader.skip();
         }
     }
     reader.expect('}')?;
-    if expected > 0 {
-        parser.unsupported = Some("advancements");
+    if !expected.is_empty() {
+        parser.predicates.push(EntityPredicate::Advancements(expected));
         parser.includes_entities = false;
     }
     parser.advancements_option.mark_parsed();
