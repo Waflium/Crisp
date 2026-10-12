@@ -2046,8 +2046,10 @@ impl ServerLevel {
             self.send_teleport_transition_to_players(id);
         }
         transition.post_teleport_transition.on_transition(self, id);
-        if matches!(self.entities.get(&id), Some(LevelEntity::Item(_))) {
-            self.merge_with_neighbours(id);
+        match self.entities.get_mut(&id) {
+            Some(LevelEntity::Item(_)) => self.merge_with_neighbours(id),
+            Some(LevelEntity::PrimedTnt(tnt)) => tnt.used_portal = true,
+            _ => {}
         }
         id
     }
@@ -2218,6 +2220,9 @@ impl crate::server::Server {
         };
         new_entity.entity_mut().teleport_set_position(current, transition.position_move_rotation(), transition.relatives);
         let is_item = matches!(new_entity, LevelEntity::Item(_));
+        if let LevelEntity::PrimedTnt(tnt) = &mut new_entity {
+            tnt.used_portal = true;
+        }
         let new_id = new_entity.entity().id;
         let level = &mut self.levels[transition.new_level];
         level.add_entity(new_entity);

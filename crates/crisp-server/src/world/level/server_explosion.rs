@@ -51,13 +51,23 @@ pub struct ServerExplosion {
 pub enum ExplosionDamageCalculator {
     Default,
     RespawnAnchor { pos: BlockPos, in_water: bool },
+    UsedPortal,
 }
 
 impl ExplosionDamageCalculator {
-    fn get_block_explosion_resistance(self, test_pos: BlockPos, state: crisp_data::BlockState, fluid: Fluid) -> f32 {
+    fn get_block_explosion_resistance(self, test_pos: BlockPos, state: crisp_data::BlockState, fluid: Fluid) -> Option<f32> {
         match self {
-            ExplosionDamageCalculator::RespawnAnchor { pos, in_water: true } if test_pos == pos => crisp_data::blocks::WATER.info().explosion_resistance,
-            _ => state.block().info().explosion_resistance.max(fluid_explosion_resistance(fluid)),
+            ExplosionDamageCalculator::RespawnAnchor { pos, in_water: true } if test_pos == pos => Some(crisp_data::blocks::WATER.info().explosion_resistance),
+            ExplosionDamageCalculator::UsedPortal if state.is_block(crisp_data::blocks::NETHER_PORTAL) => None,
+            _ if state.is_air() && fluid == Fluid::Empty => None,
+            _ => Some(state.block().info().explosion_resistance.max(fluid_explosion_resistance(fluid))),
+        }
+    }
+
+    fn should_block_explode(self, state: crisp_data::BlockState) -> bool {
+        match self {
+            ExplosionDamageCalculator::UsedPortal => !state.is_block(crisp_data::blocks::NETHER_PORTAL),
+            _ => true,
         }
     }
 }
@@ -190,11 +200,10 @@ impl ServerLevel {
                         if !self.is_in_world_bounds(pos) {
                             break;
                         }
-                        if !(state.is_air() && fluid.fluid == Fluid::Empty) {
-                            let resistance = explosion.damage_calculator.get_block_explosion_resistance(pos, state, fluid.fluid);
+                        if let Some(resistance) = explosion.damage_calculator.get_block_explosion_resistance(pos, state, fluid.fluid) {
                             remaining_power -= (resistance + 0.3) * 0.3;
                         }
-                        if remaining_power > 0.0 && seen.insert(pos) {
+                        if remaining_power > 0.0 && explosion.damage_calculator.should_block_explode(state) && seen.insert(pos) {
                             to_blow.push(pos);
                         }
                         xp += xd * 0.3f32 as f64;

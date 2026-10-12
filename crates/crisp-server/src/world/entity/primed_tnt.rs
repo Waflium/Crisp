@@ -5,7 +5,7 @@ use crisp_data::{BlockState, blocks, game_rule, registry, registry_id};
 use super::data::{DataValue, entity_defaults};
 use super::{Entity, EntityDimensions, EntityId, LevelEntity, MoverType};
 use crate::server::level::ServerLevel;
-use crate::world::level::server_explosion::ExplosionInteraction;
+use crate::world::level::server_explosion::{ExplosionDamageCalculator, ExplosionInteraction};
 
 pub const DEFAULT_FUSE_TIME: i32 = 80;
 const DATA_FUSE: usize = 8;
@@ -14,6 +14,7 @@ const DATA_BLOCK_STATE: usize = 9;
 pub struct PrimedTnt {
     pub entity: Entity,
     pub owner: Option<u128>,
+    pub used_portal: bool,
     pub explosion_power: f32,
 }
 
@@ -25,7 +26,7 @@ impl PrimedTnt {
         data.push(DataValue::Int(DEFAULT_FUSE_TIME));
         data.push(DataValue::BlockState(blocks::TNT.default_state()));
         let entity = Entity::new(registry_id(registry::ENTITY_TYPE, "minecraft:tnt"), Self::DIMENSIONS, data);
-        PrimedTnt { entity, owner: None, explosion_power: 4.0 }
+        PrimedTnt { entity, owner: None, used_portal: false, explosion_power: 4.0 }
     }
 
     pub fn new(level: &mut ServerLevel, pos: Vec3, owner: Option<u128>) -> PrimedTnt {
@@ -107,10 +108,11 @@ impl ServerLevel {
             return;
         }
         let tnt = self.primed_tnt(id);
-        let (owner, power) = (tnt.owner, tnt.explosion_power);
+        let (owner, power, used_portal) = (tnt.owner, tnt.explosion_power, tnt.used_portal);
         let e = &tnt.entity;
         let center = Vec3::new(e.x(), e.y() + PrimedTnt::DIMENSIONS.height as f64 * 0.0625, e.z());
         let owner = owner.and_then(|uuid| self.players.values().find(|p| p.profile.uuid == uuid && !p.entity.is_removed()).map(|p| p.entity.id));
-        self.explode(Some(id), owner, None, center, power, false, ExplosionInteraction::Tnt);
+        let damage_calculator = if used_portal { ExplosionDamageCalculator::UsedPortal } else { ExplosionDamageCalculator::Default };
+        self.explode_with_calculator(Some(id), owner, None, damage_calculator, center, power, false, ExplosionInteraction::Tnt);
     }
 }
