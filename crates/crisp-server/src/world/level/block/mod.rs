@@ -205,7 +205,12 @@ mod weeping_vines_plant_block;
 mod wither_rose_block;
 mod amethyst_cluster_block;
 mod banner_block;
+mod base_coral_plant_type_block;
 mod base_coral_wall_fan_block;
+mod coral_block;
+mod coral_fan_block;
+mod coral_plant_block;
+mod coral_wall_fan_block;
 mod bell_block;
 mod calibrated_sculk_sensor_block;
 mod ceiling_hanging_sign_block;
@@ -782,6 +787,11 @@ fn for_class(class: &str, block: Block) -> Option<Box<dyn BlockBehaviour>> {
         "AmethystClusterBlock" => Box::new(amethyst_cluster_block::AmethystClusterBlock),
         "BannerBlock" => Box::new(banner_block::BannerBlock),
         "BaseCoralWallFanBlock" => Box::new(base_coral_wall_fan_block::BaseCoralWallFanBlock),
+        "BaseCoralPlantTypeBlock" => Box::new(base_coral_plant_type_block::BaseCoralPlantTypeBlock),
+        "CoralPlantBlock" => Box::new(coral_plant_block::CoralPlantBlock::new(block)),
+        "CoralFanBlock" => Box::new(coral_fan_block::CoralFanBlock::new(block)),
+        "CoralWallFanBlock" => Box::new(coral_wall_fan_block::CoralWallFanBlock::new(block)),
+        "CoralBlock" => Box::new(coral_block::CoralBlock::new(block)),
         "BellBlock" => Box::new(bell_block::BellBlock),
         "CalibratedSculkSensorBlock" => Box::new(calibrated_sculk_sensor_block::CalibratedSculkSensorBlock),
         "CampfireBlock" => Box::new(campfire_block::CampfireBlock),
