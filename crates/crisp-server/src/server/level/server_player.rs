@@ -279,6 +279,14 @@ impl ServerPlayer {
         if let DataValue::OptionalBlockPos(Some(pos)) = self.entity.data.get(ids::SLEEPING_POS) {
             nbt.push(("sleeping_pos".into(), Nbt::IntArray(vec![pos.x, pos.y, pos.z])));
         }
+        let stack_at = |slot: usize| self.inventory.slots[slot].as_ref().filter(|s| !s.is_empty());
+        let equipment: Vec<(String, Nbt)> = [("offhand", OFFHAND), ("feet", 8), ("legs", 7), ("chest", 6), ("head", 5)]
+            .into_iter()
+            .filter_map(|(name, slot)| Some((name.to_string(), stack_at(slot)?.to_nbt())))
+            .collect();
+        if !equipment.is_empty() || stack_at(self.inventory.selected_slot()).is_some() {
+            nbt.push(("equipment".into(), Nbt::Compound(equipment)));
+        }
         nbt.push(("DataVersion".into(), Nbt::Int(WORLD_VERSION)));
         let inventory = self
             .inventory
@@ -287,8 +295,9 @@ impl ServerPlayer {
             .enumerate()
             .filter_map(|(slot, stack)| {
                 let stack = stack.as_ref().filter(|s| !s.is_empty())?;
+                let storage = storage_slot(slot).filter(|&s| (0..36).contains(&s))?;
                 let Nbt::Compound(mut fields) = stack.to_nbt() else { return None };
-                fields.insert(0, ("Slot".into(), Nbt::Byte(storage_slot(slot)?)));
+                fields.insert(0, ("Slot".into(), Nbt::Byte(storage)));
                 Some(Nbt::Compound(fields))
             })
             .collect();
@@ -369,6 +378,13 @@ impl ServerPlayer {
             let slot = entry.get("Slot").and_then(Nbt::as_i64).and_then(|s| protocol_slot(s as i8));
             if let (Some(slot), Ok(stack)) = (slot, ItemStack::from_nbt(entry)) {
                 self.inventory.slots[slot] = Some(stack);
+            }
+        }
+        if let Some(equipment) = nbt.get("equipment") {
+            for (name, slot) in [("offhand", OFFHAND), ("feet", 8), ("legs", 7), ("chest", 6), ("head", 5)] {
+                if let Some(Ok(stack)) = equipment.get(name).map(ItemStack::from_nbt) {
+                    self.inventory.slots[slot] = Some(stack);
+                }
             }
         }
         self.experience.load(nbt, &mut self.entity.random);
