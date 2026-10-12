@@ -42,6 +42,7 @@ pub enum BlockEntityTicker {
     Furnace,
     Hopper,
     ShulkerBox,
+    DaylightDetector,
 }
 
 enum UpdateTag {
@@ -402,6 +403,7 @@ impl BlockEntity {
             types::FURNACE | types::BLAST_FURNACE | types::SMOKER if block.is_instance_of("AbstractFurnaceBlock") => Some(BlockEntityTicker::Furnace),
             types::HOPPER if block.is_instance_of("HopperBlock") => Some(BlockEntityTicker::Hopper),
             types::SHULKER_BOX if block.is_instance_of("ShulkerBoxBlock") => Some(BlockEntityTicker::ShulkerBox),
+            types::DAYLIGHT_DETECTOR if block.is_instance_of("DaylightDetectorBlock") => Some(BlockEntityTicker::DaylightDetector),
             _ => None,
         }
     }

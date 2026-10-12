@@ -138,6 +138,7 @@ impl ServerLevel {
             BlockEntityTicker::Furnace => self.furnace_server_tick(pos, state),
             BlockEntityTicker::Hopper => self.hopper_push_items_tick(pos, state),
             BlockEntityTicker::ShulkerBox => self.shulker_box_tick(pos, state),
+            BlockEntityTicker::DaylightDetector => self.daylight_detector_tick_entity(pos, state),
         }
     }
 
