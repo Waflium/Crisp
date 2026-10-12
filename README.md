@@ -1,16 +1,27 @@
-# Crisp
+<p align="center">
+  <img src=".github/logo.png" alt="Crisp" width="280">
+</p>
 
-A Minecraft Java Edition 26.3 server written in Rust.
+<p align="center">
+  A Minecraft Java Edition 26.3 server written in Rust.
+</p>
 
-Crisp aims to behave exactly like the vanilla dedicated server: same gameplay, same console output, same files on disk, same network behaviour. Only the language and the speed differ.
+---
 
-It is far from complete. World generation, players, saving, commands, RCON and Query work; mobs, structures, the Nether and the End do not exist yet.
+Crisp aims to behave exactly like the vanilla dedicated server: the same gameplay, console output, files on disk and network behaviour. Only the language and the speed differ.
+
+## Status
+
+Crisp is a work in progress.
+
+- **Working:** overworld generation and structures, players, saving, commands, data packs, RCON and Query.
+- **Not yet:** most mobs, the Nether and the End.
 
 ## Building
 
 Crisp builds its game data from the official server jar, which is downloaded locally and never committed:
 
-```
+```sh
 cargo xtask vanilla
 cargo build --release
 ```
@@ -19,6 +30,10 @@ Run `target/release/crisp` in a directory with an accepted `eula.txt`, just like
 
 ## Testing
 
-```
+```sh
 cargo test --release
 ```
+
+## License
+
+MIT. See [LICENSE](LICENSE).
