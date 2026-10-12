@@ -320,6 +320,27 @@ impl ServerLevel {
         self.player(id).inventory.slots[index].clone().filter(|s| !s.is_empty())
     }
 
+    pub fn on_equip_item(&mut self, id: EntityId, slot: EquipmentSlot, old_stack: &ItemStack, stack: &ItemStack) {
+        if self.is_spectator(id) || ItemStack::is_same_item_same_components(old_stack, stack) || self.entity(id).first_tick {
+            return;
+        }
+        let Some(equippable) = stack.get(crate::world::item::component::EQUIPPABLE).map(crate::world::item::component::values::Equippable::from_nbt) else { return };
+        if !self.entity(id).is_silent() && EquipmentSlot::by_name(&equippable.slot) == Some(slot) {
+            let Some(sound) = equippable.equip_sound.as_str().and_then(|name| crisp_data::registry::SOUND_EVENT.iter().position(|&s| s == name)) else { return };
+            let source = self.sound_source(id);
+            let e = self.entity_mut(id);
+            let (x, y, z) = (e.x(), e.y(), e.z());
+            let seed = e.random.next_long();
+            self.play_seeded_sound_at(None, x, y, z, sound as i32, source, 1.0, 1.0, seed);
+        }
+    }
+
+    pub fn living_set_item_slot(&mut self, id: EntityId, slot: EquipmentSlot, item_stack: ItemStack) {
+        let old_stack = self.item_by_slot(id, slot).unwrap_or_else(ItemStack::empty);
+        self.set_item_slot(id, slot, item_stack.clone());
+        self.on_equip_item(id, slot, &old_stack, &item_stack);
+    }
+
     pub fn set_item_slot(&mut self, id: EntityId, slot: EquipmentSlot, item_stack: ItemStack) {
         if let Some(mob) = self.mob_mut(id) {
             mob.equipment[slot as usize] = Some(item_stack).filter(|s| !s.is_empty());

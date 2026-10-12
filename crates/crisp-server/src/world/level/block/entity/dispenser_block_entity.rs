@@ -48,3 +48,29 @@ impl DispenserBlockEntity {
         }
     }
 }
+
+impl crate::server::level::ServerLevel {
+    pub fn dispenser_insert_item(&mut self, pos: crisp_core::BlockPos, mut item_stack: ItemStack) -> ItemStack {
+        let Some(super::BlockEntityKind::Dispenser(dispenser)) = self.get_block_entity(pos).map(|entity| &mut entity.kind) else { return item_stack };
+        let max_stack_size = item_stack.max_stack_size().min(99);
+        for target_stack in dispenser.base.items.iter_mut() {
+            if target_stack.is_empty() || ItemStack::is_same_item_same_components(&item_stack, target_stack) {
+                let transfer_count = item_stack.count.min(max_stack_size - target_stack.count);
+                if transfer_count > 0 {
+                    if target_stack.is_empty() {
+                        let mut split = item_stack.split(transfer_count);
+                        split.limit_size(split.max_stack_size().min(99));
+                        *target_stack = split;
+                    } else {
+                        item_stack.shrink(transfer_count);
+                        target_stack.grow(transfer_count);
+                    }
+                }
+                if item_stack.is_empty() {
+                    break;
+                }
+            }
+        }
+        item_stack
+    }
+}

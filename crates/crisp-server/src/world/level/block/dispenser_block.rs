@@ -1,25 +1,23 @@
-use crisp_core::random::RandomSource;
-use crisp_core::{BlockPos, Direction, Vec3};
+use crisp_core::{BlockPos, Direction};
 use crisp_data::properties::{FACING, TRIGGERED};
 use crisp_data::{Block, BlockState, block_entity_types};
 
 use super::mirror::Mirror;
 use super::rotation::Rotation;
 use super::{BlockBehaviour, BlockHitResult};
+use crate::core::dispenser::block_source::BlockSource;
+use crate::core::dispenser::dispense_item_behavior::{DispenseItemBehavior, get_dispense_method};
 use crate::server::level::ServerLevel;
+use crate::server::level::events::SOUND_DISPENSER_FAIL;
 use crate::world::InteractionResult;
 use crate::world::container::ContainerRef;
-use crate::world::entity::{EntityId, ItemEntity, LevelEntity};
+use crate::world::entity::EntityId;
 use crate::world::inventory::menu_provider::MenuProvider;
-use crate::world::item::ItemStack;
 use crate::world::item::context::BlockPlaceContext;
 use crate::world::level::block::entity::BlockEntityKind;
 use crate::world::level::update_flags::UPDATE_CLIENTS;
 
 const TRIGGER_DURATION: i32 = 4;
-const SOUND_DISPENSER_DISPENSE: i32 = 1000;
-const SOUND_DISPENSER_FAIL: i32 = 1001;
-const PARTICLES_SHOOT_SMOKE: i32 = 2000;
 
 pub struct DispenserBlock {
     block: Block,
@@ -49,6 +47,7 @@ impl DispenserBlock {
             level.level_event(None, SOUND_DISPENSER_FAIL, pos, 0);
             return;
         }
+        let source = BlockSource { pos, state };
         let container = ContainerRef::block(level, pos);
         let slot = slot as usize;
         let stack = level.get_item(container, slot);
@@ -58,7 +57,7 @@ impl DispenserBlock {
             }
             let direction = crate::world::level::BlockGetter::block_state(level, pos).get(FACING);
             match level.get_container_at(pos.relative(direction)) {
-                None => dispense_default(level, state, pos, stack),
+                None => DispenseItemBehavior::Default.dispense(level, &source, stack),
                 Some(into) => {
                     let rest = level.add_item(Some(container), into, stack.copy_with_count(1), Some(direction.opposite()));
                     let mut remaining = stack.copy();
@@ -69,40 +68,10 @@ impl DispenserBlock {
                 }
             }
         } else {
-            dispense_default(level, state, pos, stack)
+            get_dispense_method(&stack).dispense(level, &source, stack)
         };
         level.set_item(container, slot, remaining);
     }
-}
-
-fn dispense_position(pos: BlockPos, direction: Direction) -> Vec3 {
-    Vec3::at_center_of(pos).add(0.7 * direction.step_x() as f64, 0.7 * direction.step_y() as f64, 0.7 * direction.step_z() as f64)
-}
-
-fn dispense_default(level: &mut ServerLevel, state: BlockState, pos: BlockPos, mut dispensed: ItemStack) -> ItemStack {
-    let direction = state.get(FACING);
-    let position = dispense_position(pos, direction);
-    let one = dispensed.split(1);
-    spawn_item(level, one, 6, direction, position);
-    level.level_event(None, SOUND_DISPENSER_DISPENSE, pos, 0);
-    level.level_event(None, PARTICLES_SHOOT_SMOKE, pos, direction.ordinal() as i32);
-    dispensed
-}
-
-pub fn spawn_item(level: &mut ServerLevel, stack: ItemStack, accuracy: i32, direction: Direction, position: Vec3) {
-    let y = if direction.axis() == crisp_core::Axis::Y { position.y - 0.125 } else { position.y - 0.15625 };
-    let random = &mut level.random;
-    random.next_double();
-    random.next_double();
-    let pow = random.next_double() * 0.1 + 0.2;
-    let spread = 0.0172275 * accuracy as f64;
-    let delta = Vec3::new(
-        random.triangle(direction.step_x() as f64 * pow, spread),
-        random.triangle(0.2, spread),
-        random.triangle(direction.step_z() as f64 * pow, spread),
-    );
-    let item = ItemEntity::with_movement(Vec3::new(position.x, y, position.z), stack, delta);
-    level.add_fresh_entity(LevelEntity::Item(item));
 }
 
 impl BlockBehaviour for DispenserBlock {

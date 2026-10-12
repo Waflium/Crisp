@@ -81,3 +81,9 @@ impl BeehiveBlockEntity {
         }
     }
 }
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum BeeReleaseStatus {
+    BeeReleased,
+    Emergency,
+}

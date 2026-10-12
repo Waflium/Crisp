@@ -1,7 +1,7 @@
 use crisp_core::BlockPos;
 use crisp_core::shapes::{BooleanOp, VoxelShape, join_is_not_empty};
 use crisp_core::AABB;
-use crisp_data::properties::{HORIZONTAL_FACING, LIT};
+use crisp_data::properties::{HORIZONTAL_FACING, LIT, WATERLOGGED};
 use crisp_data::{BlockState, block_tags};
 
 use super::BlockBehaviour;
@@ -40,6 +40,10 @@ pub fn is_smokey_pos(level: &mut ServerLevel, pos: BlockPos) -> bool {
         }
     }
     false
+}
+
+pub fn can_light(state: BlockState) -> bool {
+    state.is(&block_tags::CAMPFIRES) && state.has(WATERLOGGED) && state.has(LIT) && !state.get(WATERLOGGED) && !state.get(LIT)
 }
 
 pub fn is_lit_campfire(block_state: BlockState) -> bool {

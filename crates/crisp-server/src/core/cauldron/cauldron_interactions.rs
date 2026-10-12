@@ -24,7 +24,7 @@ fn sound(name: &str) -> i32 {
     registry_id(registry::SOUND_EVENT, name)
 }
 
-fn is_water_potion(item_in_hand: &ItemStack) -> bool {
+pub fn is_water_potion(item_in_hand: &ItemStack) -> bool {
     match item_in_hand.get(dc::POTION_CONTENTS) {
         Some(Nbt::String(potion)) => potion == "minecraft:water",
         Some(contents) => contents.get("potion").and_then(Nbt::as_str) == Some("minecraft:water"),
@@ -32,7 +32,7 @@ fn is_water_potion(item_in_hand: &ItemStack) -> bool {
     }
 }
 
-fn water_potion() -> ItemStack {
+pub fn water_potion() -> ItemStack {
     let mut stack = ItemStack::new(items::POTION, 1);
     stack.set(dc::POTION_CONTENTS, Some(Nbt::Compound(vec![("potion".into(), Nbt::String("minecraft:water".into()))])));
     stack

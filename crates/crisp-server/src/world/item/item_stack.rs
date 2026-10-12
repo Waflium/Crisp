@@ -79,6 +79,22 @@ impl ItemStack {
         }
     }
 
+    pub fn hurt_and_break(&mut self, amount: i32, level: &mut ServerLevel) {
+        let new_amount = if !self.is_damageable_item() {
+            0
+        } else if amount > 0 {
+            level.process_durability_change(self, amount)
+        } else {
+            amount
+        };
+        if new_amount != 0 {
+            self.set_damage_value(self.damage_value() + new_amount);
+            if self.is_broken() {
+                self.shrink(1);
+            }
+        }
+    }
+
     pub fn limit_size(&mut self, max: i32) {
         if !self.is_empty() && self.count > max {
             self.count = max;

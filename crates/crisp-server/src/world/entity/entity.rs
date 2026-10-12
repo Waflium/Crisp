@@ -813,9 +813,14 @@ impl ServerLevel {
 
     #[allow(clippy::too_many_arguments)]
     pub fn play_sound_at(&mut self, except: Option<EntityId>, x: f64, y: f64, z: f64, sound: i32, source: SoundSource, volume: f32, pitch: f32) {
+        let seed = self.thread_safe_random.next_long();
+        self.play_seeded_sound_at(except, x, y, z, sound, source, volume, pitch, seed);
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn play_seeded_sound_at(&self, except: Option<EntityId>, x: f64, y: f64, z: f64, sound: i32, source: SoundSource, volume: f32, pitch: f32, seed: i64) {
         use crate::network::connection::encode;
         use crisp_data::packets::play::clientbound;
-        let seed = self.thread_safe_random.next_long();
         let packet = encode(clientbound::SOUND, |p| {
             p.varint(sound + 1);
             p.varint(source as i32);

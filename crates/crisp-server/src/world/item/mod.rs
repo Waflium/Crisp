@@ -9,6 +9,7 @@ pub mod dye_color;
 pub mod enchantment;
 pub mod flint_and_steel_item;
 mod item_stack;
+pub mod honeycomb_item;
 pub mod item_utils;
 pub mod jukebox_playable;
 pub mod jukebox_song;
@@ -38,9 +39,13 @@ pub fn interact_living_entity(level: &mut ServerLevel, item_stack: &mut ItemStac
     InteractionResult::Pass
 }
 
+pub fn block_item_behaviour(item: Item) -> Option<&'static dyn block_item::BlockItemBehaviour> {
+    BLOCK_ITEMS[item.0 as usize].as_deref()
+}
+
 pub fn use_on(level: &mut ServerLevel, player: EntityId, hand: InteractionHand, hit: BlockHitResult, stack: ItemStack) -> InteractionResult {
     match stack.item.info().classes.first() {
-        Some(&"BoneMealItem") => return bone_meal_item::use_on(level, player, hand, hit),
+        Some(&"BoneMealItem") => return bone_meal_item::use_on(level, player, hand, hit, stack),
         Some(&"FlintAndSteelItem") => {
             let ctx = BlockPlaceContext::new(level, Some(player), hand, stack, hit);
             return flint_and_steel_item::flint_and_steel_use_on(level, player, hand, &ctx);
