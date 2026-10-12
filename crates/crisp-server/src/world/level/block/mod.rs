@@ -44,6 +44,7 @@ pub mod abstract_candle_block;
 mod cake_block;
 mod comparator_block;
 pub mod composter_block;
+mod conduit_block;
 mod daylight_detector_block;
 mod copper_bulb_block;
 mod jukebox_block;
@@ -619,6 +620,7 @@ fn for_class(class: &str, block: Block) -> Option<Box<dyn BlockBehaviour>> {
         "RespawnAnchorBlock" => Box::new(respawn_anchor_block::RespawnAnchorBlock),
         "ComparatorBlock" => Box::new(comparator_block::ComparatorBlock { block }),
         "ComposterBlock" => Box::new(composter_block::ComposterBlock),
+        "ConduitBlock" => Box::new(conduit_block::ConduitBlock),
         "DaylightDetectorBlock" => Box::new(daylight_detector_block::DaylightDetectorBlock),
         "JukeboxBlock" => Box::new(jukebox_block::JukeboxBlock),
         "StrawBedBlock" => Box::new(abstract_bed_block::AbstractBedBlock::new(abstract_bed_block::BedKind::StrawBed)),

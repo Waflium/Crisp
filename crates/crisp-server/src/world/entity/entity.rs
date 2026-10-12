@@ -1459,6 +1459,9 @@ impl ServerLevel {
         if self.entity_ref(id).is_none() {
             return;
         }
+        if self.is_in_rain(id) {
+            self.clear_fire(id);
+        }
         if was_on_fire && !self.is_on_fire(id) || was_freezing && !self.entity(id).is_freezing() {
             self.play_entity_on_fire_extinguished_sound(id);
         }
@@ -1897,6 +1900,17 @@ impl ServerLevel {
         } else {
             self.entity_mut(id).remaining_fire_ticks = ticks;
         }
+    }
+
+    fn is_in_rain(&mut self, id: EntityId) -> bool {
+        let e = self.entity(id);
+        let pos = e.block_position();
+        let max_y = e.bounding_box().max_y;
+        self.is_raining_at(pos) || self.is_raining_at(BlockPos::containing(pos.x as f64, max_y, pos.z as f64))
+    }
+
+    pub fn is_in_water_or_rain(&mut self, id: EntityId) -> bool {
+        self.entity(id).is_in_water() || self.is_in_rain(id)
     }
 
     pub fn clear_fire(&mut self, id: EntityId) {

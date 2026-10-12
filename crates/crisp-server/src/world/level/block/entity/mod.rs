@@ -5,6 +5,7 @@ pub mod beehive_block_entity;
 pub mod brushable_block_entity;
 pub mod chest_block_entity;
 pub mod comparator_block_entity;
+pub mod conduit_block_entity;
 pub mod container_openers_counter;
 mod dispenser_block_entity;
 pub mod hopper_block_entity;
@@ -45,6 +46,7 @@ pub enum BlockEntityTicker {
     ShulkerBox,
     DaylightDetector,
     Jukebox,
+    Conduit,
 }
 
 enum UpdateTag {
@@ -66,6 +68,7 @@ pub enum BlockEntityKind {
     Brushable(BrushableBlockEntity),
     Comparator(comparator_block_entity::ComparatorBlockEntity),
     Jukebox(jukebox_block_entity::JukeboxBlockEntity),
+    Conduit(conduit_block_entity::ConduitBlockEntity),
     Other(Vec<(String, Nbt)>),
 }
 
@@ -101,6 +104,7 @@ impl BlockEntity {
             types::BRUSHABLE_BLOCK => BlockEntityKind::Brushable(BrushableBlockEntity::default()),
             types::COMPARATOR => BlockEntityKind::Comparator(comparator_block_entity::ComparatorBlockEntity::default()),
             types::JUKEBOX => BlockEntityKind::Jukebox(jukebox_block_entity::JukeboxBlockEntity::default()),
+            types::CONDUIT => BlockEntityKind::Conduit(conduit_block_entity::ConduitBlockEntity::default()),
             _ => BlockEntityKind::Other(Vec::new()),
         };
         Some(BlockEntity { ty, pos, block_state: state, remove: false, components: DataComponentMap::EMPTY, id: NEXT_ID.fetch_add(1, Ordering::Relaxed), kind })
@@ -188,6 +192,7 @@ impl BlockEntity {
             BlockEntityKind::Brushable(brushable) => brushable.load_additional(input),
             BlockEntityKind::Comparator(comparator) => comparator.load_additional(input),
             BlockEntityKind::Jukebox(jukebox) => jukebox.load_additional(input),
+            BlockEntityKind::Conduit(conduit) => conduit.load_additional(input),
             BlockEntityKind::Other(data) => {
                 let _ = state;
                 *data = match input {
@@ -213,6 +218,7 @@ impl BlockEntity {
             BlockEntityKind::Brushable(brushable) => brushable.save_additional(output),
             BlockEntityKind::Comparator(comparator) => comparator.save_additional(output),
             BlockEntityKind::Jukebox(jukebox) => jukebox.save_additional(output),
+            BlockEntityKind::Conduit(conduit) => conduit.save_additional(output),
             BlockEntityKind::Other(data) => output.extend(data.iter().cloned()),
         }
     }
@@ -285,7 +291,7 @@ impl BlockEntity {
     }
 
     fn update_tag_kind(&self) -> UpdateTag {
-        if !matches!(self.kind, BlockEntityKind::Other(_)) {
+        if !matches!(self.kind, BlockEntityKind::Other(_) | BlockEntityKind::Conduit(_)) {
             return UpdateTag::None;
         }
         match self.ty {
@@ -373,7 +379,7 @@ impl BlockEntity {
     pub fn is_randomizable(&self) -> bool {
         !matches!(
             self.kind,
-            BlockEntityKind::Furnace(_) | BlockEntityKind::Beehive(_) | BlockEntityKind::Spawner(_) | BlockEntityKind::Brushable(_) | BlockEntityKind::Comparator(_) | BlockEntityKind::Jukebox(_) | BlockEntityKind::Other(_)
+            BlockEntityKind::Furnace(_) | BlockEntityKind::Beehive(_) | BlockEntityKind::Spawner(_) | BlockEntityKind::Brushable(_) | BlockEntityKind::Comparator(_) | BlockEntityKind::Jukebox(_) | BlockEntityKind::Conduit(_) | BlockEntityKind::Other(_)
         )
     }
 
@@ -411,6 +417,7 @@ impl BlockEntity {
             types::SHULKER_BOX if block.is_instance_of("ShulkerBoxBlock") => Some(BlockEntityTicker::ShulkerBox),
             types::DAYLIGHT_DETECTOR if block.is_instance_of("DaylightDetectorBlock") => Some(BlockEntityTicker::DaylightDetector),
             types::JUKEBOX if block.is_instance_of("JukeboxBlock") && state.get(crisp_data::properties::HAS_RECORD) => Some(BlockEntityTicker::Jukebox),
+            types::CONDUIT if block.is_instance_of("ConduitBlock") => Some(BlockEntityTicker::Conduit),
             _ => None,
         }
     }

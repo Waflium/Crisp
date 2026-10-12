@@ -154,6 +154,7 @@ impl ServerLevel {
             BlockEntityTicker::ShulkerBox => self.shulker_box_tick(pos, state),
             BlockEntityTicker::DaylightDetector => self.daylight_detector_tick_entity(pos, state),
             BlockEntityTicker::Jukebox => self.jukebox_tick(pos),
+            BlockEntityTicker::Conduit => self.conduit_server_tick(pos, state),
         }
     }
 
