@@ -315,6 +315,9 @@ impl ServerLevel {
                 w.position(pos.x, pos.y, pos.z);
                 w.varint(state.id() as i32);
             });
+            if let Some(packet) = self.block_entity_update_packet(pos) {
+                self.player(id).connection.send_raw(packet);
+            }
         }
     }
 
