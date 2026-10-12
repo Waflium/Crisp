@@ -141,11 +141,17 @@ impl Drop for LootContext<'_> {
 pub struct LootContextBuilder<'a> {
     params: LootParams<'a>,
     random: Option<LegacyRandomSource>,
+    level_random: bool,
 }
 
 impl<'a> LootContextBuilder<'a> {
     pub fn new(params: LootParams<'a>) -> LootContextBuilder<'a> {
-        LootContextBuilder { params, random: None }
+        LootContextBuilder { params, random: None, level_random: false }
+    }
+
+    pub fn with_level_random_source(mut self) -> LootContextBuilder<'a> {
+        self.level_random = true;
+        self
     }
 
     pub fn with_optional_random_seed(mut self, seed: i64) -> LootContextBuilder<'a> {
@@ -156,9 +162,10 @@ impl<'a> LootContextBuilder<'a> {
     }
 
     pub fn create(self, random_sequence_key: Option<&str>) -> LootContext<'a> {
-        let LootContextBuilder { params, random } = self;
+        let LootContextBuilder { params, random, level_random } = self;
         let random = match (random, random_sequence_key) {
             (Some(random), _) => ContextRandom::Owned(random),
+            (None, _) if level_random => ContextRandom::Level,
             (None, Some(key)) => {
                 let seed = params.level.seed;
                 ContextRandom::Sequence(key.to_string(), params.level.random_sequences.get(key, seed).clone())

@@ -30,6 +30,8 @@ pub mod sign_text;
 pub mod shulker_box_block_entity;
 pub mod skull_block_entity;
 pub mod spawner_block_entity;
+pub mod trialspawner;
+pub mod vault;
 #[cfg(test)]
 mod tests;
 
@@ -67,6 +69,7 @@ pub enum BlockEntityTicker {
     CampfireCooldown,
     Bell,
     Sign,
+    Vault,
 }
 
 enum UpdateTag {
@@ -101,6 +104,7 @@ pub enum BlockEntityKind {
     Bell(bell_block_entity::BellBlockEntity),
     Sign(sign_block_entity::SignBlockEntity),
     EnderChest(ender_chest_block_entity::EnderChestBlockEntity),
+    Vault(vault::vault_block_entity::VaultBlockEntity),
     Empty,
     BrewingStand(brewing_stand_block_entity::BrewingStandBlockEntity),
     Other(Vec<(String, Nbt)>),
@@ -151,6 +155,7 @@ impl BlockEntity {
             types::BELL => BlockEntityKind::Bell(bell_block_entity::BellBlockEntity::default()),
             types::SIGN | types::HANGING_SIGN => BlockEntityKind::Sign(sign_block_entity::SignBlockEntity::default()),
             types::ENDER_CHEST => BlockEntityKind::EnderChest(ender_chest_block_entity::EnderChestBlockEntity::default()),
+            types::VAULT => BlockEntityKind::Vault(vault::vault_block_entity::VaultBlockEntity::default()),
             types::COPPER_GOLEM_STATUE | types::DAYLIGHT_DETECTOR | types::END_PORTAL => BlockEntityKind::Empty,
             types::BREWING_STAND => BlockEntityKind::BrewingStand(brewing_stand_block_entity::BrewingStandBlockEntity::default()),
             _ => BlockEntityKind::Other(Vec::new()),
@@ -258,6 +263,7 @@ impl BlockEntity {
             BlockEntityKind::Skull(skull) => skull.load_additional(input),
             BlockEntityKind::Bell(_) | BlockEntityKind::EnderChest(_) | BlockEntityKind::Empty => {}
             BlockEntityKind::Sign(sign) => sign.load_additional(input),
+            BlockEntityKind::Vault(vault) => vault.load_additional(input),
             BlockEntityKind::BrewingStand(brewing_stand) => brewing_stand.load_additional(input),
             BlockEntityKind::Other(data) => {
                 let _ = state;
@@ -296,6 +302,7 @@ impl BlockEntity {
             BlockEntityKind::Skull(skull) => skull.save_additional(output),
             BlockEntityKind::Bell(_) | BlockEntityKind::EnderChest(_) | BlockEntityKind::Empty => {}
             BlockEntityKind::Sign(sign) => sign.save_additional(output),
+            BlockEntityKind::Vault(vault) => vault.save_additional(output),
             BlockEntityKind::BrewingStand(brewing_stand) => brewing_stand.save_additional(output),
             BlockEntityKind::Other(data) => output.extend(data.iter().cloned()),
         }
@@ -363,6 +370,9 @@ impl BlockEntity {
         if let BlockEntityKind::Shelf(shelf) = &self.kind {
             return shelf.get_update_tag();
         }
+        if let BlockEntityKind::Vault(vault) = &self.kind {
+            return vault.get_update_tag();
+        }
         match self.update_tag_kind() {
             UpdateTag::CustomOnly => self.save_custom_only(),
             UpdateTag::WithoutMetadata => self.save_without_metadata(),
@@ -371,7 +381,7 @@ impl BlockEntity {
     }
 
     pub fn has_update_packet(&self) -> bool {
-        matches!(self.kind, BlockEntityKind::Spawner(_) | BlockEntityKind::Brushable(_) | BlockEntityKind::Campfire(_) | BlockEntityKind::Shelf(_)) || !matches!(self.update_tag_kind(), UpdateTag::None)
+        matches!(self.kind, BlockEntityKind::Spawner(_) | BlockEntityKind::Brushable(_) | BlockEntityKind::Campfire(_) | BlockEntityKind::Shelf(_) | BlockEntityKind::Vault(_)) || !matches!(self.update_tag_kind(), UpdateTag::None)
     }
 
     fn update_tag_kind(&self) -> UpdateTag {
@@ -577,6 +587,7 @@ impl BlockEntity {
             types::BREWING_STAND if block.is_instance_of("BrewingStandBlock") => Some(BlockEntityTicker::BrewingStand),
             types::BELL if block.is_instance_of("BellBlock") => Some(BlockEntityTicker::Bell),
             types::SIGN | types::HANGING_SIGN if block.is_instance_of("SignBlock") => Some(BlockEntityTicker::Sign),
+            types::VAULT if block.is_instance_of("VaultBlock") => Some(BlockEntityTicker::Vault),
             types::CAMPFIRE if block.is_instance_of("CampfireBlock") => {
                 Some(if state.get(crisp_data::properties::LIT) { BlockEntityTicker::CampfireCook } else { BlockEntityTicker::CampfireCooldown })
             }

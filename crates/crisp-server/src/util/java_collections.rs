@@ -58,6 +58,13 @@ impl JavaHashCode for BlockPos {
     }
 }
 
+impl JavaHashCode for u128 {
+    fn java_hash_code(&self) -> i32 {
+        let hilo = (*self >> 64) as u64 ^ *self as u64;
+        (hilo >> 32) as i32 ^ hilo as i32
+    }
+}
+
 const NO_NODE: u32 = u32::MAX;
 const TREEIFY_THRESHOLD: usize = 8;
 const UNTREEIFY_THRESHOLD: usize = 6;
@@ -106,6 +113,10 @@ impl<T: JavaHashCode + PartialEq + Copy> JavaObjectHashSet<T> {
 
     pub fn is_empty(&self) -> bool {
         self.len == 0
+    }
+
+    pub fn len(&self) -> usize {
+        self.len
     }
 
     pub fn clear(&mut self) {
