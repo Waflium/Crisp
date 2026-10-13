@@ -1,4 +1,5 @@
 pub mod breed_goal;
+pub mod eat_block_goal;
 pub mod float_goal;
 pub mod follow_parent_goal;
 pub mod goal;

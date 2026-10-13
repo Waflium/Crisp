@@ -17,6 +17,7 @@ pub mod cow;
 #[cfg(test)]
 mod farm_tests;
 pub mod pig;
+pub mod sheep;
 
 #[derive(Default)]
 pub struct Animal {
@@ -51,6 +52,7 @@ impl ServerLevel {
             MobKind::Chicken(_) => chicken::is_food(item_stack),
             MobKind::Cow(_) | MobKind::MushroomCow(_) => cow::abstract_cow::is_food(item_stack),
             MobKind::Pig(_) => pig::pig::is_food(item_stack),
+            MobKind::Sheep(_) => sheep::sheep::is_food(item_stack),
         }
     }
 

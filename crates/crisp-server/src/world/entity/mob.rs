@@ -8,9 +8,11 @@ use super::animal::cow::abstract_cow::{self, AbstractCow};
 use super::animal::cow::cow::{self, Cow};
 use super::animal::cow::mushroom_cow::{self, MushroomCow};
 use super::animal::pig::pig::{self, Pig};
+use super::animal::sheep::sheep::{self, Sheep};
 use super::ageable_mob::{AgeableMob, BABY_START_AGE};
 use super::conversion_params::ConversionParams;
 use super::variant::variant_utils;
+use crate::world::item::dye_color::DyeColor;
 use super::ai::MobAi;
 use super::ai::goal::goal::Flag;
 use super::ai::navigation::path_navigation::PathNavigation;
@@ -41,6 +43,7 @@ pub enum MobKind {
     Cow(Cow),
     MushroomCow(MushroomCow),
     Pig(Pig),
+    Sheep(Sheep),
 }
 
 pub struct Mob {
@@ -103,6 +106,7 @@ impl Mob {
             MobKind::Chicken(_) => Chicken::register_goals(&mut self.ai),
             MobKind::Cow(_) | MobKind::MushroomCow(_) => AbstractCow::register_goals(&mut self.ai),
             MobKind::Pig(_) => Pig::register_goals(&mut self.ai),
+            MobKind::Sheep(_) => Sheep::register_goals(&mut self.ai),
         }
     }
 
@@ -196,7 +200,10 @@ impl Mob {
     }
 
     pub fn sheep_sheared(&self) -> Option<bool> {
-        None
+        match &self.kind {
+            MobKind::Sheep(_) => Some(sheep::is_sheared(&self.entity)),
+            _ => None,
+        }
     }
 
     pub fn ageable(&self) -> Option<&AgeableMob> {
@@ -213,6 +220,7 @@ impl Mob {
             MobKind::Cow(cow) => Some(&cow.abstract_cow.animal),
             MobKind::MushroomCow(mushroom_cow) => Some(&mushroom_cow.abstract_cow.animal),
             MobKind::Pig(pig) => Some(&pig.animal),
+            MobKind::Sheep(sheep) => Some(&sheep.animal),
         }
     }
 
@@ -222,6 +230,7 @@ impl Mob {
             MobKind::Cow(cow) => Some(&mut cow.abstract_cow.animal),
             MobKind::MushroomCow(mushroom_cow) => Some(&mut mushroom_cow.abstract_cow.animal),
             MobKind::Pig(pig) => Some(&mut pig.animal),
+            MobKind::Sheep(sheep) => Some(&mut sheep.animal),
         }
     }
 
@@ -266,6 +275,9 @@ impl Mob {
             MobKind::Pig(_) => {
                 self.apply_implicit_component_if_present(components, dc::PIG_VARIANT);
                 self.apply_implicit_component_if_present(components, dc::PIG_SOUND_VARIANT);
+            }
+            MobKind::Sheep(_) => {
+                self.apply_implicit_component_if_present(components, dc::SHEEP_COLOR);
             }
         }
         self.apply_implicit_component_if_present(components, dc::CUSTOM_NAME);
@@ -316,6 +328,12 @@ impl Mob {
                 }
                 return true;
             }
+            MobKind::Sheep(_) if ty == dc::SHEEP_COLOR => {
+                if let Some(color) = value.as_str().and_then(DyeColor::by_name) {
+                    sheep::set_color(&mut self.entity, color);
+                }
+                return true;
+            }
             _ => {}
         }
         self.entity.apply_implicit_component(ty, value)
@@ -337,6 +355,8 @@ impl Mob {
             MobKind::Cow(_) | MobKind::MushroomCow(_) => abstract_cow::DIMENSIONS,
             MobKind::Pig(_) if self.is_baby() => pig::BABY_DIMENSIONS,
             MobKind::Pig(_) => pig::DIMENSIONS,
+            MobKind::Sheep(_) if self.is_baby() => sheep::BABY_DIMENSIONS,
+            MobKind::Sheep(_) => sheep::DIMENSIONS,
         }
     }
 
@@ -349,6 +369,8 @@ impl Mob {
             MobKind::Cow(_) | MobKind::MushroomCow(_) => (0.0, 1.36875f32 as f64, 0.0),
             MobKind::Pig(_) if baby => (0.0, 0.5f32 as f64, 0.0),
             MobKind::Pig(_) => (0.0, 0.86875f32 as f64, 0.0),
+            MobKind::Sheep(_) if baby => (0.0, 0.5625f32 as f64, 0.0),
+            MobKind::Sheep(_) => (0.0, 1.2375f32 as f64, 0.0),
         };
         let scale = self.living.attributes.value(Attribute::Scale) as f32 as f64;
         crisp_core::Vec3::new(x * scale, y * scale, z * scale)
@@ -457,6 +479,10 @@ impl Mob {
                 out.push(("variant".into(), Nbt::String(variant_utils::variant_name(pig::VARIANT_REGISTRY, pig::get_variant(&self.entity)).into())));
                 out.push(("sound_variant".into(), Nbt::String(variant_utils::variant_name(pig::SOUND_VARIANT_REGISTRY, pig::get_sound_variant(&self.entity)).into())));
             }
+            MobKind::Sheep(_) => {
+                out.push(("Sheared".into(), Nbt::Byte(sheep::is_sheared(&self.entity) as i8)));
+                out.push(("Color".into(), Nbt::Byte(sheep::get_color(&self.entity).id as i8)));
+            }
         }
     }
 
@@ -547,6 +573,11 @@ impl Mob {
                     pig::set_sound_variant(&mut self.entity, sound_variant);
                 }
             }
+            MobKind::Sheep(_) => {
+                sheep::set_sheared(&mut self.entity, boolean("Sheared"));
+                let color = nbt.get("Color").and_then(Nbt::as_i64).map_or(DyeColor::VALUES[0], |id| DyeColor::by_id(id as i8 as i32));
+                sheep::set_color(&mut self.entity, color);
+            }
             MobKind::Chicken(chicken) => {
                 let variant = nbt.get("variant").and_then(Nbt::as_str).and_then(chicken::variant_id);
                 let sound_variant = nbt.get("sound_variant").and_then(Nbt::as_str).and_then(chicken::sound_variant_id);
@@ -592,6 +623,7 @@ impl Mob {
             MobKind::Chicken(_) => &self.chicken_sound_set().ambient_sound,
             MobKind::Cow(_) | MobKind::MushroomCow(_) => &self.cow_sound_set().ambient_sound,
             MobKind::Pig(_) => &Pig::get_sound_set(self).ambient_sound,
+            MobKind::Sheep(_) => "minecraft:entity.sheep.ambient",
         }
     }
 
@@ -600,6 +632,7 @@ impl Mob {
             MobKind::Chicken(_) => &self.chicken_sound_set().hurt_sound,
             MobKind::Cow(_) | MobKind::MushroomCow(_) => &self.cow_sound_set().hurt_sound,
             MobKind::Pig(_) => &Pig::get_sound_set(self).hurt_sound,
+            MobKind::Sheep(_) => "minecraft:entity.sheep.hurt",
         }
     }
 
@@ -608,6 +641,7 @@ impl Mob {
             MobKind::Chicken(_) => &self.chicken_sound_set().death_sound,
             MobKind::Cow(_) | MobKind::MushroomCow(_) => &self.cow_sound_set().death_sound,
             MobKind::Pig(_) => &Pig::get_sound_set(self).death_sound,
+            MobKind::Sheep(_) => "minecraft:entity.sheep.death",
         }
     }
 
@@ -616,6 +650,7 @@ impl Mob {
             MobKind::Chicken(_) => &self.chicken_sound_set().step_sound,
             MobKind::Cow(_) | MobKind::MushroomCow(_) => &self.cow_sound_set().step_sound,
             MobKind::Pig(_) => &Pig::get_sound_set(self).step_sound,
+            MobKind::Sheep(_) => "minecraft:entity.sheep.step",
         }
     }
 
@@ -724,11 +759,18 @@ impl ServerLevel {
             MobKind::Cow(_) => self.abstract_cow_mob_interact(id, player, hand),
             MobKind::MushroomCow(_) => self.mushroom_cow_mob_interact(id, player, hand),
             MobKind::Pig(_) => self.pig_mob_interact(id, player, hand),
+            MobKind::Sheep(_) => self.sheep_mob_interact(id, player, hand),
         }
     }
 
     pub fn mob_mob_interact(&mut self, _id: EntityId, _player: EntityId, _hand: InteractionHand) -> InteractionResult {
         InteractionResult::Pass
+    }
+
+    pub fn ate(&mut self, id: EntityId) {
+        if matches!(self.mob(id).map(|mob| &mob.kind), Some(MobKind::Sheep(_))) {
+            self.sheep_ate(id);
+        }
     }
 
     pub fn is_saddled(&self, id: EntityId) -> bool {
@@ -931,8 +973,10 @@ impl ServerLevel {
     }
 
     fn custom_server_ai_step(&mut self, id: EntityId) {
-        if self.mob(id).is_some_and(|mob| mob.animal().is_some()) {
-            self.animal_custom_server_ai_step(id);
+        match self.mob(id).map(|mob| &mob.kind) {
+            Some(MobKind::Sheep(_)) => self.sheep_custom_server_ai_step(id),
+            Some(_) => self.animal_custom_server_ai_step(id),
+            None => {}
         }
     }
 
@@ -982,6 +1026,7 @@ impl ServerLevel {
             MobKind::Cow(_) => self.cow_finalize_spawn(mob, pos),
             MobKind::MushroomCow(_) => {}
             MobKind::Pig(_) => self.pig_finalize_spawn(mob, pos),
+            MobKind::Sheep(_) => self.sheep_finalize_spawn(mob, pos),
         }
         if let Some(follow_range) = mob.living.attributes.instance(Attribute::FollowRange)
             && !follow_range.has_modifier("minecraft:random_spawn_bonus")

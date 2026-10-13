@@ -56,6 +56,9 @@ pub fn interact_living_entity(level: &mut ServerLevel, item_stack: &mut ItemStac
     if item_stack.is(crisp_data::items::NAME_TAG) {
         return name_tag_item::interact_living_entity(level, item_stack, player, target);
     }
+    if item_stack.get_item().is_instance_of("DyeItem") {
+        return dye_item::interact_living_entity(level, item_stack, player, target);
+    }
     InteractionResult::Pass
 }
 

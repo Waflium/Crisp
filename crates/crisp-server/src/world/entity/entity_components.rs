@@ -6,6 +6,7 @@ use super::EntityId;
 use super::animal::chicken;
 use super::animal::cow::{cow, mushroom_cow};
 use super::animal::pig::pig;
+use super::animal::sheep::sheep;
 use super::variant::variant_utils;
 use super::data::DataValue;
 use super::mob::MobKind;
@@ -46,6 +47,9 @@ impl DataComponentGetter for EntityComponents<'_> {
                 }
                 MobKind::Pig(_) if ty == dc::PIG_SOUND_VARIANT => {
                     return Some(Cow::Owned(Nbt::String(variant_utils::variant_name(pig::SOUND_VARIANT_REGISTRY, pig::get_sound_variant(&mob.entity)).to_string())));
+                }
+                MobKind::Sheep(_) if ty == dc::SHEEP_COLOR => {
+                    return Some(Cow::Owned(Nbt::String(sheep::get_color(&mob.entity).name.to_string())));
                 }
                 _ => {}
             }

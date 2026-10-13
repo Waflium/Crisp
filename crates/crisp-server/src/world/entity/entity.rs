@@ -2063,6 +2063,7 @@ impl ServerLevel {
                 Some(super::mob::MobKind::Cow(_)) => "Cow",
                 Some(super::mob::MobKind::MushroomCow(_)) => "MushroomCow",
                 Some(super::mob::MobKind::Pig(_)) => "Pig",
+                Some(super::mob::MobKind::Sheep(_)) => "Sheep",
                 None => "Entity",
             };
             (class, name)

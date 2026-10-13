@@ -5,11 +5,13 @@ use crisp_protocol::nbt::Nbt;
 use super::cow::cow::{self, Cow};
 use super::cow::mushroom_cow::{self, MushroomCow};
 use super::pig::pig::Pig;
+use super::sheep::sheep::{self, Sheep};
 use crate::server::level::{ServerLevel, testing};
 use crate::world::entity::mob::{Mob, MobKind};
 use crate::world::entity::{EntityId, LevelEntity};
 use crate::world::item::ItemStack;
 use crate::world::item::component as dc;
+use crate::world::item::dye_color::DyeColor;
 use crate::world::{InteractionHand, InteractionResult};
 
 fn setup(mut mob: Mob, held: ItemStack) -> (ServerLevel, EntityId, EntityId) {
@@ -200,4 +202,67 @@ fn baby_pigs_cannot_be_saddled() {
     let (mut level, player, pig) = setup(mob, ItemStack::new(items::SADDLE, 1));
     assert_eq!(interact(&mut level, player, pig), InteractionResult::Pass);
     assert!(level.item_by_slot(pig, EquipmentSlot::Saddle).is_none());
+}
+
+#[test]
+fn shearing_a_sheep_drops_its_wool() {
+    let mut mob = Sheep::create();
+    sheep::set_color(&mut mob.entity, DyeColor::by_name("lime").unwrap());
+    let (mut level, player, sheep_id) = setup(mob, ItemStack::new(items::SHEARS, 1));
+    assert_eq!(interact(&mut level, player, sheep_id), InteractionResult::SUCCESS_SERVER);
+    assert!(sheep::is_sheared(level.entity(sheep_id)));
+    let drops = items_on_ground(&level);
+    assert!((1..=3).contains(&drops.len()));
+    assert!(drops.iter().all(|&(item, count)| item == items::LIME_WOOL && count == 1));
+    assert_eq!(interact(&mut level, player, sheep_id), InteractionResult::CONSUME);
+    level.sheep_ate(sheep_id);
+    assert!(!sheep::is_sheared(level.entity(sheep_id)));
+}
+
+#[test]
+fn dye_colors_sheep() {
+    let (mut level, player, sheep_id) = setup(Sheep::create(), ItemStack::new(items::BLUE_DYE, 2));
+    assert_eq!(interact(&mut level, player, sheep_id), InteractionResult::SUCCESS);
+    assert_eq!(sheep::get_color(level.entity(sheep_id)).name, "blue");
+    assert_eq!(held(&level, player).unwrap().count, 1);
+    assert_eq!(interact(&mut level, player, sheep_id), InteractionResult::Pass);
+    assert_eq!(held(&level, player).unwrap().count, 1);
+}
+
+#[test]
+fn lambs_mix_their_parents_colors_through_recipes() {
+    let mut level = testing::level();
+    let mut parents = Vec::new();
+    for color in ["white", "black"] {
+        let mut mob = Sheep::create();
+        sheep::set_color(&mut mob.entity, DyeColor::by_name(color).unwrap());
+        parents.push(mob.entity.id);
+        level.add_fresh_entity(LevelEntity::Mob(Box::new(mob)));
+    }
+    let lamb = level.sheep_get_breed_offspring(parents[0], parents[1]).unwrap();
+    assert_eq!(sheep::get_color(&lamb.entity).name, "gray");
+    let mut red = Sheep::create();
+    sheep::set_color(&mut red.entity, DyeColor::by_name("red").unwrap());
+    let red_id = red.entity.id;
+    level.add_fresh_entity(LevelEntity::Mob(Box::new(red)));
+    let lamb = level.sheep_get_breed_offspring(parents[0], red_id).unwrap();
+    assert_eq!(sheep::get_color(&lamb.entity).name, "pink");
+}
+
+#[test]
+fn sheep_save_their_color_and_wool() {
+    let mut level = testing::level();
+    let mut mob = Sheep::create();
+    sheep::set_color(&mut mob.entity, DyeColor::by_name("brown").unwrap());
+    sheep::set_sheared(&mut mob.entity, true);
+    let mut saved = Vec::new();
+    mob.save(&mut saved);
+    assert!(saved.iter().any(|(k, v)| k == "Color" && *v == Nbt::Byte(12)));
+    assert!(saved.iter().any(|(k, v)| k == "Sheared" && *v == Nbt::Byte(1)));
+    let mut loaded = Sheep::create();
+    loaded.load(&Nbt::Compound(saved));
+    assert_eq!(sheep::get_color(&loaded.entity).name, "brown");
+    let id = loaded.entity.id;
+    level.add_fresh_entity(LevelEntity::Mob(Box::new(loaded)));
+    assert_eq!(level.mob(id).unwrap().sheep_sheared(), Some(true));
 }

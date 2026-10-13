@@ -1,4 +1,5 @@
 use super::breed_goal::BreedGoal;
+use super::eat_block_goal::EatBlockGoal;
 use super::float_goal::FloatGoal;
 use super::follow_parent_goal::FollowParentGoal;
 use super::look_at_player_goal::LookAtPlayerGoal;
@@ -31,6 +32,7 @@ pub enum Goal {
     Breed(BreedGoal),
     Tempt(TemptGoal),
     FollowParent(FollowParentGoal),
+    EatBlock(EatBlockGoal),
     WaterAvoidingRandomStroll(WaterAvoidingRandomStrollGoal),
     LookAtPlayer(LookAtPlayerGoal),
     RandomLookAround(RandomLookAroundGoal),
@@ -44,6 +46,7 @@ impl Goal {
             Goal::Breed(goal) => goal.can_use(level, mob),
             Goal::Tempt(goal) => goal.can_use(level, mob),
             Goal::FollowParent(goal) => goal.can_use(level, mob),
+            Goal::EatBlock(goal) => goal.can_use(level, mob),
             Goal::WaterAvoidingRandomStroll(goal) => goal.can_use(level, mob),
             Goal::LookAtPlayer(goal) => goal.can_use(level, mob),
             Goal::RandomLookAround(goal) => goal.can_use(level, mob),
@@ -57,6 +60,7 @@ impl Goal {
             Goal::Breed(goal) => goal.can_continue_to_use(level, mob),
             Goal::Tempt(goal) => goal.can_continue_to_use(level, mob),
             Goal::FollowParent(goal) => goal.can_continue_to_use(level, mob),
+            Goal::EatBlock(goal) => goal.can_continue_to_use(),
             Goal::WaterAvoidingRandomStroll(goal) => goal.random_stroll_goal.can_continue_to_use(level, mob),
             Goal::LookAtPlayer(goal) => goal.can_continue_to_use(level, mob),
             Goal::RandomLookAround(goal) => goal.can_continue_to_use(),
@@ -73,6 +77,7 @@ impl Goal {
             Goal::Panic(goal) => goal.start(level, mob),
             Goal::Tempt(goal) => goal.start(level),
             Goal::FollowParent(goal) => goal.start(),
+            Goal::EatBlock(goal) => goal.start(level, mob),
             Goal::WaterAvoidingRandomStroll(goal) => goal.random_stroll_goal.start(level, mob),
             Goal::LookAtPlayer(goal) => goal.start(level, mob),
             Goal::RandomLookAround(goal) => goal.start(level, mob),
@@ -86,6 +91,7 @@ impl Goal {
             Goal::Breed(goal) => goal.stop(),
             Goal::Tempt(goal) => goal.stop(level, mob),
             Goal::FollowParent(goal) => goal.stop(),
+            Goal::EatBlock(goal) => goal.stop(),
             Goal::WaterAvoidingRandomStroll(goal) => goal.random_stroll_goal.stop(level, mob),
             Goal::LookAtPlayer(goal) => goal.stop(),
         }
@@ -102,6 +108,7 @@ impl Goal {
             Goal::Breed(goal) => goal.tick(level, mob),
             Goal::Tempt(goal) => goal.tick(level, mob),
             Goal::FollowParent(goal) => goal.tick(level, mob),
+            Goal::EatBlock(goal) => goal.tick(level, mob),
             Goal::LookAtPlayer(goal) => goal.tick(level, mob),
             Goal::RandomLookAround(goal) => goal.tick(level, mob),
         }
@@ -113,6 +120,7 @@ impl Goal {
             Goal::Panic(_) | Goal::WaterAvoidingRandomStroll(_) => Flag::Move.bit(),
             Goal::Breed(_) | Goal::Tempt(_) | Goal::RandomLookAround(_) => Flag::Move.bit() | Flag::Look.bit(),
             Goal::FollowParent(_) => 0,
+            Goal::EatBlock(_) => Flag::Move.bit() | Flag::Look.bit() | Flag::Jump.bit(),
             Goal::LookAtPlayer(_) => Flag::Look.bit(),
         }
     }
