@@ -2,7 +2,7 @@ use crisp_data::Item;
 
 use super::abstract_boat::{AbstractBoat, BoatKind};
 
-pub const TYPES: [&str; 9] = [
+pub const TYPES: [&str; 10] = [
     "minecraft:acacia_boat",
     "minecraft:birch_boat",
     "minecraft:cherry_boat",
@@ -11,6 +11,7 @@ pub const TYPES: [&str; 9] = [
     "minecraft:mangrove_boat",
     "minecraft:oak_boat",
     "minecraft:pale_oak_boat",
+    "minecraft:poplar_boat",
     "minecraft:spruce_boat",
 ];
 

@@ -43,6 +43,7 @@ const MODELLED: &[&str] = &[
     "minecraft:mangrove_boat",
     "minecraft:oak_boat",
     "minecraft:pale_oak_boat",
+    "minecraft:poplar_boat",
     "minecraft:spruce_boat",
     "minecraft:bamboo_raft",
 ];

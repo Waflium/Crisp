@@ -179,6 +179,7 @@ async fn main() -> anyhow::Result<()> {
     let mut open_container = 0;
     let mut on_ground = 1u8;
     let mut last_entity = 0;
+    let mut skip_types: Vec<i32> = Vec::new();
     loop {
         tokio::select! {
             packet = rx.recv() => {
@@ -212,7 +213,15 @@ async fn main() -> anyhow::Result<()> {
                         position = Some(pos);
                     }
                     play::clientbound::OPEN_SCREEN => open_container = Reader::new(&data).varint()?,
-                    play::clientbound::ADD_ENTITY => last_entity = Reader::new(&data).varint()?,
+                    play::clientbound::ADD_ENTITY => {
+                        let mut r = Reader::new(&data);
+                        let id = r.varint()?;
+                        r.uuid()?;
+                        let entity_type = r.varint()?;
+                        if !skip_types.contains(&entity_type) {
+                            last_entity = id;
+                        }
+                    }
                     play::clientbound::DISCONNECT => break,
                     _ => {}
                 }
@@ -379,6 +388,7 @@ async fn main() -> anyhow::Result<()> {
                             })
                             .await?;
                         }
+                        ["skip_type", entity_type] => skip_types.push(entity_type.parse()?),
                         ["attack_last"] => send(&mut wr, codec, play::serverbound::ATTACK, |w| w.varint(last_entity)).await?,
                         ["vehicle", vx, vy, vz, y_rot] => {
                             let (vx, vy, vz, y_rot): (f64, f64, f64, f32) = (vx.parse()?, vy.parse()?, vz.parse()?, y_rot.parse()?);

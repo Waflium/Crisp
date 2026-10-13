@@ -39,6 +39,24 @@ pub fn as_targets(server: &mut Server, context: &CommandContext, source: &Comman
     Ok(entities(server, context, source, "targets")?.into_iter().map(|e| source.with_entity(e)).collect())
 }
 
+fn expand_entity_relation(server: &Server, source: &CommandSourceStack, unpacker: impl FnOnce(&crate::server::level::ServerLevel, EntityId) -> Vec<EntityId>) -> Sources {
+    let Some(entity) = source.entity.filter(|&e| server.level_of(e).is_some()) else { return Ok(Vec::new()) };
+    let level = server.entity_level(entity);
+    Ok(unpacker(level, entity).into_iter().filter(|&e| !level.entity(e).is_removed()).map(|e| source.with_entity(e)).collect())
+}
+
+pub fn on_vehicle(server: &mut Server, _context: &CommandContext, source: &CommandSourceStack) -> Sources {
+    expand_entity_relation(server, source, |level, entity| level.vehicle(entity).into_iter().collect())
+}
+
+pub fn on_controller(server: &mut Server, _context: &CommandContext, source: &CommandSourceStack) -> Sources {
+    expand_entity_relation(server, source, |level, entity| level.controlling_passenger(entity).into_iter().collect())
+}
+
+pub fn on_passengers(server: &mut Server, _context: &CommandContext, source: &CommandSourceStack) -> Sources {
+    expand_entity_relation(server, source, |level, entity| level.passengers(entity).to_vec())
+}
+
 pub fn at_targets(server: &mut Server, context: &CommandContext, source: &CommandSourceStack) -> Sources {
     let targets = entities(server, context, source, "targets")?;
     Ok(targets
