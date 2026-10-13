@@ -11,7 +11,7 @@ use crate::world::phys::hit_result::HitResult;
 
 const ENTITY_TYPE: &str = "minecraft:egg";
 const EVENT_BREAK: u8 = 3;
-const ZERO_SIZED_DIMENSIONS: EntityDimensions = EntityDimensions { width: 0.0, height: 0.0, eye_height: 0.0 };
+const ZERO_SIZED_DIMENSIONS: EntityDimensions = EntityDimensions::scalable(0.0, 0.0);
 
 #[derive(Default)]
 pub struct ThrownEgg;

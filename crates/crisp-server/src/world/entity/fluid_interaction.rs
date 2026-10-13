@@ -97,15 +97,18 @@ fn current_fluid(fluid: Fluid) -> Option<CurrentFluid> {
 
 impl ServerLevel {
     pub fn update_fluid_trackers(&mut self, id: EntityId, ignore_current: bool) -> bool {
+        let fluid_interaction_box = self.fluid_interaction_box(id);
         let e = self.entity_mut(id);
         let mut fi = std::mem::take(&mut e.fluid_interaction);
-        let box_ = e.bounding_box().deflate_all(0.001);
         let entity_y = e.bounding_box().min_y;
         let (eye_block_x, eye_y, eye_block_z) = (mth::floor(e.x()), e.eye_y(), mth::floor(e.z()));
         fi.trackers.retain_mut(|t| !t.reset());
         fi.water_current.reset();
         fi.lava_current.reset();
-        let result = self.scan_fluids(&mut fi, box_, entity_y, eye_block_x, eye_y, eye_block_z, ignore_current);
+        let result = match fluid_interaction_box {
+            Some(box_) => self.scan_fluids(&mut fi, box_, entity_y, eye_block_x, eye_y, eye_block_z, ignore_current),
+            None => false,
+        };
         self.entity_mut(id).fluid_interaction = fi;
         result
     }

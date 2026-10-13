@@ -379,6 +379,27 @@ async fn main() -> anyhow::Result<()> {
                             })
                             .await?;
                         }
+                        ["attack_last"] => send(&mut wr, codec, play::serverbound::ATTACK, |w| w.varint(last_entity)).await?,
+                        ["vehicle", vx, vy, vz, y_rot] => {
+                            let (vx, vy, vz, y_rot): (f64, f64, f64, f32) = (vx.parse()?, vy.parse()?, vz.parse()?, y_rot.parse()?);
+                            send(&mut wr, codec, play::serverbound::MOVE_VEHICLE, |w| {
+                                w.f64(vx);
+                                w.f64(vy);
+                                w.f64(vz);
+                                w.f32(y_rot);
+                                w.f32(0.0);
+                                w.bool(false);
+                            })
+                            .await?;
+                        }
+                        ["paddle", left, right] => {
+                            let (left, right): (u8, u8) = (left.parse()?, right.parse()?);
+                            send(&mut wr, codec, play::serverbound::PADDLE_BOAT, |w| {
+                                w.bool(left != 0);
+                                w.bool(right != 0);
+                            })
+                            .await?;
+                        }
                         ["seen_recipe", recipe] => {
                             let recipe: i32 = recipe.parse()?;
                             send(&mut wr, codec, play::serverbound::RECIPE_BOOK_SEEN_RECIPE, |w| w.varint(recipe)).await?;

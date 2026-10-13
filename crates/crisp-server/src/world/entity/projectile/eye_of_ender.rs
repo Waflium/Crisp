@@ -20,7 +20,7 @@ pub struct EyeOfEnder {
 }
 
 impl EyeOfEnder {
-    pub const DIMENSIONS: EntityDimensions = EntityDimensions { width: 0.25, height: 0.25, eye_height: 0.25 * 0.85 };
+    pub const DIMENSIONS: EntityDimensions = EntityDimensions::scalable(0.25, 0.25);
 
     pub fn of_type() -> EyeOfEnder {
         let mut data = entity_defaults();

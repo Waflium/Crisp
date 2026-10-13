@@ -21,7 +21,7 @@ use crate::world::{InteractionHand, InteractionResult};
 
 pub const DATA_TYPE: usize = 18;
 const MUTATE_CHANCE: i32 = 1024;
-pub const BABY_DIMENSIONS: EntityDimensions = EntityDimensions { width: 0.45, height: 0.7, eye_height: 0.69 };
+pub const BABY_DIMENSIONS: EntityDimensions = EntityDimensions::scalable(0.45, 0.7).with_eye_height(0.69).with_passenger_attachments(&[crisp_core::Vec3::new(0.0, 0.75, 0.0)]);
 const SHEAR_MOOSHROOM: &str = "minecraft:shearing/mooshroom";
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]

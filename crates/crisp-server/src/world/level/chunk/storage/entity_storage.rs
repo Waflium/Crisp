@@ -55,18 +55,21 @@ impl EntityStorage {
         self.empty_chunks.insert(pos.pack());
     }
 
-    pub fn store_entities<'a>(&mut self, pos: ChunkPos, entities: impl ExactSizeIterator<Item = &'a LevelEntity>) {
-        if entities.len() == 0 {
-            if self.empty_chunks.insert(pos.pack())
-                && let Some(worker) = &self.worker
-            {
-                worker.clear(pos);
+    pub fn store_entities(&mut self, pos: ChunkPos, entities: Option<Vec<Nbt>>) {
+        match entities {
+            None => {
+                if self.empty_chunks.insert(pos.pack())
+                    && let Some(worker) = &self.worker
+                {
+                    worker.clear(pos);
+                }
             }
-        } else {
-            if let Some(worker) = &self.worker {
-                worker.write(pos, chunk_tag(pos, entities));
+            Some(entities) => {
+                if let Some(worker) = &self.worker {
+                    worker.write(pos, chunk_tag(pos, entities));
+                }
+                self.empty_chunks.remove(&pos.pack());
             }
-            self.empty_chunks.remove(&pos.pack());
         }
     }
 
@@ -79,10 +82,10 @@ impl EntityStorage {
     }
 }
 
-pub fn chunk_tag<'a>(pos: ChunkPos, entities: impl Iterator<Item = &'a LevelEntity>) -> Nbt {
+pub fn chunk_tag(pos: ChunkPos, entities: Vec<Nbt>) -> Nbt {
     Nbt::Compound(vec![
         ("DataVersion".into(), Nbt::Int(WORLD_VERSION)),
-        ("Entities".into(), Nbt::List(entities.filter_map(LevelEntity::save).collect())),
+        ("Entities".into(), Nbt::List(entities)),
         ("Position".into(), Nbt::IntArray(vec![pos.x, pos.z])),
     ])
 }
@@ -99,6 +102,6 @@ impl ServerLevel {
             _ => warn!("Failed to parse chunk [{}, {}] position info", pos.x, pos.z),
         }
         let entities = tag.get("Entities").map_or(&[][..], Nbt::as_list);
-        entities.iter().filter_map(|e| self.load_entity(e)).collect()
+        entities.iter().flat_map(|e| self.load_entity_recursive(e, &mut |_| {})).collect()
     }
 }

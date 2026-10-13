@@ -34,6 +34,17 @@ const MODELLED: &[&str] = &[
     "minecraft:spectral_arrow",
     "minecraft:firework_rocket",
     "minecraft:area_effect_cloud",
+    "minecraft:minecart",
+    "minecraft:acacia_boat",
+    "minecraft:birch_boat",
+    "minecraft:cherry_boat",
+    "minecraft:dark_oak_boat",
+    "minecraft:jungle_boat",
+    "minecraft:mangrove_boat",
+    "minecraft:oak_boat",
+    "minecraft:pale_oak_boat",
+    "minecraft:spruce_boat",
+    "minecraft:bamboo_raft",
 ];
 
 pub fn summonable_entity_type(context: &CommandContext, name: &str) -> Result<String, CommandSyntaxException> {
@@ -59,20 +70,22 @@ pub fn create_entity(server: &mut Server, source: &CommandSourceStack, entity_ty
     tag.retain(|(k, _)| k != "id");
     tag.push(("id".into(), Nbt::String(entity_type.into())));
     let level = &mut server.levels[source.level];
-    let Some(mut entity) = level.load_entity(&Nbt::Compound(tag)) else { return Err(ERROR_FAILED.create()) };
-    let e = entity.entity_mut();
-    e.set_pos(pos);
-    e.set_old_pos_and_rot();
-    if finalize && let LevelEntity::Mob(mob) = &mut entity {
+    let mut loaded = level.load_entity_recursive(&Nbt::Compound(tag), &mut |entity| {
+        let e = entity.entity_mut();
+        let (y_rot, x_rot) = (e.y_rot, e.x_rot);
+        e.snap_to(pos.x, pos.y, pos.z, y_rot, x_rot);
+    });
+    let Some(entity) = loaded.first_mut() else { return Err(ERROR_FAILED.create()) };
+    if finalize && let LevelEntity::Mob(mob) = entity {
         level.finalize_mob_spawn(mob);
     }
-    let e = entity.entity();
-    let uuid = e.uuid;
-    if level.entity_manager.is_loaded(uuid) || e.is_removed() {
+    if loaded.iter().any(|e| level.entity_manager.is_loaded(e.entity().uuid)) || loaded[0].entity().is_removed() {
         return Err(ERROR_DUPLICATE_UUID.create());
     }
-    let id = e.id;
-    level.add_fresh_entity(entity);
+    let id = loaded[0].entity().id;
+    for entity in loaded {
+        level.add_fresh_entity(entity);
+    }
     Ok(id)
 }
 

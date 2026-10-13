@@ -148,7 +148,7 @@ impl LevelEntity {
             LevelEntity::EndCrystal(_) => Some("minecraft:end_crystal"),
             LevelEntity::Projectile(projectile) => Some(crisp_data::registry::ENTITY_TYPE[projectile.entity.entity_type as usize]),
             LevelEntity::AreaEffectCloud(_) => Some("minecraft:area_effect_cloud"),
-            LevelEntity::Mob(mob) => Some(crisp_data::registry::ENTITY_TYPE[mob.entity.entity_type as usize]),
+            LevelEntity::Mob(_) | LevelEntity::Minecart(_) | LevelEntity::Boat(_) => Some(crisp_data::registry::ENTITY_TYPE[self.entity().entity_type as usize]),
         }
     }
 
@@ -219,6 +219,8 @@ impl LevelEntity {
             }
             LevelEntity::AreaEffectCloud(cloud) => cloud.add_additional_save_data(out),
             LevelEntity::Mob(mob) => mob.save(out),
+            LevelEntity::Minecart(minecart) => minecart.add_additional_save_data(out),
+            LevelEntity::Boat(_) => {}
         }
     }
 
@@ -279,9 +281,30 @@ impl LevelEntity {
             }
             LevelEntity::AreaEffectCloud(cloud) => cloud.read_additional_save_data(nbt),
             LevelEntity::Mob(mob) => mob.load(nbt),
+            LevelEntity::Minecart(minecart) => minecart.read_additional_save_data(nbt),
+            LevelEntity::Boat(_) => {}
         }
         Ok(())
     }
+}
+
+pub fn apply_default_stack_config(entity: &mut LevelEntity, item_stack: &ItemStack) {
+    match &mut *entity {
+        LevelEntity::Mob(mob) => mob.apply_components_from_item_stack(item_stack),
+        other => other.entity_mut().apply_components_from_item_stack(item_stack),
+    }
+    if let Some(entity_data) = item_stack.get(crate::world::item::component::ENTITY_DATA) {
+        update_custom_entity_tag(entity, entity_data);
+    }
+}
+
+fn start_riding_while_loading(loaded: &mut [LevelEntity], passenger: usize, vehicle: usize) {
+    let vehicle_id = loaded[vehicle].entity().id;
+    let p = loaded[passenger].entity_mut();
+    p.set_pose(super::data::Pose::Standing);
+    p.vehicle = Some(vehicle_id);
+    let passenger_id = p.id;
+    loaded[vehicle].entity_mut().passengers.push(passenger_id);
 }
 
 fn only_op_can_set_nbt(entity_type: &str) -> bool {
@@ -333,7 +356,11 @@ impl ServerLevel {
             "minecraft:spectral_arrow" => LevelEntity::Projectile(Box::new(super::projectile::arrow::spectral_arrow::SpectralArrow::of_type())),
             "minecraft:firework_rocket" => LevelEntity::Projectile(Box::new(super::projectile::firework_rocket_entity::FireworkRocketEntity::of_type())),
             "minecraft:area_effect_cloud" => LevelEntity::AreaEffectCloud(Box::new(super::area_effect_cloud::AreaEffectCloud::of_type())),
-            _ => return None,
+            "minecraft:minecart" => LevelEntity::Minecart(Box::new(super::vehicle::minecart::minecart::Minecart::create())),
+            _ => {
+                let boat = super::vehicle::boat::boat::create(entity_type).or_else(|| super::vehicle::boat::raft::create(entity_type))?;
+                LevelEntity::Boat(Box::new(boat))
+            }
         })
     }
 
@@ -366,13 +393,7 @@ impl ServerLevel {
             self.finalize_mob_spawn(mob);
         }
         if let Some(item_stack) = item_stack {
-            match &mut entity {
-                LevelEntity::Mob(mob) => mob.apply_components_from_item_stack(item_stack),
-                other => other.entity_mut().apply_components_from_item_stack(item_stack),
-            }
-            if let Some(entity_data) = item_stack.get(crate::world::item::component::ENTITY_DATA) {
-                update_custom_entity_tag(&mut entity, entity_data);
-            }
+            apply_default_stack_config(&mut entity, item_stack);
         }
         let id = entity.entity().id;
         let is_mob = matches!(entity, LevelEntity::Mob(_));
@@ -381,6 +402,71 @@ impl ServerLevel {
             self.play_ambient_sound(id);
         }
         Some(id)
+    }
+
+    pub fn save_entity(&self, id: EntityId) -> Option<Nbt> {
+        if self.is_passenger(id) { None } else { self.save_as_passenger(id) }
+    }
+
+    pub fn save_as_passenger(&self, id: EntityId) -> Option<Nbt> {
+        let entity = self.entities.get(&id)?;
+        if entity.entity().removal.is_some_and(|r| !r.should_save()) {
+            return None;
+        }
+        let encode_id = entity.encode_id()?;
+        let mut out = vec![("id".to_string(), Nbt::String(encode_id.into()))];
+        self.save_without_id(id, &mut out);
+        Some(Nbt::Compound(out))
+    }
+
+    pub fn save_without_id(&self, id: EntityId, out: &mut Vec<(String, Nbt)>) {
+        let start = out.len();
+        match self.players.get(&id) {
+            Some(player) => player.entity.save_without_id(out),
+            None => self.entities[&id].save_without_id(out),
+        }
+        self.save_vehicle_position(id, &mut out[start..]);
+        if self.is_vehicle(id) {
+            let passengers: Vec<Nbt> = self.passengers(id).iter().filter_map(|&passenger| self.save_as_passenger(passenger)).collect();
+            if !passengers.is_empty() {
+                out.push(("Passengers".into(), Nbt::List(passengers)));
+            }
+        }
+    }
+
+    pub fn save_vehicle_position(&self, id: EntityId, out: &mut [(String, Nbt)]) {
+        if let Some(vehicle) = self.vehicle(id) {
+            let (v, y) = (self.entity(vehicle), self.entity(id).y());
+            if let Some(pos) = out.iter_mut().find(|(k, _)| k == "Pos") {
+                pos.1 = Nbt::List(vec![Nbt::Double(v.x()), Nbt::Double(y), Nbt::Double(v.z())]);
+            }
+        }
+    }
+
+    pub fn should_be_saved(&self, id: EntityId) -> bool {
+        if self.entity(id).removal.is_some_and(|r| !r.should_save()) {
+            return false;
+        }
+        if self.is_passenger(id) { false } else { !self.is_vehicle(id) || !self.has_exactly_one_player_passenger(id) }
+    }
+
+    pub fn load_entity_recursive(&mut self, nbt: &Nbt, post_load: &mut dyn FnMut(&mut LevelEntity)) -> Vec<LevelEntity> {
+        let mut loaded = Vec::new();
+        self.load_entity_recursive_into(nbt, post_load, &mut loaded);
+        loaded
+    }
+
+    fn load_entity_recursive_into(&mut self, nbt: &Nbt, post_load: &mut dyn FnMut(&mut LevelEntity), loaded: &mut Vec<LevelEntity>) -> Option<usize> {
+        let mut entity = self.load_entity(nbt)?;
+        post_load(&mut entity);
+        let index = loaded.len();
+        loaded.push(entity);
+        for passenger_tag in nbt.get("Passengers").map_or(&[][..], Nbt::as_list) {
+            if let Some(passenger) = self.load_entity_recursive_into(passenger_tag, post_load, loaded) {
+                start_riding_while_loading(loaded, passenger, index);
+            }
+        }
+        Some(index)
     }
 
     pub fn load_entity(&mut self, nbt: &Nbt) -> Option<LevelEntity> {
@@ -398,14 +484,14 @@ impl ServerLevel {
 
     pub fn entity_tag_to_compare(&self, id: EntityId) -> Nbt {
         if let Some(player) = self.players.get(&id) {
-            let Nbt::Compound(mut fields) = player.to_nbt(self.dimension) else { unreachable!() };
+            let Nbt::Compound(mut fields) = self.save_player(id) else { unreachable!() };
             if let Some(selected) = player.inventory.slots[player.inventory.selected_slot()].as_ref().filter(|s| !s.is_empty()) {
                 fields.push(("SelectedItem".into(), selected.to_nbt()));
             }
             return Nbt::Compound(fields);
         }
         let mut fields = Vec::new();
-        self.entities[&id].save_without_id(&mut fields);
+        self.save_without_id(id, &mut fields);
         Nbt::Compound(fields)
     }
 }

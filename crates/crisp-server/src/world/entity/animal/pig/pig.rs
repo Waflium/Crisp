@@ -31,8 +31,8 @@ use crate::world::{InteractionHand, InteractionResult};
 
 pub const DATA_VARIANT_ID: usize = 19;
 pub const DATA_SOUND_VARIANT_ID: usize = 20;
-pub const DIMENSIONS: EntityDimensions = EntityDimensions { width: 0.9, height: 0.9, eye_height: 0.9 * 0.85 };
-pub const BABY_DIMENSIONS: EntityDimensions = EntityDimensions { width: 0.45, height: 0.45, eye_height: 0.40625 };
+pub const DIMENSIONS: EntityDimensions = EntityDimensions::scalable(0.9, 0.9).with_passenger_attachments(&[crisp_core::Vec3::new(0.0, 0.86875, 0.0)]);
+pub const BABY_DIMENSIONS: EntityDimensions = EntityDimensions::scalable(0.45, 0.45).with_eye_height(0.40625).with_passenger_attachments(&[crisp_core::Vec3::new(0.0, 0.5, 0.0)]);
 pub const VARIANT_REGISTRY: &str = "minecraft:pig_variant";
 pub const SOUND_VARIANT_REGISTRY: &str = "minecraft:pig_sound_variant";
 

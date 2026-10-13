@@ -23,7 +23,7 @@ impl DetectorRailBlock {
     fn check_pressed(&self, level: &mut ServerLevel, pos: BlockPos, state: BlockState) {
         if base::can_survive(level, pos) && level.block_state(pos).is_block(self.block) {
             let was_pressed = state.get(POWERED);
-            let should_be_pressed = false;
+            let should_be_pressed = !self.get_interacting_minecarts(level, pos).is_empty();
             if should_be_pressed && !was_pressed {
                 let new_state = state.set(POWERED, true);
                 level.set_block_simple(pos, new_state);
@@ -43,6 +43,11 @@ impl DetectorRailBlock {
             }
             level.update_neighbour_for_output_signal(pos, self.block);
         }
+    }
+
+    fn get_interacting_minecarts(&self, level: &ServerLevel, pos: BlockPos) -> Vec<EntityId> {
+        let search_bb = crisp_core::AABB::new(pos.x as f64 + 0.2, pos.y as f64, pos.z as f64 + 0.2, (pos.x + 1) as f64 - 0.2, (pos.y + 1) as f64 - 0.2, (pos.z + 1) as f64 - 0.2);
+        level.get_entities(None, &search_bb).into_iter().filter(|&entity| level.is_minecart(entity)).collect()
     }
 
     fn update_power_to_connected(&self, level: &mut ServerLevel, pos: BlockPos, state: BlockState) {

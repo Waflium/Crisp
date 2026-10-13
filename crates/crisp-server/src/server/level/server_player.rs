@@ -45,7 +45,7 @@ use crate::stats::stats;
 use crate::stats::stats_counter::StatsCounter;
 use crate::world::food::constants::{EXHAUSTION_SPRINT, EXHAUSTION_SWIM};
 
-pub const DIMENSIONS: EntityDimensions = EntityDimensions { width: 0.6, height: 1.8, eye_height: 1.62 };
+pub const DIMENSIONS: EntityDimensions = crate::world::entity::player::player::STANDING_DIMENSIONS;
 const GAME_EVENT_WIN_GAME: u8 = 4;
 
 const CREATIVE_BLOCK_INTERACTION_RANGE_MODIFIER: AttributeModifier =
@@ -122,6 +122,7 @@ pub struct ServerPlayer {
     pub known_movement: Vec3,
     pub last_action_time: Instant,
     pub starting_to_fall_position: Option<Vec3>,
+    pub entered_lava_on_vehicle_position: Option<Vec3>,
     pub ack_block_changes_up_to: i32,
     pub drop_spam_throttler: TickThrottler,
     pub keep_alive_time: Instant,
@@ -205,6 +206,7 @@ impl ServerPlayer {
             known_movement: Vec3::ZERO,
             last_action_time: Instant::now(),
             starting_to_fall_position: None,
+            entered_lava_on_vehicle_position: None,
             ack_block_changes_up_to: -1,
             keep_alive_time: Instant::now(),
             keep_alive_challenge: None,
@@ -552,13 +554,79 @@ fn did_not_move(dx: f64, dy: f64, dz: f64) -> bool {
 }
 
 impl ServerLevel {
-    pub fn server_player_teleport_same_level(&mut self, id: EntityId, transition: TeleportTransition) {
+    pub fn server_player_teleport_same_dimension(&mut self, id: EntityId, transition: TeleportTransition) -> EntityId {
+        if transition.missing_respawn_block {
+            self.player(id).connection.send(clientbound::GAME_EVENT, |w| {
+                w.u8(0);
+                w.f32(0.0);
+            });
+        }
+        if !transition.as_passenger {
+            self.remove_vehicle(id);
+        }
+        self.server_player_teleport_position(id, transition);
+        id
+    }
+
+    fn server_player_teleport_position(&mut self, id: EntityId, transition: TeleportTransition) {
         let teleport = self.player_mut(id).teleport_set_position(transition.position_move_rotation(), transition.relatives);
         self.entity_moved(id);
         let player = self.player_mut(id);
         player.send_teleport(teleport, transition.position_move_rotation(), transition.relatives);
         player.reset_position();
         transition.post_teleport_transition.on_transition(self, id);
+    }
+
+    pub fn save_player(&self, id: EntityId) -> Nbt {
+        let Nbt::Compound(mut fields) = self.player(id).to_nbt(self.dimension) else { unreachable!("player data is a compound") };
+        self.save_vehicle_position(id, &mut fields);
+        if let Some(root_vehicle) = self.save_parent_vehicle(id) {
+            let index = fields.iter().position(|(k, _)| k == crate::stats::server_recipe_book::RECIPE_BOOK_TAG).unwrap_or(fields.len());
+            fields.insert(index, ("RootVehicle".into(), root_vehicle));
+        }
+        Nbt::Compound(fields)
+    }
+
+    fn save_parent_vehicle(&self, id: EntityId) -> Option<Nbt> {
+        let root_vehicle = self.root_vehicle(id);
+        let vehicle = self.vehicle(id)?;
+        if root_vehicle == id || !self.has_exactly_one_player_passenger(root_vehicle) {
+            return None;
+        }
+        let entity = self.save_entity(root_vehicle).unwrap_or(Nbt::Compound(Vec::new()));
+        Some(Nbt::Compound(vec![("Attach".into(), crate::world::level::storage::uuid_ints(self.entity(vehicle).uuid)), ("Entity".into(), entity)]))
+    }
+
+    pub fn load_and_spawn_parent_vehicle(&mut self, id: EntityId, player_input: &Nbt) {
+        let Some(root_tag) = player_input.get("RootVehicle") else { return };
+        let entity_tag = root_tag.get("Entity").cloned().unwrap_or(Nbt::Compound(Vec::new()));
+        let loaded = self.load_entity_recursive(&entity_tag, &mut |_| {});
+        let mut added = Vec::new();
+        for entity in loaded {
+            let entity_id = entity.entity().id;
+            if self.add_entity(entity) {
+                added.push(entity_id);
+            }
+        }
+        let Some(&vehicle) = added.first() else { return };
+        let attach_to = root_tag.get("Attach").and_then(crate::world::entity::entity_save::uuid_from_nbt);
+        if attach_to == Some(self.entity(vehicle).uuid) {
+            self.start_riding(id, vehicle, true, false);
+        } else {
+            for entity in self.indirect_passengers(vehicle) {
+                if Some(self.entity(entity).uuid) == attach_to {
+                    self.start_riding(id, entity, true, false);
+                    break;
+                }
+            }
+        }
+        if !self.is_passenger(id) {
+            warn!("Couldn't reattach entity to player");
+            self.entity_mut(vehicle).discard();
+            for entity in self.indirect_passengers(vehicle) {
+                self.entity_mut(entity).discard();
+            }
+        }
     }
 
     pub fn handle_extra_items_created_on_use(&mut self, id: EntityId, extra_items: ItemStack) {
@@ -786,8 +854,38 @@ impl ServerLevel {
         });
     }
 
-    pub fn check_movement_statistics(&mut self, id: EntityId, dx: f64, dy: f64, dz: f64) {
+    pub fn check_riding_statistics(&mut self, id: EntityId, dx: f64, dy: f64, dz: f64) {
+        let Some(vehicle) = self.vehicle(id) else { return };
         if did_not_move(dx, dy, dz) {
+            return;
+        }
+        let distance = mth::java_round_f32((((dx * dx + dy * dy + dz * dz).sqrt()) as f32) * 100.0);
+        if self.is_minecart(vehicle) {
+            self.award_stat(id, stats::MINECART_ONE_CM, distance);
+        } else if self.is_boat(vehicle) {
+            self.award_stat(id, stats::BOAT_ONE_CM, distance);
+        }
+    }
+
+    pub fn track_entered_or_exited_lava_on_vehicle(&mut self, id: EntityId) {
+        if let Some(vehicle) = self.vehicle(id)
+            && self.entity(vehicle).is_in_lava()
+        {
+            match self.player(id).entered_lava_on_vehicle_position {
+                None => {
+                    let position = self.entity(id).position();
+                    self.player_mut(id).entered_lava_on_vehicle_position = Some(position);
+                }
+                Some(position) => crate::advancements::triggers::criteria_triggers::RIDE_ENTITY_IN_LAVA_TRIGGER.trigger(self, id, position),
+            }
+        }
+        if self.player(id).entered_lava_on_vehicle_position.is_some() && !self.vehicle(id).is_some_and(|vehicle| self.entity(vehicle).is_in_lava()) {
+            self.player_mut(id).entered_lava_on_vehicle_position = None;
+        }
+    }
+
+    pub fn check_movement_statistics(&mut self, id: EntityId, dx: f64, dy: f64, dz: f64) {
+        if self.is_passenger(id) || did_not_move(dx, dy, dz) {
             return;
         }
         let distance = |d: f64| mth::java_round_f32((d.sqrt() as f32) * 100.0);
@@ -1047,8 +1145,12 @@ impl crate::server::Server {
             });
         }
         let new_level = transition.new_level;
+        if !transition.as_passenger {
+            self.levels[old_level].remove_vehicle(id);
+        }
         if new_level == old_level {
-            self.levels[old_level].server_player_teleport_same_level(id, transition);
+            let level = &mut self.levels[old_level];
+            level.server_player_teleport_position(id, transition);
             return Some(id);
         }
         self.player_mut(id).is_changing_dimension = true;

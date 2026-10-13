@@ -24,7 +24,7 @@ pub struct ExperienceOrb {
 }
 
 impl ExperienceOrb {
-    pub const DIMENSIONS: EntityDimensions = EntityDimensions { width: 0.5, height: 0.5, eye_height: 0.425 };
+    pub const DIMENSIONS: EntityDimensions = EntityDimensions::scalable(0.5, 0.5).with_eye_height(0.425);
 
     pub fn of_type() -> ExperienceOrb {
         let mut data = entity_defaults();
@@ -237,7 +237,7 @@ impl ServerLevel {
     }
 
     pub fn touch_experience_orbs(&mut self, player: EntityId) {
-        let area = self.player(player).entity.bounding_box().inflate(1.0, 0.5, 1.0);
+        let area = self.player_pickup_area(player);
         let orbs = self.experience_orbs_in(&area, None);
         if orbs.is_empty() {
             return;

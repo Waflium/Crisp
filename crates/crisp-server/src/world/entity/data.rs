@@ -66,6 +66,7 @@ pub enum DataValue {
     CowSoundVariant(i32),
     PigVariant(i32),
     PigSoundVariant(i32),
+    OptionalBlockState(Option<crisp_data::BlockState>),
     ChickenVariant(i32),
     ChickenSoundVariant(i32),
 }
@@ -91,6 +92,7 @@ impl DataValue {
             DataValue::CowSoundVariant(_) => 24,
             DataValue::PigVariant(_) => 28,
             DataValue::PigSoundVariant(_) => 29,
+            DataValue::OptionalBlockState(_) => 15,
             DataValue::ChickenVariant(_) => 30,
             DataValue::ChickenSoundVariant(_) => 31,
         }
@@ -131,6 +133,7 @@ impl DataValue {
             | DataValue::PigSoundVariant(id)
             | DataValue::ChickenVariant(id)
             | DataValue::ChickenSoundVariant(id) => w.varint(*id),
+            DataValue::OptionalBlockState(s) => w.varint(s.map_or(0, |s| s.id() as i32)),
         }
     }
 }

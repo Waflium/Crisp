@@ -197,7 +197,7 @@ impl AreaEffectCloud {
 }
 
 fn dimensions(radius: f32) -> EntityDimensions {
-    EntityDimensions { width: radius * 2.0, height: HEIGHT, eye_height: HEIGHT * 0.85 }
+    EntityDimensions::scalable(radius * 2.0, HEIGHT)
 }
 
 impl ServerLevel {

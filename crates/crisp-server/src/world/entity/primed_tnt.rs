@@ -19,7 +19,7 @@ pub struct PrimedTnt {
 }
 
 impl PrimedTnt {
-    pub const DIMENSIONS: EntityDimensions = EntityDimensions { width: 0.98, height: 0.98, eye_height: 0.15 };
+    pub const DIMENSIONS: EntityDimensions = EntityDimensions::scalable(0.98, 0.98).with_eye_height(0.15);
 
     pub fn of_type() -> PrimedTnt {
         let mut data = entity_defaults();

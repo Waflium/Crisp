@@ -34,7 +34,7 @@ const IN_GROUND: usize = 10;
 const FLAG_CRIT: i8 = 1;
 const FLAG_NOPHYSICS: i8 = 2;
 const GAME_EVENT_PLAY_ARROW_HIT_SOUND: u8 = 6;
-pub const DIMENSIONS: EntityDimensions = EntityDimensions { width: 0.5, height: 0.5, eye_height: 0.13 };
+pub const DIMENSIONS: EntityDimensions = EntityDimensions::scalable(0.5, 0.5).with_eye_height(0.13);
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Pickup {

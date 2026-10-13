@@ -5,6 +5,7 @@ use crate::random::RandomSource;
 pub const PI: f32 = std::f64::consts::PI as f32;
 pub const DEG_TO_RAD: f32 = (std::f64::consts::PI / 180.0) as f32;
 pub const RAD_TO_DEG: f32 = 180.0 / std::f64::consts::PI as f32;
+pub const SQRT_OF_TWO: f32 = std::f64::consts::SQRT_2 as f32;
 
 const SIN_SCALE: f64 = 10430.378350470453;
 

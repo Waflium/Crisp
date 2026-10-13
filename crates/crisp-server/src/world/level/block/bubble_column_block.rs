@@ -5,6 +5,7 @@ use crisp_data::{BlockState, Fluid, block_tags, blocks, fluid_tags, items};
 use super::BlockBehaviour;
 use crate::server::level::ServerLevel;
 use crate::world::entity::EntityId;
+use crate::world::entity::inside_block::InsideBlockEffects;
 use crate::world::item::ItemStack;
 use crate::world::level::{BlockGetter, LevelAccessor, LevelReader};
 use crate::world::level::material::{self, tick_delay};
@@ -56,6 +57,18 @@ fn column_state(below_state: BlockState, occupy_state: BlockState) -> BlockState
 }
 
 impl BlockBehaviour for BubbleColumnBlock {
+    fn entity_inside(&self, state: BlockState, level: &mut ServerLevel, pos: BlockPos, entity: EntityId, _effects: &mut InsideBlockEffects, is_precise: bool) {
+        if is_precise {
+            let state_above = level.block_state(pos.above());
+            let nothing_above = state_above.collision_voxel_shape().is_empty() && state_above.fluid_state().is_empty();
+            if nothing_above {
+                level.on_above_bubble_column(entity, state.get(DRAG), pos);
+            } else {
+                level.on_inside_bubble_column(entity, state.get(DRAG));
+            }
+        }
+    }
+
     fn tick(&self, state: BlockState, level: &mut ServerLevel, pos: BlockPos) {
         let below = level.block_state(pos.below());
         update_column_with_state(level, pos, state, below);

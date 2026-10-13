@@ -416,8 +416,7 @@ impl ServerLevel {
         let Some(entity) = self.entity_ref(tracked) else { return };
         let (entity_pos, entity_chunk) = (entity.position(), entity.chunk_position());
         let player_pos = self.player(player).entity.position();
-        let range = self.chunk_map.tracked.get(tracked).unwrap().range;
-        let effective_range = self.entity_broadcast_range_percentage * range / 100;
+        let effective_range = self.get_effective_range(tracked);
         let visible_range = (effective_range.min(self.player_view_distance(player) * 16)) as f64;
         let (dx, dz) = (player_pos.x - entity_pos.x, player_pos.z - entity_pos.z);
         let visible = dx * dx + dz * dz <= visible_range * visible_range && self.is_chunk_tracked(player, entity_chunk.x, entity_chunk.z);
@@ -439,19 +438,42 @@ impl ServerLevel {
         }
     }
 
+    fn get_effective_range(&self, tracked: EntityId) -> i32 {
+        let mut effective_range = self.chunk_map.tracked.get(tracked).unwrap().range;
+        for passenger in self.indirect_passengers(tracked) {
+            let passenger_range = self.client_tracking_range(passenger);
+            if passenger_range > effective_range {
+                effective_range = passenger_range;
+            }
+        }
+        self.entity_broadcast_range_percentage * effective_range / 100
+    }
+
+    fn client_tracking_range(&self, id: EntityId) -> i32 {
+        match self.entities.get(&id) {
+            Some(entity) => entity.tracking_config().range,
+            None => 32 * 16,
+        }
+    }
+
     fn extra_pairing_packets(&self, tracked: EntityId) -> Vec<Vec<u8>> {
-        if !self.is_living(tracked) {
-            return Vec::new();
-        }
         let mut packets = Vec::new();
-        let attributes = &self.living(tracked).attributes;
-        if attributes.syncable_attributes().next().is_some() {
-            packets.push(encode(clientbound::UPDATE_ATTRIBUTES, |w| attributes.write_syncable(w, tracked)));
+        if self.is_living(tracked) {
+            let attributes = &self.living(tracked).attributes;
+            if attributes.syncable_attributes().next().is_some() {
+                packets.push(encode(clientbound::UPDATE_ATTRIBUTES, |w| attributes.write_syncable(w, tracked)));
+            }
+            let equipment: Vec<_> =
+                crisp_data::EquipmentSlot::VALUES.into_iter().filter_map(|slot| self.item_by_slot(tracked, slot).map(|s| (slot, Some(s)))).collect();
+            if !equipment.is_empty() {
+                packets.push(crate::world::entity::living_entity::set_equipment(tracked, &equipment));
+            }
         }
-        let equipment: Vec<_> =
-            crisp_data::EquipmentSlot::VALUES.into_iter().filter_map(|slot| self.item_by_slot(tracked, slot).map(|s| (slot, Some(s)))).collect();
-        if !equipment.is_empty() {
-            packets.push(crate::world::entity::living_entity::set_equipment(tracked, &equipment));
+        if self.is_vehicle(tracked) {
+            packets.push(crate::world::entity::set_passengers_packet(tracked, self.passengers(tracked)));
+        }
+        if let Some(vehicle) = self.vehicle(tracked) {
+            packets.push(crate::world::entity::set_passengers_packet(vehicle, self.passengers(vehicle)));
         }
         packets
     }

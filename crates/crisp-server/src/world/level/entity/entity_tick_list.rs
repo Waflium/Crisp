@@ -35,6 +35,10 @@ impl LinkedIds {
         }
     }
 
+    pub fn contains(&self, id: EntityId) -> bool {
+        self.index.contains_key(&id)
+    }
+
     pub fn iter(&self) -> impl Iterator<Item = EntityId> + '_ {
         self.order.iter().copied().filter(|&id| id != HOLE)
     }

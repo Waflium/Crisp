@@ -144,11 +144,13 @@ impl ServerLevel {
 
     fn is_in_range_of_ground(&self, player: EntityId) -> bool {
         let bb = self.player(player).entity.bounding_box();
-        if !self.colliders(player, &bb).is_empty() {
+        let entity_colliders = self.entity_collisions(Some(player), &bb);
+        if !self.colliders(player, &entity_colliders, &bb).is_empty() {
             return false;
         }
         let below = bb.set_min_y(bb.min_y - 1.0).set_max_y(bb.min_y);
-        let colliders = self.colliders(player, &below);
+        let entity_colliders = self.entity_collisions(Some(player), &below);
+        let colliders = self.colliders(player, &entity_colliders, &below);
         let space = if colliders.is_empty() { 1.0 } else { -shapes_collide(Axis::Y, &bb, &colliders, -1.0) };
         space < 1.0
     }
@@ -167,6 +169,7 @@ impl ServerLevel {
             w.f32(game_type.id() as f32);
         });
         if game_type == GameType::Spectator {
+            self.stop_riding(player);
             self.stop_using_item(player);
         } else {
             self.set_camera(player, Some(player));

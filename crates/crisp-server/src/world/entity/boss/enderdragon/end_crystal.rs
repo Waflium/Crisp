@@ -21,7 +21,7 @@ pub struct EndCrystal {
 }
 
 impl EndCrystal {
-    pub const DIMENSIONS: EntityDimensions = EntityDimensions { width: 2.0, height: 2.0, eye_height: 2.0 * 0.85 };
+    pub const DIMENSIONS: EntityDimensions = EntityDimensions::scalable(2.0, 2.0);
 
     pub fn of_type() -> EndCrystal {
         let mut data = entity_defaults();

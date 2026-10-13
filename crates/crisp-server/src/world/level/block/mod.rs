@@ -33,7 +33,7 @@ mod hopper_block;
 pub mod shulker_box_block;
 pub mod base_fire_block;
 mod base_pressure_plate_block;
-mod base_rail_block;
+pub mod base_rail_block;
 mod base_torch_block;
 mod block_set_type;
 mod bubble_column_block;

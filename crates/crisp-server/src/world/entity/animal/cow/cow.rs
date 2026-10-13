@@ -18,7 +18,7 @@ use crate::world::entity::{Entity, EntityDimensions, EntityId};
 
 pub const DATA_VARIANT_ID: usize = 18;
 pub const DATA_SOUND_VARIANT_ID: usize = 19;
-pub const BABY_DIMENSIONS: EntityDimensions = EntityDimensions { width: 0.45, height: 0.7, eye_height: 0.69 };
+pub const BABY_DIMENSIONS: EntityDimensions = EntityDimensions::scalable(0.45, 0.7).with_eye_height(0.69).with_passenger_attachments(&[crisp_core::Vec3::new(0.0, 0.75, 0.0)]);
 pub const VARIANT_REGISTRY: &str = "minecraft:cow_variant";
 pub const SOUND_VARIANT_REGISTRY: &str = "minecraft:cow_sound_variant";
 

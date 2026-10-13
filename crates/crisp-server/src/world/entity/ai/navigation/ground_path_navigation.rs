@@ -17,7 +17,7 @@ impl PathNavigation {
 
     pub fn can_update_path(&self, level: &ServerLevel, mob: EntityId) -> bool {
         let e = level.entity(mob);
-        e.on_ground || e.is_in_liquid()
+        e.on_ground || e.is_in_liquid() || level.is_passenger(mob)
     }
 
     pub fn get_temp_mob_pos(&self, level: &ServerLevel, mob: EntityId) -> Vec3 {

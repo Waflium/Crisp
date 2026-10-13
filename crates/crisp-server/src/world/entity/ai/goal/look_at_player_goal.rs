@@ -31,7 +31,8 @@ impl LookAtPlayerGoal {
         }
         let e = level.entity(mob);
         let (x, y, z) = (e.x(), e.eye_y(), e.z());
-        self.look_at = level.get_nearest_player(&self.look_at_context(), Some(mob), x, y, z);
+        let selector = move |target: EntityId, level: &ServerLevel| crate::world::entity::entity_selector::not_riding(level, mob, target);
+        self.look_at = level.get_nearest_player(&self.look_at_context().selector(&selector), Some(mob), x, y, z);
         self.look_at.is_some()
     }
 

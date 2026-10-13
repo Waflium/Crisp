@@ -17,7 +17,7 @@ impl PassengerPredicate {
     }
 
     pub fn matches(&self, level: &mut ServerLevel, entity: EntityId, position: Option<Vec3>) -> bool {
-        let passengers = level.passengers(entity);
+        let passengers = level.passengers(entity).to_vec();
         passengers.into_iter().any(|passenger| self.passenger.matches(level, position, Some(passenger)))
     }
 }

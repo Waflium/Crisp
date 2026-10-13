@@ -3,7 +3,7 @@ use crisp_data::packets::play::clientbound;
 use crisp_protocol::Writer;
 
 use crate::network::connection::encode;
-use crate::world::entity::Entity;
+use crate::world::entity::{Entity, EntityId, set_passengers_packet};
 use crate::world::entity::attributes::AttributeMap;
 use crate::world::entity::data::{DataValue, write_values};
 
@@ -178,6 +178,8 @@ pub struct ServerEntity {
     last_sent_movement: Vec3,
     tick_count: i32,
     teleport_delay: i32,
+    last_passengers: Vec<EntityId>,
+    was_riding: bool,
     was_on_ground: bool,
     tracked_data_values: Option<Vec<(usize, DataValue)>>,
 }
@@ -197,6 +199,8 @@ impl ServerEntity {
             last_sent_movement: entity.delta_movement,
             tick_count: 0,
             teleport_delay: 0,
+            last_passengers: Vec::new(),
+            was_riding: false,
             was_on_ground: entity.on_ground,
             tracked_data_values: entity.data.non_default_values(),
         }
@@ -244,6 +248,10 @@ impl ServerEntity {
 
     pub fn send_changes(&mut self, entity: &mut Entity, attributes: Option<&mut AttributeMap>) -> Vec<(Audience, Vec<u8>)> {
         let mut out = Vec::new();
+        if entity.passengers != self.last_passengers {
+            out.push((Audience::Tracking, set_passengers_packet(entity.id, &entity.passengers)));
+            self.last_passengers.clone_from(&entity.passengers);
+        }
         let current = entity.position();
         if let Some(tracker) = &mut self.interpolation {
             tracker.update_tracking(entity, current);
@@ -257,39 +265,54 @@ impl ServerEntity {
             let x_rot = mth::pack_degrees(entity.x_rot);
             let should_send_rotation =
                 (y_rot as i32 - self.last_sent_y_rot as i32).abs() >= 1 || (x_rot as i32 - self.last_sent_x_rot as i32).abs() >= 1;
-            self.teleport_delay += 1;
-            let path = self.position_path(current);
-            if let Some(tracker) = &mut self.interpolation {
-                tracker.clear();
-            }
-            let packet = if self.is_arrow {
-                self.create_move_packet(entity, &path, y_rot, x_rot, true, true)
+            if entity.vehicle.is_some() {
+                if should_send_rotation {
+                    out.push((Audience::Tracking, rotation(entity.id, y_rot, x_rot, entity.on_ground)));
+                    self.last_sent_y_rot = y_rot;
+                    self.last_sent_x_rot = x_rot;
+                }
+                if let Some(tracker) = &mut self.interpolation {
+                    tracker.clear();
+                }
+                self.position_base = current;
+                self.send_dirty_entity_data(entity, attributes, &mut out);
+                self.was_riding = true;
             } else {
-                let position_changed = current.subtract(self.position_base).length_sqr() >= 7.6293945e-6f32 as f64;
-                let should_send_position = position_changed || self.tick_count % 60 == 0;
-                self.create_move_packet(entity, &path, y_rot, x_rot, should_send_position, should_send_rotation)
-            };
-            if entity.needs_sync || self.track_delta {
-                let movement = entity.delta_movement;
-                let diff = movement.distance_to_sqr(self.last_sent_movement);
-                if diff > 1.0e-7 || diff > 0.0 && movement.length_sqr() == 0.0 {
-                    self.last_sent_movement = movement;
-                    out.push((Audience::Tracking, set_entity_motion(entity.id, movement)));
+                self.teleport_delay += 1;
+                let path = self.position_path(current);
+                if let Some(tracker) = &mut self.interpolation {
+                    tracker.clear();
                 }
-            }
-            match packet {
-                Some((bytes, has_position, has_rotation)) => {
-                    out.push((Audience::Tracking, bytes));
-                    self.send_dirty_entity_data(entity, attributes, &mut out);
-                    if has_position {
-                        self.position_base = current;
-                    }
-                    if has_rotation {
-                        self.last_sent_y_rot = y_rot;
-                        self.last_sent_x_rot = x_rot;
+                let packet = if self.is_arrow {
+                    self.create_move_packet(entity, &path, y_rot, x_rot, true, true)
+                } else {
+                    let position_changed = current.subtract(self.position_base).length_sqr() >= 7.6293945e-6f32 as f64;
+                    let should_send_position = position_changed || self.tick_count % 60 == 0;
+                    self.create_move_packet(entity, &path, y_rot, x_rot, should_send_position, should_send_rotation)
+                };
+                if entity.needs_sync || self.track_delta {
+                    let movement = entity.delta_movement;
+                    let diff = movement.distance_to_sqr(self.last_sent_movement);
+                    if diff > 1.0e-7 || diff > 0.0 && movement.length_sqr() == 0.0 {
+                        self.last_sent_movement = movement;
+                        out.push((Audience::Tracking, set_entity_motion(entity.id, movement)));
                     }
                 }
-                None => self.send_dirty_entity_data(entity, attributes, &mut out),
+                match packet {
+                    Some((bytes, has_position, has_rotation)) => {
+                        out.push((Audience::Tracking, bytes));
+                        self.send_dirty_entity_data(entity, attributes, &mut out);
+                        if has_position {
+                            self.position_base = current;
+                        }
+                        if has_rotation {
+                            self.last_sent_y_rot = y_rot;
+                            self.last_sent_x_rot = x_rot;
+                        }
+                    }
+                    None => self.send_dirty_entity_data(entity, attributes, &mut out),
+                }
+                self.was_riding = false;
             }
             let y_head_rot = mth::pack_degrees(entity.y_head_rot);
             if (y_head_rot as i32 - self.last_sent_y_head_rot as i32).abs() >= 1 {
@@ -322,7 +345,7 @@ impl ServerEntity {
         send_rotation: bool,
     ) -> Option<(Vec<u8>, bool, bool)> {
         let id = entity.id;
-        if entity.requires_precise_position || self.teleport_delay > 400 || self.was_on_ground != entity.on_ground {
+        if entity.requires_precise_position || self.teleport_delay > 400 || self.was_riding || self.was_on_ground != entity.on_ground {
             self.was_on_ground = entity.on_ground;
             self.teleport_delay = 0;
             return Some((position_sync(entity, path), true, true));

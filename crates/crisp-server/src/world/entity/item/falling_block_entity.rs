@@ -37,7 +37,7 @@ pub struct FallingBlockEntity {
 }
 
 impl FallingBlockEntity {
-    pub const DIMENSIONS: EntityDimensions = EntityDimensions { width: 0.98, height: 0.98, eye_height: 0.98 * 0.85 };
+    pub const DIMENSIONS: EntityDimensions = EntityDimensions::scalable(0.98, 0.98);
 
     pub fn of_type() -> FallingBlockEntity {
         let mut data = entity_defaults();

@@ -26,8 +26,8 @@ use crate::world::item::dye_color::DyeColor;
 use crate::world::{InteractionHand, InteractionResult};
 
 pub const DATA_WOOL_ID: usize = 18;
-pub const DIMENSIONS: EntityDimensions = EntityDimensions { width: 0.9, height: 1.3, eye_height: 1.235 };
-pub const BABY_DIMENSIONS: EntityDimensions = EntityDimensions { width: 0.45, height: 0.65, eye_height: 0.65625 };
+pub const DIMENSIONS: EntityDimensions = EntityDimensions::scalable(0.9, 1.3).with_eye_height(1.235).with_passenger_attachments(&[crisp_core::Vec3::new(0.0, 1.2375, 0.0)]);
+pub const BABY_DIMENSIONS: EntityDimensions = EntityDimensions::scalable(0.45, 0.65).with_eye_height(0.65625).with_passenger_attachments(&[crisp_core::Vec3::new(0.0, 0.5625, 0.0)]);
 const SHEAR_SHEEP: &str = "minecraft:shearing/sheep";
 
 #[derive(Default)]

@@ -23,7 +23,7 @@ const DATA_ID_FIREWORKS_ITEM: usize = 8;
 const DATA_ATTACHED_TO_TARGET: usize = 9;
 const DATA_SHOT_AT_ANGLE: usize = 10;
 const EVENT_FIREWORKS_EXPLODE: u8 = 17;
-pub const DIMENSIONS: EntityDimensions = EntityDimensions { width: 0.25, height: 0.25, eye_height: 0.25 * 0.85 };
+pub const DIMENSIONS: EntityDimensions = EntityDimensions::scalable(0.25, 0.25);
 
 #[derive(Default)]
 pub struct FireworkRocketEntity {

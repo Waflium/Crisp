@@ -119,10 +119,6 @@ impl PersistentEntitySectionManager {
     }
 }
 
-fn should_be_saved(entity: &LevelEntity) -> bool {
-    entity.entity().removal.is_none_or(RemovalReason::should_save)
-}
-
 impl ServerLevel {
     fn start_tracking(&mut self, id: EntityId) {
         let entity = &self.entities[&id];
@@ -214,12 +210,12 @@ impl ServerLevel {
             .existing_section_positions_in_chunk(chunk_key)
             .filter_map(|key| manager.section_storage.get_section(key))
             .flat_map(|section| section.entities().iter().copied())
-            .filter(|id| self.entities.get(id).is_some_and(should_be_saved))
+            .filter(|&id| self.entities.contains_key(&id) && self.should_be_saved(id))
             .collect();
         let pos = ChunkPos::unpack(chunk_key);
         if root_entities_to_save.is_empty() {
             if status == ChunkLoadStatus::Loaded {
-                self.entity_manager.permanent_storage.store_entities(pos, std::iter::empty());
+                self.entity_manager.permanent_storage.store_entities(pos, None);
             }
             return true;
         }
@@ -227,11 +223,20 @@ impl ServerLevel {
             self.entity_manager.request_chunk_load(chunk_key);
             return false;
         }
-        let entities = &self.entities;
-        self.entity_manager.permanent_storage.store_entities(pos, root_entities_to_save.iter().map(|id| &entities[id]));
+        let tags = root_entities_to_save.iter().filter_map(|&id| self.save_entity(id)).collect();
+        self.entity_manager.permanent_storage.store_entities(pos, Some(tags));
         if unload {
             for id in root_entities_to_save {
-                self.unload_entity(id);
+                if !self.entities.contains_key(&id) {
+                    continue;
+                }
+                let entities: Vec<EntityId> = self.passengers_and_self(id).into_iter().filter(|e| self.entities.contains_key(e)).collect();
+                for &entity in &entities {
+                    self.set_removed(entity, RemovalReason::UnloadedToChunk);
+                }
+                for entity in entities {
+                    self.unload_entity(entity);
+                }
             }
         }
         true
@@ -246,8 +251,7 @@ impl ServerLevel {
     }
 
     fn unload_entity(&mut self, id: EntityId) {
-        let entity = self.entities.get_mut(&id).expect("entity to unload").entity_mut();
-        entity.removal.get_or_insert(RemovalReason::UnloadedToChunk);
+        self.entity_mut(id).removal.get_or_insert(RemovalReason::UnloadedToChunk);
         self.entity_removed(id, Some(RemovalReason::UnloadedToChunk));
         self.entities.swap_remove(&id);
     }

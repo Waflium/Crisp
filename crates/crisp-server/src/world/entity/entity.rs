@@ -9,6 +9,7 @@ use crisp_data::{BlockState, block_tags, blocks, damage_type_tags, damage_types,
 use crisp_protocol::nbt::Nbt;
 
 use super::attributes::Attribute;
+use super::entity_attachments::EntityAttachment;
 use super::{EntityDimensions, ItemEntity, LevelEntity, data, relative};
 use crate::world::damagesource::DamageSource;
 use crate::world::item::ItemStack;
@@ -64,6 +65,7 @@ impl MoverType {
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum MovementEmission {
     None,
+    Events,
     All,
 }
 
@@ -157,6 +159,9 @@ pub struct Entity {
     pub movement_this_tick: VecDeque<Movement>,
     pub final_movements_this_tick: Vec<Movement>,
     pub inside_effects: InsideBlockEffects,
+    pub passengers: Vec<EntityId>,
+    pub vehicle: Option<EntityId>,
+    pub boarding_cooldown: i32,
 }
 
 impl Entity {
@@ -223,6 +228,9 @@ impl Entity {
             movement_this_tick: VecDeque::new(),
             final_movements_this_tick: Vec::new(),
             inside_effects: InsideBlockEffects::default(),
+            passengers: Vec::new(),
+            vehicle: None,
+            boarding_cooldown: 0,
         }
     }
 
@@ -386,6 +394,8 @@ impl Entity {
     pub fn set_old_pos(&mut self) {
         self.xo = self.pos;
         self.old_pos = self.pos;
+        self.y_rot_o = self.y_rot;
+        self.x_rot_o = self.x_rot;
     }
 
     pub fn set_old_rot(&mut self) {
@@ -735,54 +745,6 @@ impl ServerLevel {
         self.players.get(&id).is_some_and(|p| p.game_mode.game_type == GameType::Spectator)
     }
 
-    pub fn vehicle(&self, _id: EntityId) -> Option<EntityId> {
-        None
-    }
-
-    pub fn passengers(&self, _id: EntityId) -> Vec<EntityId> {
-        Vec::new()
-    }
-
-    pub fn is_vehicle(&self, id: EntityId) -> bool {
-        !self.passengers(id).is_empty()
-    }
-
-    pub fn root_vehicle(&self, id: EntityId) -> EntityId {
-        let mut root = id;
-        while let Some(vehicle) = self.vehicle(root) {
-            root = vehicle;
-        }
-        root
-    }
-
-    pub fn self_and_passengers(&self, id: EntityId) -> Vec<EntityId> {
-        let mut entities = vec![id];
-        for passenger in self.passengers(id) {
-            entities.extend(self.self_and_passengers(passenger));
-        }
-        entities
-    }
-
-    pub fn is_passenger_of_same_vehicle(&self, id: EntityId, other: EntityId) -> bool {
-        self.root_vehicle(id) == self.root_vehicle(other)
-    }
-
-    pub fn is_pickable(&self, id: EntityId) -> bool {
-        if let Some(player) = self.players.get(&id) {
-            return !self.is_spectator(id) && !player.entity.is_removed();
-        }
-        match self.entities.get(&id) {
-            Some(LevelEntity::Mob(mob)) => !mob.entity.is_removed(),
-            Some(LevelEntity::PrimedTnt(tnt)) => !tnt.entity.is_removed(),
-            Some(LevelEntity::FallingBlock(falling)) => !falling.entity.is_removed(),
-            Some(LevelEntity::EndCrystal(_)) => true,
-            Some(LevelEntity::Projectile(projectile)) => {
-                entity_type_tags::REDIRECTABLE_PROJECTILE.contains(projectile.entity.entity_type as usize) && !(projectile.abstract_arrow().is_some() && projectile.is_in_ground())
-            }
-            _ => false,
-        }
-    }
-
     pub fn can_be_hit_by_projectile(&self, id: EntityId) -> bool {
         self.is_alive(id) && self.is_pickable(id)
     }
@@ -799,10 +761,6 @@ impl ServerLevel {
         }
     }
 
-    pub fn apply_effects_from_blocks_between(&mut self, id: EntityId, from: Vec3, to: Vec3) {
-        self.apply_effects_from_movements(id, &[Movement { from, to, axis_dependent_original_movement: None }]);
-    }
-
     pub fn extinguish_fire(&mut self, id: EntityId) {
         if self.is_on_fire(id) {
             self.play_entity_on_fire_extinguished_sound(id);
@@ -811,10 +769,17 @@ impl ServerLevel {
     }
 
     pub fn known_movement(&self, id: EntityId) -> Vec3 {
-        match self.players.get(&id) {
-            Some(player) => player.known_movement,
-            None => self.entity(id).delta_movement,
+        if let Some(player) = self.players.get(&id) {
+            return match self.vehicle(id) {
+                Some(vehicle) if self.controlling_passenger(vehicle) != Some(id) => self.known_movement(vehicle),
+                _ => player.known_movement,
+            };
         }
+        let known_movement = match self.controlling_passenger(id).filter(|&c| self.is_player(c)) {
+            Some(controller) if self.is_alive(id) => self.known_movement(controller),
+            _ => self.entity(id).delta_movement,
+        };
+        if self.is_minecart(id) { ServerLevel::old_minecart_behavior_known_movement(known_movement) } else { known_movement }
     }
 
     pub fn fishing_hook_open_water(&self, _id: EntityId) -> Option<bool> {
@@ -874,6 +839,7 @@ impl ServerLevel {
                 _ => 0.03,
             },
             Some(super::LevelEntity::AreaEffectCloud(_)) => 0.0,
+            Some(super::LevelEntity::Minecart(_)) => self.abstract_minecart_default_gravity(id),
             Some(_) => 0.04,
         }
     }
@@ -896,11 +862,11 @@ impl ServerLevel {
     }
 
     pub fn air_drag(&self, id: EntityId) -> f32 {
-        if self.is_living(id) {
-            return compute_modified_friction(0.98, self.attribute_value(id, Attribute::AirDragModifier) as f32);
-        }
         match self.entities.get(&id) {
-            Some(super::LevelEntity::Projectile(projectile)) if !matches!(projectile.kind, super::projectile::projectile::ProjectileKind::FireworkRocket(_)) => 0.99,
+            Some(LevelEntity::Boat(_)) => 1.0,
+            Some(LevelEntity::Minecart(_)) => 0.95,
+            Some(LevelEntity::Projectile(projectile)) if !matches!(projectile.kind, super::projectile::projectile::ProjectileKind::FireworkRocket(_)) => 0.99,
+            _ if self.is_living(id) => compute_modified_friction(0.98, self.attribute_value(id, Attribute::AirDragModifier) as f32),
             _ => 0.98,
         }
     }
@@ -914,6 +880,7 @@ impl ServerLevel {
             Some(super::LevelEntity::Projectile(projectile)) if matches!(projectile.kind, super::projectile::projectile::ProjectileKind::FireworkRocket(_)) => MovementEmission::All,
             Some(super::LevelEntity::AreaEffectCloud(_)) => MovementEmission::All,
             _ if self.is_living(id) => MovementEmission::All,
+            _ if self.is_vehicle_entity(id) => MovementEmission::Events,
             _ => MovementEmission::None,
         }
     }
@@ -928,8 +895,22 @@ impl ServerLevel {
         }
     }
 
-    fn is_local_instance_authoritative(&self, id: EntityId) -> bool {
-        !self.is_player(id)
+    pub fn is_local_instance_authoritative(&self, id: EntityId) -> bool {
+        !self.is_client_authoritative(id)
+    }
+
+    pub fn is_client_authoritative(&self, id: EntityId) -> bool {
+        if self.is_player(id) {
+            return true;
+        }
+        self.controlling_passenger(id).is_some_and(|passenger| self.is_client_authoritative(passenger))
+    }
+
+    pub fn can_simulate_movement(&self, id: EntityId) -> bool {
+        match self.entities.get(&id) {
+            Some(LevelEntity::ExperienceOrb(_) | LevelEntity::FallingBlock(_)) => true,
+            _ => self.is_local_instance_authoritative(id),
+        }
     }
 
     pub fn sound_source(&self, id: EntityId) -> SoundSource {
@@ -1056,6 +1037,11 @@ impl ServerLevel {
     }
 
     pub fn block_speed_factor(&mut self, id: EntityId) -> f32 {
+        if self.is_minecart(id)
+            && let Some(factor) = self.abstract_minecart_block_speed_factor(id)
+        {
+            return factor;
+        }
         let state = self.block_state(self.entity(id).block_position());
         let here = state.block().info().speed_factor;
         let factor = if !state.is_block(blocks::WATER) && !state.is_block(blocks::BUBBLE_COLUMN) {
@@ -1088,13 +1074,17 @@ impl ServerLevel {
     }
 
     pub fn move_entity(&mut self, id: EntityId, mover: MoverType, delta: Vec3) {
-        self.entity_move(id, mover, delta);
+        if self.is_minecart(id) {
+            self.minecart_move(id, mover, delta);
+        } else {
+            self.entity_move(id, mover, delta);
+        }
         if self.as_projectile(id).is_some_and(|projectile| projectile.abstract_arrow().is_some()) {
             self.abstract_arrow_after_move(id, mover);
         }
     }
 
-    fn entity_move(&mut self, id: EntityId, mover: MoverType, delta: Vec3) {
+    pub fn entity_move(&mut self, id: EntityId, mover: MoverType, delta: Vec3) {
         let e = self.entity_mut(id);
         if e.no_physics {
             let to = e.position().add_vec(delta);
@@ -1168,11 +1158,11 @@ impl ServerLevel {
             return;
         }
         let e = self.entity(id);
-        if moved_vertically && e.vertical_collision || e.horizontal_collision {
+        if self.can_simulate_movement(id) && (moved_vertically && e.vertical_collision || e.horizontal_collision) {
             self.restitute_movement_after_collisions(id, effect_state, x_collision, z_collision, movement);
         }
         let emission = self.movement_emission(id);
-        if emission.emits_anything() {
+        if emission.emits_anything() && !self.is_passenger(id) {
             self.apply_movement_emission_and_play_sound(id, emission, movement, effect_pos, effect_state);
         }
         let factor = self.block_speed_factor(id) as f64;
@@ -1246,17 +1236,34 @@ impl ServerLevel {
         ))
     }
 
-    pub(crate) fn colliders(&self, id: EntityId, box_: &AABB) -> Vec<Collider<'_>> {
+    pub(crate) fn colliders<'a>(&'a self, id: EntityId, entity_colliders: &'a [VoxelShape], box_: &AABB) -> Vec<Collider<'a>> {
+        let entities = entity_colliders.iter().map(|shape| Collider { shape, offset: [0.0; 3] });
         let border = self.border_collision(id, box_).map(|shape| Collider { shape, offset: [0.0; 3] });
         let context = crate::world::phys::shapes::collision_context::CollisionContext::of(self, id);
-        border.into_iter().chain(self.block_collisions(box_, &context, false).into_iter().map(|(_, c)| c)).collect()
+        entities.chain(border).chain(self.block_collisions(box_, &context, false).into_iter().map(|(_, c)| c)).collect()
+    }
+
+    pub fn entity_collisions(&self, source: Option<EntityId>, test_area: &AABB) -> Vec<VoxelShape> {
+        if test_area.size() < 1.0e-7 {
+            return Vec::new();
+        }
+        self.get_entities(source, &test_area.inflate_all(1.0e-7))
+            .into_iter()
+            .filter(|&entity| match source {
+                Some(source) => self.can_collide_with(source, entity),
+                None => self.can_be_collided_with(entity, None),
+            })
+            .map(|entity| VoxelShape::from_boxes(&[self.entity(entity).bounding_box()]))
+            .collect()
     }
 
     fn collide(&mut self, id: EntityId, movement: Vec3) -> Vec3 {
         let e = self.entity(id);
         let aabb = e.bounding_box();
         let on_ground = e.on_ground;
-        let movement_step = if movement.length_sqr() == 0.0 { movement } else { collide_with_shapes(movement, &aabb, &self.colliders(id, &aabb.expand_towards_vec(movement))) };
+        let entity_colliders = self.entity_collisions(Some(id), &aabb.expand_towards_vec(movement).expand_towards(0.0, self.max_up_step(id) as f64, 0.0));
+        let movement_step =
+            if movement.length_sqr() == 0.0 { movement } else { collide_with_shapes(movement, &aabb, &self.colliders(id, &entity_colliders, &aabb.expand_towards_vec(movement))) };
         let x_collision = movement.x != movement_step.x;
         let y_collision = movement.y != movement_step.y;
         let z_collision = movement.z != movement_step.z;
@@ -1268,7 +1275,7 @@ impl ServerLevel {
             if !on_ground_after_collision {
                 step_up_aabb = step_up_aabb.expand_towards(0.0, -1.0e-5f32 as f64, 0.0);
             }
-            let colliders = self.colliders(id, &step_up_aabb);
+            let colliders = self.colliders(id, &entity_colliders, &step_up_aabb);
             let step_height_to_skip = movement_step.y as f32;
             for candidate in collect_candidate_step_up_heights(&grounded, &colliders, max_up_step, step_height_to_skip) {
                 let step_from_ground = collide_with_shapes(Vec3::new(movement.x, candidate as f64, movement.z), &grounded, &colliders);
@@ -1294,6 +1301,10 @@ impl ServerLevel {
     }
 
     pub fn check_fall_damage(&mut self, id: EntityId, ya: f64, on_ground: bool, on_state: BlockState, pos: BlockPos) {
+        if self.is_boat(id) {
+            self.abstract_boat_check_fall_damage(id, ya, on_ground);
+            return;
+        }
         let living = self.is_living(id);
         if living && !self.entity(id).is_in_water() {
             self.update_fluid_interaction(id);
@@ -1357,6 +1368,7 @@ impl ServerLevel {
         if entity_type_tags::FALL_DAMAGE_IMMUNE.contains(self.entity(id).entity_type as usize) {
             return false;
         }
+        self.propagate_fall_to_passengers(id, fall_distance, damage_modifier, damage_source);
         let Some(p) = self.players.get_mut(&id) else { return false };
         if p.abilities_may_fly() {
             return false;
@@ -1388,6 +1400,14 @@ impl ServerLevel {
             return true;
         }
         false
+    }
+
+    fn propagate_fall_to_passengers(&mut self, id: EntityId, fall_distance: f64, damage_modifier: f32, damage_source: crate::world::damagesource::DamageSource) {
+        for passenger in self.passengers(id).to_vec() {
+            if self.entity_ref(passenger).is_some() {
+                self.cause_fall_damage(passenger, fall_distance, damage_modifier, damage_source);
+            }
+        }
     }
 
     pub fn fall_sounds(&self, id: EntityId) -> (&'static str, &'static str) {
@@ -1876,6 +1896,15 @@ impl ServerLevel {
         let e = self.entity_mut(id);
         e.compute_speed();
         e.in_block_state = None;
+        if let Some(vehicle) = self.vehicle(id)
+            && self.entity_ref(vehicle).is_none_or(Entity::is_removed)
+        {
+            self.stop_riding(id);
+        }
+        let e = self.entity_mut(id);
+        if e.boarding_cooldown > 0 {
+            e.boarding_cooldown -= 1;
+        }
         self.handle_portal(id);
         let e = self.entity_mut(id);
         e.was_in_powder_snow = e.is_in_powder_snow;
@@ -1899,17 +1928,74 @@ impl ServerLevel {
         if e.is_in_lava() {
             e.fall_distance *= 0.5;
         }
-        if self.entity(id).y() < (self.chunks.min_y() - 64) as f64 {
-            if self.is_living(id) {
-                self.hurt(id, crate::world::damagesource::DamageSource::new(crisp_data::damage_types::OUT_OF_WORLD), 4.0);
-            } else {
-                self.entity_mut(id).discard();
-            }
-        }
+        self.check_below_world(id);
         let e = self.entity_mut(id);
         let on_fire = e.remaining_fire_ticks > 0;
         e.set_shared_flag(flags::ON_FIRE, on_fire);
         e.first_tick = false;
+    }
+
+    pub fn on_above_bubble_column(&mut self, id: EntityId, drag_down: bool, pos: BlockPos) {
+        if self.is_boat(id) {
+            self.abstract_boat_on_above_bubble_column(id, drag_down, pos);
+            return;
+        }
+        if self.players.get(&id).is_some_and(|p| p.abilities_flying()) {
+            return;
+        }
+        if self.can_simulate_movement(id) {
+            let e = self.entity_mut(id);
+            let movement = e.delta_movement;
+            let yd = if drag_down { (-0.9f64).max(movement.y - 0.03) } else { 1.8f64.min(movement.y + 0.1) };
+            e.set_delta_movement(Vec3::new(movement.x, yd, movement.z));
+        }
+        self.send_bubble_column_particles(pos);
+    }
+
+    fn send_bubble_column_particles(&mut self, pos: BlockPos) {
+        for _ in 0..2 {
+            let (x, z) = (pos.x as f64 + self.random.next_double(), pos.z as f64 + self.random.next_double());
+            self.send_particles("minecraft:splash", |_| {}, x, (pos.y + 1) as f64, z, 1, (0.0, 0.0, 0.0), 1.0);
+            let (x, z) = (pos.x as f64 + self.random.next_double(), pos.z as f64 + self.random.next_double());
+            self.send_particles("minecraft:bubble", |_| {}, x, (pos.y + 1) as f64, z, 1, (0.0, 0.01, 0.0), 0.2);
+        }
+    }
+
+    pub fn on_inside_bubble_column(&mut self, id: EntityId, drag_down: bool) {
+        if self.players.get(&id).is_some_and(|p| p.abilities_flying()) {
+            return;
+        }
+        if self.can_simulate_movement(id) {
+            let e = self.entity_mut(id);
+            let movement = e.delta_movement;
+            let yd = if drag_down { (-0.3f64).max(movement.y - 0.03) } else { 0.7f64.min(movement.y + 0.06) };
+            e.set_delta_movement(Vec3::new(movement.x, yd, movement.z));
+        }
+        self.reset_fall_distance(id);
+    }
+
+    pub fn check_below_world(&mut self, id: EntityId) {
+        if self.entity(id).y() < (self.chunks.min_y() - 64) as f64 {
+            self.on_below_world(id);
+        }
+    }
+
+    fn on_below_world(&mut self, id: EntityId) {
+        if self.is_living(id) {
+            self.hurt(id, crate::world::damagesource::DamageSource::new(crisp_data::damage_types::OUT_OF_WORLD), 4.0);
+        } else {
+            self.entity_mut(id).discard();
+        }
+    }
+
+    pub fn lava_ignite(&mut self, id: EntityId) {
+        if !self.fire_immune(id) {
+            self.ignite_for_seconds(id, 15.0);
+        }
+    }
+
+    pub fn apply_effects_from_blocks_between(&mut self, id: EntityId, from: Vec3, to: Vec3) {
+        self.apply_effects_from_movements(id, &[Movement { from, to, axis_dependent_original_movement: None }]);
     }
 
     pub fn move_towards_closest_space(&mut self, id: EntityId, x: f64, y: f64, z: f64) {
@@ -2006,6 +2092,7 @@ impl ServerLevel {
             Some(LevelEntity::FallingBlock(_)) => self.falling_block_hurt_server(id, source),
             Some(LevelEntity::EndCrystal(_)) => self.end_crystal_hurt_server(id, source),
             Some(LevelEntity::Projectile(_)) => self.projectile_hurt_server(id, &source),
+            Some(LevelEntity::Minecart(_) | LevelEntity::Boat(_)) => self.vehicle_entity_hurt_server(id, source, damage),
             _ => false,
         }
     }
@@ -2037,6 +2124,11 @@ impl ServerLevel {
     }
 
     pub fn interact(&mut self, id: EntityId, player: EntityId, hand: InteractionHand, location: Vec3) -> InteractionResult {
+        match self.entities.get(&id) {
+            Some(LevelEntity::Minecart(_)) => return self.minecart_interact(id, player, hand, location),
+            Some(LevelEntity::Boat(_)) => return self.abstract_boat_interact(id, player, hand, location),
+            _ => {}
+        }
         if !self.is_mob(id) {
             return self.entity_interact(id, player, hand, location);
         }
@@ -2069,7 +2161,7 @@ impl ServerLevel {
     }
 
     pub fn blocks_building(&self, id: EntityId) -> bool {
-        self.is_living(id) || matches!(self.entities.get(&id), Some(LevelEntity::PrimedTnt(_) | LevelEntity::FallingBlock(_)))
+        self.is_living(id) || matches!(self.entities.get(&id), Some(LevelEntity::PrimedTnt(_) | LevelEntity::FallingBlock(_) | LevelEntity::Minecart(_) | LevelEntity::Boat(_)))
     }
 
     pub fn is_attackable(&self, id: EntityId) -> bool {
@@ -2198,6 +2290,11 @@ impl ServerLevel {
                     ProjectileKind::FireworkRocket(_) => "FireworkRocketEntity",
                 },
                 Some(LevelEntity::AreaEffectCloud(_)) => "AreaEffectCloud",
+                Some(LevelEntity::Minecart(_)) => "Minecart",
+                Some(LevelEntity::Boat(boat)) => match boat.kind {
+                    super::vehicle::boat::abstract_boat::BoatKind::Boat => "Boat",
+                    super::vehicle::boat::abstract_boat::BoatKind::Raft => "Raft",
+                },
                 _ => "Entity",
             };
             (class, name)
@@ -2253,13 +2350,30 @@ impl SignumJava for f64 {
 }
 
 impl ServerLevel {
+    pub fn teleport_in_level(&mut self, id: EntityId, transition: TeleportTransition) -> Option<EntityId> {
+        if self.entity_ref(id).is_none_or(Entity::is_removed) {
+            return None;
+        }
+        if self.is_player(id) {
+            return Some(self.server_player_teleport_same_dimension(id, transition));
+        }
+        if !transition.as_passenger {
+            self.stop_riding(id);
+        }
+        Some(self.teleport_same_dimension(id, transition))
+    }
+
     pub fn teleport_same_dimension(&mut self, id: EntityId, transition: TeleportTransition) -> EntityId {
+        for passenger in self.passengers(id).to_vec() {
+            let passenger_transition = self.calculate_passenger_transition(id, &transition, passenger);
+            self.teleport_in_level(passenger, passenger_transition);
+        }
         let e = self.entity_mut(id);
         let current = relative::PositionMoveRotation { position: e.position(), delta_movement: e.delta_movement, y_rot: e.y_rot, x_rot: e.x_rot };
         e.teleport_set_position(current, transition.position_move_rotation(), transition.relatives);
         self.entity_moved(id);
         if !transition.as_passenger {
-            self.send_teleport_transition_to_players(id);
+            self.send_teleport_transition_to_players(id, &transition);
         }
         transition.post_teleport_transition.on_transition(self, id);
         match self.entities.get_mut(&id) {
@@ -2270,15 +2384,46 @@ impl ServerLevel {
         id
     }
 
-    fn send_teleport_transition_to_players(&mut self, id: EntityId) {
+    pub fn calculate_passenger_transition(&self, id: EntityId, transition: &TeleportTransition, passenger: EntityId) -> TeleportTransition {
         let e = self.entity(id);
-        let packet = crate::network::connection::encode(crisp_data::packets::play::clientbound::TELEPORT_ENTITY, |w| {
-            w.varint(id);
-            relative::PositionMoveRotation { position: e.position(), delta_movement: e.delta_movement, y_rot: e.y_rot, x_rot: e.x_rot }.write(w);
-            w.i32(0);
-            w.bool(e.on_ground);
-        });
-        self.send_to_tracking_players(id, &packet);
+        calculate_passenger_transition(e.position(), e.y_rot, e.x_rot, transition, self.entity(passenger))
+    }
+
+    fn send_teleport_transition_to_players(&mut self, id: EntityId, transition: &TeleportTransition) {
+        use crate::network::connection::encode;
+        use crisp_data::packets::play::clientbound::TELEPORT_ENTITY;
+        let controller = self.controlling_passenger(id);
+        let passengers = self.indirect_passengers(id);
+        let e = self.entity(id);
+        let own = relative::PositionMoveRotation { position: e.position(), delta_movement: e.delta_movement, y_rot: e.y_rot, x_rot: e.x_rot };
+        let teleport = |values: relative::PositionMoveRotation, relatives: u16| {
+            encode(TELEPORT_ENTITY, |w| {
+                w.varint(id);
+                values.write(w);
+                w.i32(relatives as i32);
+                w.bool(e.on_ground);
+            })
+        };
+        for &passenger in &passengers {
+            if let Some(player) = self.players.get(&passenger) {
+                let packet = if controller == Some(passenger) { teleport(transition.position_move_rotation(), transition.relatives) } else { teleport(own, 0) };
+                player.connection.send_raw(packet);
+            }
+        }
+        let has_update_interval = !matches!(self.entities.get(&id), Some(LevelEntity::LightningBolt(_) | LevelEntity::EndCrystal(_)));
+        let server_and_client = matches!(self.entities.get(&id), Some(LevelEntity::ExperienceOrb(_) | LevelEntity::FallingBlock(_)));
+        if !has_update_interval || server_and_client {
+            let packet = teleport(own, 0);
+            if let Some(tracked) = self.chunk_map.tracked.get(id) {
+                for viewer in &tracked.seen_by {
+                    if !passengers.contains(viewer)
+                        && let Some(p) = self.players.get(viewer)
+                    {
+                        p.connection.send_raw(packet.clone());
+                    }
+                }
+            }
+        }
     }
 
     fn remove_after_changing_dimensions(&mut self, id: EntityId) {
@@ -2301,16 +2446,6 @@ impl ServerLevel {
     fn process_portal_cooldown(&mut self, id: EntityId) {
         if self.is_on_portal_cooldown(id) {
             self.entity_mut(id).portal_cooldown -= 1;
-        }
-    }
-
-    pub fn get_dimension_changing_delay(&self, id: EntityId) -> i32 {
-        if self.is_player(id) {
-            10
-        } else if self.is_projectile(id) {
-            2
-        } else {
-            300
         }
     }
 
@@ -2432,14 +2567,29 @@ impl crate::server::Server {
             return None;
         }
         if transition.new_level != old_level {
+            if !transition.as_passenger {
+                self.levels[old_level].stop_riding(id);
+            }
             let old_entity = self.levels[old_level].portal_entity(id);
             self.teleport_cross_dimension(old_level, &old_entity, transition)
         } else {
-            Some(self.levels[old_level].teleport_same_dimension(id, transition))
+            self.levels[old_level].teleport_in_level(id, transition)
         }
     }
 
     fn teleport_cross_dimension(&mut self, old_level: usize, old_entity: &PortalEntity, transition: TeleportTransition) -> Option<EntityId> {
+        let level = &mut self.levels[old_level];
+        let old_passengers = if level.entities.contains_key(&old_entity.id) { level.passengers(old_entity.id).to_vec() } else { Vec::new() };
+        if !old_passengers.is_empty() {
+            level.eject_passengers(old_entity.id);
+        }
+        let mut new_passengers = Vec::with_capacity(old_passengers.len());
+        for passenger in old_passengers {
+            let passenger_transition = calculate_passenger_transition(old_entity.position, old_entity.y_rot, old_entity.x_rot, &transition, self.levels[old_level].entity(passenger));
+            if let Some(new_passenger) = self.teleport(passenger, passenger_transition) {
+                new_passengers.push(new_passenger);
+            }
+        }
         let mut new_entity = ServerLevel::create_entity(registry::ENTITY_TYPE[old_entity.entity_type as usize])?;
         let _ = new_entity.load(&Nbt::Compound(old_entity.data.clone().unwrap_or_default()));
         let e = new_entity.entity_mut();
@@ -2462,6 +2612,9 @@ impl crate::server::Server {
         let new_id = new_entity.entity().id;
         let level = &mut self.levels[transition.new_level];
         level.add_entity(new_entity);
+        for new_passenger in new_passengers {
+            level.start_riding(new_passenger, new_id, true, false);
+        }
         level.reset_empty_time();
         transition.post_teleport_transition.on_transition(level, new_id);
         if is_item {
@@ -2499,6 +2652,594 @@ impl crate::server::Server {
             self.levels[level].teleport_same_dimension(id, transition);
         }
         true
+    }
+}
+
+pub fn calculate_passenger_transition(position: Vec3, y_rot: f32, x_rot: f32, transition: &TeleportTransition, passenger: &Entity) -> TeleportTransition {
+    use relative::relative::{X, X_ROT, Y, Y_ROT, Z};
+    let has = |flag: u16| transition.relatives & flag != 0;
+    let passenger_y_rot = transition.y_rot + if has(Y_ROT) { 0.0 } else { passenger.y_rot - y_rot };
+    let passenger_x_rot = transition.x_rot + if has(X_ROT) { 0.0 } else { passenger.x_rot - x_rot };
+    let passenger_offset = passenger.position().subtract(position);
+    let passenger_pos = transition.position.add(
+        if has(X) { 0.0 } else { passenger_offset.x },
+        if has(Y) { 0.0 } else { passenger_offset.y },
+        if has(Z) { 0.0 } else { passenger_offset.z },
+    );
+    transition.with_position(passenger_pos).with_rotation(passenger_y_rot, passenger_x_rot).transition_as_passenger()
+}
+
+pub fn set_passengers_packet(vehicle: EntityId, passengers: &[EntityId]) -> Vec<u8> {
+    crate::network::connection::encode(crisp_data::packets::play::clientbound::SET_PASSENGERS, |w| {
+        w.varint(vehicle);
+        w.varint(passengers.len() as i32);
+        for &passenger in passengers {
+            w.varint(passenger);
+        }
+    })
+}
+
+pub fn get_collision_horizontal_escape_vector(collider_width: f64, colliding_width: f64, direction_degrees: f32) -> Vec3 {
+    let distance = (collider_width + colliding_width + 1.0e-5f32 as f64) / 2.0;
+    let direction_x = -mth::sin((direction_degrees * mth::DEG_TO_RAD) as f64);
+    let direction_z = mth::cos((direction_degrees * mth::DEG_TO_RAD) as f64);
+    let scale = direction_x.abs().max(direction_z.abs());
+    Vec3::new(direction_x as f64 * distance / scale as f64, 0.0, direction_z as f64 * distance / scale as f64)
+}
+
+impl ServerLevel {
+    pub fn vehicle(&self, id: EntityId) -> Option<EntityId> {
+        self.entity_ref(id).and_then(|e| e.vehicle)
+    }
+
+    pub fn passengers(&self, id: EntityId) -> &[EntityId] {
+        self.entity_ref(id).map_or(&[], |e| &e.passengers)
+    }
+
+    pub fn is_passenger(&self, id: EntityId) -> bool {
+        self.vehicle(id).is_some()
+    }
+
+    pub fn is_vehicle(&self, id: EntityId) -> bool {
+        !self.passengers(id).is_empty()
+    }
+
+    pub fn first_passenger(&self, id: EntityId) -> Option<EntityId> {
+        self.passengers(id).first().copied()
+    }
+
+    pub fn has_passenger(&self, id: EntityId, entity: EntityId) -> bool {
+        self.passengers(id).contains(&entity)
+    }
+
+    fn collect_self_and_passengers(&self, id: EntityId, out: &mut Vec<EntityId>) {
+        out.push(id);
+        for &passenger in self.passengers(id) {
+            self.collect_self_and_passengers(passenger, out);
+        }
+    }
+
+    fn collect_passengers_and_self(&self, id: EntityId, out: &mut Vec<EntityId>) {
+        for &passenger in self.passengers(id) {
+            self.collect_passengers_and_self(passenger, out);
+        }
+        out.push(id);
+    }
+
+    pub fn indirect_passengers(&self, id: EntityId) -> Vec<EntityId> {
+        let mut out = Vec::new();
+        for &passenger in self.passengers(id) {
+            self.collect_self_and_passengers(passenger, &mut out);
+        }
+        out
+    }
+
+    pub fn self_and_passengers(&self, id: EntityId) -> Vec<EntityId> {
+        let mut out = Vec::new();
+        self.collect_self_and_passengers(id, &mut out);
+        out
+    }
+
+    pub fn passengers_and_self(&self, id: EntityId) -> Vec<EntityId> {
+        let mut out = Vec::new();
+        self.collect_passengers_and_self(id, &mut out);
+        out
+    }
+
+    pub fn count_player_passengers(&self, id: EntityId) -> usize {
+        self.indirect_passengers(id).into_iter().filter(|&p| self.is_player(p)).count()
+    }
+
+    pub fn has_exactly_one_player_passenger(&self, id: EntityId) -> bool {
+        self.count_player_passengers(id) == 1
+    }
+
+    pub fn root_vehicle(&self, id: EntityId) -> EntityId {
+        let mut result = id;
+        while let Some(vehicle) = self.vehicle(result) {
+            result = vehicle;
+        }
+        result
+    }
+
+    pub fn is_passenger_of_same_vehicle(&self, id: EntityId, other: EntityId) -> bool {
+        self.root_vehicle(id) == self.root_vehicle(other)
+    }
+
+    pub fn has_indirect_passenger(&self, id: EntityId, entity: EntityId) -> bool {
+        match self.vehicle(entity) {
+            None => false,
+            Some(ridden) => ridden == id || self.has_indirect_passenger(id, ridden),
+        }
+    }
+
+    pub fn controlling_passenger(&self, id: EntityId) -> Option<EntityId> {
+        match self.entities.get(&id) {
+            Some(LevelEntity::Boat(_)) => self.abstract_boat_controlling_passenger(id),
+            Some(LevelEntity::Mob(mob)) => {
+                let first_passenger = self.first_passenger(id)?;
+                (!mob.is_no_ai() && self.is_mob(first_passenger) && self.can_control_vehicle(first_passenger)).then_some(first_passenger)
+            }
+            _ => None,
+        }
+    }
+
+    pub fn has_controlling_passenger(&self, id: EntityId) -> bool {
+        self.controlling_passenger(id).is_some()
+    }
+
+    pub fn controlled_vehicle(&self, id: EntityId) -> Option<EntityId> {
+        self.vehicle(id).filter(|&vehicle| self.controlling_passenger(vehicle) == Some(id))
+    }
+
+    pub fn can_control_vehicle(&self, id: EntityId) -> bool {
+        !entity_type_tags::NON_CONTROLLING_RIDER.contains(self.entity(id).entity_type as usize)
+    }
+
+    pub fn dismounts_underwater(&self, id: EntityId) -> bool {
+        entity_type_tags::DISMOUNTS_UNDERWATER.contains(self.entity(id).entity_type as usize)
+    }
+
+    fn can_serialize(&self, id: EntityId) -> bool {
+        !self.is_player(id) && !matches!(self.entities.get(&id), Some(LevelEntity::LightningBolt(_)))
+    }
+
+    pub fn start_riding(&mut self, id: EntityId, entity_to_ride: EntityId, force: bool, send_event_and_triggers: bool) -> bool {
+        if self.vehicle(id) == Some(entity_to_ride) {
+            return false;
+        }
+        if !self.could_accept_passenger(entity_to_ride) {
+            return false;
+        }
+        if !self.can_serialize(entity_to_ride) {
+            return false;
+        }
+        let mut vehicle_entity = entity_to_ride;
+        while let Some(vehicle) = self.vehicle(vehicle_entity) {
+            if vehicle == id {
+                return false;
+            }
+            vehicle_entity = vehicle;
+        }
+        if !(force || self.can_ride(id, entity_to_ride) && self.can_add_passenger(entity_to_ride, id)) {
+            return false;
+        }
+        if self.is_passenger(id) {
+            self.stop_riding(id);
+        }
+        self.set_entity_pose(id, data::Pose::Standing);
+        self.entity_mut(id).vehicle = Some(entity_to_ride);
+        self.add_passenger(entity_to_ride, id);
+        if send_event_and_triggers {
+            for passenger in self.indirect_passengers(entity_to_ride) {
+                if self.is_player(passenger) {
+                    crate::advancements::triggers::criteria_triggers::START_RIDING_TRIGGER.trigger(self, passenger);
+                }
+            }
+        }
+        if self.is_player(id) {
+            self.position_rider(entity_to_ride, id);
+            let position = self.entity(id).position();
+            let destination = relative::PositionMoveRotation { position, delta_movement: Vec3::ZERO, y_rot: 0.0, x_rot: 0.0 };
+            self.player_mut(id).teleport_relative(destination, relative::relative::ROTATION);
+            if self.is_living(entity_to_ride) {
+                self.send_active_effects(entity_to_ride, id);
+            }
+            let packet = set_passengers_packet(entity_to_ride, self.passengers(entity_to_ride));
+            self.player(id).connection.send_raw(packet);
+        }
+        true
+    }
+
+    fn can_ride(&self, id: EntityId, _vehicle: EntityId) -> bool {
+        let e = self.entity(id);
+        !e.is_shift_key_down() && e.boarding_cooldown <= 0
+    }
+
+    fn can_add_passenger(&self, id: EntityId, _passenger: EntityId) -> bool {
+        match self.entities.get(&id) {
+            Some(LevelEntity::Boat(_)) => self.abstract_boat_can_add_passenger(id),
+            _ => self.passengers(id).is_empty(),
+        }
+    }
+
+    fn could_accept_passenger(&self, _id: EntityId) -> bool {
+        true
+    }
+
+    fn add_passenger(&mut self, id: EntityId, passenger: EntityId) {
+        let player_first = self.is_player(passenger) && !self.first_passenger(id).is_some_and(|first| self.is_player(first));
+        let passengers = &mut self.entity_mut(id).passengers;
+        if !passengers.is_empty() && player_first {
+            passengers.insert(0, passenger);
+        } else {
+            passengers.push(passenger);
+        }
+    }
+
+    fn remove_passenger(&mut self, id: EntityId, passenger: EntityId) {
+        self.entity_mut(id).passengers.retain(|&p| p != passenger);
+        self.entity_mut(passenger).boarding_cooldown = 60;
+    }
+
+    pub fn eject_passengers(&mut self, id: EntityId) {
+        let mut i = self.passengers(id).len();
+        while i > 0 {
+            i -= 1;
+            if let Some(&passenger) = self.passengers(id).get(i) {
+                self.stop_riding(passenger);
+            }
+        }
+    }
+
+    pub fn un_ride(&mut self, id: EntityId) {
+        if self.is_vehicle(id) {
+            self.eject_passengers(id);
+        }
+        if self.is_passenger(id) {
+            self.stop_riding(id);
+        }
+    }
+
+    pub fn remove_vehicle(&mut self, id: EntityId) {
+        let old_vehicle = self.vehicle(id);
+        if let Some(old) = old_vehicle {
+            self.entity_mut(id).vehicle = None;
+            self.remove_passenger(old, id);
+        }
+        if self.is_player(id) {
+            self.entity_mut(id).boarding_cooldown = 0;
+            if let Some(old) = old_vehicle.filter(|&old| self.entity_ref(old).is_some()) {
+                if self.is_living(old) {
+                    let effects: Vec<_> = self.living(old).active_effects.iter().map(|effect| effect.effect).collect();
+                    for effect in effects {
+                        self.player(id).connection.send_raw(super::living_entity::remove_mob_effect(old, effect));
+                    }
+                }
+                let packet = set_passengers_packet(old, self.passengers(old));
+                self.player(id).connection.send_raw(packet);
+            }
+        }
+    }
+
+    pub fn stop_riding(&mut self, id: EntityId) {
+        let old_vehicle = self.vehicle(id);
+        self.remove_vehicle(id);
+        if self.is_living(id)
+            && let Some(old) = old_vehicle
+            && self.vehicle(id) != Some(old)
+        {
+            self.dismount_vehicle(id, old);
+        }
+    }
+
+    pub fn set_removed(&mut self, id: EntityId, reason: RemovalReason) {
+        let e = self.entity_mut(id);
+        let reason = *e.removal.get_or_insert(reason);
+        if reason.should_destroy() {
+            self.stop_riding(id);
+        }
+        for passenger in self.passengers(id).to_vec() {
+            self.stop_riding(passenger);
+        }
+    }
+
+    fn dismount_vehicle(&mut self, id: EntityId, vehicle: EntityId) {
+        let vehicle_removed = self.entity_ref(vehicle).is_none_or(Entity::is_removed);
+        let teleport_target = if self.entity(id).is_removed() {
+            self.entity(id).position()
+        } else if !vehicle_removed && !{
+            let pos = self.entity(vehicle).block_position();
+            self.block_state(pos).is(&block_tags::PORTALS)
+        } {
+            self.dismount_location_for_passenger(vehicle, id)
+        } else {
+            let e = self.entity(id);
+            let vehicle_y = self.entity_ref(vehicle).map_or(e.y(), Entity::y);
+            let max_y = e.y().max(vehicle_y);
+            let mut teleport_target = Vec3::new(e.x(), max_y, e.z());
+            let (width, height) = (e.dimensions.width, e.dimensions.height);
+            let is_small = width <= 4.0 && height <= 4.0;
+            if is_small {
+                let half_height = height as f64 / 2.0;
+                let center = teleport_target.add(0.0, half_height, 0.0);
+                let allowed_centers = AABB::of_size(center, width as f64, height as f64, width as f64);
+                let context = CollisionContext::of(self, id);
+                teleport_target = self
+                    .find_free_position(&context, &allowed_centers, center, width as f64, height as f64, width as f64)
+                    .map_or(teleport_target, |pos| pos.add(0.0, -half_height, 0.0));
+            }
+            teleport_target
+        };
+        self.dismount_to(id, teleport_target.x, teleport_target.y, teleport_target.z);
+    }
+
+    pub fn dismount_to(&mut self, id: EntityId, x: f64, y: f64, z: f64) {
+        self.teleport_to(id, x, y, z);
+    }
+
+    pub fn teleport_to(&mut self, id: EntityId, x: f64, y: f64, z: f64) {
+        if self.is_player(id) {
+            let destination = relative::PositionMoveRotation { position: Vec3::new(x, y, z), delta_movement: Vec3::ZERO, y_rot: 0.0, x_rot: 0.0 };
+            self.player_mut(id).teleport_relative(destination, relative::relative::DELTA | relative::relative::ROTATION);
+            self.entity_moved(id);
+            return;
+        }
+        let e = self.entity_mut(id);
+        let (y_rot, x_rot) = (e.y_rot, e.x_rot);
+        e.snap_to(x, y, z, y_rot, x_rot);
+        self.entity_moved(id);
+        self.teleport_passengers(id);
+    }
+
+    fn teleport_passengers(&mut self, id: EntityId) {
+        for entity in self.self_and_passengers(id) {
+            for passenger in self.passengers(entity).to_vec() {
+                self.position_rider_with(entity, passenger, true);
+            }
+        }
+    }
+
+    pub fn dismount_location_for_passenger(&mut self, id: EntityId, passenger: EntityId) -> Vec3 {
+        match self.entities.get(&id) {
+            Some(LevelEntity::Minecart(_)) => self.abstract_minecart_dismount_location_for_passenger(id, passenger),
+            Some(LevelEntity::Boat(_)) => self.abstract_boat_dismount_location_for_passenger(id, passenger),
+            _ => self.entity_dismount_location_for_passenger(id, passenger),
+        }
+    }
+
+    pub fn entity_dismount_location_for_passenger(&self, id: EntityId, _passenger: EntityId) -> Vec3 {
+        let e = self.entity(id);
+        Vec3::new(e.x(), e.bounding_box().max_y, e.z())
+    }
+
+    pub fn dismount_poses(&self, id: EntityId) -> &'static [data::Pose] {
+        if self.is_player(id) { &[data::Pose::Standing, data::Pose::Crouching, data::Pose::Swimming] } else { &[data::Pose::Standing] }
+    }
+
+    pub fn dimensions_for_pose(&self, id: EntityId, pose: data::Pose) -> EntityDimensions {
+        if self.is_player(id) { super::player::player::get_default_dimensions(pose) } else { self.entity(id).dimensions }
+    }
+
+    pub fn local_bounds_for_pose(&self, id: EntityId, pose: data::Pose) -> AABB {
+        let dimensions = self.dimensions_for_pose(id, pose);
+        let half_width = (dimensions.width / 2.0) as f64;
+        AABB::new(-half_width, 0.0, -half_width, half_width, dimensions.height as f64, half_width)
+    }
+
+    pub fn ride_tick(&mut self, id: EntityId) {
+        if self.is_player(id) && self.entity(id).is_shift_key_down() && self.is_passenger(id) {
+            self.stop_riding(id);
+            return;
+        }
+        let pre = self.entity(id).position();
+        self.entity_mut(id).set_delta_movement(Vec3::ZERO);
+        self.tick_ridden(id);
+        if self.entity_ref(id).is_none() {
+            return;
+        }
+        if let Some(vehicle) = self.vehicle(id) {
+            self.position_rider(vehicle, id);
+        }
+        if self.is_living(id) {
+            self.reset_fall_distance(id);
+        }
+        if self.is_player(id) {
+            let now = self.entity(id).position();
+            self.check_riding_statistics(id, now.x - pre.x, now.y - pre.y, now.z - pre.z);
+        }
+    }
+
+    pub fn position_rider(&mut self, id: EntityId, passenger: EntityId) {
+        if self.has_passenger(id, passenger) {
+            self.position_rider_with(id, passenger, false);
+        }
+    }
+
+    fn position_rider_with(&mut self, id: EntityId, passenger: EntityId, snap: bool) {
+        let position = self.passenger_riding_position(id, passenger);
+        let offset = self.vehicle_attachment_point(passenger, id);
+        let (x, y, z) = (position.x - offset.x, position.y - offset.y, position.z - offset.z);
+        let p = self.entity_mut(passenger);
+        if snap {
+            let (y_rot, x_rot) = (p.y_rot, p.x_rot);
+            p.snap_to(x, y, z, y_rot, x_rot);
+        } else {
+            p.set_pos(Vec3::new(x, y, z));
+        }
+        self.entity_moved(passenger);
+        match self.entities.get(&id) {
+            Some(LevelEntity::Boat(_)) => self.abstract_boat_position_rider(id, passenger),
+            Some(LevelEntity::Mob(mob)) if matches!(mob.kind, super::mob::MobKind::Chicken(_)) => {
+                if self.is_living(passenger) {
+                    let y_body_rot = self.living(id).y_body_rot;
+                    self.living_mut(passenger).y_body_rot = y_body_rot;
+                }
+            }
+            _ => {}
+        }
+    }
+
+    pub fn vehicle_attachment_point(&self, id: EntityId, _vehicle: EntityId) -> Vec3 {
+        let e = self.entity(id);
+        e.dimensions.attachments.get(EntityAttachment::Vehicle, 0, e.y_rot)
+    }
+
+    pub fn passenger_riding_position(&self, id: EntityId, passenger: EntityId) -> Vec3 {
+        self.entity(id).position().add_vec(self.passenger_attachment_point(id, passenger))
+    }
+
+    fn passenger_attachment_point(&self, id: EntityId, passenger: EntityId) -> Vec3 {
+        match self.entities.get(&id) {
+            Some(LevelEntity::Boat(_)) => self.abstract_boat_passenger_attachment_point(id, passenger),
+            Some(LevelEntity::Minecart(_)) => self.abstract_minecart_passenger_attachment_point(id, passenger),
+            _ => self.default_passenger_attachment_point(id, passenger),
+        }
+    }
+
+    pub fn default_passenger_attachment_point(&self, id: EntityId, passenger: EntityId) -> Vec3 {
+        let vehicle = self.entity(id);
+        let passenger_index = vehicle.passengers.iter().position(|&p| p == passenger).map_or(-1, |i| i as i32);
+        vehicle.dimensions.attachments.get_clamped(EntityAttachment::Passenger, passenger_index, vehicle.y_rot)
+    }
+
+    pub fn fluid_interaction_box(&self, id: EntityId) -> Option<AABB> {
+        let box_ = self.entity(id).bounding_box().deflate_all(0.001);
+        match self.vehicle(id) {
+            Some(vehicle) if self.is_boat(vehicle) => self.abstract_boat_modify_passenger_fluid_interaction_box(vehicle, box_),
+            _ => Some(box_),
+        }
+    }
+
+    pub fn can_be_collided_with(&self, id: EntityId, _other: Option<EntityId>) -> bool {
+        self.is_boat(id)
+    }
+
+    pub fn can_collide_with(&self, id: EntityId, entity: EntityId) -> bool {
+        match self.entities.get(&id) {
+            Some(LevelEntity::Boat(_) | LevelEntity::Minecart(_)) => super::vehicle::boat::abstract_boat::can_vehicle_collide(self, id, entity),
+            _ => self.can_be_collided_with(entity, Some(id)) && !self.is_passenger_of_same_vehicle(id, entity),
+        }
+    }
+
+    pub fn is_pushable_immutable(&self, id: EntityId) -> bool {
+        match self.entities.get(&id) {
+            Some(LevelEntity::Boat(_) | LevelEntity::Minecart(_)) => true,
+            _ => false,
+        }
+    }
+
+    pub fn push_entity(&mut self, id: EntityId, other: EntityId) {
+        match self.entities.get(&id) {
+            Some(LevelEntity::Minecart(_)) => self.abstract_minecart_push(id, other),
+            Some(LevelEntity::Boat(_)) => self.abstract_boat_push(id, other),
+            _ if self.is_living(id) => {
+                if !self.is_sleeping(id) {
+                    self.entity_push_entity(id, other);
+                }
+            }
+            _ => self.entity_push_entity(id, other),
+        }
+    }
+
+    pub fn entity_push_entity(&mut self, id: EntityId, other: EntityId) {
+        if self.is_passenger_of_same_vehicle(id, other) {
+            return;
+        }
+        let (e, o) = (self.entity(id), self.entity(other));
+        if o.no_physics || e.no_physics {
+            return;
+        }
+        let mut xa = o.x() - e.x();
+        let mut za = o.z() - e.z();
+        let mut dd = mth::abs_max(xa, za);
+        if dd < 0.01f32 as f64 {
+            return;
+        }
+        dd = dd.sqrt();
+        xa /= dd;
+        za /= dd;
+        let pow = (1.0 / dd).min(1.0);
+        xa *= pow;
+        za *= pow;
+        xa *= 0.05f32 as f64;
+        za *= 0.05f32 as f64;
+        if !self.is_vehicle(id) && self.is_pushable(id) {
+            self.entity_mut(id).push(-xa, 0.0, -za);
+        }
+        if !self.is_vehicle(other) && self.is_pushable(other) {
+            self.entity_mut(other).push(xa, 0.0, za);
+        }
+    }
+
+    pub fn entity_push(&mut self, id: EntityId, xa: f64, ya: f64, za: f64) {
+        self.entity_mut(id).push(xa, ya, za);
+    }
+
+    pub fn is_pushable(&mut self, id: EntityId) -> bool {
+        if self.is_living(id) { self.living_entity_is_pushable(id) } else { self.is_pushable_immutable(id) }
+    }
+
+    pub fn is_pickable(&self, id: EntityId) -> bool {
+        if self.is_player(id) {
+            return !self.is_spectator(id) && !self.entity(id).is_removed();
+        }
+        match self.entities.get(&id) {
+            None | Some(LevelEntity::Mob(_) | LevelEntity::Minecart(_) | LevelEntity::Boat(_) | LevelEntity::PrimedTnt(_) | LevelEntity::FallingBlock(_)) => {
+                !self.entity(id).is_removed()
+            }
+            Some(LevelEntity::EndCrystal(_)) => true,
+            Some(LevelEntity::Projectile(projectile)) => {
+                entity_type_tags::REDIRECTABLE_PROJECTILE.contains(projectile.entity.entity_type as usize) && !(projectile.abstract_arrow().is_some() && projectile.is_in_ground())
+            }
+            Some(_) => false,
+        }
+    }
+
+    pub fn pick_radius(&self, _id: EntityId) -> f32 {
+        0.0
+    }
+
+    pub fn is_animal(&self, id: EntityId) -> bool {
+        self.mob(id).is_some_and(|mob| mob.animal().is_some())
+    }
+
+    pub fn set_y_body_rot(&mut self, id: EntityId, y_body_rot: f32) {
+        if self.is_living(id) {
+            self.living_mut(id).y_body_rot = y_body_rot;
+        }
+    }
+
+    pub fn clamp_head_rotation_to_body(&mut self, id: EntityId) {
+        let Some(mob) = self.mob_mut(id) else { return };
+        let max_head_rotation = mob.max_head_y_rot() as f32;
+        let head_rotation = mob.entity.y_head_rot;
+        let delta = mth::wrap_degrees(mob.living.y_body_rot - head_rotation);
+        let target_delta = mth::clamp_f(mth::wrap_degrees(mob.living.y_body_rot - head_rotation), -max_head_rotation, max_head_rotation);
+        mob.entity.y_head_rot = head_rotation + delta - target_delta;
+    }
+
+    pub fn send_active_effects(&self, entity: EntityId, player: EntityId) {
+        let connection = &self.player(player).connection;
+        for effect in &self.living(entity).active_effects {
+            connection.send_raw(super::living_entity::update_mob_effect(entity, effect, false));
+        }
+    }
+
+    pub fn get_dimension_changing_delay(&self, id: EntityId) -> i32 {
+        if self.is_player(id) {
+            return 10;
+        }
+        if self.is_vehicle_entity(id) {
+            return 10;
+        }
+        if self.is_projectile(id) {
+            return 2;
+        }
+        match self.first_passenger(id) {
+            Some(first_passenger) if self.is_player(first_passenger) => self.get_dimension_changing_delay(first_passenger),
+            _ => 300,
+        }
     }
 }
 

@@ -10,7 +10,7 @@ use crate::world::entity::{EntityDimensions, EntityId};
 use crate::world::item::ItemStack;
 
 pub const DATA_ITEM_STACK: usize = 8;
-pub const DIMENSIONS: EntityDimensions = EntityDimensions { width: 0.25, height: 0.25, eye_height: 0.25 * 0.85 };
+pub const DIMENSIONS: EntityDimensions = EntityDimensions::scalable(0.25, 0.25);
 
 pub fn get_default_item(kind: &ProjectileKind) -> Item {
     match kind {

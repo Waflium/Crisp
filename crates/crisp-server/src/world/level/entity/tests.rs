@@ -36,7 +36,7 @@ fn entity_chunks_store_like_vanilla() {
     tnt.entity.delta_movement = Vec3::new(0.0, 0.2, 0.0);
     tnt.set_fuse(33);
     let entities = [LevelEntity::Item(diamonds), LevelEntity::Item(stone), LevelEntity::PrimedTnt(tnt)];
-    let tag = chunk_tag(ChunkPos::new(1, 0), entities.iter());
+    let tag = chunk_tag(ChunkPos::new(1, 0), entities.iter().filter_map(LevelEntity::save).collect());
     assert_eq!(hex(&encode_nbt(&tag)), ORACLE_STORED, "{}", crate::nbt::to_string(&tag));
 }
 

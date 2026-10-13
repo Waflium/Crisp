@@ -3,6 +3,7 @@ pub mod array_item_provider;
 pub mod arrow_item;
 pub mod banner_item;
 pub mod block_item;
+pub mod boat_item;
 pub mod bow_item;
 pub mod bucket_item;
 pub mod bone_meal_item;
@@ -36,6 +37,7 @@ pub mod jukebox_playable;
 pub mod jukebox_song;
 pub mod jukebox_song_player;
 pub mod map_item;
+pub mod minecart_item;
 pub mod name_tag_item;
 pub mod scaffolding_block_item;
 pub mod slot;
@@ -103,6 +105,7 @@ pub fn use_on(level: &mut ServerLevel, player: EntityId, hand: InteractionHand, 
             return flint_and_steel_item::fire_charge_use_on(level, player, hand, &ctx);
         }
         Some(&"SpawnEggItem") => return spawn_egg_item::use_on(level, player, hand, hit, stack),
+        Some(&"MinecartItem") => return minecart_item::use_on(level, player, hand, hit, stack),
         Some(&"HoneycombItem") => return honeycomb_item::use_on(level, player, hand, hit, stack),
         Some(&"EnderEyeItem") => return ender_eye_item::use_on(level, player, hand, hit, stack),
         Some(&"FireworkRocketItem") => return firework_rocket_item::use_on(level, player, hand, hit, stack),
@@ -172,6 +175,10 @@ fn item_use(level: &mut ServerLevel, player: EntityId, hand: InteractionHand, st
     }
     if stack.item.is_instance_of("FireworkRocketItem") {
         return firework_rocket_item::use_item(level, player, hand);
+
+    }
+    if stack.item.is_instance_of("BoatItem") {
+        return boat_item::use_item(level, player, hand);
     }
     match bucket_item::BucketItem::for_item(stack.item) {
         Some(bucket) => bucket.use_item(level, player, hand),

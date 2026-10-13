@@ -73,6 +73,16 @@ impl ServerLevel {
                 self.handle_accept_teleport(id, teleport_id, pos, y_rot, x_rot);
             }
             serverbound::PLAYER_INPUT => self.handle_player_input(id, Input::from_flags(r.u8()?)),
+            serverbound::MOVE_VEHICLE => {
+                let position = Vec3::new(r.f64()?, r.f64()?, r.f64()?);
+                let (y_rot, x_rot) = (r.f32()?, r.f32()?);
+                let on_ground = r.bool()?;
+                self.handle_move_vehicle(id, position, y_rot, x_rot, on_ground);
+            }
+            serverbound::PADDLE_BOAT => {
+                let (left, right) = (r.bool()?, r.bool()?);
+                self.handle_paddle_boat(id, left, right);
+            }
             serverbound::PLAYER_COMMAND => {
                 let _entity = r.varint()?;
                 let action = r.varint()?;
@@ -756,8 +766,12 @@ impl ServerLevel {
         true
     }
 
-    fn pick_result(&self, _entity: EntityId) -> Option<ItemStack> {
-        None
+    fn pick_result(&self, entity: EntityId) -> Option<ItemStack> {
+        match self.entities.get(&entity) {
+            Some(crate::world::entity::LevelEntity::Minecart(minecart)) => Some(ItemStack::new(minecart.get_pick_result(), 1)),
+            Some(crate::world::entity::LevelEntity::Boat(boat)) => Some(ItemStack::new(boat.get_pick_result(), 1)),
+            _ => None,
+        }
     }
 
     fn try_pick_item(&mut self, id: EntityId, stack: ItemStack) {

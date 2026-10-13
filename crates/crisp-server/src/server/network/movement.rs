@@ -58,6 +58,12 @@ pub struct PlayerMovement {
     pub client_loaded_timeout_timer: i32,
     pub waiting_for_respawn: bool,
     pub last_supported_blocks_send: i32,
+    pub last_vehicle: Option<EntityId>,
+    pub vehicle_first_good: Vec3,
+    pub vehicle_last_good: Vec3,
+    pub client_vehicle_is_floating: bool,
+    pub above_ground_vehicle_tick_count: i32,
+    pub vehicle_position_last_reset_at: i32,
 }
 
 impl Default for PlayerMovement {
@@ -78,6 +84,12 @@ impl Default for PlayerMovement {
             client_loaded_timeout_timer: CLIENT_LOADED_TIMEOUT,
             waiting_for_respawn: false,
             last_supported_blocks_send: 0,
+            last_vehicle: None,
+            vehicle_first_good: Vec3::ZERO,
+            vehicle_last_good: Vec3::ZERO,
+            client_vehicle_is_floating: false,
+            above_ground_vehicle_tick_count: 0,
+            vehicle_position_last_reset_at: 0,
         }
     }
 }
@@ -107,6 +119,13 @@ fn clamp_vertical(value: f64) -> f64 {
 }
 
 impl ServerPlayer {
+    pub fn get_last_client_move_intent(&self) -> Vec3 {
+        let input = self.last_client_input;
+        let left_intent = if input.left == input.right { 0.0 } else if input.left { 1.0 } else { -1.0 };
+        let forward_intent = if input.forward == input.backward { 0.0 } else if input.forward { 1.0 } else { -1.0 };
+        crate::world::entity::input_vector(Vec3::new(left_intent, 0.0, forward_intent), 1.0, self.entity.y_rot)
+    }
+
     pub fn teleport(&mut self, pos: Vec3, y_rot: f32, x_rot: f32) {
         self.teleport_relative(PositionMoveRotation { position: pos, delta_movement: Vec3::ZERO, y_rot, x_rot }, 0);
     }
@@ -191,6 +210,14 @@ impl ServerLevel {
         let (target_x, target_y, target_z) = (clamp_horizontal(requested.x), clamp_vertical(requested.y), clamp_horizontal(requested.z));
         let target_y_rot = mth::wrap_degrees(requested_y_rot);
         let target_x_rot = mth::wrap_degrees(requested_x_rot);
+        if self.is_passenger(id) {
+            let e = self.entity_mut(id);
+            let (x, y, z) = (e.x(), e.y(), e.z());
+            e.abs_snap_to(x, y, z);
+            e.abs_snap_rotation_to(target_y_rot, target_x_rot);
+            self.move_player(id);
+            return;
+        }
         let p = self.player(id);
         let start = p.entity.position();
         let first_good = p.movement.first_good;
@@ -394,6 +421,134 @@ impl ServerLevel {
         }
     }
 
+    pub fn handle_move_vehicle(&mut self, id: EntityId, moving_to: Vec3, y_rot: f32, x_rot: f32, on_ground: bool) {
+        if contains_invalid_values(moving_to.x, moving_to.y, moving_to.z, y_rot, x_rot) {
+            self.player_mut(id).disconnect("multiplayer.disconnect.invalid_vehicle_movement");
+            return;
+        }
+        if self.update_awaiting_teleport(id) || !self.player(id).movement.has_client_loaded() {
+            return;
+        }
+        let vehicle = self.root_vehicle(id);
+        if vehicle != id && self.controlling_passenger(vehicle) == Some(id) && Some(vehicle) == self.player(id).movement.last_vehicle {
+            let old = self.entity(vehicle).position();
+            let (target_x, target_y, target_z) = (clamp_horizontal(moving_to.x), clamp_vertical(moving_to.y), clamp_horizontal(moving_to.z));
+            let target_y_rot = mth::wrap_degrees(y_rot);
+            let target_x_rot = mth::wrap_degrees(x_rot);
+            let first_good = self.player(id).movement.vehicle_first_good;
+            let (x_dist, y_dist, z_dist) = (target_x - first_good.x, target_y - first_good.y, target_z - first_good.z);
+            let expected_dist = self.entity(vehicle).delta_movement.length_sqr();
+            let moved_dist = x_dist * x_dist + y_dist * y_dist + z_dist * z_dist;
+            if moved_dist - expected_dist > 100.0 {
+                warn!(
+                    "{} (vehicle of {}) moved too quickly! {},{},{}",
+                    self.entity_plain_text_name(vehicle),
+                    self.player(id).profile.name,
+                    java_double_to_string(x_dist),
+                    java_double_to_string(y_dist),
+                    java_double_to_string(z_dist)
+                );
+                self.send_move_vehicle(id, vehicle);
+                return;
+            }
+            let old_aabb = self.entity(vehicle).bounding_box();
+            let last_good = self.player(id).movement.vehicle_last_good;
+            let (x_dist, y_dist, z_dist) = (target_x - last_good.x, target_y - last_good.y, target_z - last_good.z);
+            let vehicle_rests_on_something = self.entity(vehicle).vertical_collision_below;
+            if self.is_living(vehicle) && self.on_climbable(vehicle) {
+                self.reset_fall_distance(vehicle);
+            }
+            self.move_entity(vehicle, MoverType::Player, Vec3::new(x_dist, y_dist, z_dist));
+            let oy_dist = y_dist;
+            let e = self.entity(vehicle);
+            let x_dist = target_x - e.x();
+            let z_dist = target_z - e.z();
+            let moved_dist = x_dist * x_dist + z_dist * z_dist;
+            let mut fail = false;
+            if moved_dist > 0.0625 {
+                fail = true;
+                warn!("{} (vehicle of {}) moved wrongly! {}", self.entity_plain_text_name(vehicle), self.player(id).profile.name, java_double_to_string(moved_dist.sqrt()));
+            }
+            if fail && self.no_collision_for(vehicle, &old_aabb) || self.is_entity_colliding_with_anything_new(vehicle, &old_aabb, target_x, target_y, target_z) {
+                let e = self.entity_mut(vehicle);
+                e.abs_snap_to(old.x, old.y, old.z);
+                e.abs_snap_rotation_to(target_y_rot, target_x_rot);
+                self.entity_moved(vehicle);
+                self.send_move_vehicle(id, vehicle);
+                self.entity_mut(vehicle).remove_latest_movement_recording();
+                return;
+            }
+            let e = self.entity_mut(vehicle);
+            e.abs_snap_to(target_x, target_y, target_z);
+            e.abs_snap_rotation_to(target_y_rot, target_x_rot);
+            self.entity_moved(vehicle);
+            self.move_player(id);
+            let e = self.entity(vehicle);
+            let client_delta_movement = Vec3::new(e.x() - old.x, e.y() - old.y, e.z() - old.z);
+            self.handle_player_known_movement(id, client_delta_movement);
+            let horizontal_collision = self.entity(vehicle).horizontal_collision;
+            self.set_on_ground_with_movement(vehicle, on_ground, horizontal_collision, client_delta_movement);
+            self.do_check_fall_damage(vehicle, client_delta_movement.x, client_delta_movement.y, client_delta_movement.z, on_ground);
+            if self.entity_ref(vehicle).is_none() {
+                return;
+            }
+            self.check_movement_statistics(id, client_delta_movement.x, client_delta_movement.y, client_delta_movement.z);
+            let floating = oy_dist >= -0.03125 && !vehicle_rests_on_something && !self.allow_flight && !self.entity(vehicle).is_no_gravity() && {
+                let box_ = self.entity(vehicle).bounding_box().inflate_all(0.0625).expand_towards(0.0, -0.55, 0.0);
+                self.all_air_in(&box_)
+            };
+            let position = self.entity(vehicle).position();
+            let m = &mut self.player_mut(id).movement;
+            m.client_vehicle_is_floating = floating;
+            m.vehicle_last_good = position;
+        } else if vehicle != id && self.controlling_passenger(vehicle) != Some(id) {
+            let tick_count = self.player(id).movement.tick_count;
+            let too_long = tick_count - self.player(id).movement.vehicle_position_last_reset_at > 20;
+            if too_long || self.entity(vehicle).position().distance_to_sqr(moving_to) > 1.0 {
+                warn!(
+                    "{} was expected to be controlling vehicle {} but was not. Resetting vehicle position.",
+                    self.player(id).profile.name,
+                    self.entity_name_for_log(vehicle)
+                );
+                self.send_move_vehicle(id, vehicle);
+                self.player_mut(id).movement.vehicle_position_last_reset_at = tick_count;
+            }
+        }
+    }
+
+    fn send_move_vehicle(&self, id: EntityId, vehicle: EntityId) {
+        let e = self.entity(vehicle);
+        self.player(id).connection.send(clientbound::MOVE_VEHICLE, |w| {
+            w.f64(e.x());
+            w.f64(e.y());
+            w.f64(e.z());
+            w.f32(e.y_rot);
+            w.f32(e.x_rot);
+        });
+    }
+
+    fn entity_plain_text_name(&self, id: EntityId) -> String {
+        match self.entities.get(&id) {
+            Some(entity) => entity.name().get_string(),
+            None => self.player(id).profile.name.clone(),
+        }
+    }
+
+    fn entity_name_for_log(&self, id: EntityId) -> String {
+        match self.entity(id).custom_name() {
+            Some(name) => name.get_string(),
+            None => format!("translation{{key='entity.{}', args=[]}}", crisp_data::registry::ENTITY_TYPE[self.entity(id).entity_type as usize].replacen(':', ".", 1)),
+        }
+    }
+
+    pub fn handle_paddle_boat(&mut self, id: EntityId, left: bool, right: bool) {
+        if let Some(vehicle) = self.controlled_vehicle(id)
+            && self.is_boat(vehicle)
+        {
+            self.boat_set_paddle_state(vehicle, left, right);
+        }
+    }
+
     pub fn handle_player_command(&mut self, id: EntityId, action: i32) {
         if !self.player(id).movement.has_client_loaded() {
             return;
@@ -448,7 +603,9 @@ impl ServerLevel {
         p.entity.abs_snap_rotation_to(y_rot, x_rot);
         p.movement.tick_count += 1;
         p.movement.known_move_packet_count = p.movement.received_move_packet_count;
-        if p.movement.client_is_floating && !sleeping && p.health > 0.0 {
+        let passenger = self.is_passenger(id);
+        let p = self.player_mut(id);
+        if p.movement.client_is_floating && !sleeping && !passenger && p.health > 0.0 {
             p.movement.above_ground_tick_count += 1;
             let maximum = self.maximum_flying_ticks(id);
             let p = self.player_mut(id);
@@ -460,6 +617,32 @@ impl ServerLevel {
         } else {
             p.movement.client_is_floating = false;
             p.movement.above_ground_tick_count = 0;
+        }
+        let last_vehicle = self.root_vehicle(id);
+        if last_vehicle != id && self.controlling_passenger(last_vehicle) == Some(id) {
+            let position = self.entity(last_vehicle).position();
+            let maximum = self.maximum_flying_ticks(last_vehicle);
+            let m = &mut self.player_mut(id).movement;
+            m.last_vehicle = Some(last_vehicle);
+            m.vehicle_first_good = position;
+            m.vehicle_last_good = position;
+            if m.client_vehicle_is_floating {
+                m.above_ground_vehicle_tick_count += 1;
+                let p = self.player_mut(id);
+                if p.movement.above_ground_vehicle_tick_count > maximum {
+                    warn!("{} was kicked for floating a vehicle too long!", p.profile.name);
+                    p.disconnect("multiplayer.disconnect.flying");
+                    return true;
+                }
+            } else {
+                m.client_vehicle_is_floating = false;
+                m.above_ground_vehicle_tick_count = 0;
+            }
+        } else {
+            let m = &mut self.player_mut(id).movement;
+            m.last_vehicle = None;
+            m.client_vehicle_is_floating = false;
+            m.above_ground_vehicle_tick_count = 0;
         }
         false
     }

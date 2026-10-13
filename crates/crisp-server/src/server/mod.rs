@@ -40,7 +40,7 @@ use crisp_core::random::{LegacyRandomSource, RandomSource};
 use crisp_core::BlockPos;
 use crisp_data::packets::play::{clientbound, serverbound};
 use crisp_data::{DIMENSION_TYPES, SyncedRegistry, game_rule};
-use crisp_protocol::nbt::text;
+use crisp_protocol::nbt::{Nbt, text};
 use sha2::{Digest, Sha256};
 use tokio::sync::mpsc;
 
@@ -796,12 +796,13 @@ impl Server {
     }
 
     fn save_player(&self, player: &ServerPlayer) {
-        self.save_player_data(self.entity_level(player.entity.id).dimension, player);
+        let nbt = self.entity_level(player.entity.id).save_player(player.entity.id);
+        self.save_player_data(&nbt, player);
     }
 
-    fn save_player_data(&self, dimension: &str, player: &ServerPlayer) {
+    fn save_player_data(&self, nbt: &Nbt, player: &ServerPlayer) {
         let Some(dir) = &self.world_dir else { return };
-        if write_dat(&dir.player(player.profile.uuid), &player.to_nbt(dimension)).is_err() {
+        if write_dat(&dir.player(player.profile.uuid), nbt).is_err() {
             warn!("Failed to save player data for {}", player.profile.name);
         }
         player.stats.save();
@@ -1009,6 +1010,9 @@ impl Server {
         player.last_sent_exp = player.experience.total;
         let joined = NameAndId { id: player.profile.uuid, name: player.profile.name.clone() };
         self.notification_manager.player_joined(&joined);
+        if let Some(nbt) = &saved {
+            self.levels[level_index].load_and_spawn_parent_vehicle(id, nbt);
+        }
     }
 
     fn tick_player_list(&mut self) {
@@ -1300,8 +1304,21 @@ impl Server {
             level.stop_sleep_in_bed(id, true, false);
         }
         level.player_mut(id).disconnected = true;
+        level.eject_passengers(id);
         level.remove_player_menus(id);
         level.award_stat(id, crate::stats::stats::LEAVE_GAME, 1);
+        let saved = level.save_player(id);
+        if level.is_passenger(id) {
+            let vehicle = level.root_vehicle(id);
+            if level.has_exactly_one_player_passenger(vehicle) {
+                level.stop_riding(id);
+                for entity in level.passengers_and_self(vehicle) {
+                    level.set_removed(entity, crate::world::entity::RemovalReason::UnloadedWithPlayer);
+                    level.remove_entity(entity);
+                }
+            }
+        }
+        level.un_ride(id);
         let leaving = level.player(id);
         let reason = leaving.disconnect_reason.clone().or_else(|| reason.map(|r| r.get_string())).unwrap_or_else(|| "Disconnected".into());
         info!("{} lost connection: {reason}", leaving.profile.name);
@@ -1320,7 +1337,7 @@ impl Server {
         self.scoreboard.borrow_mut().server.remove_connection(id);
         self.update_player_names_array();
         self.custom_boss_events.on_player_disconnect(&self.levels, id);
-        self.save_player_data(self.levels[level_index].dimension, &player);
+        self.save_player_data(&saved, &player);
         self.notification_manager.player_left(&NameAndId { id: player.profile.uuid, name: player.profile.name.clone() });
         for other in self.players() {
             other.connection.send(clientbound::PLAYER_INFO_REMOVE, |p| {

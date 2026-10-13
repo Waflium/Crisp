@@ -107,7 +107,7 @@ impl ServerLevel {
                             self.set_portal_cooldown(owner);
                         }
                         let transition = TeleportTransition::with_relatives(self.index, teleport_pos, Vec3::ZERO, 0.0, 0.0, relative::ROTATION, PostTeleportTransition::DO_NOTHING);
-                        self.server_player_teleport_same_level(owner, transition);
+                        self.server_player_teleport_same_dimension(owner, transition);
                         self.reset_fall_distance(owner);
                         self.living_mut(owner).reset_current_impulse_context();
                         self.hurt_server(owner, DamageSource::new(damage_types::ENDER_PEARL), 5.0);

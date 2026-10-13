@@ -11,11 +11,13 @@ pub mod data;
 mod effect_tests;
 #[allow(clippy::module_inception)]
 mod entity;
+pub mod entity_attachments;
 pub mod entity_components;
 mod entity_dimensions;
 pub mod entity_event;
 pub mod entity_reference;
 pub mod entity_save;
+pub mod entity_selector;
 pub mod entity_type;
 pub mod entity_types;
 pub mod experience_orb;
@@ -57,14 +59,16 @@ pub enum LevelEntity {
     Projectile(Box<projectile::projectile::Projectile>),
     AreaEffectCloud(Box<area_effect_cloud::AreaEffectCloud>),
     Mob(Box<mob::Mob>),
+    Minecart(Box<vehicle::minecart::abstract_minecart::AbstractMinecart>),
+    Boat(Box<vehicle::boat::abstract_boat::AbstractBoat>),
 }
 
 impl LevelEntity {
     pub fn name(&self) -> crate::network::chat::Component {
         match self {
-            LevelEntity::Mob(mob) => match mob.entity.custom_name() {
+            LevelEntity::Mob(_) | LevelEntity::Minecart(_) | LevelEntity::Boat(_) => match self.entity().custom_name() {
                 Some(name) => name,
-                None => description(crisp_data::registry::ENTITY_TYPE[mob.entity.entity_type as usize]),
+                None => description(crisp_data::registry::ENTITY_TYPE[self.entity().entity_type as usize]),
             },
             LevelEntity::Item(item) => crate::network::chat::Component::translatable(item.item.item.info().description_id),
             LevelEntity::LightningBolt(_) => crate::network::chat::Component::translatable("entity.minecraft.lightning_bolt"),
@@ -113,6 +117,8 @@ impl LevelEntity {
                 TrackingConfig { range: 4 * 16, update_interval: UpdateInterval::Periodic(update_interval), track_deltas: true, stepped: false, is_item: false }
             }
             LevelEntity::AreaEffectCloud(_) => TrackingConfig { range: 10 * 16, update_interval: UpdateInterval::Never, track_deltas: true, stepped: false, is_item: false },
+            LevelEntity::Minecart(_) => TrackingConfig { range: 8 * 16, update_interval: UpdateInterval::Periodic(3), track_deltas: true, stepped: false, is_item: false },
+            LevelEntity::Boat(_) => TrackingConfig { range: 10 * 16, update_interval: UpdateInterval::Periodic(3), track_deltas: true, stepped: false, is_item: false },
         }
     }
 
@@ -135,6 +141,8 @@ impl LevelEntity {
             LevelEntity::Projectile(projectile) => &projectile.entity,
             LevelEntity::AreaEffectCloud(cloud) => &cloud.entity,
             LevelEntity::Mob(mob) => &mob.entity,
+            LevelEntity::Minecart(minecart) => &minecart.entity,
+            LevelEntity::Boat(boat) => &boat.entity,
         }
     }
 
@@ -150,6 +158,8 @@ impl LevelEntity {
             LevelEntity::Projectile(projectile) => &mut projectile.entity,
             LevelEntity::AreaEffectCloud(cloud) => &mut cloud.entity,
             LevelEntity::Mob(mob) => &mut mob.entity,
+            LevelEntity::Minecart(minecart) => &mut minecart.entity,
+            LevelEntity::Boat(boat) => &mut boat.entity,
         }
     }
 

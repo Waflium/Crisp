@@ -26,7 +26,7 @@ pub struct ItemEntity {
 }
 
 impl ItemEntity {
-    pub const DIMENSIONS: EntityDimensions = EntityDimensions { width: 0.25, height: 0.25, eye_height: 0.2125 };
+    pub const DIMENSIONS: EntityDimensions = EntityDimensions::scalable(0.25, 0.25).with_eye_height(0.2125);
 
     fn base() -> ItemEntity {
         let mut data = super::data::entity_defaults();

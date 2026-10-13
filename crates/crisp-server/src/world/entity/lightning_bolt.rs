@@ -29,7 +29,7 @@ pub struct LightningBolt {
 }
 
 impl LightningBolt {
-    pub const DIMENSIONS: EntityDimensions = EntityDimensions { width: 0.0, height: 0.0, eye_height: 0.0 };
+    pub const DIMENSIONS: EntityDimensions = EntityDimensions::scalable(0.0, 0.0);
 
     pub fn new(pos: Vec3) -> LightningBolt {
         let mut entity = Entity::new(registry_id(registry::ENTITY_TYPE, "minecraft:lightning_bolt"), Self::DIMENSIONS, super::data::entity_defaults());

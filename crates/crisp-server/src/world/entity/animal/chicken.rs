@@ -31,8 +31,9 @@ use crate::world::level::pathfinder::path_type::PathType;
 pub const DATA_VARIANT: usize = 18;
 const CHICKEN_LAY: &str = "minecraft:gameplay/chicken_lay";
 pub const DATA_SOUND_VARIANT: usize = 19;
-pub const DIMENSIONS: EntityDimensions = EntityDimensions { width: 0.4, height: 0.7, eye_height: 0.644 };
-pub const BABY_DIMENSIONS: EntityDimensions = EntityDimensions { width: 0.3, height: 0.4, eye_height: 0.28125 };
+pub const DIMENSIONS: EntityDimensions = EntityDimensions::scalable(0.4, 0.7).with_eye_height(0.644).with_passenger_attachments(&[Vec3::new(0.0, 0.7, -0.1)]);
+pub const BABY_DIMENSIONS: EntityDimensions =
+    EntityDimensions::scalable(0.3, 0.4).with_eye_height(0.28125).with_passenger_attachments(&[Vec3::new(0.0, 0.375, 0.0)]);
 
 #[derive(Default)]
 pub struct Chicken {

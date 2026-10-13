@@ -19,13 +19,17 @@ use crate::world::attribute::bed_rule::BedRule;
 use crate::network::chat::Component;
 use crate::world::{InteractionHand, InteractionResult};
 
+pub const DEFAULT_VEHICLE_ATTACHMENT: Vec3 = Vec3::new(0.0, 0.6, 0.0);
+pub const STANDING_DIMENSIONS: EntityDimensions =
+    EntityDimensions::scalable(0.6, 1.8).with_eye_height(1.62).with_vehicle_attachment(&[DEFAULT_VEHICLE_ATTACHMENT]);
+
 pub fn get_default_dimensions(pose: Pose) -> EntityDimensions {
     match pose {
-        Pose::Sleeping => EntityDimensions { width: 0.2, height: 0.2, eye_height: 0.2 },
-        Pose::FallFlying | Pose::Swimming | Pose::SpinAttack => EntityDimensions { width: 0.6, height: 0.6, eye_height: 0.4 },
-        Pose::Crouching => EntityDimensions { width: 0.6, height: 1.5, eye_height: 1.27 },
-        Pose::Dying => EntityDimensions { width: 0.2, height: 0.2, eye_height: 1.62 },
-        _ => EntityDimensions { width: 0.6, height: 1.8, eye_height: 1.62 },
+        Pose::Sleeping => EntityDimensions::scalable(0.2, 0.2).with_eye_height(0.2),
+        Pose::FallFlying | Pose::Swimming | Pose::SpinAttack => EntityDimensions::scalable(0.6, 0.6).with_eye_height(0.4),
+        Pose::Crouching => EntityDimensions::scalable(0.6, 1.5).with_eye_height(1.27).with_vehicle_attachment(&[DEFAULT_VEHICLE_ATTACHMENT]),
+        Pose::Dying => EntityDimensions::scalable(0.2, 0.2).with_eye_height(1.62),
+        _ => STANDING_DIMENSIONS,
     }
 }
 
@@ -33,7 +37,7 @@ impl ServerLevel {
     pub fn player_tick(&mut self, id: EntityId) {
         let spectator = self.is_spectator(id);
         self.entity_mut(id).no_physics = spectator;
-        if spectator {
+        if spectator || self.is_passenger(id) {
             self.set_on_ground(id, false);
         }
         let experience = &mut self.player_mut(id).experience;
@@ -224,6 +228,7 @@ impl ServerLevel {
             && !self.on_climbable(id)
             && !self.entity(id).is_in_water()
             && !self.has_effect(id, mob_effects::BLINDNESS)
+            && !self.is_passenger(id)
             && self.is_living(entity)
             && !self.entity(id).is_sprinting()
     }
@@ -405,10 +410,18 @@ impl ServerLevel {
         }
     }
 
+    pub fn player_pickup_area(&self, id: EntityId) -> AABB {
+        let bounding_box = self.entity(id).bounding_box();
+        match self.vehicle(id).filter(|&vehicle| !self.entity(vehicle).is_removed()) {
+            Some(vehicle) => bounding_box.minmax(&self.entity(vehicle).bounding_box()).inflate(1.0, 0.0, 1.0),
+            None => bounding_box.inflate(1.0, 0.5, 1.0),
+        }
+    }
+
     pub fn player_get_flying_speed(&self, id: EntityId) -> f32 {
         let p = self.player(id);
         let sprinting = p.entity.is_sprinting();
-        if p.abilities_flying() {
+        if p.abilities_flying() && !self.is_passenger(id) {
             let flying_speed = 0.05f32;
             if sprinting { flying_speed * 2.0 } else { flying_speed }
         } else if sprinting {
@@ -675,7 +688,7 @@ impl ServerLevel {
         } else {
             Pose::Standing
         };
-        let actual = if self.is_spectator(id) || self.can_player_fit_within_blocks_and_entities_when(id, desired) {
+        let actual = if self.is_spectator(id) || self.is_passenger(id) || self.can_player_fit_within_blocks_and_entities_when(id, desired) {
             desired
         } else if self.can_player_fit_within_blocks_and_entities_when(id, Pose::Crouching) {
             Pose::Crouching

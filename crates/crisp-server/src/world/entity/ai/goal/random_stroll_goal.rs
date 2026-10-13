@@ -24,6 +24,9 @@ impl RandomStrollGoal {
     }
 
     pub fn can_use(&mut self, level: &mut ServerLevel, mob: EntityId, get_position: impl FnOnce(&mut ServerLevel, EntityId) -> Option<Vec3>) -> bool {
+        if level.has_controlling_passenger(mob) {
+            return false;
+        }
         if !self.force_trigger {
             if self.check_no_action_time && level.living(mob).no_action_time >= 100 {
                 return false;
@@ -45,7 +48,7 @@ impl RandomStrollGoal {
     }
 
     pub fn can_continue_to_use(&mut self, level: &mut ServerLevel, mob: EntityId) -> bool {
-        !level.mob(mob).expect("a mob").ai.navigation.is_done()
+        !level.mob(mob).expect("a mob").ai.navigation.is_done() && !level.has_controlling_passenger(mob)
     }
 
     pub fn start(&mut self, level: &mut ServerLevel, mob: EntityId) {

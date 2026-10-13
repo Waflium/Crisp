@@ -131,11 +131,11 @@ impl Mob {
         40
     }
 
-    fn update_control_flags(&mut self) {
+    fn update_control_flags(&mut self, no_controller: bool, not_in_boat: bool) {
         let goal_selector = &mut self.ai.goal_selector;
-        goal_selector.set_control_flag(Flag::Move, true);
-        goal_selector.set_control_flag(Flag::Jump, true);
-        goal_selector.set_control_flag(Flag::Look, true);
+        goal_selector.set_control_flag(Flag::Move, no_controller);
+        goal_selector.set_control_flag(Flag::Jump, no_controller && not_in_boat);
+        goal_selector.set_control_flag(Flag::Look, no_controller);
     }
 
     pub fn get_head_rot_speed(&self) -> i32 {
@@ -378,8 +378,7 @@ impl Mob {
 
     pub fn dimensions(&self) -> EntityDimensions {
         let scale = self.living.attributes.value(Attribute::Scale) as f32;
-        let d = self.default_dimensions();
-        EntityDimensions { width: d.width * scale, height: d.height * scale, eye_height: d.eye_height * scale }
+        self.default_dimensions().scale(scale)
     }
 
     pub fn loot_table_id(&self) -> Option<String> {
@@ -878,10 +877,12 @@ impl ServerLevel {
 
     pub fn mob_tick(&mut self, id: EntityId) {
         self.living_entity_tick(id);
+        let no_controller = !self.controlling_passenger(id).is_some_and(|passenger| self.is_mob(passenger));
+        let not_in_boat = !self.vehicle(id).is_some_and(|vehicle| self.is_boat(vehicle));
         if let Some(mob) = self.mob_mut(id)
             && mob.entity.tick_count % 5 == 0
         {
-            mob.update_control_flags();
+            mob.update_control_flags(no_controller, not_in_boat);
         }
     }
 
@@ -981,8 +982,9 @@ impl ServerLevel {
     }
 
     pub fn check_mob_despawn(&mut self, id: EntityId) {
+        let requires_custom_persistence = self.is_passenger(id);
         let mob = self.mob(id).expect("a mob");
-        let persistent = mob.persistence_required;
+        let persistent = mob.persistence_required || requires_custom_persistence;
         let removes_when_far_away = match &mob.kind {
             MobKind::Chicken(chicken) => chicken.is_chicken_jockey,
             _ => false,

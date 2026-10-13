@@ -144,7 +144,19 @@ impl ServerLevel {
     }
 
     pub fn no_collision_for(&self, entity: EntityId, box_: &AABB) -> bool {
-        self.for_each_block_collision(box_, &CollisionContext::of(self, entity), false, false, |_, c| c.shape.is_empty()) && self.no_border_collision(entity, box_)
+        self.for_each_block_collision(box_, &CollisionContext::of(self, entity), false, false, |_, c| c.shape.is_empty())
+            && self.entity_collisions(Some(entity), box_).is_empty()
+            && self.no_border_collision(entity, box_)
+    }
+
+    pub fn no_collision_for_new(&self, entity: &crate::world::entity::LevelEntity, box_: &AABB) -> bool {
+        let no_block_collision = self.for_each_block_collision(box_, &CollisionContext::EMPTY, false, false, |_, c| c.shape.is_empty());
+        let no_entity_collision = box_.size() < 1.0e-7
+            || self.get_entities(None, &box_.inflate_all(1.0e-7)).into_iter().all(|other| !(self.can_be_collided_with(other, None) || self.is_pushable_immutable(other) || self.is_living(other) && self.is_alive(other) && !self.is_spectator(other)));
+        let border = &self.world_border;
+        let no_border_collision =
+            !border.is_inside_close_to_border(entity.entity(), box_) || !join_is_not_empty(border.get_collision_shape(), &VoxelShape::from_boxes(&[*box_]), BooleanOp::And);
+        no_block_collision && no_entity_collision && no_border_collision
     }
 
     pub fn no_border_collision(&self, entity: EntityId, box_: &AABB) -> bool {

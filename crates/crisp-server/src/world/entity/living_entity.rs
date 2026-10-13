@@ -1255,6 +1255,9 @@ impl ServerLevel {
                     let supply = (self.entity(id).air_supply() + 4).min(TOTAL_AIR_SUPPLY);
                     self.entity_mut(id).set_air_supply(supply);
                 }
+                if self.vehicle(id).is_some_and(|vehicle| self.dismounts_underwater(vehicle)) {
+                    self.stop_riding(id);
+                }
             } else if self.entity(id).air_supply() < TOTAL_AIR_SUPPLY {
                 let supply = (self.entity(id).air_supply() + 4).min(TOTAL_AIR_SUPPLY);
                 self.entity_mut(id).set_air_supply(supply);
@@ -1573,11 +1576,11 @@ impl ServerLevel {
         self.players.get(&id).is_none_or(|p| !p.abilities_flying())
     }
 
-    fn is_pushable(&mut self, id: EntityId) -> bool {
-        self.is_living(id) && self.is_alive(id) && !self.is_spectator(id) && !self.on_climbable(id)
+    pub fn living_entity_is_pushable(&mut self, id: EntityId) -> bool {
+        self.is_alive(id) && !self.is_spectator(id) && !self.on_climbable(id)
     }
 
-    fn pushable_by(&mut self, pusher: EntityId, other: EntityId) -> bool {
+    pub fn pushable_by(&mut self, pusher: EntityId, other: EntityId) -> bool {
         let own_team = self.team_of(pusher).map(|t| (t.name().to_string(), t.collision_rule()));
         let own_rule = own_team.as_ref().map_or(CollisionRule::Always, |t| t.1);
         if own_rule == CollisionRule::Never || !self.is_pushable(other) {
@@ -1603,45 +1606,14 @@ impl ServerLevel {
             return;
         }
         let max_cramming = self.game_rules.get_int(game_rule::MAX_ENTITY_CRAMMING);
-        if max_cramming > 0 && pushable.len() as i32 > max_cramming - 1 && self.entity_mut(id).random.next_int_bounded(4) == 0 && pushable.len() as i32 > max_cramming - 1 {
-            self.hurt_server(id, DamageSource::new(damage_types::CRAMMING), 6.0);
+        if max_cramming > 0 && pushable.len() as i32 > max_cramming - 1 && self.entity_mut(id).random.next_int_bounded(4) == 0 {
+            let count = pushable.iter().filter(|&&entity| !self.is_passenger(entity)).count();
+            if count as i32 > max_cramming - 1 {
+                self.hurt_server(id, DamageSource::new(damage_types::CRAMMING), 6.0);
+            }
         }
         for other in pushable {
             self.push_entity(other, id);
-        }
-    }
-
-    fn push_entity(&mut self, id: EntityId, other: EntityId) {
-        if self.is_sleeping(id) {
-            return;
-        }
-        let (e, o) = (self.entity(id), self.entity(other));
-        if o.no_physics || e.no_physics {
-            return;
-        }
-        let mut xa = o.x() - e.x();
-        let mut za = o.z() - e.z();
-        let mut dd = mth::abs_max(xa, za);
-        if dd < 0.01f32 as f64 {
-            return;
-        }
-        dd = dd.sqrt();
-        xa /= dd;
-        za /= dd;
-        let pow = (1.0 / dd).min(1.0);
-        xa *= pow;
-        za *= pow;
-        xa *= 0.05f32 as f64;
-        za *= 0.05f32 as f64;
-        if self.is_pushable(id) {
-            let e = self.entity_mut(id);
-            e.set_delta_movement(e.delta_movement.add(-xa, 0.0, -za));
-            e.needs_sync = true;
-        }
-        if self.is_pushable(other) {
-            let o = self.entity_mut(other);
-            o.set_delta_movement(o.delta_movement.add(xa, 0.0, za));
-            o.needs_sync = true;
         }
     }
 
@@ -2130,6 +2102,9 @@ impl ServerLevel {
             return false;
         }
         let Some(sleep_height) = abstract_bed_block::get_sleep_height(block_state, self, bed_position) else { return false };
+        if self.is_passenger(id) {
+            self.stop_riding(id);
+        }
         self.set_pos_to_bed(id, sleep_height, bed_position);
         self.set_block(bed_position, block_state.set(OCCUPIED, true), UPDATE_ALL);
         self.set_entity_pose(id, Pose::Sleeping);

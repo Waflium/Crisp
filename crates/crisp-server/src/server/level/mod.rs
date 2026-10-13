@@ -1031,7 +1031,7 @@ impl ServerLevel {
 
     pub fn add_world_gen_chunk_entities(&mut self, entities: &[Nbt]) {
         for nbt in entities {
-            if let Some(entity) = self.load_entity(nbt) {
+            for entity in self.load_entity_recursive(nbt, &mut |_| {}) {
                 self.add_entity(entity);
             }
         }
@@ -1100,6 +1100,9 @@ impl ServerLevel {
 
     pub fn remove_entity(&mut self, id: EntityId) {
         let reason = self.entities.get(&id).and_then(|e| e.entity().removal);
+        if let Some(reason) = reason {
+            self.set_removed(id, reason);
+        }
         self.entity_removed(id, reason);
         if self.as_projectile(id).is_some_and(|projectile| matches!(projectile.kind, crate::world::entity::projectile::projectile::ProjectileKind::ThrownEnderpearl(_))) {
             self.thrown_enderpearl_on_removal(id, reason);
@@ -1277,19 +1280,21 @@ impl ServerLevel {
         for i in start..end {
             let Some(id) = self.tick_list.at(i) else { continue };
             if self.players.contains_key(&id) {
-                self.common_tick(id);
-                self.tick_player_entity(id);
+                if !self.ticks_with_vehicle(id) {
+                    self.tick_non_passenger(id);
+                }
             } else if let Some(entity) = self.entities.get(&id) {
                 if entity.entity().is_removed() {
                     self.remove_entity(id);
                 } else if !self.tick_rate_manager.is_entity_frozen() {
-                    let chunk = entity.entity().chunk_position();
                     if self.is_mob(id) {
                         self.check_mob_despawn(id);
                     }
-                    if self.in_entity_ticking_range(chunk) {
-                        self.common_tick(id);
-                        self.tick_entity(id);
+                    let in_range = self.entities.get(&id).is_some_and(|e| self.in_entity_ticking_range(e.entity().chunk_position()));
+                    if in_range {
+                        if !self.ticks_with_vehicle(id) {
+                            self.tick_non_passenger(id);
+                        }
                     } else if self.entities.get(&id).is_some_and(|e| e.entity().is_removed()) {
                         self.remove_entity(id);
                     }
@@ -1550,11 +1555,58 @@ impl ServerLevel {
         if p.entity.fall_distance > 0.0 && p.starting_to_fall_position.is_none() {
             p.starting_to_fall_position = Some(p.entity.position());
         }
+        self.track_entered_or_exited_lava_on_vehicle(id);
+        let p = self.player_mut(id);
         p.update_player_attributes();
         let p = self.player_mut(id);
         p.advancements.flush_dirty(&p.connection, true);
         if p.post_effects_dirty {
             p.send_post_effects();
+        }
+    }
+
+    fn ticks_with_vehicle(&mut self, id: EntityId) -> bool {
+        let Some(vehicle) = self.vehicle(id) else { return false };
+        if self.entity_ref(vehicle).is_some_and(|v| !v.is_removed()) && self.has_passenger(vehicle, id) {
+            return true;
+        }
+        self.stop_riding(id);
+        false
+    }
+
+    pub fn tick_non_passenger(&mut self, id: EntityId) {
+        self.common_tick(id);
+        self.tick_ridden(id);
+        if self.entity_ref(id).is_none() || self.pending_portal_teleport.as_ref().is_some_and(|pending| pending.entity.id == id) {
+            return;
+        }
+        for passenger in self.passengers(id).to_vec() {
+            self.tick_passenger(id, passenger);
+        }
+    }
+
+    fn tick_passenger(&mut self, vehicle: EntityId, entity: EntityId) {
+        if self.entity_ref(entity).is_none_or(|e| e.is_removed()) || self.vehicle(entity) != Some(vehicle) {
+            if self.entity_ref(entity).is_some() {
+                self.stop_riding(entity);
+            }
+        } else if self.players.contains_key(&entity) || self.tick_list.contains(entity) {
+            self.common_tick(entity);
+            self.ride_tick(entity);
+            if self.entity_ref(entity).is_none() {
+                return;
+            }
+            for passenger in self.passengers(entity).to_vec() {
+                self.tick_passenger(entity, passenger);
+            }
+        }
+    }
+
+    pub fn tick_ridden(&mut self, id: EntityId) {
+        if self.players.contains_key(&id) {
+            self.tick_player_entity(id);
+        } else {
+            self.tick_entity(id);
         }
     }
 
@@ -1570,6 +1622,8 @@ impl ServerLevel {
             Some(LevelEntity::Projectile(_)) => self.projectile_tick(id),
             Some(LevelEntity::AreaEffectCloud(_)) => self.tick_area_effect_cloud(id),
             Some(LevelEntity::Mob(_)) => self.mob_tick(id),
+            Some(LevelEntity::Minecart(_)) => self.tick_minecart(id),
+            Some(LevelEntity::Boat(_)) => self.tick_boat(id),
             None => return,
         }
         if self.entities.get(&id).is_some_and(|e| e.entity().is_removed()) {
@@ -1600,7 +1654,7 @@ impl ServerLevel {
     }
 
     pub fn touch_entities(&mut self, player: EntityId) {
-        let area = self.player(player).entity.bounding_box().inflate(1.0, 0.5, 1.0);
+        let area = self.player_pickup_area(player);
         for id in self.get_entities(Some(player), &area) {
             match self.entities.get(&id) {
                 Some(LevelEntity::Item(item)) if !item.entity.is_removed() => self.item_entity_player_touch(id, player),

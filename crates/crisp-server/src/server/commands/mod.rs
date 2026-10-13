@@ -67,6 +67,7 @@ mod set_block_command;
 mod set_player_idle_timeout_command;
 mod set_spawn_command;
 mod set_world_spawn_command;
+mod ride_command;
 mod spectate_command;
 mod spread_players_command;
 mod stop_sound_command;
@@ -375,6 +376,8 @@ static EXECUTORS: &[(&str, CommandFn)] = &[
     ("spectate", spectate_command::spectate_stop),
     ("spectate target", spectate_command::spectate_target),
     ("spectate target player", spectate_command::spectate_target_player),
+    ("ride target mount vehicle", ride_command::ride_mount),
+    ("ride target dismount", ride_command::ride_dismount),
 ];
 
 pub fn modifiers() -> Vec<(String, ModifierFn)> {
