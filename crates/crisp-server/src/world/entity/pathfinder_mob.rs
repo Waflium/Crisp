@@ -8,7 +8,8 @@ use crate::server::level::ServerLevel;
 impl ServerLevel {
     pub fn get_walk_target_value(&self, id: EntityId, pos: BlockPos) -> f32 {
         match self.mob(id).expect("a pathfinder mob").kind {
-            MobKind::Chicken(_) => self.animal_get_walk_target_value(pos),
+            MobKind::MushroomCow(_) => self.mushroom_cow_get_walk_target_value(pos),
+            _ => self.animal_get_walk_target_value(pos),
         }
     }
 

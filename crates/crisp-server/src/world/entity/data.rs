@@ -61,6 +61,8 @@ pub enum DataValue {
     Pose(Pose),
     HumanoidArm(i32),
     BlockState(crisp_data::BlockState),
+    CowVariant(i32),
+    CowSoundVariant(i32),
     ChickenVariant(i32),
     ChickenSoundVariant(i32),
 }
@@ -81,6 +83,8 @@ impl DataValue {
             DataValue::Pose(_) => 20,
             DataValue::HumanoidArm(_) => 42,
             DataValue::BlockState(_) => 14,
+            DataValue::CowVariant(_) => 23,
+            DataValue::CowSoundVariant(_) => 24,
             DataValue::ChickenVariant(_) => 30,
             DataValue::ChickenSoundVariant(_) => 31,
         }
@@ -114,7 +118,10 @@ impl DataValue {
             DataValue::Pose(p) => w.varint(*p as i32),
             DataValue::HumanoidArm(a) => w.varint(*a),
             DataValue::BlockState(s) => w.varint(s.id() as i32),
-            DataValue::ChickenVariant(id) | DataValue::ChickenSoundVariant(id) => w.varint(*id),
+            DataValue::CowVariant(id)
+            | DataValue::CowSoundVariant(id)
+            | DataValue::ChickenVariant(id)
+            | DataValue::ChickenSoundVariant(id) => w.varint(*id),
         }
     }
 }

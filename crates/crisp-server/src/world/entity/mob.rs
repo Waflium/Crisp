@@ -4,7 +4,12 @@ use crisp_data::{EquipmentSlot, items};
 use crisp_protocol::nbt::Nbt;
 
 use super::animal::chicken::{self, Chicken};
+use super::animal::cow::abstract_cow::{self, AbstractCow};
+use super::animal::cow::cow::{self, Cow};
+use super::animal::cow::mushroom_cow::{self, MushroomCow};
 use super::ageable_mob::{AgeableMob, BABY_START_AGE};
+use super::conversion_params::ConversionParams;
+use super::variant::variant_utils;
 use super::ai::MobAi;
 use super::ai::goal::goal::Flag;
 use super::ai::navigation::path_navigation::PathNavigation;
@@ -32,6 +37,8 @@ const MOB_FLAG_LEFTHANDED: i8 = 2;
 
 pub enum MobKind {
     Chicken(Chicken),
+    Cow(Cow),
+    MushroomCow(MushroomCow),
 }
 
 pub struct Mob {
@@ -92,6 +99,7 @@ impl Mob {
     fn register_goals(&mut self) {
         match self.kind {
             MobKind::Chicken(_) => Chicken::register_goals(&mut self.ai),
+            MobKind::Cow(_) | MobKind::MushroomCow(_) => AbstractCow::register_goals(&mut self.ai),
         }
     }
 
@@ -177,44 +185,38 @@ impl Mob {
     }
 
     pub fn cube_mob_size(&self) -> Option<i32> {
-        match &self.kind {
-            MobKind::Chicken(_) => None,
-        }
+        None
     }
 
     pub fn raider(&self) -> Option<(bool, bool)> {
-        match &self.kind {
-            MobKind::Chicken(_) => None,
-        }
+        None
     }
 
     pub fn sheep_sheared(&self) -> Option<bool> {
-        match &self.kind {
-            MobKind::Chicken(_) => None,
-        }
+        None
     }
 
     pub fn ageable(&self) -> Option<&AgeableMob> {
-        match &self.kind {
-            MobKind::Chicken(chicken) => Some(&chicken.animal.ageable),
-        }
+        self.animal().map(|animal| &animal.ageable)
     }
 
     pub fn ageable_mut(&mut self) -> Option<&mut AgeableMob> {
-        match &mut self.kind {
-            MobKind::Chicken(chicken) => Some(&mut chicken.animal.ageable),
-        }
+        self.animal_mut().map(|animal| &mut animal.ageable)
     }
 
     pub fn animal(&self) -> Option<&Animal> {
         match &self.kind {
             MobKind::Chicken(chicken) => Some(&chicken.animal),
+            MobKind::Cow(cow) => Some(&cow.abstract_cow.animal),
+            MobKind::MushroomCow(mushroom_cow) => Some(&mushroom_cow.abstract_cow.animal),
         }
     }
 
     pub fn animal_mut(&mut self) -> Option<&mut Animal> {
         match &mut self.kind {
             MobKind::Chicken(chicken) => Some(&mut chicken.animal),
+            MobKind::Cow(cow) => Some(&mut cow.abstract_cow.animal),
+            MobKind::MushroomCow(mushroom_cow) => Some(&mut mushroom_cow.abstract_cow.animal),
         }
     }
 
@@ -249,6 +251,13 @@ impl Mob {
                 self.apply_implicit_component_if_present(components, dc::CHICKEN_VARIANT);
                 self.apply_implicit_component_if_present(components, dc::CHICKEN_SOUND_VARIANT);
             }
+            MobKind::Cow(_) => {
+                self.apply_implicit_component_if_present(components, dc::COW_VARIANT);
+                self.apply_implicit_component_if_present(components, dc::COW_SOUND_VARIANT);
+            }
+            MobKind::MushroomCow(_) => {
+                self.apply_implicit_component_if_present(components, dc::MOOSHROOM_VARIANT);
+            }
         }
         self.apply_implicit_component_if_present(components, dc::CUSTOM_NAME);
         self.apply_implicit_component_if_present(components, dc::CUSTOM_DATA);
@@ -268,7 +277,25 @@ impl Mob {
                 }
                 return true;
             }
-            MobKind::Chicken(_) => {}
+            MobKind::Cow(_) if ty == dc::COW_VARIANT => {
+                if let Some(variant) = value.as_str().and_then(|name| variant_utils::read_variant(cow::VARIANT_REGISTRY, name)) {
+                    cow::set_variant(&mut self.entity, variant);
+                }
+                return true;
+            }
+            MobKind::Cow(_) if ty == dc::COW_SOUND_VARIANT => {
+                if let Some(sound_variant) = value.as_str().and_then(|name| variant_utils::read_variant(cow::SOUND_VARIANT_REGISTRY, name)) {
+                    cow::set_sound_variant(&mut self.entity, sound_variant);
+                }
+                return true;
+            }
+            MobKind::MushroomCow(_) if ty == dc::MOOSHROOM_VARIANT => {
+                if let Some(variant) = value.as_str().and_then(mushroom_cow::Variant::by_name) {
+                    mushroom_cow::set_variant(&mut self.entity, variant);
+                }
+                return true;
+            }
+            _ => {}
         }
         self.entity.apply_implicit_component(ty, value)
     }
@@ -284,6 +311,9 @@ impl Mob {
         match &self.kind {
             MobKind::Chicken(_) if self.is_baby() => chicken::BABY_DIMENSIONS,
             MobKind::Chicken(_) => chicken::DIMENSIONS,
+            MobKind::Cow(_) if self.is_baby() => cow::BABY_DIMENSIONS,
+            MobKind::MushroomCow(_) if self.is_baby() => mushroom_cow::BABY_DIMENSIONS,
+            MobKind::Cow(_) | MobKind::MushroomCow(_) => abstract_cow::DIMENSIONS,
         }
     }
 
@@ -376,6 +406,16 @@ impl Mob {
                     out.push(("sound_variant".into(), Nbt::String(chicken::sound_variant_name(*variant).into())));
                 }
             }
+            MobKind::Cow(_) => {
+                out.push(("variant".into(), Nbt::String(variant_utils::variant_name(cow::VARIANT_REGISTRY, cow::get_variant(&self.entity)).into())));
+                out.push(("sound_variant".into(), Nbt::String(variant_utils::variant_name(cow::SOUND_VARIANT_REGISTRY, cow::get_sound_variant(&self.entity)).into())));
+            }
+            MobKind::MushroomCow(mushroom_cow) => {
+                out.push(("Type".into(), Nbt::String(mushroom_cow::get_variant(&self.entity).get_serialized_name().into())));
+                if let Some(stew_effects) = &mushroom_cow.stew_effects {
+                    out.push(("stew_effects".into(), stew_effects.clone()));
+                }
+            }
         }
     }
 
@@ -443,14 +483,26 @@ impl Mob {
             animal.in_love = int("InLove").unwrap_or(0);
             animal.love_cause = nbt.get("LoveCause").and_then(uuid_from_nbt);
         }
-        let variant = nbt.get("variant").and_then(Nbt::as_str).and_then(chicken::variant_id);
-        let sound_variant = nbt.get("sound_variant").and_then(Nbt::as_str).and_then(chicken::sound_variant_id);
-        let egg_time = int("EggLayTime");
-        let jockey = boolean("IsChickenJockey");
+        let read = |key: &str, registry: &str| nbt.get(key).and_then(Nbt::as_str).and_then(|name| variant_utils::read_variant(registry, name));
         match &mut self.kind {
+            MobKind::Cow(_) => {
+                if let Some(variant) = read("variant", cow::VARIANT_REGISTRY) {
+                    cow::set_variant(&mut self.entity, variant);
+                }
+                if let Some(sound_variant) = read("sound_variant", cow::SOUND_VARIANT_REGISTRY) {
+                    cow::set_sound_variant(&mut self.entity, sound_variant);
+                }
+            }
+            MobKind::MushroomCow(mushroom_cow) => {
+                let variant = nbt.get("Type").and_then(Nbt::as_str).and_then(mushroom_cow::Variant::by_name).unwrap_or(mushroom_cow::Variant::DEFAULT);
+                mushroom_cow::set_variant(&mut self.entity, variant);
+                mushroom_cow.stew_effects = nbt.get("stew_effects").filter(|effects| matches!(effects, Nbt::List(_))).cloned();
+            }
             MobKind::Chicken(chicken) => {
-                chicken.is_chicken_jockey = jockey;
-                if let Some(egg_time) = egg_time {
+                let variant = nbt.get("variant").and_then(Nbt::as_str).and_then(chicken::variant_id);
+                let sound_variant = nbt.get("sound_variant").and_then(Nbt::as_str).and_then(chicken::sound_variant_id);
+                chicken.is_chicken_jockey = boolean("IsChickenJockey");
+                if let Some(egg_time) = int("EggLayTime") {
                     chicken.egg_time = egg_time;
                 }
                 if let Some(variant) = variant {
@@ -470,16 +522,54 @@ impl Mob {
         old
     }
 
-    pub fn sound_set(&self) -> &'static chicken::SoundSet {
+    fn chicken_sound_set(&self) -> &'static chicken::SoundSet {
+        let id = match self.entity.data.get(chicken::DATA_SOUND_VARIANT) {
+            DataValue::ChickenSoundVariant(id) => *id,
+            _ => 0,
+        };
+        let variant = chicken::sound_variant(id);
+        if self.is_baby() { &variant.baby_sounds } else { &variant.adult_sounds }
+    }
+
+    fn cow_sound_set(&self) -> &'static abstract_cow::CowSoundVariant {
         match &self.kind {
-            MobKind::Chicken(_) => {
-                let id = match self.entity.data.get(chicken::DATA_SOUND_VARIANT) {
-                    DataValue::ChickenSoundVariant(id) => *id,
-                    _ => 0,
-                };
-                let variant = chicken::sound_variant(id);
-                if self.is_baby() { &variant.baby_sounds } else { &variant.adult_sounds }
-            }
+            MobKind::Cow(_) => cow::sound_variant(cow::get_sound_variant(&self.entity)),
+            _ => mushroom_cow::get_sound_set(),
+        }
+    }
+
+    pub fn get_ambient_sound(&self) -> &'static str {
+        match &self.kind {
+            MobKind::Chicken(_) => &self.chicken_sound_set().ambient_sound,
+            MobKind::Cow(_) | MobKind::MushroomCow(_) => &self.cow_sound_set().ambient_sound,
+        }
+    }
+
+    pub fn get_hurt_sound(&self) -> &'static str {
+        match &self.kind {
+            MobKind::Chicken(_) => &self.chicken_sound_set().hurt_sound,
+            MobKind::Cow(_) | MobKind::MushroomCow(_) => &self.cow_sound_set().hurt_sound,
+        }
+    }
+
+    pub fn get_death_sound(&self) -> &'static str {
+        match &self.kind {
+            MobKind::Chicken(_) => &self.chicken_sound_set().death_sound,
+            MobKind::Cow(_) | MobKind::MushroomCow(_) => &self.cow_sound_set().death_sound,
+        }
+    }
+
+    pub fn get_step_sound(&self) -> &'static str {
+        match &self.kind {
+            MobKind::Chicken(_) => &self.chicken_sound_set().step_sound,
+            MobKind::Cow(_) | MobKind::MushroomCow(_) => &self.cow_sound_set().step_sound,
+        }
+    }
+
+    pub fn get_sound_volume(&self) -> f32 {
+        match &self.kind {
+            MobKind::Cow(_) | MobKind::MushroomCow(_) => 0.4,
+            _ => 1.0,
         }
     }
 
@@ -496,9 +586,7 @@ impl Mob {
     }
 
     pub fn ambient_sound_interval(&self) -> i32 {
-        match &self.kind {
-            MobKind::Chicken(_) => 120,
-        }
+        if self.animal().is_some() { 120 } else { 80 }
     }
 
     pub fn save_equipment(&self) -> Option<Nbt> {
@@ -580,11 +668,30 @@ impl ServerLevel {
     pub fn mob_interact(&mut self, id: EntityId, player: EntityId, hand: InteractionHand) -> InteractionResult {
         match self.mob(id).expect("a mob").kind {
             MobKind::Chicken(_) => self.animal_mob_interact(id, player, hand),
+            MobKind::Cow(_) => self.abstract_cow_mob_interact(id, player, hand),
+            MobKind::MushroomCow(_) => self.mushroom_cow_mob_interact(id, player, hand),
         }
     }
 
     pub fn mob_mob_interact(&mut self, _id: EntityId, _player: EntityId, _hand: InteractionHand) -> InteractionResult {
         InteractionResult::Pass
+    }
+
+    pub fn convert_to(&mut self, id: EntityId, entity_type: &str, params: ConversionParams, after_conversion: impl FnOnce(&mut ServerLevel, EntityId)) -> Option<EntityId> {
+        if self.entity(id).is_removed() {
+            return None;
+        }
+        let LevelEntity::Mob(new_mob) = ServerLevel::create_entity(entity_type)? else { return None };
+        let new_id = new_mob.entity.id;
+        self.entities.insert(new_id, LevelEntity::Mob(new_mob));
+        params.ty.convert(self, id, new_id, &params);
+        after_conversion(self, new_id);
+        let new_mob = self.entities.shift_remove(&new_id).expect("the converted mob");
+        self.add_fresh_entity(new_mob);
+        if params.ty.should_discard_after_conversion() {
+            self.remove(id, super::RemovalReason::Discarded);
+        }
+        Some(new_id)
     }
 
     pub fn use_player_item(&mut self, player: EntityId, hand: InteractionHand, item_stack: &mut ItemStack) {
@@ -633,7 +740,7 @@ impl ServerLevel {
     }
 
     pub fn play_ambient_sound(&mut self, id: EntityId) {
-        let sound = super::sound_event(&self.mob(id).expect("a mob").sound_set().ambient_sound);
+        let sound = super::sound_event(self.mob(id).expect("a mob").get_ambient_sound());
         self.make_sound(id, sound);
     }
 
@@ -715,6 +822,7 @@ impl ServerLevel {
         let persistent = mob.persistence_required;
         let removes_when_far_away = match &mob.kind {
             MobKind::Chicken(chicken) => chicken.is_chicken_jockey,
+            _ => false,
         };
         let position = mob.entity.position();
         let Some(player) = self.nearest_player_to_entity(position) else { return };
@@ -752,6 +860,8 @@ impl ServerLevel {
                 let sound_variant = self.pick_random_chicken_sound_variant();
                 mob.entity.data.set(chicken::DATA_SOUND_VARIANT, DataValue::ChickenSoundVariant(sound_variant));
             }
+            MobKind::Cow(_) => self.cow_finalize_spawn(mob, pos),
+            MobKind::MushroomCow(_) => {}
         }
         if let Some(follow_range) = mob.living.attributes.instance(Attribute::FollowRange)
             && !follow_range.has_modifier("minecraft:random_spawn_bonus")

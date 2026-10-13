@@ -1,4 +1,4 @@
-use crisp_core::BlockPos;
+use crisp_core::{AABB, BlockPos};
 use crisp_data::properties::LEVEL_HONEY;
 use crisp_data::{block_tags, registry, registry_id};
 
@@ -11,7 +11,7 @@ use crate::world::level::block::entity::beehive_block_entity::BeeReleaseStatus;
 
 pub fn execute(level: &mut ServerLevel, source: &BlockSource, mut dispensed: ItemStack, success: &mut bool) -> ItemStack {
     let pos = source.pos.relative(source.facing());
-    *success = try_shear_beehive(level, &dispensed, pos);
+    *success = try_shear_beehive(level, &dispensed, pos) || try_shear_entity(level, pos, &dispensed);
     if *success {
         dispensed.hurt_and_break(1, level);
     }
@@ -25,6 +25,16 @@ fn try_shear_beehive(level: &mut ServerLevel, tool: &ItemStack, pos: BlockPos) -
         beehive_block::drop_honeycomb(level, tool, state, None, pos);
         beehive_block::release_bees_and_reset_honey_level(level, state, pos, None, BeeReleaseStatus::BeeReleased);
         return true;
+    }
+    false
+}
+
+fn try_shear_entity(level: &mut ServerLevel, pos: BlockPos, tool: &ItemStack) -> bool {
+    for entity in level.get_entities(None, &AABB::of_block(pos)) {
+        if level.is_alive(entity) && level.is_shearable(entity) && level.ready_for_shearing(entity) {
+            level.shear(entity, SoundSource::Blocks, tool);
+            return true;
+        }
     }
     false
 }

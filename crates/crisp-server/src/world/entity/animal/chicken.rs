@@ -24,6 +24,7 @@ use crate::world::entity::ai::goal::panic_goal::PanicGoal;
 use crate::world::entity::ai::goal::random_look_around_goal::RandomLookAroundGoal;
 use crate::world::entity::ai::goal::tempt_goal::TemptGoal;
 use crate::world::entity::ai::goal::water_avoiding_random_stroll_goal::WaterAvoidingRandomStrollGoal;
+use crate::world::entity::variant::variant_utils::SpawnPrioritySelectors;
 use crate::world::item::ItemStack;
 use crate::world::level::pathfinder::path_type::PathType;
 
@@ -52,11 +53,6 @@ pub struct ChickenSoundVariant {
     pub baby_sounds: SoundSet,
 }
 
-struct SpawnSelector {
-    biomes: Option<Vec<i32>>,
-    priority: i32,
-}
-
 fn variants() -> &'static SyncedRegistry {
     SyncedRegistry::get("minecraft:chicken_variant")
 }
@@ -65,25 +61,9 @@ fn sound_variants() -> &'static SyncedRegistry {
     SyncedRegistry::get("minecraft:chicken_sound_variant")
 }
 
-fn spawn_selectors() -> &'static Vec<(i32, SpawnSelector)> {
-    static SELECTORS: OnceLock<Vec<(i32, SpawnSelector)>> = OnceLock::new();
-    SELECTORS.get_or_init(|| {
-        let json: HashMap<&str, Value> = crisp_data::CHICKEN_VARIANTS.iter().map(|&(id, json)| (id, serde_json::from_str(json).expect("vanilla JSON"))).collect();
-        let mut selectors = Vec::new();
-        for (id, name) in variants().entries.iter().enumerate() {
-            for selector in json[name]["spawn_conditions"].as_array().into_iter().flatten() {
-                let biomes = selector.get("condition").map(|condition| {
-                    let biomes = condition["biomes"].as_str().unwrap_or_default();
-                    match biomes.strip_prefix('#') {
-                        Some(tag) => crisp_data::tag("minecraft:worldgen/biome", tag).to_vec(),
-                        None => SyncedRegistry::get("minecraft:worldgen/biome").id_of(biomes).into_iter().collect(),
-                    }
-                });
-                selectors.push((id as i32, SpawnSelector { biomes, priority: selector["priority"].as_i64().unwrap_or(0) as i32 }));
-            }
-        }
-        selectors
-    })
+fn spawn_selectors() -> &'static SpawnPrioritySelectors {
+    static SELECTORS: OnceLock<SpawnPrioritySelectors> = OnceLock::new();
+    SELECTORS.get_or_init(|| SpawnPrioritySelectors::load("minecraft:chicken_variant", crisp_data::CHICKEN_VARIANTS))
 }
 
 pub fn sound_variant(id: i32) -> &'static ChickenSoundVariant {
@@ -99,6 +79,13 @@ pub fn sound_variant(id: i32) -> &'static ChickenSoundVariant {
         sound_variants().entries.iter().map(|name| ChickenSoundVariant { adult_sounds: set(&json[name]["adult_sounds"]), baby_sounds: set(&json[name]["baby_sounds"]) }).collect()
     });
     &all[id as usize]
+}
+
+fn chicken_mut(mob: &mut Mob) -> &mut Chicken {
+    match &mut mob.kind {
+        MobKind::Chicken(chicken) => chicken,
+        _ => unreachable!("not a chicken"),
+    }
 }
 
 pub fn is_food(item_stack: &ItemStack) -> bool {
@@ -138,8 +125,7 @@ impl Chicken {
         let mut mob = Mob::new(entity, LivingEntity::new(&CHICKEN_ATTRIBUTES), MobKind::Chicken(Chicken::default()));
         Animal::init(&mut mob);
         let egg_time = mob.entity.random.next_int_bounded(6000) + 6000;
-        let MobKind::Chicken(chicken) = &mut mob.kind;
-        chicken.egg_time = egg_time;
+        chicken_mut(&mut mob).egg_time = egg_time;
         mob.set_pathfinding_malus(PathType::Water, 0.0);
         mob
     }
@@ -150,7 +136,7 @@ impl Chicken {
         goal_selector.add_goal(0, Goal::Float(float_goal));
         goal_selector.add_goal(1, Goal::Panic(PanicGoal::new(1.4)));
         goal_selector.add_goal(2, Goal::Breed(BreedGoal::new(1.0)));
-        goal_selector.add_goal(3, Goal::Tempt(TemptGoal::new(1.0, &item_tags::CHICKEN_FOOD, false)));
+        goal_selector.add_goal(3, Goal::Tempt(TemptGoal::new(1.0, |i| i.get_item().is(&item_tags::CHICKEN_FOOD), false)));
         goal_selector.add_goal(4, Goal::FollowParent(FollowParentGoal::new(1.1)));
         goal_selector.add_goal(5, Goal::WaterAvoidingRandomStroll(WaterAvoidingRandomStrollGoal::new(1.0)));
         goal_selector.add_goal(6, Goal::LookAtPlayer(LookAtPlayerGoal::new(6.0)));
@@ -172,20 +158,21 @@ impl ServerLevel {
         let alive = self.is_alive(id);
         let mob = self.mob_mut(id).expect("a mob");
         let baby = mob.is_baby();
-        let MobKind::Chicken(chicken) = &mut mob.kind;
+        let chicken = chicken_mut(mob);
         if alive && !baby && !chicken.is_chicken_jockey && {
             chicken.egg_time -= 1;
             chicken.egg_time <= 0
         } {
-            if self.drop_from_gift_loot_table(id, CHICKEN_LAY, |level, item_stack| level.spawn_at_location(id, item_stack, 0.0)) {
+            if self.drop_from_gift_loot_table(id, CHICKEN_LAY, |level, item_stack| {
+                level.spawn_at_location(id, item_stack, 0.0);
+            }) {
                 let random = &mut self.entity_mut(id).random;
                 let pitch = (random.next_float() - random.next_float()) * 0.2 + 1.0;
                 self.entity_play_sound(id, sound_event("minecraft:entity.chicken.egg"), 1.0, pitch);
             }
             let mob = self.mob_mut(id).expect("a mob");
             let egg_time = mob.entity.random.next_int_bounded(6000) + 6000;
-            let MobKind::Chicken(chicken) = &mut mob.kind;
-            chicken.egg_time = egg_time;
+            chicken_mut(mob).egg_time = egg_time;
         }
     }
 
@@ -199,34 +186,15 @@ impl ServerLevel {
     }
 
     pub fn chicken_get_base_experience_reward(&mut self, id: EntityId) -> i32 {
-        let MobKind::Chicken(chicken) = &self.mob(id).expect("a chicken").kind;
-        if chicken.is_chicken_jockey { 10 } else { self.animal_get_base_experience_reward(id) }
+        let is_chicken_jockey = matches!(&self.mob(id).expect("a chicken").kind, MobKind::Chicken(chicken) if chicken.is_chicken_jockey);
+        if is_chicken_jockey { 10 } else { self.animal_get_base_experience_reward(id) }
     }
 
     pub fn select_chicken_variant_to_spawn(&mut self, pos: BlockPos) -> Option<i32> {
-        let biome = self.get_biome(pos).0 as i32;
-        let mut entries: Vec<(i32, &SpawnSelector)> = spawn_selectors().iter().map(|(id, s)| (*id, s)).collect();
-        entries.sort_by_key(|(_, s)| std::cmp::Reverse(s.priority));
-        let mut highest_matched_priority = i32::MIN;
-        entries.retain(|(_, s)| {
-            if s.priority < highest_matched_priority {
-                return false;
-            }
-            if s.biomes.as_ref().is_none_or(|biomes| biomes.contains(&biome)) {
-                highest_matched_priority = s.priority;
-                true
-            } else {
-                false
-            }
-        });
-        if entries.is_empty() {
-            return None;
-        }
-        let index = self.random.next_int_bounded(entries.len() as i32);
-        Some(entries[index as usize].0)
+        self.select_variant_to_spawn(pos, spawn_selectors())
     }
 
     pub fn pick_random_chicken_sound_variant(&mut self) -> i32 {
-        self.random.next_int_bounded(sound_variants().entries.len() as i32)
+        self.pick_random_sound_variant("minecraft:chicken_sound_variant")
     }
 }

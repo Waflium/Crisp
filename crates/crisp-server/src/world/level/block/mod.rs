@@ -256,6 +256,7 @@ mod rod_block;
 mod shelf_block;
 pub mod side_chain_part_block;
 pub mod sign_block;
+pub mod suspicious_effect_holder;
 mod speleothem_block;
 #[cfg(test)]
 mod speleothem_tests;

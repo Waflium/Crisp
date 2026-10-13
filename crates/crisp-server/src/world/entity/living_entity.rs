@@ -760,7 +760,7 @@ impl ServerLevel {
 
     fn get_death_sound(&self, id: EntityId) -> i32 {
         match self.mob(id) {
-            Some(mob) => sound_event(&mob.sound_set().death_sound),
+            Some(mob) => sound_event(mob.get_death_sound()),
             None => sound_event("minecraft:entity.player.death"),
         }
     }
@@ -775,7 +775,7 @@ impl ServerLevel {
 
     fn get_hurt_sound(&self, id: EntityId, source: &DamageSource) -> i32 {
         match self.mob(id) {
-            Some(mob) => sound_event(&mob.sound_set().hurt_sound),
+            Some(mob) => sound_event(mob.get_hurt_sound()),
             None => sound_event(source.ty.info().effects.sound()),
         }
     }
@@ -906,9 +906,14 @@ impl ServerLevel {
         }
     }
 
+    fn get_sound_volume(&self, id: EntityId) -> f32 {
+        self.mob(id).map_or(1.0, |mob| mob.get_sound_volume())
+    }
+
     pub fn make_sound(&mut self, id: EntityId, sound: i32) {
+        let volume = self.get_sound_volume(id);
         let pitch = self.voice_pitch(id);
-        self.entity_play_sound(id, sound, 1.0, pitch);
+        self.entity_play_sound(id, sound, volume, pitch);
     }
 
     pub fn voice_pitch(&mut self, id: EntityId) -> f32 {
@@ -1047,13 +1052,16 @@ impl ServerLevel {
         }
         match self.mob(id).map(|mob| &mob.kind) {
             Some(MobKind::Chicken(_)) => self.chicken_get_base_experience_reward(id),
+            Some(_) => self.animal_get_base_experience_reward(id),
             None => 0,
         }
     }
 
     fn drop_from_loot_table(&mut self, id: EntityId, source: &DamageSource, player_killed: bool) {
         let Some(loot_table) = self.mob(id).and_then(|mob| mob.loot_table_id()) else { return };
-        self.drop_from_loot_table_into(id, source, player_killed, &loot_table, &mut |level, item_stack| level.spawn_at_location(id, item_stack, 0.0));
+        self.drop_from_loot_table_into(id, source, player_killed, &loot_table, &mut |level, item_stack| {
+            level.spawn_at_location(id, item_stack, 0.0);
+        });
         if let Some(mob) = self.mob_mut(id) {
             mob.loot_table = None;
         }
@@ -1103,6 +1111,18 @@ impl ServerLevel {
             },
             consumer,
         )
+    }
+
+    pub fn drop_from_shearing_loot_table(&mut self, id: EntityId, key: &str, tool: &ItemStack, mut consumer: impl FnMut(&mut ServerLevel, ItemStack)) {
+        let position = self.entity(id).position();
+        let loot_table = LootTable::get(key);
+        let mut params = LootParams::new(self);
+        params.origin = Some(position);
+        params.this_entity = Some(id);
+        params.tool = Some(tool);
+        for stack in loot_table.get_random_items(params) {
+            consumer(self, stack);
+        }
     }
 
     fn drop_from_loot_table_with_params(&mut self, key: &str, params_builder: impl FnOnce(&mut LootParams), mut consumer: impl FnMut(&mut ServerLevel, ItemStack)) -> bool {
@@ -1401,6 +1421,7 @@ impl ServerLevel {
         }
         match self.mob(id).map(|mob| &mob.kind) {
             Some(MobKind::Chicken(_)) => self.chicken_ai_step(id),
+            Some(_) => self.animal_ai_step(id),
             None => self.living_entity_ai_step(id),
         }
     }

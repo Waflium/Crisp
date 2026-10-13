@@ -32,6 +32,13 @@ impl InteractionHand {
     pub fn from_id(id: i32) -> InteractionHand {
         if id == 1 { InteractionHand::OffHand } else { InteractionHand::MainHand }
     }
+
+    pub fn as_equipment_slot(self) -> crisp_data::EquipmentSlot {
+        match self {
+            InteractionHand::MainHand => crisp_data::EquipmentSlot::Mainhand,
+            InteractionHand::OffHand => crisp_data::EquipmentSlot::Offhand,
+        }
+    }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]

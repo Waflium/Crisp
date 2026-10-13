@@ -288,6 +288,8 @@ impl ServerLevel {
             "minecraft:eye_of_ender" => LevelEntity::EyeOfEnder(super::projectile::eye_of_ender::EyeOfEnder::of_type()),
             "minecraft:end_crystal" => LevelEntity::EndCrystal(super::boss::enderdragon::end_crystal::EndCrystal::of_type()),
             "minecraft:chicken" => LevelEntity::Mob(Box::new(super::animal::chicken::Chicken::create())),
+            "minecraft:cow" => LevelEntity::Mob(Box::new(super::animal::cow::cow::Cow::create())),
+            "minecraft:mooshroom" => LevelEntity::Mob(Box::new(super::animal::cow::mushroom_cow::MushroomCow::create())),
             _ => return None,
         })
     }

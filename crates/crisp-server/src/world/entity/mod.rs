@@ -3,6 +3,8 @@ pub mod ai;
 pub mod animal;
 pub mod attributes;
 pub mod boss;
+pub mod conversion_params;
+pub mod conversion_type;
 pub mod data;
 #[cfg(test)]
 mod effect_tests;
@@ -31,10 +33,12 @@ pub mod raid;
 pub mod player;
 pub mod relative;
 pub mod schedule;
+pub mod shearable;
 pub mod slot_access;
 #[cfg(test)]
 mod survival_tests;
 pub mod using_item;
+pub mod variant;
 pub mod vehicle;
 
 pub use entity::*;

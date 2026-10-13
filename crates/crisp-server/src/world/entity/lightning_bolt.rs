@@ -5,6 +5,7 @@ use crisp_core::{AABB, BlockPos, Vec3};
 use crisp_data::properties::{FACING, POWERED};
 use crisp_data::{BlockState, WAXABLES, damage_types, registry, registry_id};
 
+use super::mob::MobKind;
 use super::{Entity, EntityDimensions, EntityId, LevelEntity};
 use crate::server::level::ServerLevel;
 use crate::world::damagesource::DamageSource;
@@ -99,7 +100,7 @@ impl ServerLevel {
                 .filter(|&e| e != id && self.is_alive(e) && self.entity(e).bounding_box().intersects(&area))
                 .collect();
             for &entity in &hit {
-                self.thunder_hit(entity);
+                self.thunder_hit(entity, id);
             }
             self.lightning_bolt(id).hit_entities.extend(hit.iter().copied());
             if let Some(cause) = self.lightning_bolt(id).cause.filter(|&cause| self.is_player(cause)) {
@@ -108,7 +109,14 @@ impl ServerLevel {
         }
     }
 
-    fn thunder_hit(&mut self, id: EntityId) {
+    fn thunder_hit(&mut self, id: EntityId, lightning_bolt: EntityId) {
+        match self.mob(id).map(|mob| &mob.kind) {
+            Some(MobKind::MushroomCow(_)) => self.mushroom_cow_thunder_hit(id, lightning_bolt),
+            _ => self.entity_thunder_hit(id, lightning_bolt),
+        }
+    }
+
+    pub fn entity_thunder_hit(&mut self, id: EntityId, _lightning_bolt: EntityId) {
         let ticks = self.entity(id).remaining_fire_ticks + 1;
         self.set_remaining_fire_ticks(id, ticks);
         if self.entity(id).remaining_fire_ticks == 0 {

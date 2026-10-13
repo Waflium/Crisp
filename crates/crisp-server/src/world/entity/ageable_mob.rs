@@ -30,6 +30,8 @@ impl ServerLevel {
     pub fn get_breed_offspring(&mut self, id: EntityId, partner: EntityId) -> Option<Box<Mob>> {
         match self.mob(id).expect("an ageable mob").kind {
             MobKind::Chicken(_) => self.chicken_get_breed_offspring(id, partner),
+            MobKind::Cow(_) => self.cow_get_breed_offspring(id, partner),
+            MobKind::MushroomCow(_) => self.mushroom_cow_get_breed_offspring(id, partner),
         }
     }
 

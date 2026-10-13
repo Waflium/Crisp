@@ -4,6 +4,8 @@ use crisp_protocol::nbt::Nbt;
 
 use super::EntityId;
 use super::animal::chicken;
+use super::animal::cow::{cow, mushroom_cow};
+use super::variant::variant_utils;
 use super::data::DataValue;
 use super::mob::MobKind;
 use crate::core::component::data_component_getter::DataComponentGetter;
@@ -29,7 +31,16 @@ impl DataComponentGetter for EntityComponents<'_> {
                         return Some(Cow::Owned(Nbt::String(chicken::sound_variant_name(*variant).to_string())));
                     }
                 }
-                MobKind::Chicken(_) => {}
+                MobKind::Cow(_) if ty == dc::COW_VARIANT => {
+                    return Some(Cow::Owned(Nbt::String(variant_utils::variant_name(cow::VARIANT_REGISTRY, cow::get_variant(&mob.entity)).to_string())));
+                }
+                MobKind::Cow(_) if ty == dc::COW_SOUND_VARIANT => {
+                    return Some(Cow::Owned(Nbt::String(variant_utils::variant_name(cow::SOUND_VARIANT_REGISTRY, cow::get_sound_variant(&mob.entity)).to_string())));
+                }
+                MobKind::MushroomCow(_) if ty == dc::MOOSHROOM_VARIANT => {
+                    return Some(Cow::Owned(Nbt::String(mushroom_cow::get_variant(&mob.entity).get_serialized_name().to_string())));
+                }
+                _ => {}
             }
         }
         let entity = self.level.entity(self.id);

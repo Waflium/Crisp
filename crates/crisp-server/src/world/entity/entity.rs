@@ -312,6 +312,10 @@ impl Entity {
         self.pos.y + self.dimensions.height as f64 * ((2.0 * self.random.next_double() - 1.0) * spread)
     }
 
+    pub fn get_y(&self, scale: f64) -> f64 {
+        self.pos.y + self.dimensions.height as f64 * scale
+    }
+
     pub fn random_z(&mut self, spread: f64) -> f64 {
         self.pos.z + self.dimensions.width as f64 * ((2.0 * self.random.next_double() - 1.0) * spread)
     }
@@ -1419,7 +1423,7 @@ impl ServerLevel {
 
     fn play_step_sound(&mut self, id: EntityId, pos: BlockPos, state: BlockState) {
         if let Some(mob) = self.mob(id) {
-            let sound = sound_event(&mob.sound_set().step_sound);
+            let sound = sound_event(mob.get_step_sound());
             self.entity_play_sound(id, sound, 0.15, 1.0);
             return;
         }
@@ -2043,6 +2047,8 @@ impl ServerLevel {
             let name = self.entities.get(&id).map(|e| e.name().get_string()).unwrap_or_default();
             let class = match self.mob(id).map(|m| &m.kind) {
                 Some(super::mob::MobKind::Chicken(_)) => "Chicken",
+                Some(super::mob::MobKind::Cow(_)) => "Cow",
+                Some(super::mob::MobKind::MushroomCow(_)) => "MushroomCow",
                 None => "Entity",
             };
             (class, name)
@@ -2050,15 +2056,21 @@ impl ServerLevel {
         format!("{class}['{name}'/{id}, l='ServerLevel[{}]', x={:.2}, y={:.2}, z={:.2}]", self.level_name, e.x(), e.y(), e.z())
     }
 
-    pub fn spawn_at_location(&mut self, id: EntityId, stack: ItemStack, offset: f32) {
+    pub fn spawn_at_location(&mut self, id: EntityId, stack: ItemStack, offset: f32) -> Option<EntityId> {
+        self.spawn_at_location_with_offset(id, stack, Vec3::new(0.0, offset as f64, 0.0))
+    }
+
+    pub fn spawn_at_location_with_offset(&mut self, id: EntityId, stack: ItemStack, offset: Vec3) -> Option<EntityId> {
         if stack.is_empty() {
-            return;
+            return None;
         }
         let e = self.entity(id);
-        let pos = Vec3::new(e.x(), e.y() + offset as f64, e.z());
+        let pos = Vec3::new(e.x() + offset.x, e.y() + offset.y, e.z() + offset.z);
         let mut item = ItemEntity::new(pos, stack);
         item.set_default_pickup_delay();
+        let item_id = item.entity.id;
         self.add_fresh_entity(LevelEntity::Item(item));
+        Some(item_id)
     }
 }
 

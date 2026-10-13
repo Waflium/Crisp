@@ -1,10 +1,11 @@
-use crisp_data::{EquipmentSlot, Tag};
+use crisp_data::EquipmentSlot;
 
 use super::goal::reduced_tick_delay;
 use crate::server::level::ServerLevel;
 use crate::world::entity::EntityId;
 use crate::world::entity::ai::targeting::targeting_conditions::TargetingConditions;
 use crate::world::entity::attributes::Attribute;
+use crate::world::item::ItemStack;
 
 pub const DEFAULT_STOP_DISTANCE: f64 = 2.5;
 
@@ -18,13 +19,13 @@ pub struct TemptGoal {
     player: Option<EntityId>,
     calm_down: i32,
     is_running: bool,
-    items: &'static Tag,
+    items: fn(&ItemStack) -> bool,
     can_scare: bool,
     stop_distance: f64,
 }
 
 impl TemptGoal {
-    pub fn new(speed_modifier: f64, items: &'static Tag, can_scare: bool) -> TemptGoal {
+    pub fn new(speed_modifier: f64, items: fn(&ItemStack) -> bool, can_scare: bool) -> TemptGoal {
         TemptGoal {
             speed_modifier,
             px: 0.0,
@@ -118,7 +119,7 @@ impl TemptGoal {
     }
 }
 
-fn should_follow(level: &ServerLevel, items: &Tag, player: EntityId) -> bool {
-    let test = |slot| level.item_by_slot_ref(player, slot).is_some_and(|item| item.get_item().is(items));
+fn should_follow(level: &ServerLevel, items: fn(&ItemStack) -> bool, player: EntityId) -> bool {
+    let test = |slot| level.item_by_slot_ref(player, slot).is_some_and(items);
     test(EquipmentSlot::Mainhand) || test(EquipmentSlot::Offhand)
 }

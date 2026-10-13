@@ -13,6 +13,9 @@ use crate::world::level::path_navigation_region::PathNavigationRegion;
 use crate::world::{InteractionHand, InteractionResult};
 
 pub mod chicken;
+pub mod cow;
+#[cfg(test)]
+mod farm_tests;
 
 #[derive(Default)]
 pub struct Animal {
@@ -45,6 +48,7 @@ impl ServerLevel {
     pub fn is_food(&self, id: EntityId, item_stack: &ItemStack) -> bool {
         match self.mob(id).expect("an animal").kind {
             MobKind::Chicken(_) => chicken::is_food(item_stack),
+            MobKind::Cow(_) | MobKind::MushroomCow(_) => cow::abstract_cow::is_food(item_stack),
         }
     }
 
@@ -96,7 +100,7 @@ impl ServerLevel {
         if partner == id {
             return false;
         }
-        let same_class = matches!((&self.mob(id).expect("an animal").kind, self.mob(partner).map(|mob| &mob.kind)), (MobKind::Chicken(_), Some(MobKind::Chicken(_))));
+        let same_class = self.mob(partner).is_some_and(|partner| std::mem::discriminant(&partner.kind) == std::mem::discriminant(&self.mob(id).expect("an animal").kind));
         same_class && self.is_in_love(id) && self.is_in_love(partner)
     }
 
