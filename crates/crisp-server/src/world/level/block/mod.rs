@@ -185,6 +185,7 @@ mod nether_wart_block;
 mod nylium_block;
 mod pitcher_crop_block;
 mod sapling_block;
+pub mod game_master_block;
 pub mod grower;
 pub mod sculk_behaviour;
 pub mod sculk_spreader;

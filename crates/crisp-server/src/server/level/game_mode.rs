@@ -10,7 +10,7 @@ use crate::world::entity::attributes::Attribute;
 use crate::world::entity::player::abilities::Abilities;
 use crate::world::item::ItemStack;
 use crate::world::level::collision::shapes_collide;
-use crate::world::level::block::{self, BlockHitResult};
+use crate::world::level::block::{self, BlockHitResult, game_master_block};
 use crate::world::level::{BlockGetter, update_flags};
 use crate::world::{InteractionHand, InteractionResult, item};
 
@@ -370,6 +370,13 @@ impl ServerLevel {
 
     pub fn destroy_block_by_player(&mut self, player: EntityId, pos: BlockPos) -> bool {
         let state = self.block_state(pos);
+        if !item::can_destroy_block(self, self.player(player).inventory.held(), player) {
+            return false;
+        }
+        if game_master_block::is_game_master_block(state.block()) && !self.can_use_game_master_blocks(player) {
+            self.send_block_updated(pos, state, state);
+            return false;
+        }
         let behaviour = block::of(state);
         let adjusted = behaviour.player_will_destroy(self, pos, state, player);
         let mut block_entity = None;

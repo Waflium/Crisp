@@ -117,6 +117,13 @@ pub fn use_item(level: &mut ServerLevel, player: EntityId, hand: InteractionHand
     }
 }
 
+pub fn can_destroy_block(level: &ServerLevel, item_stack: Option<&ItemStack>, user: EntityId) -> bool {
+    match item_stack.and_then(ItemStack::tool) {
+        Some(tool) if !tool.can_destroy_blocks_in_creative => !(level.is_player(user) && level.player(user).abilities.instabuild),
+        _ => true,
+    }
+}
+
 pub fn inventory_tick(level: &mut ServerLevel, owner: EntityId, slot_index: usize, slot: Option<crisp_data::EquipmentSlot>) {
     let Some(item_stack) = level.player(owner).inventory.slots[slot_index].as_ref().filter(|stack| !stack.is_empty()) else { return };
     if item_stack.item.is_instance_of("MapItem") {
