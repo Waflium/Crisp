@@ -1626,7 +1626,8 @@ impl ServerLevel {
             Some(LevelEntity::Boat(_)) => self.tick_boat(id),
             None => return,
         }
-        if self.entities.get(&id).is_some_and(|e| e.entity().is_removed()) {
+        let teleporting = self.pending_portal_teleport.as_ref().is_some_and(|pending| pending.entity.id == id && pending.removed);
+        if !teleporting && self.entities.get(&id).is_some_and(|e| e.entity().is_removed()) {
             self.remove_entity(id);
         }
     }
