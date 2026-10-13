@@ -3125,6 +3125,7 @@ impl ServerLevel {
     pub fn is_pushable_immutable(&self, id: EntityId) -> bool {
         match self.entities.get(&id) {
             Some(LevelEntity::Boat(_) | LevelEntity::Minecart(_)) => true,
+            _ if self.is_living(id) => self.is_alive(id) && !self.is_spectator(id) && !self.on_climbable_peek(id),
             _ => false,
         }
     }
@@ -3177,7 +3178,11 @@ impl ServerLevel {
     }
 
     pub fn is_pushable(&mut self, id: EntityId) -> bool {
-        if self.is_living(id) { self.living_entity_is_pushable(id) } else { self.is_pushable_immutable(id) }
+        if self.is_living(id) {
+            self.living_entity_is_pushable(id)
+        } else {
+            matches!(self.entities.get(&id), Some(LevelEntity::Boat(_) | LevelEntity::Minecart(_)))
+        }
     }
 
     pub fn is_pickable(&self, id: EntityId) -> bool {

@@ -1851,6 +1851,20 @@ impl ServerLevel {
         Vec3::new(xd, yd, zd)
     }
 
+    pub fn on_climbable_peek(&self, id: EntityId) -> bool {
+        if self.is_spectator(id) {
+            return false;
+        }
+        let pos = self.entity(id).block_position();
+        let state_at = |pos: BlockPos| self.chunks.loaded_chunk(pos.chunk()).map_or(blocks::AIR.default_state(), |chunk| chunk.block_state(pos));
+        let state = state_at(pos);
+        state.is(&block_tags::CLIMBABLE)
+            || state.block().is_instance_of("TrapDoorBlock") && state.get(OPEN) && {
+                let below = state_at(pos.below());
+                below.is_block(blocks::LADDER) && below.get(HORIZONTAL_FACING) == state.get(HORIZONTAL_FACING)
+            }
+    }
+
     pub fn on_climbable(&mut self, id: EntityId) -> bool {
         if self.is_spectator(id) {
             return false;

@@ -5,7 +5,7 @@ pub mod text_component_tag_visitor;
 
 use std::cell::Cell;
 
-use crisp_protocol::nbt::{Nbt, java_hash_map_order};
+use crisp_protocol::nbt::{Nbt, double_tag_value, float_tag_value, java_hash_map_order};
 
 use crate::commands::brigadier::{CommandSyntaxException, SimpleCommandExceptionType, StringReader};
 use crate::util::parsing::packrat::ParseState;
@@ -76,8 +76,8 @@ fn write_json(tag: &Nbt, out: &mut String) {
         Nbt::Short(v) => out.push_str(&v.to_string()),
         Nbt::Int(v) => out.push_str(&v.to_string()),
         Nbt::Long(v) => out.push_str(&v.to_string()),
-        Nbt::Float(v) => out.push_str(&java_float_to_string(*v)),
-        Nbt::Double(v) => out.push_str(&java_double_to_string(*v)),
+        Nbt::Float(v) => out.push_str(&java_float_to_string(float_tag_value(*v))),
+        Nbt::Double(v) => out.push_str(&java_double_to_string(double_tag_value(*v))),
         Nbt::ByteArray(_) | Nbt::IntArray(_) | Nbt::LongArray(_) => write(tag, out),
         Nbt::List(items) => {
             out.push('[');
@@ -112,8 +112,8 @@ fn write(tag: &Nbt, out: &mut String) {
         Nbt::Short(v) => out.push_str(&format!("{v}s")),
         Nbt::Int(v) => out.push_str(&v.to_string()),
         Nbt::Long(v) => out.push_str(&format!("{v}L")),
-        Nbt::Float(v) => out.push_str(&format!("{}f", java_float_to_string(*v))),
-        Nbt::Double(v) => out.push_str(&format!("{}d", java_double_to_string(*v))),
+        Nbt::Float(v) => out.push_str(&format!("{}f", java_float_to_string(float_tag_value(*v)))),
+        Nbt::Double(v) => out.push_str(&format!("{}d", java_double_to_string(double_tag_value(*v)))),
         Nbt::ByteArray(values) => {
             out.push_str("[B;");
             join(out, values.iter().map(|v| format!("{v}B")).collect());

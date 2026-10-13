@@ -16,6 +16,14 @@ pub enum Nbt {
     LongArray(Vec<i64>),
 }
 
+pub fn float_tag_value(v: f32) -> f32 {
+    if v == 0.0 { 0.0 } else { v }
+}
+
+pub fn double_tag_value(v: f64) -> f64 {
+    if v == 0.0 { 0.0 } else { v }
+}
+
 impl PartialEq for Nbt {
     fn eq(&self, other: &Nbt) -> bool {
         match (self, other) {
@@ -23,8 +31,8 @@ impl PartialEq for Nbt {
             (Nbt::Short(a), Nbt::Short(b)) => a == b,
             (Nbt::Int(a), Nbt::Int(b)) => a == b,
             (Nbt::Long(a), Nbt::Long(b)) => a == b,
-            (Nbt::Float(a), Nbt::Float(b)) => a.to_bits() == b.to_bits(),
-            (Nbt::Double(a), Nbt::Double(b)) => a.to_bits() == b.to_bits(),
+            (Nbt::Float(a), Nbt::Float(b)) => float_tag_value(*a).to_bits() == float_tag_value(*b).to_bits(),
+            (Nbt::Double(a), Nbt::Double(b)) => double_tag_value(*a).to_bits() == double_tag_value(*b).to_bits(),
             (Nbt::ByteArray(a), Nbt::ByteArray(b)) => a == b,
             (Nbt::String(a), Nbt::String(b)) => a == b,
             (Nbt::List(a), Nbt::List(b)) => a == b,
@@ -121,8 +129,8 @@ impl Nbt {
             Nbt::Short(v) => w.bytes(&v.to_be_bytes()),
             Nbt::Int(v) => w.bytes(&v.to_be_bytes()),
             Nbt::Long(v) => w.i64(*v),
-            Nbt::Float(v) => w.bytes(&v.to_be_bytes()),
-            Nbt::Double(v) => w.bytes(&v.to_be_bytes()),
+            Nbt::Float(v) => w.bytes(&float_tag_value(*v).to_be_bytes()),
+            Nbt::Double(v) => w.bytes(&double_tag_value(*v).to_be_bytes()),
             Nbt::ByteArray(v) => {
                 w.bytes(&(v.len() as i32).to_be_bytes());
                 v.iter().for_each(|b| w.u8(*b as u8));
