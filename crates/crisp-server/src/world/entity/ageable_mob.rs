@@ -32,6 +32,7 @@ impl ServerLevel {
             MobKind::Chicken(_) => self.chicken_get_breed_offspring(id, partner),
             MobKind::Cow(_) => self.cow_get_breed_offspring(id, partner),
             MobKind::MushroomCow(_) => self.mushroom_cow_get_breed_offspring(id, partner),
+            MobKind::Pig(_) => self.pig_get_breed_offspring(id, partner),
         }
     }
 

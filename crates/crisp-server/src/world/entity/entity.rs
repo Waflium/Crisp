@@ -729,6 +729,10 @@ impl ServerLevel {
         Vec::new()
     }
 
+    pub fn is_vehicle(&self, id: EntityId) -> bool {
+        !self.passengers(id).is_empty()
+    }
+
     pub fn known_movement(&self, id: EntityId) -> Vec3 {
         match self.players.get(&id) {
             Some(player) => player.known_movement,
@@ -1942,7 +1946,16 @@ impl ServerLevel {
         if interaction_result.consumes_action() { interaction_result } else { InteractionResult::Pass }
     }
 
-    pub fn entity_interact(&mut self, _id: EntityId, _player: EntityId, _hand: InteractionHand, _location: Vec3) -> InteractionResult {
+    pub fn entity_interact(&mut self, id: EntityId, player: EntityId, hand: InteractionHand, _location: Vec3) -> InteractionResult {
+        let held_item = self.player(player).item_in_hand(hand).unwrap_or_else(ItemStack::empty);
+        if self.is_mob(id)
+            && held_item.is(crisp_data::items::SHEARS)
+            && self.can_shear_equipment(id)
+            && !self.player(player).is_secondary_use_active()
+            && self.attempt_to_shear_equipment(id, player, hand)
+        {
+            return InteractionResult::SUCCESS;
+        }
         InteractionResult::Pass
     }
 
@@ -2049,6 +2062,7 @@ impl ServerLevel {
                 Some(super::mob::MobKind::Chicken(_)) => "Chicken",
                 Some(super::mob::MobKind::Cow(_)) => "Cow",
                 Some(super::mob::MobKind::MushroomCow(_)) => "MushroomCow",
+                Some(super::mob::MobKind::Pig(_)) => "Pig",
                 None => "Entity",
             };
             (class, name)

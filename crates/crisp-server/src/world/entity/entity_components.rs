@@ -5,6 +5,7 @@ use crisp_protocol::nbt::Nbt;
 use super::EntityId;
 use super::animal::chicken;
 use super::animal::cow::{cow, mushroom_cow};
+use super::animal::pig::pig;
 use super::variant::variant_utils;
 use super::data::DataValue;
 use super::mob::MobKind;
@@ -39,6 +40,12 @@ impl DataComponentGetter for EntityComponents<'_> {
                 }
                 MobKind::MushroomCow(_) if ty == dc::MOOSHROOM_VARIANT => {
                     return Some(Cow::Owned(Nbt::String(mushroom_cow::get_variant(&mob.entity).get_serialized_name().to_string())));
+                }
+                MobKind::Pig(_) if ty == dc::PIG_VARIANT => {
+                    return Some(Cow::Owned(Nbt::String(variant_utils::variant_name(pig::VARIANT_REGISTRY, pig::get_variant(&mob.entity)).to_string())));
+                }
+                MobKind::Pig(_) if ty == dc::PIG_SOUND_VARIANT => {
+                    return Some(Cow::Owned(Nbt::String(variant_utils::variant_name(pig::SOUND_VARIANT_REGISTRY, pig::get_sound_variant(&mob.entity)).to_string())));
                 }
                 _ => {}
             }

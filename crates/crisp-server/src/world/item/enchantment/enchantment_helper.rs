@@ -50,6 +50,10 @@ pub fn has_prevent_armor_change(item_stack: &ItemStack) -> bool {
     enchantments(item_stack).iter().any(|(enchantment, _)| enchantment.effects.prevent_armor_change)
 }
 
+pub fn has_prevent_equipment_drop(item_stack: &ItemStack) -> bool {
+    enchantments(item_stack).iter().any(|(enchantment, _)| enchantment.effects.prevent_equipment_drop)
+}
+
 pub fn get_item_enchantment_level(enchantment: &str, piece: &ItemStack) -> i32 {
     piece.enchantments().level(enchantment)
 }

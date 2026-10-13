@@ -1,9 +1,10 @@
 use crisp_core::Vec3;
-use crisp_data::items;
+use crisp_data::{EquipmentSlot, items};
 use crisp_protocol::nbt::Nbt;
 
 use super::cow::cow::{self, Cow};
 use super::cow::mushroom_cow::{self, MushroomCow};
+use super::pig::pig::Pig;
 use crate::server::level::{ServerLevel, testing};
 use crate::world::entity::mob::{Mob, MobKind};
 use crate::world::entity::{EntityId, LevelEntity};
@@ -167,4 +168,36 @@ fn cows_save_vanillas_fields() {
     let mut saved = Vec::new();
     mob.save(&mut saved);
     assert!(saved.iter().any(|(k, v)| k == "variant" && v.as_str() == Some("minecraft:warm")));
+}
+
+#[test]
+fn saddled_pigs_drop_their_saddle_on_death() {
+    let (mut level, player, pig) = setup(Pig::create(), ItemStack::new(items::SADDLE, 1));
+    assert_eq!(interact(&mut level, player, pig), InteractionResult::SUCCESS);
+    level.hurt_server(pig, crate::world::damagesource::DamageSource::new(crisp_data::damage_types::GENERIC_KILL), f32::MAX);
+    assert!(items_on_ground(&level).contains(&(items::SADDLE, 1)));
+}
+
+#[test]
+fn shears_take_a_pigs_saddle_off() {
+    let (mut level, player, pig) = setup(Pig::create(), ItemStack::new(items::SADDLE, 1));
+    assert_eq!(interact(&mut level, player, pig), InteractionResult::SUCCESS);
+    assert!(level.is_saddled(pig));
+    assert!(held(&level, player).is_none());
+    level.player_mut(player).set_item_in_hand(InteractionHand::MainHand, Some(ItemStack::new(items::SHEARS, 1)));
+    level.player_mut(player).entity.set_shift_key_down(true);
+    assert_eq!(interact(&mut level, player, pig), InteractionResult::Pass);
+    level.player_mut(player).entity.set_shift_key_down(false);
+    assert_eq!(interact(&mut level, player, pig), InteractionResult::SUCCESS);
+    assert!(!level.is_saddled(pig));
+    assert_eq!(items_on_ground(&level), vec![(items::SADDLE, 1)]);
+}
+
+#[test]
+fn baby_pigs_cannot_be_saddled() {
+    let mut mob = Pig::create();
+    mob.set_baby(true);
+    let (mut level, player, pig) = setup(mob, ItemStack::new(items::SADDLE, 1));
+    assert_eq!(interact(&mut level, player, pig), InteractionResult::Pass);
+    assert!(level.item_by_slot(pig, EquipmentSlot::Saddle).is_none());
 }

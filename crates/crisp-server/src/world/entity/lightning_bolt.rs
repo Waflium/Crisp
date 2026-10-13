@@ -112,6 +112,7 @@ impl ServerLevel {
     fn thunder_hit(&mut self, id: EntityId, lightning_bolt: EntityId) {
         match self.mob(id).map(|mob| &mob.kind) {
             Some(MobKind::MushroomCow(_)) => self.mushroom_cow_thunder_hit(id, lightning_bolt),
+            Some(MobKind::Pig(_)) => self.pig_thunder_hit(id, lightning_bolt),
             _ => self.entity_thunder_hit(id, lightning_bolt),
         }
     }

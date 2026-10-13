@@ -16,6 +16,7 @@ pub mod chicken;
 pub mod cow;
 #[cfg(test)]
 mod farm_tests;
+pub mod pig;
 
 #[derive(Default)]
 pub struct Animal {
@@ -49,6 +50,15 @@ impl ServerLevel {
         match self.mob(id).expect("an animal").kind {
             MobKind::Chicken(_) => chicken::is_food(item_stack),
             MobKind::Cow(_) | MobKind::MushroomCow(_) => cow::abstract_cow::is_food(item_stack),
+            MobKind::Pig(_) => pig::pig::is_food(item_stack),
+        }
+    }
+
+    fn play_eating_sound(&mut self, id: EntityId) {
+        let mob = self.mob(id).expect("an animal");
+        if let MobKind::Pig(_) = mob.kind {
+            let sound = super::sound_event(&pig::pig::Pig::get_sound_set(mob).eat_sound);
+            self.make_sound(id, sound);
         }
     }
 
@@ -59,11 +69,13 @@ impl ServerLevel {
             if age == 0 && self.can_fall_in_love(id) {
                 self.use_player_item(player, hand, &mut item_stack);
                 self.set_in_love(id, Some(player));
+                self.play_eating_sound(id);
                 return InteractionResult::SUCCESS_SERVER;
             }
             if self.can_age_up(id) {
                 self.use_player_item(player, hand, &mut item_stack);
                 self.age_up(id, get_speed_up_seconds_when_feeding(-age), true);
+                self.play_eating_sound(id);
                 return InteractionResult::SUCCESS;
             }
         }

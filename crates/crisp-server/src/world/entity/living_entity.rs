@@ -332,17 +332,27 @@ impl ServerLevel {
         }
         let Some(equippable) = stack.get(crate::world::item::component::EQUIPPABLE).map(crate::world::item::component::values::Equippable::from_nbt) else { return };
         if !self.entity(id).is_silent() && EquipmentSlot::by_name(&equippable.slot) == Some(slot) {
-            let Some(sound) = equippable.equip_sound.as_str().and_then(|name| crisp_data::registry::SOUND_EVENT.iter().position(|&s| s == name)) else { return };
+            let Some(sound) = self.get_equip_sound(id, slot, &equippable) else { return };
             let source = self.sound_source(id);
             let e = self.entity_mut(id);
             let (x, y, z) = (e.x(), e.y(), e.z());
             let seed = e.random.next_long();
-            self.play_seeded_sound_at(None, x, y, z, sound as i32, source, 1.0, 1.0, seed);
+            self.play_seeded_sound_at(None, x, y, z, sound, source, 1.0, 1.0, seed);
         }
     }
 
-    pub fn can_use_slot(&self, _id: EntityId, _slot: EquipmentSlot) -> bool {
-        true
+    pub fn can_use_slot(&self, id: EntityId, slot: EquipmentSlot) -> bool {
+        match self.mob(id).map(|mob| &mob.kind) {
+            Some(MobKind::Pig(_)) => self.pig_can_use_slot(id, slot),
+            _ => true,
+        }
+    }
+
+    fn get_equip_sound(&self, id: EntityId, slot: EquipmentSlot, equippable: &crate::world::item::component::values::Equippable) -> Option<i32> {
+        if slot == EquipmentSlot::Saddle && matches!(self.mob(id).map(|mob| &mob.kind), Some(MobKind::Pig(_))) {
+            return Some(sound_event("minecraft:entity.pig.saddle"));
+        }
+        equippable.equip_sound.as_str().and_then(|name| crisp_data::registry::SOUND_EVENT.iter().position(|&s| s == name)).map(|sound| sound as i32)
     }
 
     pub fn get_equipment_slot_for_item(&self, id: EntityId, item_stack: &ItemStack) -> EquipmentSlot {
@@ -1009,6 +1019,9 @@ impl ServerLevel {
         let player_killed = self.living(id).last_hurt_by_player_memory_time > 0;
         if self.should_drop_loot(id) {
             self.drop_from_loot_table(id, source, player_killed);
+            if self.is_mob(id) {
+                self.mob_drop_custom_death_loot(id, player_killed);
+            }
         }
         self.drop_equipment(id);
         self.drop_experience(id, source.causing_entity);

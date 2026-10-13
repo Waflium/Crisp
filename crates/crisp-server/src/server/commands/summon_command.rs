@@ -22,6 +22,7 @@ const MODELLED: &[&str] = &[
     "minecraft:chicken",
     "minecraft:cow",
     "minecraft:mooshroom",
+    "minecraft:pig",
 ];
 
 pub fn summonable_entity_type(context: &CommandContext, name: &str) -> Result<String, CommandSyntaxException> {

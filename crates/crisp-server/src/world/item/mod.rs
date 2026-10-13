@@ -45,8 +45,29 @@ static BLOCK_ITEMS: std::sync::LazyLock<Vec<Option<Box<dyn block_item::BlockItem
     std::sync::LazyLock::new(|| (0..Item::count()).map(|i| block_item::for_item(Item(i as u16))).collect());
 
 pub fn interact_living_entity(level: &mut ServerLevel, item_stack: &mut ItemStack, player: EntityId, target: EntityId, _hand: InteractionHand) -> InteractionResult {
+    if let Some(equippable) = item_stack.get(component::EQUIPPABLE).map(component::values::Equippable::from_nbt)
+        && equippable.equip_on_interact
+    {
+        let result = equip_on_target(level, &equippable, target, item_stack);
+        if result != InteractionResult::Pass {
+            return result;
+        }
+    }
     if item_stack.is(crisp_data::items::NAME_TAG) {
         return name_tag_item::interact_living_entity(level, item_stack, player, target);
+    }
+    InteractionResult::Pass
+}
+
+fn equip_on_target(level: &mut ServerLevel, equippable: &component::values::Equippable, target: EntityId, item_stack: &mut ItemStack) -> InteractionResult {
+    let Some(slot) = crisp_data::EquipmentSlot::by_name(&equippable.slot) else { return InteractionResult::Pass };
+    if level.is_equippable_in_slot(target, item_stack, slot) && level.item_by_slot(target, slot).is_none() && level.is_alive(target) {
+        let equipped = item_stack.split(1);
+        level.living_set_item_slot(target, slot, equipped);
+        if level.is_mob(target) {
+            level.set_guaranteed_drop(target, slot);
+        }
+        return InteractionResult::SUCCESS;
     }
     InteractionResult::Pass
 }

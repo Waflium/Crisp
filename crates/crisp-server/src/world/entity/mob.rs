@@ -7,6 +7,7 @@ use super::animal::chicken::{self, Chicken};
 use super::animal::cow::abstract_cow::{self, AbstractCow};
 use super::animal::cow::cow::{self, Cow};
 use super::animal::cow::mushroom_cow::{self, MushroomCow};
+use super::animal::pig::pig::{self, Pig};
 use super::ageable_mob::{AgeableMob, BABY_START_AGE};
 use super::conversion_params::ConversionParams;
 use super::variant::variant_utils;
@@ -39,6 +40,7 @@ pub enum MobKind {
     Chicken(Chicken),
     Cow(Cow),
     MushroomCow(MushroomCow),
+    Pig(Pig),
 }
 
 pub struct Mob {
@@ -100,6 +102,7 @@ impl Mob {
         match self.kind {
             MobKind::Chicken(_) => Chicken::register_goals(&mut self.ai),
             MobKind::Cow(_) | MobKind::MushroomCow(_) => AbstractCow::register_goals(&mut self.ai),
+            MobKind::Pig(_) => Pig::register_goals(&mut self.ai),
         }
     }
 
@@ -209,6 +212,7 @@ impl Mob {
             MobKind::Chicken(chicken) => Some(&chicken.animal),
             MobKind::Cow(cow) => Some(&cow.abstract_cow.animal),
             MobKind::MushroomCow(mushroom_cow) => Some(&mushroom_cow.abstract_cow.animal),
+            MobKind::Pig(pig) => Some(&pig.animal),
         }
     }
 
@@ -217,6 +221,7 @@ impl Mob {
             MobKind::Chicken(chicken) => Some(&mut chicken.animal),
             MobKind::Cow(cow) => Some(&mut cow.abstract_cow.animal),
             MobKind::MushroomCow(mushroom_cow) => Some(&mut mushroom_cow.abstract_cow.animal),
+            MobKind::Pig(pig) => Some(&mut pig.animal),
         }
     }
 
@@ -258,6 +263,10 @@ impl Mob {
             MobKind::MushroomCow(_) => {
                 self.apply_implicit_component_if_present(components, dc::MOOSHROOM_VARIANT);
             }
+            MobKind::Pig(_) => {
+                self.apply_implicit_component_if_present(components, dc::PIG_VARIANT);
+                self.apply_implicit_component_if_present(components, dc::PIG_SOUND_VARIANT);
+            }
         }
         self.apply_implicit_component_if_present(components, dc::CUSTOM_NAME);
         self.apply_implicit_component_if_present(components, dc::CUSTOM_DATA);
@@ -295,6 +304,18 @@ impl Mob {
                 }
                 return true;
             }
+            MobKind::Pig(_) if ty == dc::PIG_VARIANT => {
+                if let Some(variant) = value.as_str().and_then(|name| variant_utils::read_variant(pig::VARIANT_REGISTRY, name)) {
+                    pig::set_variant(&mut self.entity, variant);
+                }
+                return true;
+            }
+            MobKind::Pig(_) if ty == dc::PIG_SOUND_VARIANT => {
+                if let Some(sound_variant) = value.as_str().and_then(|name| variant_utils::read_variant(pig::SOUND_VARIANT_REGISTRY, name)) {
+                    pig::set_sound_variant(&mut self.entity, sound_variant);
+                }
+                return true;
+            }
             _ => {}
         }
         self.entity.apply_implicit_component(ty, value)
@@ -314,7 +335,23 @@ impl Mob {
             MobKind::Cow(_) if self.is_baby() => cow::BABY_DIMENSIONS,
             MobKind::MushroomCow(_) if self.is_baby() => mushroom_cow::BABY_DIMENSIONS,
             MobKind::Cow(_) | MobKind::MushroomCow(_) => abstract_cow::DIMENSIONS,
+            MobKind::Pig(_) if self.is_baby() => pig::BABY_DIMENSIONS,
+            MobKind::Pig(_) => pig::DIMENSIONS,
         }
+    }
+
+    pub fn passenger_attachment(&self) -> crisp_core::Vec3 {
+        let baby = self.is_baby();
+        let (x, y, z) = match &self.kind {
+            MobKind::Chicken(_) if baby => (0.0, 0.375f32 as f64, 0.0),
+            MobKind::Chicken(_) => (0.0, 0.7, -0.1),
+            MobKind::Cow(_) | MobKind::MushroomCow(_) if baby => (0.0, 0.75f32 as f64, 0.0),
+            MobKind::Cow(_) | MobKind::MushroomCow(_) => (0.0, 1.36875f32 as f64, 0.0),
+            MobKind::Pig(_) if baby => (0.0, 0.5f32 as f64, 0.0),
+            MobKind::Pig(_) => (0.0, 0.86875f32 as f64, 0.0),
+        };
+        let scale = self.living.attributes.value(Attribute::Scale) as f32 as f64;
+        crisp_core::Vec3::new(x * scale, y * scale, z * scale)
     }
 
     pub fn dimensions(&self) -> EntityDimensions {
@@ -416,6 +453,10 @@ impl Mob {
                     out.push(("stew_effects".into(), stew_effects.clone()));
                 }
             }
+            MobKind::Pig(_) => {
+                out.push(("variant".into(), Nbt::String(variant_utils::variant_name(pig::VARIANT_REGISTRY, pig::get_variant(&self.entity)).into())));
+                out.push(("sound_variant".into(), Nbt::String(variant_utils::variant_name(pig::SOUND_VARIANT_REGISTRY, pig::get_sound_variant(&self.entity)).into())));
+            }
         }
     }
 
@@ -498,6 +539,14 @@ impl Mob {
                 mushroom_cow::set_variant(&mut self.entity, variant);
                 mushroom_cow.stew_effects = nbt.get("stew_effects").filter(|effects| matches!(effects, Nbt::List(_))).cloned();
             }
+            MobKind::Pig(_) => {
+                if let Some(variant) = read("variant", pig::VARIANT_REGISTRY) {
+                    pig::set_variant(&mut self.entity, variant);
+                }
+                if let Some(sound_variant) = read("sound_variant", pig::SOUND_VARIANT_REGISTRY) {
+                    pig::set_sound_variant(&mut self.entity, sound_variant);
+                }
+            }
             MobKind::Chicken(chicken) => {
                 let variant = nbt.get("variant").and_then(Nbt::as_str).and_then(chicken::variant_id);
                 let sound_variant = nbt.get("sound_variant").and_then(Nbt::as_str).and_then(chicken::sound_variant_id);
@@ -542,6 +591,7 @@ impl Mob {
         match &self.kind {
             MobKind::Chicken(_) => &self.chicken_sound_set().ambient_sound,
             MobKind::Cow(_) | MobKind::MushroomCow(_) => &self.cow_sound_set().ambient_sound,
+            MobKind::Pig(_) => &Pig::get_sound_set(self).ambient_sound,
         }
     }
 
@@ -549,6 +599,7 @@ impl Mob {
         match &self.kind {
             MobKind::Chicken(_) => &self.chicken_sound_set().hurt_sound,
             MobKind::Cow(_) | MobKind::MushroomCow(_) => &self.cow_sound_set().hurt_sound,
+            MobKind::Pig(_) => &Pig::get_sound_set(self).hurt_sound,
         }
     }
 
@@ -556,6 +607,7 @@ impl Mob {
         match &self.kind {
             MobKind::Chicken(_) => &self.chicken_sound_set().death_sound,
             MobKind::Cow(_) | MobKind::MushroomCow(_) => &self.cow_sound_set().death_sound,
+            MobKind::Pig(_) => &Pig::get_sound_set(self).death_sound,
         }
     }
 
@@ -563,6 +615,7 @@ impl Mob {
         match &self.kind {
             MobKind::Chicken(_) => &self.chicken_sound_set().step_sound,
             MobKind::Cow(_) | MobKind::MushroomCow(_) => &self.cow_sound_set().step_sound,
+            MobKind::Pig(_) => &Pig::get_sound_set(self).step_sound,
         }
     }
 
@@ -670,11 +723,51 @@ impl ServerLevel {
             MobKind::Chicken(_) => self.animal_mob_interact(id, player, hand),
             MobKind::Cow(_) => self.abstract_cow_mob_interact(id, player, hand),
             MobKind::MushroomCow(_) => self.mushroom_cow_mob_interact(id, player, hand),
+            MobKind::Pig(_) => self.pig_mob_interact(id, player, hand),
         }
     }
 
     pub fn mob_mob_interact(&mut self, _id: EntityId, _player: EntityId, _hand: InteractionHand) -> InteractionResult {
         InteractionResult::Pass
+    }
+
+    pub fn is_saddled(&self, id: EntityId) -> bool {
+        self.has_valid_equippable_item_for_slot(id, EquipmentSlot::Saddle)
+    }
+
+    fn has_valid_equippable_item_for_slot(&self, id: EntityId, slot: EquipmentSlot) -> bool {
+        self.item_by_slot(id, slot).is_some_and(|item_stack| self.is_equippable_in_slot(id, &item_stack, slot))
+    }
+
+    pub fn set_guaranteed_drop(&mut self, id: EntityId, slot: EquipmentSlot) {
+        self.mob_mut(id).expect("a mob").drop_chances[slot as usize] = 2.0;
+    }
+
+    pub fn can_shear_equipment(&self, id: EntityId) -> bool {
+        !self.is_vehicle(id)
+    }
+
+    pub fn attempt_to_shear_equipment(&mut self, id: EntityId, player: EntityId, hand: InteractionHand) -> bool {
+        for slot in EquipmentSlot::VALUES {
+            let Some(item_stack) = self.item_by_slot(id, slot) else { continue };
+            let Some(equippable) = item_stack.get(dc::EQUIPPABLE).map(item::component::values::Equippable::from_nbt) else { continue };
+            let creative = self.players.get(&player).is_some_and(|p| p.game_mode.game_type.is_creative());
+            if equippable.can_be_sheared && (!crate::world::item::enchantment::enchantment_helper::has_prevent_armor_change(&item_stack) || creative) {
+                self.shear_item(id, player, hand, slot, item_stack);
+                let sound = equippable.shearing_sound.as_str().map_or(super::sound_event("minecraft:item.shears.snip"), super::sound_event);
+                self.entity_play_sound(id, sound, 1.0, 1.0);
+                return true;
+            }
+        }
+        false
+    }
+
+    fn shear_item(&mut self, id: EntityId, player: EntityId, hand: InteractionHand, slot: EquipmentSlot, item_stack_to_shear: ItemStack) {
+        self.hurt_and_break(player, hand.as_equipment_slot(), 1);
+        let equipment_spawn_offset = self.mob(id).expect("a mob").passenger_attachment();
+        self.living_set_item_slot(id, slot, ItemStack::empty());
+        self.spawn_at_location_with_offset(id, item_stack_to_shear.clone(), equipment_spawn_offset);
+        crate::advancements::triggers::criteria_triggers::PLAYER_SHEARED_EQUIPMENT.trigger(self, player, &item_stack_to_shear, id);
     }
 
     pub fn convert_to(&mut self, id: EntityId, entity_type: &str, params: ConversionParams, after_conversion: impl FnOnce(&mut ServerLevel, EntityId)) -> Option<EntityId> {
@@ -692,6 +785,32 @@ impl ServerLevel {
             self.remove(id, super::RemovalReason::Discarded);
         }
         Some(new_id)
+    }
+
+    pub fn mob_drop_custom_death_loot(&mut self, id: EntityId, killed_by_player: bool) {
+        for slot in EquipmentSlot::VALUES {
+            let item_stack = self.item_by_slot(id, slot).unwrap_or_else(ItemStack::empty);
+            let drop_chance = self.mob(id).expect("a mob").drop_chances[slot as usize];
+            if drop_chance != 0.0 {
+                let preserve = drop_chance > 1.0;
+                if !item_stack.is_empty()
+                    && !crate::world::item::enchantment::enchantment_helper::has_prevent_equipment_drop(&item_stack)
+                    && (killed_by_player || preserve)
+                    && self.entity_mut(id).random.next_float() < drop_chance
+                {
+                    let mut item_stack = item_stack;
+                    if !preserve && item_stack.is_damageable_item() {
+                        let max_damage = item_stack.max_damage();
+                        let random = &mut self.entity_mut(id).random;
+                        let bound = random.next_int_bounded((max_damage - 3).max(1));
+                        let damage = max_damage - random.next_int_bounded(1 + bound);
+                        item_stack.set_damage_value(damage);
+                    }
+                    self.spawn_at_location(id, item_stack, 0.0);
+                    self.set_item_slot(id, slot, ItemStack::empty());
+                }
+            }
+        }
     }
 
     pub fn use_player_item(&mut self, player: EntityId, hand: InteractionHand, item_stack: &mut ItemStack) {
@@ -862,6 +981,7 @@ impl ServerLevel {
             }
             MobKind::Cow(_) => self.cow_finalize_spawn(mob, pos),
             MobKind::MushroomCow(_) => {}
+            MobKind::Pig(_) => self.pig_finalize_spawn(mob, pos),
         }
         if let Some(follow_range) = mob.living.attributes.instance(Attribute::FollowRange)
             && !follow_range.has_modifier("minecraft:random_spawn_bonus")

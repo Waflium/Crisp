@@ -290,6 +290,7 @@ impl ServerLevel {
             "minecraft:chicken" => LevelEntity::Mob(Box::new(super::animal::chicken::Chicken::create())),
             "minecraft:cow" => LevelEntity::Mob(Box::new(super::animal::cow::cow::Cow::create())),
             "minecraft:mooshroom" => LevelEntity::Mob(Box::new(super::animal::cow::mushroom_cow::MushroomCow::create())),
+            "minecraft:pig" => LevelEntity::Mob(Box::new(super::animal::pig::pig::Pig::create())),
             _ => return None,
         })
     }

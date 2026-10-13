@@ -5,6 +5,7 @@ use super::block_source::BlockSource;
 use super::default_dispense_item_behavior;
 use crate::server::level::ServerLevel;
 use crate::world::entity::EntityId;
+use crate::world::entity::mob::MobKind;
 use crate::world::item::ItemStack;
 use crate::world::item::component::values::Equippable;
 use crate::world::item::component::{self as dc};
@@ -17,8 +18,12 @@ fn equippable(item_stack: &ItemStack) -> Option<Equippable> {
     item_stack.get(dc::EQUIPPABLE).map(Equippable::from_nbt)
 }
 
-fn can_dispenser_equip_into_slot(level: &ServerLevel, id: EntityId) -> bool {
-    level.mob(id).is_none_or(|mob| mob.can_pick_up_loot)
+fn can_dispenser_equip_into_slot(level: &ServerLevel, id: EntityId, slot: EquipmentSlot) -> bool {
+    match level.mob(id) {
+        Some(mob) if matches!(mob.kind, MobKind::Pig(_)) => slot == EquipmentSlot::Saddle || mob.can_pick_up_loot,
+        Some(mob) => mob.can_pick_up_loot,
+        None => true,
+    }
 }
 
 fn can_equip_with_dispenser(level: &ServerLevel, id: EntityId, item_stack: &ItemStack) -> bool {
@@ -29,7 +34,7 @@ fn can_equip_with_dispenser(level: &ServerLevel, id: EntityId, item_stack: &Item
     let Some(slot) = EquipmentSlot::by_name(&equippable.slot) else { return false };
     let entity_type = level.entity_ref(id).map_or(-1, |e| e.entity_type);
     let can_be_equipped_by = equippable.allowed_entities.as_ref().is_none_or(|allowed| entity_type >= 0 && allowed.contains("minecraft:entity_type", crisp_data::registry::ENTITY_TYPE[entity_type as usize], entity_type));
-    can_be_equipped_by && level.item_by_slot(id, slot).is_none_or(|s| s.is_empty()) && can_dispenser_equip_into_slot(level, id)
+    level.can_use_slot(id, slot) && can_be_equipped_by && level.item_by_slot(id, slot).is_none_or(|s| s.is_empty()) && can_dispenser_equip_into_slot(level, id, slot)
 }
 
 fn get_equipment_slot_for_item(item_stack: &ItemStack) -> EquipmentSlot {
