@@ -107,6 +107,8 @@ pub struct Entity {
     pub delta_movement: Vec3,
     pub y_rot: f32,
     pub x_rot: f32,
+    pub y_rot_o: f32,
+    pub x_rot_o: f32,
     pub y_head_rot: f32,
     pub dimensions: EntityDimensions,
     pub data: SynchedEntityData,
@@ -171,6 +173,8 @@ impl Entity {
             delta_movement: Vec3::ZERO,
             y_rot: 0.0,
             x_rot: 0.0,
+            y_rot_o: 0.0,
+            x_rot_o: 0.0,
             y_head_rot: 0.0,
             dimensions,
             data: SynchedEntityData::new(data),
@@ -384,6 +388,16 @@ impl Entity {
         self.old_pos = self.pos;
     }
 
+    pub fn set_old_rot(&mut self) {
+        self.y_rot_o = self.y_rot;
+        self.x_rot_o = self.x_rot;
+    }
+
+    pub fn set_old_pos_and_rot(&mut self) {
+        self.set_old_pos();
+        self.set_old_rot();
+    }
+
     pub fn old_position(&self) -> Vec3 {
         self.old_pos
     }
@@ -399,7 +413,7 @@ impl Entity {
         self.set_pos_raw(Vec3::new(x, y, z));
         self.set_y_rot(y_rot);
         self.set_x_rot(x_rot);
-        self.set_old_pos();
+        self.set_old_pos_and_rot();
         self.reapply_position();
     }
 
@@ -416,7 +430,7 @@ impl Entity {
         self.set_y_rot(absolute.y_rot);
         self.set_x_rot(absolute.x_rot);
         self.reapply_position();
-        self.set_old_pos();
+        self.set_old_pos_and_rot();
         self.set_delta_movement(absolute.delta_movement);
         self.clear_movement_this_tick();
     }
@@ -733,6 +747,69 @@ impl ServerLevel {
         !self.passengers(id).is_empty()
     }
 
+    pub fn root_vehicle(&self, id: EntityId) -> EntityId {
+        let mut root = id;
+        while let Some(vehicle) = self.vehicle(root) {
+            root = vehicle;
+        }
+        root
+    }
+
+    pub fn self_and_passengers(&self, id: EntityId) -> Vec<EntityId> {
+        let mut entities = vec![id];
+        for passenger in self.passengers(id) {
+            entities.extend(self.self_and_passengers(passenger));
+        }
+        entities
+    }
+
+    pub fn is_passenger_of_same_vehicle(&self, id: EntityId, other: EntityId) -> bool {
+        self.root_vehicle(id) == self.root_vehicle(other)
+    }
+
+    pub fn is_pickable(&self, id: EntityId) -> bool {
+        if let Some(player) = self.players.get(&id) {
+            return !self.is_spectator(id) && !player.entity.is_removed();
+        }
+        match self.entities.get(&id) {
+            Some(LevelEntity::Mob(mob)) => !mob.entity.is_removed(),
+            Some(LevelEntity::PrimedTnt(tnt)) => !tnt.entity.is_removed(),
+            Some(LevelEntity::FallingBlock(falling)) => !falling.entity.is_removed(),
+            Some(LevelEntity::EndCrystal(_)) => true,
+            Some(LevelEntity::Projectile(projectile)) => {
+                entity_type_tags::REDIRECTABLE_PROJECTILE.contains(projectile.entity.entity_type as usize) && !(projectile.abstract_arrow().is_some() && projectile.is_in_ground())
+            }
+            _ => false,
+        }
+    }
+
+    pub fn can_be_hit_by_projectile(&self, id: EntityId) -> bool {
+        self.is_alive(id) && self.is_pickable(id)
+    }
+
+    pub fn can_be_picked(&self, id: EntityId) -> bool {
+        !self.is_spectator(id) && self.is_pickable(id)
+    }
+
+    pub fn add_entity_data(&self, id: EntityId) -> i32 {
+        match self.entities.get(&id) {
+            Some(LevelEntity::Projectile(_)) => self.projectile_add_data(id),
+            Some(entity) => entity.add_entity_data(),
+            None => 0,
+        }
+    }
+
+    pub fn apply_effects_from_blocks_between(&mut self, id: EntityId, from: Vec3, to: Vec3) {
+        self.apply_effects_from_movements(id, &[Movement { from, to, axis_dependent_original_movement: None }]);
+    }
+
+    pub fn extinguish_fire(&mut self, id: EntityId) {
+        if self.is_on_fire(id) {
+            self.play_entity_on_fire_extinguished_sound(id);
+        }
+        self.clear_fire(id);
+    }
+
     pub fn known_movement(&self, id: EntityId) -> Vec3 {
         match self.players.get(&id) {
             Some(player) => player.known_movement,
@@ -786,9 +863,17 @@ impl ServerLevel {
     }
 
     fn default_gravity(&self, id: EntityId) -> f64 {
+        use super::projectile::projectile::ProjectileKind;
         match self.entities.get(&id) {
             None | Some(super::LevelEntity::Mob(_)) => self.attribute_value(id, Attribute::Gravity),
             Some(super::LevelEntity::ExperienceOrb(_)) => 0.03,
+            Some(super::LevelEntity::Projectile(projectile)) => match projectile.kind {
+                ProjectileKind::ThrownExperienceBottle(_) => 0.07,
+                ProjectileKind::ThrownSplashPotion(_) | ProjectileKind::ThrownLingeringPotion(_) | ProjectileKind::Arrow(_) | ProjectileKind::SpectralArrow(_) => 0.05,
+                ProjectileKind::FireworkRocket(_) => 0.0,
+                _ => 0.03,
+            },
+            Some(super::LevelEntity::AreaEffectCloud(_)) => 0.0,
             Some(_) => 0.04,
         }
     }
@@ -811,7 +896,13 @@ impl ServerLevel {
     }
 
     pub fn air_drag(&self, id: EntityId) -> f32 {
-        if self.is_living(id) { compute_modified_friction(0.98, self.attribute_value(id, Attribute::AirDragModifier) as f32) } else { 0.98 }
+        if self.is_living(id) {
+            return compute_modified_friction(0.98, self.attribute_value(id, Attribute::AirDragModifier) as f32);
+        }
+        match self.entities.get(&id) {
+            Some(super::LevelEntity::Projectile(projectile)) if !matches!(projectile.kind, super::projectile::projectile::ProjectileKind::FireworkRocket(_)) => 0.99,
+            _ => 0.98,
+        }
     }
 
     fn entity_bounciness(&self, id: EntityId) -> f64 {
@@ -819,13 +910,21 @@ impl ServerLevel {
     }
 
     fn movement_emission(&self, id: EntityId) -> MovementEmission {
-        if self.is_living(id) { MovementEmission::All } else { MovementEmission::None }
+        match self.entities.get(&id) {
+            Some(super::LevelEntity::Projectile(projectile)) if matches!(projectile.kind, super::projectile::projectile::ProjectileKind::FireworkRocket(_)) => MovementEmission::All,
+            Some(super::LevelEntity::AreaEffectCloud(_)) => MovementEmission::All,
+            _ if self.is_living(id) => MovementEmission::All,
+            _ => MovementEmission::None,
+        }
     }
 
     pub fn is_pushed_by_fluid(&self, id: EntityId) -> bool {
         match self.players.get(&id) {
             Some(p) => !p.abilities_flying(),
-            None => true,
+            None => match self.as_projectile(id) {
+                Some(projectile) if projectile.abstract_arrow().is_some() => self.abstract_arrow_is_pushed_by_fluid(id),
+                _ => true,
+            },
         }
     }
 
@@ -989,6 +1088,13 @@ impl ServerLevel {
     }
 
     pub fn move_entity(&mut self, id: EntityId, mover: MoverType, delta: Vec3) {
+        self.entity_move(id, mover, delta);
+        if self.as_projectile(id).is_some_and(|projectile| projectile.abstract_arrow().is_some()) {
+            self.abstract_arrow_after_move(id, mover);
+        }
+    }
+
+    fn entity_move(&mut self, id: EntityId, mover: MoverType, delta: Vec3) {
         let e = self.entity_mut(id);
         if e.no_physics {
             let to = e.position().add_vec(delta);
@@ -1533,7 +1639,7 @@ impl ServerLevel {
         }
     }
 
-    fn play_entity_on_fire_extinguished_sound(&mut self, id: EntityId) {
+    pub fn play_entity_on_fire_extinguished_sound(&mut self, id: EntityId) {
         let source = self.sound_source(id);
         let e = self.entity_mut(id);
         let pitch = 1.6 + (e.random.next_float() - e.random.next_float()) * 0.4;
@@ -1626,6 +1732,8 @@ impl ServerLevel {
     fn on_inside_block(&mut self, id: EntityId, state: crisp_data::BlockState) {
         if self.is_player(id) {
             crate::advancements::triggers::criteria_triggers::ENTER_BLOCK.trigger(self, id, state);
+        } else if self.as_projectile(id).is_some_and(|projectile| matches!(projectile.kind, super::projectile::projectile::ProjectileKind::ThrownEnderpearl(_))) {
+            self.thrown_enderpearl_on_inside_block(id, state);
         }
     }
 
@@ -1897,6 +2005,7 @@ impl ServerLevel {
             Some(LevelEntity::Item(_)) => self.item_entity_hurt_server(id, source, damage),
             Some(LevelEntity::FallingBlock(_)) => self.falling_block_hurt_server(id, source),
             Some(LevelEntity::EndCrystal(_)) => self.end_crystal_hurt_server(id, source),
+            Some(LevelEntity::Projectile(_)) => self.projectile_hurt_server(id, &source),
             _ => false,
         }
     }
@@ -1964,7 +2073,17 @@ impl ServerLevel {
     }
 
     pub fn is_attackable(&self, id: EntityId) -> bool {
-        !matches!(self.entities.get(&id), Some(LevelEntity::Item(_) | LevelEntity::ExperienceOrb(_) | LevelEntity::FallingBlock(_) | LevelEntity::EyeOfEnder(_)))
+        match self.entities.get(&id) {
+            Some(LevelEntity::Item(_) | LevelEntity::ExperienceOrb(_) | LevelEntity::FallingBlock(_) | LevelEntity::EyeOfEnder(_)) => false,
+            Some(LevelEntity::Projectile(projectile)) => match projectile.kind {
+                super::projectile::projectile::ProjectileKind::FireworkRocket(_) => false,
+                super::projectile::projectile::ProjectileKind::Arrow(_) | super::projectile::projectile::ProjectileKind::SpectralArrow(_) => {
+                    entity_type_tags::REDIRECTABLE_PROJECTILE.contains(projectile.entity.entity_type as usize)
+                }
+                _ => true,
+            },
+            _ => true,
+        }
     }
 
     pub fn is_allied_to(&self, id: EntityId, other: EntityId) -> bool {
@@ -2058,13 +2177,28 @@ impl ServerLevel {
             ("ServerPlayer", player.profile.name.clone())
         } else {
             let name = self.entities.get(&id).map(|e| e.name().get_string()).unwrap_or_default();
-            let class = match self.mob(id).map(|m| &m.kind) {
-                Some(super::mob::MobKind::Chicken(_)) => "Chicken",
-                Some(super::mob::MobKind::Cow(_)) => "Cow",
-                Some(super::mob::MobKind::MushroomCow(_)) => "MushroomCow",
-                Some(super::mob::MobKind::Pig(_)) => "Pig",
-                Some(super::mob::MobKind::Sheep(_)) => "Sheep",
-                None => "Entity",
+            use super::projectile::projectile::ProjectileKind;
+            let class = match self.entities.get(&id) {
+                Some(LevelEntity::Mob(mob)) => match mob.kind {
+                    super::mob::MobKind::Chicken(_) => "Chicken",
+                    super::mob::MobKind::Cow(_) => "Cow",
+                    super::mob::MobKind::MushroomCow(_) => "MushroomCow",
+                    super::mob::MobKind::Pig(_) => "Pig",
+                    super::mob::MobKind::Sheep(_) => "Sheep",
+                },
+                Some(LevelEntity::Projectile(projectile)) => match projectile.kind {
+                    ProjectileKind::Snowball(_) => "Snowball",
+                    ProjectileKind::ThrownEgg(_) => "ThrownEgg",
+                    ProjectileKind::ThrownEnderpearl(_) => "ThrownEnderpearl",
+                    ProjectileKind::ThrownExperienceBottle(_) => "ThrownExperienceBottle",
+                    ProjectileKind::ThrownSplashPotion(_) => "ThrownSplashPotion",
+                    ProjectileKind::ThrownLingeringPotion(_) => "ThrownLingeringPotion",
+                    ProjectileKind::Arrow(_) => "Arrow",
+                    ProjectileKind::SpectralArrow(_) => "SpectralArrow",
+                    ProjectileKind::FireworkRocket(_) => "FireworkRocketEntity",
+                },
+                Some(LevelEntity::AreaEffectCloud(_)) => "AreaEffectCloud",
+                _ => "Entity",
             };
             (class, name)
         };
@@ -2171,14 +2305,31 @@ impl ServerLevel {
     }
 
     pub fn get_dimension_changing_delay(&self, id: EntityId) -> i32 {
-        if self.is_player(id) { 10 } else { 300 }
+        if self.is_player(id) {
+            10
+        } else if self.is_projectile(id) {
+            2
+        } else {
+            300
+        }
     }
 
     pub fn can_use_portal(&self, id: EntityId, ignore_passenger: bool) -> bool {
+        if self.as_projectile(id).is_some_and(super::projectile::projectile::Projectile::is_throwable_item_projectile) {
+            return true;
+        }
         (ignore_passenger || self.vehicle(id).is_none()) && self.is_alive(id) && !(self.is_living(id) && self.is_sleeping(id))
     }
 
-    pub fn can_teleport(&self, _id: EntityId, _from: &str, _to: &str) -> bool {
+    pub fn can_teleport(&self, id: EntityId, from: &str, to: &str) -> bool {
+        let is_pearl = self.as_projectile(id).is_some_and(|projectile| matches!(projectile.kind, super::projectile::projectile::ProjectileKind::ThrownEnderpearl(_)));
+        if is_pearl
+            && from == crate::server::THE_END
+            && to == crate::server::OVERWORLD
+            && let Some(player) = self.projectile_get_owner(id).and_then(|owner| self.players.get(&owner))
+        {
+            return player.seen_credits;
+        }
         true
     }
 

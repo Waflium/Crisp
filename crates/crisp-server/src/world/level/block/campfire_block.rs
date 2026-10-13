@@ -39,6 +39,13 @@ impl CampfireBlock {
 }
 
 impl BlockBehaviour for CampfireBlock {
+    fn on_projectile_hit(&self, level: &mut ServerLevel, state: BlockState, hit_result: &BlockHitResult, projectile: EntityId) {
+        let pos = hit_result.block_pos;
+        if level.is_on_fire(projectile) && level.projectile_may_interact(projectile, pos) && !state.get(LIT) && !state.get(WATERLOGGED) {
+            level.set_block(pos, state.set(LIT, true), 11);
+        }
+    }
+
     fn use_item_on(
         &self,
         item_stack: ItemStack,

@@ -139,6 +139,7 @@ pub struct ServerPlayer {
     pub post_effects: Vec<String>,
     pub post_effects_dirty: bool,
     pub camera: Option<EntityId>,
+    pub ender_pearls: Vec<u128>,
 }
 
 impl ServerPlayer {
@@ -219,6 +220,7 @@ impl ServerPlayer {
             post_effects: Vec::new(),
             post_effects_dirty: true,
             camera: None,
+            ender_pearls: Vec::new(),
         };
         player.update_options(client);
         player
@@ -548,6 +550,15 @@ fn did_not_move(dx: f64, dy: f64, dz: f64) -> bool {
 }
 
 impl ServerLevel {
+    pub fn server_player_teleport_same_level(&mut self, id: EntityId, transition: TeleportTransition) {
+        let teleport = self.player_mut(id).teleport_set_position(transition.position_move_rotation(), transition.relatives);
+        self.entity_moved(id);
+        let player = self.player_mut(id);
+        player.send_teleport(teleport, transition.position_move_rotation(), transition.relatives);
+        player.reset_position();
+        transition.post_teleport_transition.on_transition(self, id);
+    }
+
     pub fn handle_extra_items_created_on_use(&mut self, id: EntityId, extra_items: ItemStack) {
         let left = self.player_mut(id).pick_up(extra_items.clone());
         if left > 0 {
@@ -765,7 +776,7 @@ impl ServerLevel {
 
     pub fn server_player_indicate_damage(&mut self, id: EntityId, xd: f64, zd: f64) {
         let p = self.player_mut(id);
-        let hurt_dir = (mth::atan2(zd, xd) * 180.0f32 as f64 / std::f32::consts::PI as f64 - p.entity.y_rot as f64) as f32;
+        let hurt_dir = (mth::atan2(zd, xd) * mth::RAD_TO_DEG as f64 - p.entity.y_rot as f64) as f32;
         p.living.hurt_dir = hurt_dir;
         p.connection.send(clientbound::HURT_ANIMATION, |w| {
             w.varint(id);
@@ -1035,13 +1046,7 @@ impl crate::server::Server {
         }
         let new_level = transition.new_level;
         if new_level == old_level {
-            let level = &mut self.levels[old_level];
-            let teleport = level.player_mut(id).teleport_set_position(transition.position_move_rotation(), transition.relatives);
-            level.entity_moved(id);
-            let player = level.player_mut(id);
-            player.send_teleport(teleport, transition.position_move_rotation(), transition.relatives);
-            player.reset_position();
-            transition.post_teleport_transition.on_transition(level, id);
+            self.levels[old_level].server_player_teleport_same_level(id, transition);
             return Some(id);
         }
         self.player_mut(id).is_changing_dimension = true;

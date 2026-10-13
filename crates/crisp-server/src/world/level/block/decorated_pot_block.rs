@@ -27,6 +27,14 @@ fn sound(name: &str) -> i32 {
 pub struct DecoratedPotBlock;
 
 impl BlockBehaviour for DecoratedPotBlock {
+    fn on_projectile_hit(&self, level: &mut ServerLevel, state: BlockState, hit_result: &BlockHitResult, projectile: EntityId) {
+        let pos = hit_result.block_pos;
+        if level.projectile_may_interact(projectile, pos) && level.may_break(projectile, pos) {
+            level.set_block(pos, state.set(CRACKED, true), UPDATE_INVISIBLE | UPDATE_SKIP_BLOCK_ENTITY_SIDEEFFECTS);
+            level.destroy_block(pos, true, Some(projectile), 512);
+        }
+    }
+
     fn update_shape(&self, state: BlockState, level: &mut dyn LevelAccessor, pos: BlockPos, _: Direction, _: BlockPos, _: BlockState) -> BlockState {
         schedule_water_tick(state, level, pos);
         state

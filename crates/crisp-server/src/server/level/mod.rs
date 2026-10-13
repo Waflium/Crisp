@@ -1101,6 +1101,9 @@ impl ServerLevel {
     pub fn remove_entity(&mut self, id: EntityId) {
         let reason = self.entities.get(&id).and_then(|e| e.entity().removal);
         self.entity_removed(id, reason);
+        if self.as_projectile(id).is_some_and(|projectile| matches!(projectile.kind, crate::world::entity::projectile::projectile::ProjectileKind::ThrownEnderpearl(_))) {
+            self.thrown_enderpearl_on_removal(id, reason);
+        }
         self.entities.swap_remove(&id);
     }
 
@@ -1525,7 +1528,7 @@ impl ServerLevel {
 
     pub(crate) fn common_tick(&mut self, id: EntityId) {
         let e = self.entity_mut(id);
-        e.set_old_pos();
+        e.set_old_pos_and_rot();
         e.tick_count += 1;
     }
 
@@ -1564,6 +1567,8 @@ impl ServerLevel {
             Some(LevelEntity::PrimedTnt(_)) => self.tick_primed_tnt(id),
             Some(LevelEntity::FallingBlock(_)) => self.tick_falling_block(id),
             Some(LevelEntity::ExperienceOrb(_)) => self.tick_experience_orb(id),
+            Some(LevelEntity::Projectile(_)) => self.projectile_tick(id),
+            Some(LevelEntity::AreaEffectCloud(_)) => self.tick_area_effect_cloud(id),
             Some(LevelEntity::Mob(_)) => self.mob_tick(id),
             None => return,
         }
@@ -1594,41 +1599,78 @@ impl ServerLevel {
         }
     }
 
-    pub fn pick_up_items(&mut self, player: EntityId) {
+    pub fn touch_entities(&mut self, player: EntityId) {
         let area = self.player(player).entity.bounding_box().inflate(1.0, 0.5, 1.0);
-        for id in self.items_in(&area, None) {
-            let Some(LevelEntity::Item(item)) = self.entities.get_mut(&id) else { continue };
-            if item.pickup_delay != 0 || item.target.is_some_and(|t| t != self.players[&player].profile.uuid) {
-                continue;
-            }
-            let original = item.item.count;
-            let stack = item.item.clone();
-            let picked_up_item = stack.get_item();
-            let left = self.player_mut(player).pick_up(stack);
-            if left == original {
-                continue;
-            }
-            let packet = encode(clientbound::TAKE_ITEM_ENTITY, |p| {
-                p.varint(id);
-                p.varint(player);
-                p.varint(original);
-            });
-            self.send_to_tracking_players(id, &packet);
-            let Some(LevelEntity::Item(item)) = self.entities.get_mut(&id) else { continue };
-            item.item.count = left;
-            if left == 0 {
-                item.entity.discard();
-                item.item.count = original;
-            }
-            let (picked, thrower) = (item.item.clone(), item.thrower);
-            if left == 0 {
-                self.remove_entity(id);
-            }
-            self.award_stat(player, crate::stats::stats::ITEM_PICKED_UP.get(picked_up_item.0), original);
-            if let Some(thrower) = thrower.and_then(|uuid| self.entity_manager.visible_entity_storage.get(uuid)) {
-                criteria_triggers::THROWN_ITEM_PICKED_UP_BY_PLAYER.trigger(self, player, &picked, thrower);
+        for id in self.get_entities(Some(player), &area) {
+            match self.entities.get(&id) {
+                Some(LevelEntity::Item(item)) if !item.entity.is_removed() => self.item_entity_player_touch(id, player),
+                Some(LevelEntity::Projectile(projectile)) if !projectile.entity.is_removed() && projectile.abstract_arrow().is_some() => {
+                    self.abstract_arrow_player_touch(id, player);
+                    if self.entities.get(&id).is_some_and(|e| e.entity().is_removed()) {
+                        self.remove_entity(id);
+                    }
+                }
+                _ => {}
             }
         }
+    }
+
+    pub fn take(&mut self, player: EntityId, entity: EntityId, count: i32) {
+        if self.entity(entity).is_removed() {
+            return;
+        }
+        let packet = encode(clientbound::TAKE_ITEM_ENTITY, |p| {
+            p.varint(entity);
+            p.varint(player);
+            p.varint(count);
+        });
+        self.send_to_tracking_players(entity, &packet);
+    }
+
+    fn item_entity_player_touch(&mut self, id: EntityId, player: EntityId) {
+        let Some(LevelEntity::Item(item)) = self.entities.get_mut(&id) else { return };
+        if item.pickup_delay != 0 || item.target.is_some_and(|t| t != self.players[&player].profile.uuid) {
+            return;
+        }
+        let original = item.item.count;
+        let stack = item.item.clone();
+        let picked_up_item = stack.get_item();
+        let left = self.player_mut(player).pick_up(stack);
+        if left == original {
+            return;
+        }
+        let packet = encode(clientbound::TAKE_ITEM_ENTITY, |p| {
+            p.varint(id);
+            p.varint(player);
+            p.varint(original);
+        });
+        self.send_to_tracking_players(id, &packet);
+        let Some(LevelEntity::Item(item)) = self.entities.get_mut(&id) else { return };
+        item.item.count = left;
+        if left == 0 {
+            item.entity.discard();
+            item.item.count = original;
+        }
+        let (picked, thrower) = (item.item.clone(), item.thrower);
+        if left == 0 {
+            self.remove_entity(id);
+        }
+        self.award_stat(player, crate::stats::stats::ITEM_PICKED_UP.get(picked_up_item.0), original);
+        if let Some(thrower) = thrower.and_then(|uuid| self.entity_manager.visible_entity_storage.get(uuid)) {
+            criteria_triggers::THROWN_ITEM_PICKED_UP_BY_PLAYER.trigger(self, player, &picked, thrower);
+        }
+    }
+
+    pub fn player_inventory_add(&mut self, player: EntityId, item_stack: ItemStack) -> bool {
+        if item_stack.is_empty() {
+            return false;
+        }
+        let original = item_stack.count;
+        let left = self.player_mut(player).pick_up(item_stack);
+        if left == original && self.has_infinite_materials(player) {
+            return true;
+        }
+        left < original
     }
 
     pub fn drop_from_player(&mut self, player: EntityId, stack: ItemStack, randomly: bool) {

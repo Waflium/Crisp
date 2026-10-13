@@ -65,6 +65,11 @@ impl BellBlock {
 }
 
 impl BlockBehaviour for BellBlock {
+    fn on_projectile_hit(&self, level: &mut ServerLevel, state: BlockState, hit_result: &BlockHitResult, projectile: EntityId) {
+        let player_owner = level.projectile_get_owner(projectile).filter(|&owner| level.is_player(owner));
+        self.on_hit(level, state, hit_result, player_owner, true);
+    }
+
     fn neighbor_changed(&self, state: BlockState, level: &mut ServerLevel, pos: BlockPos, _block: Block, _moved_by_piston: bool) {
         let signal = level.has_neighbor_signal(pos);
         if signal != state.get(POWERED) {

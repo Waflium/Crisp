@@ -22,6 +22,19 @@ impl PartialEq for ItemStack {
     }
 }
 
+pub fn adventure_mode_predicate_test(predicates: &Nbt, state: BlockState) -> bool {
+    let single = std::slice::from_ref(predicates);
+    let list = match predicates {
+        Nbt::List(items) => items.as_slice(),
+        _ => single,
+    };
+    list.iter().any(|predicate| {
+        let blocks = predicate.get("blocks").map(values::HolderSet::from_nbt);
+        ["state", "nbt", "components", "predicates"].iter().all(|key| predicate.get(key).is_none())
+            && blocks.is_none_or(|blocks| blocks.contains("minecraft:block", state.block().name(), state.block().0 as i32))
+    })
+}
+
 pub fn rarity_color(rarity: Rarity) -> ChatFormatting {
     match rarity {
         Rarity::Common => ChatFormatting::White,
@@ -126,17 +139,7 @@ impl ItemStack {
     }
 
     pub fn can_break_block_in_adventure_mode(&self, state: BlockState) -> bool {
-        let Some(predicates) = self.get(dc::CAN_BREAK) else { return false };
-        let single = std::slice::from_ref(predicates);
-        let list = match predicates {
-            Nbt::List(items) => items.as_slice(),
-            _ => single,
-        };
-        list.iter().any(|predicate| {
-            let blocks = predicate.get("blocks").map(values::HolderSet::from_nbt);
-            ["state", "nbt", "components", "predicates"].iter().all(|key| predicate.get(key).is_none())
-                && blocks.is_none_or(|blocks| blocks.contains("minecraft:block", state.block().name(), state.block().0 as i32))
-        })
+        self.get(dc::CAN_BREAK).is_some_and(|predicates| adventure_mode_predicate_test(predicates, state))
     }
 
     pub fn can_be_hurt_by(&self, source: &crate::world::damagesource::DamageSource) -> bool {

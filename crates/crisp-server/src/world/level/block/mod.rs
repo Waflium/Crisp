@@ -213,6 +213,7 @@ pub mod vine_block;
 mod weeping_vines_block;
 mod weeping_vines_plant_block;
 mod wither_rose_block;
+mod amethyst_block;
 mod amethyst_cluster_block;
 mod banner_block;
 mod base_coral_plant_type_block;
@@ -430,6 +431,8 @@ pub trait BlockBehaviour: Send + Sync {
     }
 
     fn step_on(&self, level: &mut ServerLevel, pos: BlockPos, state: BlockState, entity: EntityId) {}
+
+    fn on_projectile_hit(&self, level: &mut ServerLevel, state: BlockState, hit_result: &BlockHitResult, projectile: EntityId) {}
 
     fn destroy_progress(&self, state: BlockState, level: &mut ServerLevel, player: EntityId, pos: BlockPos) -> Option<f32> {
         None
@@ -814,6 +817,7 @@ fn for_class(class: &str, block: Block) -> Option<Box<dyn BlockBehaviour>> {
         "SculkVeinBlock" => Box::new(sculk_vein_block::SculkVeinBlock),
         "MultifaceBlock" => Box::new(multiface_block::MultifaceBlock),
         "AmethystClusterBlock" => Box::new(amethyst_cluster_block::AmethystClusterBlock),
+        "AmethystBlock" => Box::new(amethyst_block::AmethystBlock),
         "BannerBlock" => Box::new(banner_block::BannerBlock),
         "BaseCoralWallFanBlock" => Box::new(base_coral_wall_fan_block::BaseCoralWallFanBlock),
         "BaseCoralPlantTypeBlock" => Box::new(base_coral_plant_type_block::BaseCoralPlantTypeBlock),

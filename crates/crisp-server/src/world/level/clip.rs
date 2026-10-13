@@ -338,6 +338,19 @@ impl ServerLevel {
         )
     }
 
+    pub fn clip_including_border(&mut self, ctx: &ClipContext) -> ClipResult {
+        let result = self.clip(ctx);
+        let location = result.hit.location;
+        if self.world_border.is_within_bounds(ctx.from.x, ctx.from.z) && !self.world_border.is_within_bounds(location.x, location.z) {
+            let delta = location.subtract(ctx.from);
+            let direction = Direction::approximate_nearest(delta.x as f32, delta.y as f32, delta.z as f32);
+            let hit = self.world_border.clamp_vec3_to_bound(location.x, location.y, location.z);
+            ClipResult { hit: BlockHitResult { location: hit, direction, block_pos: BlockPos::containing_vec(hit), inside: false, world_border_hit: true }, miss: false }
+        } else {
+            result
+        }
+    }
+
     fn clip_with_interaction_override(&self, from: Vec3, to: Vec3, pos: BlockPos, shape: &ClipShape, state: BlockState) -> Option<BlockHitResult> {
         let result = shape.clip(from, to, pos)?;
         let interaction = ClipShape::Boxes(state.interaction_shape().to_vec());

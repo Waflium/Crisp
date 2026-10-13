@@ -356,7 +356,7 @@ impl ServerLevel {
         p.entity.y_head_rot = p.entity.y_rot;
         p.living.speed = speed;
         if p.health > 0.0 && !self.is_spectator(id) {
-            self.pick_up_items(id);
+            self.touch_entities(id);
             self.touch_experience_orbs(id);
         }
     }

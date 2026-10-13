@@ -36,6 +36,15 @@ pub fn prime(level: &mut ServerLevel, pos: BlockPos, source: Option<EntityId>, i
 pub struct TntBlock;
 
 impl BlockBehaviour for TntBlock {
+    fn on_projectile_hit(&self, level: &mut ServerLevel, _state: BlockState, hit_result: &BlockHitResult, projectile: EntityId) {
+        let pos = hit_result.block_pos;
+        let owner = level.projectile_get_owner(projectile).filter(|&owner| level.is_living(owner));
+        let item = level.projectile(projectile).abstract_arrow().map_or_else(ItemStack::empty, |arrow| arrow.pickup_item_stack.clone());
+        if level.is_on_fire(projectile) && level.projectile_may_interact(projectile, pos) && prime(level, pos, owner, Some(&item)) {
+            level.remove_block(pos, false);
+        }
+    }
+
     fn on_place(&self, state: BlockState, level: &mut ServerLevel, pos: BlockPos, old_state: BlockState, _moved_by_piston: bool) {
         if !old_state.is_block(state.block()) && level.has_neighbor_signal(pos) && prime(level, pos, None, None) {
             level.remove_block(pos, false);

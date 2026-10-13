@@ -16,6 +16,10 @@ impl EnchantedItemInUse {
         EnchantedItemInUse { item_stack, in_slot: Some(in_slot), owner: Some(owner) }
     }
 
+    pub fn without_slot(item_stack: ItemStack, owner: Option<EntityId>) -> EnchantedItemInUse {
+        EnchantedItemInUse { item_stack, in_slot: None, owner }
+    }
+
     pub fn hurt_and_break(&self, level: &mut ServerLevel, amount: i32) {
         if !self.item_stack.has(dc::MAX_DAMAGE) || !self.item_stack.has(dc::DAMAGE) {
             return;

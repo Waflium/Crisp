@@ -151,23 +151,48 @@ impl ServerLevel {
     }
 
     fn fudge_position_after_size_change(&mut self, id: EntityId, previous: super::EntityDimensions) -> bool {
+        let context = crate::world::phys::shapes::collision_context::CollisionContext::of(self, id);
         let e = self.entity(id);
-        let new = e.dimensions;
-        let old_center = e.position().add(0.0, previous.height as f64 / 2.0, 0.0);
+        match self.free_position_after_size_change(&context, e.position(), e.dimensions, previous) {
+            Some(position) => {
+                self.entity_mut(id).set_pos(position);
+                true
+            }
+            None => false,
+        }
+    }
+
+    pub fn fudge_position_after_size_change_detached(&self, entity: &mut super::Entity, previous: super::EntityDimensions) -> bool {
+        let context = crate::world::phys::shapes::collision_context::CollisionContext::of_detached(entity);
+        match self.free_position_after_size_change(&context, entity.position(), entity.dimensions, previous) {
+            Some(position) => {
+                entity.set_pos(position);
+                true
+            }
+            None => false,
+        }
+    }
+
+    fn free_position_after_size_change(
+        &self,
+        context: &crate::world::phys::shapes::collision_context::CollisionContext,
+        position: crisp_core::Vec3,
+        new: super::EntityDimensions,
+        previous: super::EntityDimensions,
+    ) -> Option<crisp_core::Vec3> {
+        let old_center = position.add(0.0, previous.height as f64 / 2.0, 0.0);
         let width_delta = (new.width - previous.width).max(0.0) as f64 + 1.0e-6;
         let height_delta = (new.height - previous.height).max(0.0) as f64 + 1.0e-6;
         let allowed = crisp_core::AABB::of_size(old_center, width_delta, height_delta, width_delta);
-        if let Some(free) = self.find_free_position(&crate::world::phys::shapes::collision_context::CollisionContext::of(self, id), &allowed, old_center, new.width as f64, new.height as f64, new.width as f64) {
-            self.entity_mut(id).set_pos(free.add(0.0, -new.height as f64 / 2.0, 0.0));
-            return true;
+        if let Some(free) = self.find_free_position(context, &allowed, old_center, new.width as f64, new.height as f64, new.width as f64) {
+            return Some(free.add(0.0, -new.height as f64 / 2.0, 0.0));
         }
         if new.width > previous.width && new.height > previous.height {
             let allowed = crisp_core::AABB::of_size(old_center, width_delta, 1.0e-6, width_delta);
-            if let Some(free) = self.find_free_position(&crate::world::phys::shapes::collision_context::CollisionContext::of(self, id), &allowed, old_center, new.width as f64, previous.height as f64, new.width as f64) {
-                self.entity_mut(id).set_pos(free.add(0.0, -previous.height as f64 / 2.0 + 1.0e-6, 0.0));
-                return true;
+            if let Some(free) = self.find_free_position(context, &allowed, old_center, new.width as f64, previous.height as f64, new.width as f64) {
+                return Some(free.add(0.0, -previous.height as f64 / 2.0 + 1.0e-6, 0.0));
             }
         }
-        false
+        None
     }
 }

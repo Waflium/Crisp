@@ -71,6 +71,7 @@ pub struct LivingEntity {
     pub hurt_dir: f32,
     pub use_item: Option<ItemStack>,
     pub use_item_remaining: i32,
+    pub remove_arrow_time: i32,
     pub last_equipment_items: [Option<ItemStack>; 8],
     pub swing_state: SwingState,
     pub active_effects: Vec<MobEffectInstance>,
@@ -116,6 +117,7 @@ impl LivingEntity {
             hurt_dir: 0.0,
             use_item: None,
             use_item_remaining: 0,
+            remove_arrow_time: 0,
             last_equipment_items: Default::default(),
             swing_state: SwingState::default(),
             active_effects: Vec::new(),
@@ -387,6 +389,26 @@ impl ServerLevel {
         let Some(index) = self.equipment_inventory_slot(id, slot) else { return };
         let p = self.player_mut(id);
         p.inventory.slots[index] = Some(item_stack).filter(|s| !s.is_empty());
+    }
+
+    pub fn get_arrow_count(&self, id: EntityId) -> i32 {
+        match self.entity(id).data.get(ids::ARROW_COUNT) {
+            DataValue::Int(count) => *count,
+            _ => 0,
+        }
+    }
+
+    pub fn set_arrow_count(&mut self, id: EntityId, count: i32) {
+        self.entity_mut(id).data.set(ids::ARROW_COUNT, DataValue::Int(count));
+    }
+
+    pub fn is_affected_by_potions(&self, id: EntityId) -> bool {
+        !self.is_dead_or_dying(id)
+    }
+
+    pub fn is_sensitive_to_water(&self, id: EntityId) -> bool {
+        self.is_living(id)
+            && matches!(crisp_data::registry::ENTITY_TYPE[self.entity(id).entity_type as usize], "minecraft:blaze" | "minecraft:enderman" | "minecraft:snow_golem" | "minecraft:strider")
     }
 
     pub fn set_last_hurt_mob(&mut self, id: EntityId, target: EntityId) {
@@ -880,12 +902,18 @@ impl ServerLevel {
     }
 
     fn deal_default_knockback(&mut self, id: EntityId, source: &DamageSource, blocked: bool) {
-        let (xd, zd) = match source.source_position(self) {
-            Some(pos) => {
-                let e = self.entity(id);
-                (pos.x - e.x(), pos.z - e.z())
+        let (xd, zd) = match source.direct_entity.filter(|&direct| self.is_projectile(direct)) {
+            Some(projectile) => {
+                let (x, z) = self.calculate_horizontal_hurt_knockback_direction(projectile, id);
+                (-x, -z)
             }
-            None => (0.0, 0.0),
+            None => match source.source_position(self) {
+                Some(pos) => {
+                    let e = self.entity(id);
+                    (pos.x - e.x(), pos.z - e.z())
+                }
+                None => (0.0, 0.0),
+            },
         };
         self.knockback(id, 0.4f32 as f64, xd, zd);
         if !blocked {
@@ -1155,6 +1183,17 @@ impl ServerLevel {
     pub fn living_entity_tick(&mut self, id: EntityId) {
         self.entity_tick(id);
         self.updating_using_item(id);
+        let arrow_count = self.get_arrow_count(id);
+        if arrow_count > 0 {
+            let living = self.living_mut(id);
+            if living.remove_arrow_time <= 0 {
+                living.remove_arrow_time = 20 * (30 - arrow_count);
+            }
+            living.remove_arrow_time -= 1;
+            if living.remove_arrow_time <= 0 {
+                self.set_arrow_count(id, arrow_count - 1);
+            }
+        }
         self.detect_equipment_updates(id);
         if self.entity(id).tick_count % 20 == 0 {
             self.recheck_combat_status(id);

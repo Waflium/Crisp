@@ -26,6 +26,10 @@ impl DamageSource {
         DamageSource { ty, causing_entity: Some(entity), direct_entity: Some(entity), damage_source_position: None }
     }
 
+    pub fn source(ty: DamageType, direct_entity: Option<EntityId>, causing_entity: Option<EntityId>) -> DamageSource {
+        DamageSource { ty, causing_entity, direct_entity, damage_source_position: None }
+    }
+
     pub fn food_exhaustion(&self) -> f32 {
         self.ty.info().exhaustion
     }
@@ -75,7 +79,11 @@ impl DamageSource {
             }
         } else {
             let name = level.display_name(self.causing_entity.or(self.direct_entity).expect("an entity"));
-            Component::translatable_with(&death_msg, vec![level.display_name(victim).into(), name.into()])
+            let held = self.causing_entity.filter(|&causing| level.is_living(causing)).and_then(|causing| level.item_by_slot(causing, crisp_data::EquipmentSlot::Mainhand));
+            match held.filter(|held| !held.is_empty() && held.has(crate::world::item::component::CUSTOM_NAME)) {
+                Some(held) => Component::translatable_with(&format!("{death_msg}.item"), vec![level.display_name(victim).into(), name.into(), held.display_name().into()]),
+                None => Component::translatable_with(&death_msg, vec![level.display_name(victim).into(), name.into()]),
+            }
         }
     }
 }

@@ -284,7 +284,7 @@ impl Mob {
         self.apply_implicit_component_if_present(components, dc::CUSTOM_DATA);
     }
 
-    fn apply_implicit_component(&mut self, ty: DataComponentType, value: &Nbt) -> bool {
+    pub fn apply_implicit_component(&mut self, ty: DataComponentType, value: &Nbt) -> bool {
         match self.kind {
             MobKind::Chicken(_) if ty == dc::CHICKEN_VARIANT => {
                 if let Some(variant) = value.as_str().and_then(chicken::variant_id) {

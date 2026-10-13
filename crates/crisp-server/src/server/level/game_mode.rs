@@ -461,7 +461,7 @@ impl ServerLevel {
             InteractionResult::Success { .. } => transformed.or(held),
             _ => held,
         };
-        let duration = result_stack.as_ref().map_or(0, crate::world::entity::using_item::use_duration);
+        let duration = result_stack.as_ref().map_or(0, item::get_use_duration);
         if result_stack.as_ref() == Some(&item_stack) && duration <= 0 {
             return result;
         }

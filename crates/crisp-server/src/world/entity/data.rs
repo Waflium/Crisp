@@ -56,6 +56,7 @@ pub enum DataValue {
     Boolean(bool),
     BlockPos(BlockPos),
     OptionalBlockPos(Option<BlockPos>),
+    Particle(crate::core::particles::particle_options::ParticleOptions),
     Particles(Vec<ParticleOptions>),
     OptionalUnsignedInt(Option<u32>),
     Pose(Pose),
@@ -80,6 +81,7 @@ impl DataValue {
             DataValue::Boolean(_) => 8,
             DataValue::BlockPos(_) => 10,
             DataValue::OptionalBlockPos(_) => 11,
+            DataValue::Particle(_) => 16,
             DataValue::Particles(_) => 17,
             DataValue::OptionalUnsignedInt(_) => 19,
             DataValue::Pose(_) => 20,
@@ -114,6 +116,7 @@ impl DataValue {
                     w.position(p.x, p.y, p.z);
                 }
             }
+            DataValue::Particle(particle) => particle.write(w),
             DataValue::Particles(list) => {
                 w.varint(list.len() as i32);
                 list.iter().for_each(|p| p.write(w));
@@ -268,6 +271,7 @@ pub mod ids {
     pub const HEALTH: usize = 9;
     pub const EFFECT_PARTICLES: usize = 10;
     pub const EFFECT_AMBIENCE: usize = 11;
+    pub const ARROW_COUNT: usize = 12;
     pub const SLEEPING_POS: usize = 14;
     pub const MOB_FLAGS: usize = 15;
     pub const AGEABLE_BABY: usize = 16;

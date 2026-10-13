@@ -15,6 +15,10 @@ pub fn can_cluster_grow_at_state(state: BlockState) -> bool {
 }
 
 impl BlockBehaviour for BuddingAmethystBlock {
+    fn on_projectile_hit(&self, level: &mut ServerLevel, _state: BlockState, hit_result: &super::BlockHitResult, _projectile: crate::world::entity::EntityId) {
+        super::amethyst_block::on_projectile_hit(level, hit_result);
+    }
+
     fn random_tick(&self, _state: BlockState, level: &mut ServerLevel, pos: BlockPos) {
         if level.random.next_int_bounded(5) != 0 {
             return;

@@ -5,7 +5,10 @@ use crisp_data::{Item, block_tags, blocks, fluid_tags, game_rule, items, registr
 
 use super::block_source::BlockSource;
 use super::default_dispense_item_behavior::{self, consume_with_remainder, play_default_animation};
-use super::{equipment_dispense_item_behavior, flint_and_steel_dispense_item_behavior, shears_dispense_item_behavior, shulker_box_dispense_behavior, spawn_egg_item_behavior};
+use super::{
+    equipment_dispense_item_behavior, flint_and_steel_dispense_item_behavior, projectile_dispense_behavior, shears_dispense_item_behavior, shulker_box_dispense_behavior,
+    spawn_egg_item_behavior,
+};
 use crate::core::cauldron::cauldron_interactions::{is_water_potion, water_potion};
 use crate::server::level::events::{PARTICLES_AND_SOUND_PLANT_GROWTH, PARTICLES_WAX_ON, SOUND_DISPENSER_DISPENSE, SOUND_DISPENSER_FAIL};
 use crate::server::level::{ServerLevel, SoundSource};
@@ -39,11 +42,23 @@ pub enum DispenseItemBehavior {
     Potion,
     Equipment,
     SpawnEgg,
+    Projectile,
 }
 
 fn registered(item: Item) -> Option<DispenseItemBehavior> {
     use DispenseItemBehavior::*;
     Some(match item {
+        items::ARROW
+        | items::TIPPED_ARROW
+        | items::SPECTRAL_ARROW
+        | items::EGG
+        | items::BLUE_EGG
+        | items::BROWN_EGG
+        | items::SNOWBALL
+        | items::EXPERIENCE_BOTTLE
+        | items::SPLASH_POTION
+        | items::LINGERING_POTION
+        | items::FIREWORK_ROCKET => Projectile,
         items::LAVA_BUCKET | items::WATER_BUCKET | items::POWDER_SNOW_BUCKET => FilledBucket,
         items::BUCKET => Bucket,
         items::FLINT_AND_STEEL => FlintAndSteel,
@@ -87,9 +102,14 @@ impl DispenseItemBehavior {
 
     pub fn dispense(self, level: &mut ServerLevel, source: &BlockSource, dispensed: ItemStack) -> ItemStack {
         let mut success = true;
+        let dispensed_item = dispensed.copy();
         let result = self.execute(level, source, dispensed, &mut success);
-        let event = if self.is_optional() && !success { SOUND_DISPENSER_FAIL } else { SOUND_DISPENSER_DISPENSE };
-        level.level_event(None, event, source.pos, 0);
+        if self == DispenseItemBehavior::Projectile {
+            projectile_dispense_behavior::play_sound(level, source, &dispensed_item);
+        } else {
+            let event = if self.is_optional() && !success { SOUND_DISPENSER_FAIL } else { SOUND_DISPENSER_DISPENSE };
+            level.level_event(None, event, source.pos, 0);
+        }
         play_default_animation(level, source, source.facing());
         result
     }
@@ -120,6 +140,7 @@ impl DispenseItemBehavior {
             Potion => execute_potion(level, source, dispensed),
             Equipment => equipment_dispense_item_behavior::execute(level, source, dispensed),
             SpawnEgg => spawn_egg_item_behavior::execute(level, source, dispensed),
+            Projectile => projectile_dispense_behavior::execute(level, source, dispensed),
         }
     }
 }

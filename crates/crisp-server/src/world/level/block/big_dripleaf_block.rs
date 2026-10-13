@@ -83,6 +83,10 @@ fn set_tilt(state: BlockState, level: &mut ServerLevel, pos: BlockPos, tilt: Til
 }
 
 impl BlockBehaviour for BigDripleafBlock {
+    fn on_projectile_hit(&self, level: &mut ServerLevel, state: BlockState, hit_result: &super::BlockHitResult, _projectile: crate::world::entity::EntityId) {
+        set_tilt_and_schedule_tick(state, level, hit_result.block_pos, Tilt::Full, Some("minecraft:block.big_dripleaf.tilt_down"));
+    }
+
     fn rotate(&self, state: BlockState, rotation: Rotation) -> BlockState {
         horizontal_directional_block::rotate(state, rotation)
     }

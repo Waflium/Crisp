@@ -23,6 +23,57 @@ fn run_iteration_on_item(piece: &ItemStack, mut method: impl FnMut(&'static Ench
     }
 }
 
+pub fn process_ammo_use(level: &mut ServerLevel, weapon: &ItemStack, ammo: &ItemStack, amount: i32) -> i32 {
+    let mut modified_amount = amount as f32;
+    run_iteration_on_item(weapon, |enchantment, enchantment_level| enchantment.modify_ammo_count(level, enchantment_level, ammo, &mut modified_amount));
+    modified_amount as i32
+}
+
+pub fn process_projectile_count(level: &mut ServerLevel, weapon: &ItemStack, shooter: EntityId, count: i32) -> i32 {
+    let mut modified_count = count as f32;
+    run_iteration_on_item(weapon, |enchantment, enchantment_level| enchantment.modify_projectile_count(level, enchantment_level, shooter, &mut modified_count));
+    0.max(modified_count as i32)
+}
+
+pub fn process_projectile_spread(level: &mut ServerLevel, weapon: &ItemStack, shooter: EntityId, angle: f32) -> f32 {
+    let mut modified_angle = angle;
+    run_iteration_on_item(weapon, |enchantment, enchantment_level| enchantment.modify_projectile_spread(level, enchantment_level, shooter, &mut modified_angle));
+    0.0f32.max(modified_angle)
+}
+
+pub fn get_piercing_count(level: &mut ServerLevel, weapon: &ItemStack, ammo: &ItemStack) -> i32 {
+    let mut modified_amount = 0.0;
+    run_iteration_on_item(weapon, |enchantment, enchantment_level| enchantment.modify_piercing_count(level, enchantment_level, ammo, &mut modified_amount));
+    0.max(modified_amount as i32)
+}
+
+pub fn on_projectile_spawned(level: &mut ServerLevel, weapon: &ItemStack, projectile: EntityId, owner: Option<EntityId>) {
+    let item = EnchantedItemInUse::without_slot(weapon.clone(), owner);
+    run_iteration_on_item(weapon, |enchantment, enchantment_level| enchantment.on_projectile_spawned(level, enchantment_level, &item, projectile));
+}
+
+pub fn on_hit_block(level: &mut ServerLevel, weapon: &ItemStack, owner: Option<EntityId>, entity: EntityId, hit_location: crisp_core::Vec3, hit_block: crisp_data::BlockState) -> bool {
+    let item = EnchantedItemInUse::without_slot(weapon.clone(), owner);
+    run_iteration_on_item(weapon, |enchantment, enchantment_level| enchantment.on_hit_block(level, enchantment_level, &item, entity, hit_location, hit_block));
+    false
+}
+
+pub fn modify_crossbow_charging_time(level: &mut ServerLevel, crossbow: &ItemStack, holder: EntityId, time: f32) -> f32 {
+    let mut modified_time = time;
+    run_iteration_on_item(crossbow, |enchantment, enchantment_level| enchantment.modify_crossbow_charge_time(&mut level.entity_mut(holder).random, enchantment_level, &mut modified_time));
+    0.0f32.max(modified_time)
+}
+
+pub fn pick_highest_crossbow_charging_sounds(item_stack: &ItemStack) -> Option<crisp_protocol::nbt::Nbt> {
+    let mut found: Option<(&Vec<crisp_protocol::nbt::Nbt>, i32)> = None;
+    for (enchantment, enchantment_level) in enchantments(item_stack) {
+        if !enchantment.effects.crossbow_charging_sounds.is_empty() && found.is_none_or(|(_, best)| enchantment_level > best) {
+            found = Some((&enchantment.effects.crossbow_charging_sounds, enchantment_level));
+        }
+    }
+    found.map(|(list, enchantment_level)| list[(enchantment_level as usize).min(list.len()) - 1].clone())
+}
+
 pub fn equipment_slot_name(slot: EquipmentSlot) -> &'static str {
     match slot {
         EquipmentSlot::Mainhand => "mainhand",

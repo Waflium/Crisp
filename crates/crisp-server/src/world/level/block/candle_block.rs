@@ -21,6 +21,12 @@ pub fn can_light(state: BlockState) -> bool {
 }
 
 impl BlockBehaviour for CandleBlock {
+    fn on_projectile_hit(&self, level: &mut ServerLevel, state: BlockState, hit_result: &super::BlockHitResult, projectile: EntityId) {
+        if level.is_on_fire(projectile) && !state.get(WATERLOGGED) && !state.get(LIT) {
+            super::abstract_candle_block::set_lit(level, state, hit_result.block_pos, true);
+        }
+    }
+
     fn use_item_on(
         &self,
         item: ItemStack,

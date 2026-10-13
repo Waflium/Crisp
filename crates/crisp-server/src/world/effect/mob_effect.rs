@@ -55,13 +55,13 @@ impl ServerLevel {
     pub fn apply_effect_tick(&mut self, id: EntityId, effect: MobEffect, amplifier: i32) -> bool {
         match effect {
             mob_effects::REGENERATION => {
-                if self.player(id).health < self.max_health(id) {
+                if self.health(id) < self.max_health(id) {
                     self.heal(id, 1.0);
                 }
                 true
             }
             mob_effects::POISON => {
-                if self.player(id).health > 1.0 {
+                if self.health(id) > 1.0 {
                     self.hurt_server(id, DamageSource::new(damage_types::MAGIC), 1.0);
                 }
                 true
@@ -76,7 +76,9 @@ impl ServerLevel {
             }
             mob_effects::ABSORPTION => self.absorption_amount(id) > 0.0,
             mob_effects::SATURATION => {
-                self.player_mut(id).food_data.eat_with_modifier(amplifier + 1, 1.0);
+                if let Some(player) = self.players.get_mut(&id) {
+                    player.food_data.eat_with_modifier(amplifier + 1, 1.0);
+                }
                 true
             }
             mob_effects::INSTANT_HEALTH | mob_effects::INSTANT_DAMAGE => {
@@ -89,6 +91,28 @@ impl ServerLevel {
                 true
             }
             _ => true,
+        }
+    }
+
+    pub fn apply_instantaneous_effect(&mut self, effect: MobEffect, source: Option<EntityId>, owner: Option<EntityId>, mob: EntityId, amplification: i32, scale: f64) {
+        match effect {
+            mob_effects::INSTANT_HEALTH | mob_effects::INSTANT_DAMAGE => {
+                let is_harm = effect == mob_effects::INSTANT_DAMAGE;
+                if is_harm == self.is_inverted_heal_and_harm(mob) {
+                    let amount = (scale * 4i32.wrapping_shl(amplification as u32) as f64 + 0.5) as i32;
+                    self.heal(mob, amount as f32);
+                } else {
+                    let amount = (scale * 6i32.wrapping_shl(amplification as u32) as f64 + 0.5) as i32;
+                    let damage_source = match source {
+                        None => DamageSource::new(damage_types::MAGIC),
+                        Some(source) => DamageSource::source(damage_types::INDIRECT_MAGIC, Some(source), owner),
+                    };
+                    self.hurt_server(mob, damage_source, amount as f32);
+                }
+            }
+            _ => {
+                self.apply_effect_tick(mob, effect, amplification);
+            }
         }
     }
 

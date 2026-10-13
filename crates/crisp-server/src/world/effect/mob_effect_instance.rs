@@ -96,8 +96,14 @@ impl MobEffectInstance {
         !self.is_infinite_duration() && self.duration <= ticks
     }
 
-    fn map_duration(&self, mapper: impl FnOnce(i32) -> i32) -> i32 {
+    pub fn map_duration(&self, mapper: impl FnOnce(i32) -> i32) -> i32 {
         if !self.is_infinite_duration() && self.duration != 0 { mapper(self.duration) } else { self.duration }
+    }
+
+    pub fn with_scaled_duration(&self, scale: f32) -> MobEffectInstance {
+        let mut copy = self.copy();
+        copy.duration = copy.map_duration(|duration| crisp_core::mth::floor_f(duration as f32 * scale).max(1));
+        copy
     }
 
     pub fn has_remaining_duration(&self) -> bool {

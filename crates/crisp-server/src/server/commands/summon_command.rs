@@ -24,6 +24,16 @@ const MODELLED: &[&str] = &[
     "minecraft:mooshroom",
     "minecraft:pig",
     "minecraft:sheep",
+    "minecraft:snowball",
+    "minecraft:egg",
+    "minecraft:ender_pearl",
+    "minecraft:experience_bottle",
+    "minecraft:splash_potion",
+    "minecraft:lingering_potion",
+    "minecraft:arrow",
+    "minecraft:spectral_arrow",
+    "minecraft:firework_rocket",
+    "minecraft:area_effect_cloud",
 ];
 
 pub fn summonable_entity_type(context: &CommandContext, name: &str) -> Result<String, CommandSyntaxException> {
@@ -52,7 +62,7 @@ pub fn create_entity(server: &mut Server, source: &CommandSourceStack, entity_ty
     let Some(mut entity) = level.load_entity(&Nbt::Compound(tag)) else { return Err(ERROR_FAILED.create()) };
     let e = entity.entity_mut();
     e.set_pos(pos);
-    e.set_old_pos();
+    e.set_old_pos_and_rot();
     if finalize && let LevelEntity::Mob(mob) = &mut entity {
         level.finalize_mob_spawn(mob);
     }

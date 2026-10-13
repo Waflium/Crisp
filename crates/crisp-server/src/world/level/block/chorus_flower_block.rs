@@ -91,6 +91,13 @@ impl ChorusFlowerBlock {
 }
 
 impl BlockBehaviour for ChorusFlowerBlock {
+    fn on_projectile_hit(&self, level: &mut ServerLevel, _state: BlockState, hit_result: &super::BlockHitResult, projectile: crate::world::entity::EntityId) {
+        let pos = hit_result.block_pos;
+        if level.projectile_may_interact(projectile, pos) && level.may_break(projectile, pos) {
+            level.destroy_block(pos, true, Some(projectile), 512);
+        }
+    }
+
     fn tick(&self, state: BlockState, level: &mut ServerLevel, pos: BlockPos) {
         if !self.can_survive(state, level, pos) {
             level.destroy_block(pos, true, None, UPDATE_LIMIT);

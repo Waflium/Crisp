@@ -427,7 +427,7 @@ impl ServerLevel {
                 }
                 let entity = self.entity_ref(tracked).unwrap();
                 let mut packets = vec![encode(clientbound::BUNDLE_DELIMITER, |_| {})];
-                packets.extend(self.chunk_map.tracked.get(tracked).unwrap().server_entity.pairing_packets(entity, self.entities.get(&tracked).map_or(0, LevelEntity::add_entity_data)));
+                packets.extend(self.chunk_map.tracked.get(tracked).unwrap().server_entity.pairing_packets(entity, self.add_entity_data(tracked)));
                 packets.extend(self.extra_pairing_packets(tracked));
                 packets.push(encode(clientbound::BUNDLE_DELIMITER, |_| {}));
                 let connection = &self.player(player).connection;

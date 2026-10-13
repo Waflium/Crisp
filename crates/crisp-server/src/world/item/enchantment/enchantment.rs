@@ -143,6 +143,15 @@ fn item_context<'a>(level: &'a mut ServerLevel, enchantment_level: i32, item_sta
     LootContextBuilder::new(params).create(None)
 }
 
+fn block_hit_context(level: &mut ServerLevel, enchantment_level: i32, entity: EntityId, position: Vec3, hit_block: crisp_data::BlockState) -> LootContext<'_> {
+    let mut params = LootParams::new(level);
+    params.this_entity = Some(entity);
+    params.enchantment_level = Some(enchantment_level);
+    params.origin = Some(position);
+    params.block_state = Some(hit_block);
+    LootContextBuilder::new(params).create(None)
+}
+
 fn entity_context(level: &mut ServerLevel, enchantment_level: i32, entity: EntityId, position: Vec3) -> LootContext<'_> {
     let mut params = LootParams::new(level);
     params.this_entity = Some(entity);
@@ -284,6 +293,47 @@ impl Enchantment {
         for effect in &self.effects.post_attack {
             if for_target == effect.enchanted {
                 do_post_attack(effect, level, enchantment_level, item, victim, source);
+            }
+        }
+    }
+
+    pub fn modify_ammo_count(&self, level: &mut ServerLevel, enchantment_level: i32, item_stack: &ItemStack, change: &mut f32) {
+        modify_item_filtered_count(&self.effects.ammo_use, level, enchantment_level, item_stack, change);
+    }
+
+    pub fn modify_piercing_count(&self, level: &mut ServerLevel, enchantment_level: i32, item_stack: &ItemStack, count: &mut f32) {
+        modify_item_filtered_count(&self.effects.projectile_piercing, level, enchantment_level, item_stack, count);
+    }
+
+    pub fn modify_projectile_count(&self, level: &mut ServerLevel, enchantment_level: i32, shooter: EntityId, count: &mut f32) {
+        modify_entity_filtered_value(&self.effects.projectile_count, level, enchantment_level, shooter, count);
+    }
+
+    pub fn modify_projectile_spread(&self, level: &mut ServerLevel, enchantment_level: i32, shooter: EntityId, angle: &mut f32) {
+        modify_entity_filtered_value(&self.effects.projectile_spread, level, enchantment_level, shooter, angle);
+    }
+
+    pub fn modify_crossbow_charge_time(&self, random: &mut impl crisp_core::random::RandomSource, enchantment_level: i32, time: &mut f32) {
+        if let Some(effect) = &self.effects.crossbow_charge_time {
+            *time = effect.process(enchantment_level, random, *time);
+        }
+    }
+
+    pub fn on_projectile_spawned(&self, level: &mut ServerLevel, enchantment_level: i32, weapon: &EnchantedItemInUse, projectile: EntityId) {
+        let position = level.entity(projectile).position();
+        for effect in &self.effects.projectile_spawned {
+            let matches = effect.matches(&mut entity_context(level, enchantment_level, projectile, position));
+            if matches {
+                effect.effect.apply(level, enchantment_level, weapon, projectile, position);
+            }
+        }
+    }
+
+    pub fn on_hit_block(&self, level: &mut ServerLevel, enchantment_level: i32, weapon: &EnchantedItemInUse, projectile: EntityId, position: Vec3, hit_block: crisp_data::BlockState) {
+        for effect in &self.effects.hit_block {
+            let matches = effect.matches(&mut block_hit_context(level, enchantment_level, projectile, position, hit_block));
+            if matches {
+                effect.effect.apply(level, enchantment_level, weapon, projectile, position);
             }
         }
     }

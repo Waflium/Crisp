@@ -1,21 +1,32 @@
 pub mod alchemy;
 pub mod array_item_provider;
+pub mod arrow_item;
 pub mod banner_item;
 pub mod block_item;
+pub mod bow_item;
 pub mod bucket_item;
 pub mod bone_meal_item;
 pub mod component;
 pub mod context;
 pub mod crafting;
+pub mod crossbow_item;
 pub mod dye_color;
 pub mod dye_item;
+pub mod egg_item;
 pub mod empty_map_item;
+pub mod enderpearl_item;
+pub mod experience_bottle_item;
+pub mod firework_rocket_item;
 pub mod glow_ink_sac_item;
 pub mod ink_sac_item;
+pub mod projectile_item;
+pub mod projectile_weapon_item;
 pub mod sign_applicator;
+pub mod snowball_item;
 pub mod enchantment;
 pub mod ender_eye_item;
 pub mod flint_and_steel_item;
+pub mod throwable_potion_item;
 mod item_stack;
 pub mod honeycomb_item;
 pub mod item_provider;
@@ -33,7 +44,7 @@ use crisp_data::Item;
 
 use crate::world::entity::player::stacked_item_contents::StackedItemContents;
 
-pub use item_stack::{ItemStack, read_slot, validate_encodable, write_slot};
+pub use item_stack::{ItemStack, adventure_mode_predicate_test, read_slot, validate_encodable, write_slot};
 
 use crate::server::level::ServerLevel;
 use crate::world::entity::EntityId;
@@ -93,6 +104,7 @@ pub fn use_on(level: &mut ServerLevel, player: EntityId, hand: InteractionHand, 
         Some(&"SpawnEggItem") => return spawn_egg_item::use_on(level, player, hand, hit, stack),
         Some(&"HoneycombItem") => return honeycomb_item::use_on(level, player, hand, hit, stack),
         Some(&"EnderEyeItem") => return ender_eye_item::use_on(level, player, hand, hit, stack),
+        Some(&"FireworkRocketItem") => return firework_rocket_item::use_on(level, player, hand, hit, stack),
         Some(&"MapItem") => {
             if let Some(result) = map_item::use_on(level, &hit, &stack) {
                 return result;
@@ -125,6 +137,30 @@ pub fn use_item(level: &mut ServerLevel, player: EntityId, hand: InteractionHand
     if stack.item.is_instance_of("EmptyMapItem") {
         return empty_map_item::use_item(level, player, hand);
     }
+    if stack.item.is_instance_of("BowItem") {
+        return bow_item::use_item(level, player, hand);
+    }
+    if stack.item.is_instance_of("CrossbowItem") {
+        return crossbow_item::use_item(level, player, hand);
+    }
+    if stack.item.is_instance_of("SnowballItem") {
+        return snowball_item::use_item(level, player, hand);
+    }
+    if stack.item.is_instance_of("EggItem") {
+        return egg_item::use_item(level, player, hand);
+    }
+    if stack.item.is_instance_of("EnderpearlItem") {
+        return enderpearl_item::use_item(level, player, hand);
+    }
+    if stack.item.is_instance_of("ExperienceBottleItem") {
+        return experience_bottle_item::use_item(level, player, hand);
+    }
+    if stack.item.is_instance_of("ThrowablePotionItem") {
+        return throwable_potion_item::use_item(level, player, hand);
+    }
+    if stack.item.is_instance_of("FireworkRocketItem") {
+        return firework_rocket_item::use_item(level, player, hand);
+    }
     match bucket_item::BucketItem::for_item(stack.item) {
         Some(bucket) => bucket.use_item(level, player, hand),
         None => match &stack.item.info().consumable {
@@ -146,6 +182,36 @@ pub fn can_destroy_block(level: &ServerLevel, item_stack: Option<&ItemStack>, us
         Some(tool) if !tool.can_destroy_blocks_in_creative => !(level.is_player(user) && level.player(user).abilities.instabuild),
         _ => true,
     }
+}
+
+pub fn get_use_duration(stack: &ItemStack) -> i32 {
+    if stack.item.is_instance_of("BowItem") {
+        return bow_item::USE_DURATION;
+    }
+    if stack.item.is_instance_of("CrossbowItem") {
+        return crossbow_item::USE_DURATION;
+    }
+    crate::world::entity::using_item::use_duration(stack)
+}
+
+pub fn release_using(level: &mut ServerLevel, stack: &ItemStack, entity: EntityId, remaining_time: i32) -> bool {
+    if stack.item.is_instance_of("BowItem") {
+        return bow_item::release_using(level, stack, entity, remaining_time);
+    }
+    if stack.item.is_instance_of("CrossbowItem") {
+        return crossbow_item::release_using(level, stack, entity, remaining_time);
+    }
+    false
+}
+
+pub fn on_use_tick(level: &mut ServerLevel, entity: EntityId, stack: &mut ItemStack, ticks_remaining: i32) {
+    if stack.item.is_instance_of("CrossbowItem") {
+        crossbow_item::on_use_tick(level, entity, stack, ticks_remaining);
+    }
+}
+
+pub fn use_on_release(stack: &ItemStack) -> bool {
+    crossbow_item::use_on_release(stack)
 }
 
 pub fn inventory_tick(level: &mut ServerLevel, owner: EntityId, slot_index: usize, slot: Option<crisp_data::EquipmentSlot>) {

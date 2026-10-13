@@ -6,6 +6,7 @@ use crisp_protocol::nbt::Nbt;
 use super::data::{DataValue, ids};
 use super::item::ItemEntity;
 use super::primed_tnt::PrimedTnt;
+use super::projectile::throwableitemprojectile;
 use super::{Entity, EntityId, LevelEntity, MAX_ENTITY_TAG_COUNT, RemovalReason};
 use crate::server::level::ServerLevel;
 use crate::world::item::ItemStack;
@@ -105,7 +106,7 @@ impl Entity {
         self.y_rot = y_rot % 360.0;
         self.x_rot = x_rot.clamp(-90.0, 90.0) % 360.0;
         self.y_head_rot = self.y_rot;
-        self.set_old_pos();
+        self.set_old_pos_and_rot();
         self.fall_distance = number(nbt, "fall_distance").unwrap_or(0.0);
         self.remaining_fire_ticks = number(nbt, "Fire").map_or(0, |v| v as i16 as i32);
         self.set_air_supply(number(nbt, "Air").map_or(super::TOTAL_AIR_SUPPLY, |v| v as i32));
@@ -145,6 +146,8 @@ impl LevelEntity {
             LevelEntity::LightningBolt(_) => None,
             LevelEntity::EyeOfEnder(_) => Some("minecraft:eye_of_ender"),
             LevelEntity::EndCrystal(_) => Some("minecraft:end_crystal"),
+            LevelEntity::Projectile(projectile) => Some(crisp_data::registry::ENTITY_TYPE[projectile.entity.entity_type as usize]),
+            LevelEntity::AreaEffectCloud(_) => Some("minecraft:area_effect_cloud"),
             LevelEntity::Mob(mob) => Some(crisp_data::registry::ENTITY_TYPE[mob.entity.entity_type as usize]),
         }
     }
@@ -201,6 +204,20 @@ impl LevelEntity {
                 }
                 out.push(("ShowBottom".into(), Nbt::Byte(crystal.shows_bottom() as i8)));
             }
+            LevelEntity::Projectile(projectile) => {
+                use super::projectile::projectile::ProjectileKind;
+                projectile.add_additional_save_data(out);
+                match projectile.kind {
+                    ProjectileKind::Arrow(_) => projectile.abstract_arrow_add_additional_save_data(out),
+                    ProjectileKind::SpectralArrow(_) => {
+                        projectile.abstract_arrow_add_additional_save_data(out);
+                        projectile.spectral_arrow_add_additional_save_data(out);
+                    }
+                    ProjectileKind::FireworkRocket(_) => projectile.firework_add_additional_save_data(out),
+                    _ => projectile.throwable_item_projectile_add_additional_save_data(out),
+                }
+            }
+            LevelEntity::AreaEffectCloud(cloud) => cloud.add_additional_save_data(out),
             LevelEntity::Mob(mob) => mob.save(out),
         }
     }
@@ -247,6 +264,20 @@ impl LevelEntity {
                 crystal.set_beam_target(target);
                 crystal.set_show_bottom(nbt.get("ShowBottom").and_then(int_value).map_or(true, |v| v != 0));
             }
+            LevelEntity::Projectile(projectile) => {
+                use super::projectile::projectile::ProjectileKind;
+                projectile.read_additional_save_data(nbt);
+                match projectile.kind {
+                    ProjectileKind::Arrow(_) => projectile.abstract_arrow_read_additional_save_data(nbt),
+                    ProjectileKind::SpectralArrow(_) => {
+                        projectile.abstract_arrow_read_additional_save_data(nbt);
+                        projectile.spectral_arrow_read_additional_save_data(nbt);
+                    }
+                    ProjectileKind::FireworkRocket(_) => projectile.firework_read_additional_save_data(nbt),
+                    _ => projectile.throwable_item_projectile_read_additional_save_data(nbt),
+                }
+            }
+            LevelEntity::AreaEffectCloud(cloud) => cloud.read_additional_save_data(nbt),
             LevelEntity::Mob(mob) => mob.load(nbt),
         }
         Ok(())
@@ -292,6 +323,16 @@ impl ServerLevel {
             "minecraft:mooshroom" => LevelEntity::Mob(Box::new(super::animal::cow::mushroom_cow::MushroomCow::create())),
             "minecraft:pig" => LevelEntity::Mob(Box::new(super::animal::pig::pig::Pig::create())),
             "minecraft:sheep" => LevelEntity::Mob(Box::new(super::animal::sheep::sheep::Sheep::create())),
+            "minecraft:snowball" => LevelEntity::Projectile(Box::new(throwableitemprojectile::snowball::Snowball::of_type())),
+            "minecraft:egg" => LevelEntity::Projectile(Box::new(throwableitemprojectile::thrown_egg::ThrownEgg::of_type())),
+            "minecraft:ender_pearl" => LevelEntity::Projectile(Box::new(throwableitemprojectile::thrown_enderpearl::ThrownEnderpearl::of_type())),
+            "minecraft:experience_bottle" => LevelEntity::Projectile(Box::new(throwableitemprojectile::thrown_experience_bottle::ThrownExperienceBottle::of_type())),
+            "minecraft:splash_potion" => LevelEntity::Projectile(Box::new(throwableitemprojectile::thrown_splash_potion::ThrownSplashPotion::of_type())),
+            "minecraft:lingering_potion" => LevelEntity::Projectile(Box::new(throwableitemprojectile::thrown_lingering_potion::ThrownLingeringPotion::of_type())),
+            "minecraft:arrow" => LevelEntity::Projectile(Box::new(super::projectile::arrow::arrow::Arrow::of_type())),
+            "minecraft:spectral_arrow" => LevelEntity::Projectile(Box::new(super::projectile::arrow::spectral_arrow::SpectralArrow::of_type())),
+            "minecraft:firework_rocket" => LevelEntity::Projectile(Box::new(super::projectile::firework_rocket_entity::FireworkRocketEntity::of_type())),
+            "minecraft:area_effect_cloud" => LevelEntity::AreaEffectCloud(Box::new(super::area_effect_cloud::AreaEffectCloud::of_type())),
             _ => return None,
         })
     }

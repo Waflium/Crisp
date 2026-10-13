@@ -364,6 +364,13 @@ impl AABB {
         mth::length_squared(dx, dy, dz)
     }
 
+    pub fn distance_to_sqr_aabb(&self, b: &AABB) -> f64 {
+        let dx = jmax(jmax(self.min_x - b.max_x, b.min_x - self.max_x), 0.0);
+        let dy = jmax(jmax(self.min_y - b.max_y, b.min_y - self.max_y), 0.0);
+        let dz = jmax(jmax(self.min_z - b.max_z, b.min_z - self.max_z), 0.0);
+        mth::length_squared(dx, dy, dz)
+    }
+
     pub fn contains_vec(&self, p: Vec3) -> bool {
         self.contains(p.x, p.y, p.z)
     }

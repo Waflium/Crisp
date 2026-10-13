@@ -1,6 +1,7 @@
 pub mod ageable_mob;
 pub mod ai;
 pub mod animal;
+pub mod area_effect_cloud;
 pub mod attributes;
 pub mod boss;
 pub mod conversion_params;
@@ -53,6 +54,8 @@ pub enum LevelEntity {
     EndCrystal(boss::enderdragon::end_crystal::EndCrystal),
     PrimedTnt(primed_tnt::PrimedTnt),
     FallingBlock(item::falling_block_entity::FallingBlockEntity),
+    Projectile(Box<projectile::projectile::Projectile>),
+    AreaEffectCloud(Box<area_effect_cloud::AreaEffectCloud>),
     Mob(Box<mob::Mob>),
 }
 
@@ -73,6 +76,14 @@ impl LevelEntity {
                 vec![crate::network::chat::Arg::Component(crate::network::chat::Component::translatable(falling.get_block_state().block().info().description_id))],
             ),
             LevelEntity::ExperienceOrb(_) => crate::network::chat::Component::translatable("entity.minecraft.experience_orb"),
+            LevelEntity::Projectile(projectile) => match projectile.entity.custom_name() {
+                Some(name) => name,
+                None => description(crisp_data::registry::ENTITY_TYPE[projectile.entity.entity_type as usize]),
+            },
+            LevelEntity::AreaEffectCloud(cloud) => match cloud.entity.custom_name() {
+                Some(name) => name,
+                None => description(crisp_data::registry::ENTITY_TYPE[cloud.entity.entity_type as usize]),
+            },
         }
     }
 
@@ -97,6 +108,11 @@ impl LevelEntity {
             LevelEntity::EndCrystal(_) => TrackingConfig { range: 16 * 16, update_interval: UpdateInterval::Never, track_deltas: false, stepped: false, is_item: false },
             LevelEntity::ExperienceOrb(_) => TrackingConfig { range: 6 * 16, update_interval: UpdateInterval::Periodic(20), track_deltas: true, stepped: false, is_item: false },
             LevelEntity::Mob(_) => TrackingConfig { range: 10 * 16, update_interval: UpdateInterval::Periodic(3), track_deltas: true, stepped: false, is_item: false },
+            LevelEntity::Projectile(projectile) => {
+                let update_interval = if projectile.abstract_arrow().is_some() { 20 } else { 10 };
+                TrackingConfig { range: 4 * 16, update_interval: UpdateInterval::Periodic(update_interval), track_deltas: true, stepped: false, is_item: false }
+            }
+            LevelEntity::AreaEffectCloud(_) => TrackingConfig { range: 10 * 16, update_interval: UpdateInterval::Never, track_deltas: true, stepped: false, is_item: false },
         }
     }
 
@@ -116,6 +132,8 @@ impl LevelEntity {
             LevelEntity::PrimedTnt(tnt) => &tnt.entity,
             LevelEntity::FallingBlock(falling) => &falling.entity,
             LevelEntity::ExperienceOrb(orb) => &orb.entity,
+            LevelEntity::Projectile(projectile) => &projectile.entity,
+            LevelEntity::AreaEffectCloud(cloud) => &cloud.entity,
             LevelEntity::Mob(mob) => &mob.entity,
         }
     }
@@ -129,6 +147,8 @@ impl LevelEntity {
             LevelEntity::PrimedTnt(tnt) => &mut tnt.entity,
             LevelEntity::FallingBlock(falling) => &mut falling.entity,
             LevelEntity::ExperienceOrb(orb) => &mut orb.entity,
+            LevelEntity::Projectile(projectile) => &mut projectile.entity,
+            LevelEntity::AreaEffectCloud(cloud) => &mut cloud.entity,
             LevelEntity::Mob(mob) => &mut mob.entity,
         }
     }

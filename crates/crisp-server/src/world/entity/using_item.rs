@@ -75,7 +75,7 @@ impl ServerLevel {
         }
         let living = &mut self.player_mut(id).living;
         living.use_item = Some(stack.clone());
-        living.use_item_remaining = use_duration(&stack);
+        living.use_item_remaining = crate::world::item::get_use_duration(&stack);
         let slot = if hand == InteractionHand::MainHand { EquipmentSlot::Mainhand } else { EquipmentSlot::Offhand };
         let packet = super::living_entity::set_equipment(id, &[(slot, Some(stack))]);
         self.send_to_tracking_players(id, &packet);
@@ -98,7 +98,7 @@ impl ServerLevel {
         }
     }
 
-    fn update_using_item(&mut self, id: EntityId, stack: ItemStack) {
+    fn update_using_item(&mut self, id: EntityId, mut stack: ItemStack) {
         crate::advancements::triggers::criteria_triggers::USING_ITEM.trigger(self, id, &stack);
         let remaining = self.player(id).living.use_item_remaining;
         if let Some(consumable) = &stack.item.info().consumable
@@ -106,9 +106,16 @@ impl ServerLevel {
         {
             self.emit_particles_and_sounds(id, consumable, 5);
         }
+        let before = stack.clone();
+        crate::world::item::on_use_tick(self, id, &mut stack, remaining);
+        if stack != before {
+            let hand = self.used_item_hand(id);
+            self.player_mut(id).set_item_in_hand(hand, Some(stack.clone()));
+            self.player_mut(id).living.use_item = Some(stack.clone());
+        }
         let living = &mut self.player_mut(id).living;
         living.use_item_remaining -= 1;
-        if living.use_item_remaining == 0 {
+        if living.use_item_remaining == 0 && !crate::world::item::use_on_release(&stack) {
             self.complete_using_item(id);
         }
     }
@@ -165,8 +172,21 @@ impl ServerLevel {
         let hand = self.used_item_hand(id);
         let in_hand = self.player(id).item_in_hand(hand);
         let use_item = self.player(id).living.use_item.clone();
-        if use_item.is_some() && in_hand.as_ref().map(|s| s.item) == use_item.as_ref().map(|s| s.item) {
-            self.player_mut(id).living.use_item = in_hand.clone();
+        if use_item.as_ref().is_some_and(|s| !s.is_empty())
+            && let Some(in_hand) = in_hand.filter(|in_hand| Some(in_hand.item) == use_item.as_ref().map(|s| s.item))
+        {
+            self.player_mut(id).living.use_item = Some(in_hand.clone());
+            let remaining = self.player(id).living.use_item_remaining;
+            if crate::world::item::release_using(self, &in_hand, id, remaining) {
+                let current = self.player(id).item_in_hand(hand).unwrap_or_else(ItemStack::empty);
+                let with_side_effects = self.apply_after_use_component_side_effects(id, current.clone(), in_hand.clone());
+                if with_side_effects != current {
+                    self.player_mut(id).set_item_in_hand(hand, Some(with_side_effects));
+                }
+            }
+            if crate::world::item::use_on_release(&in_hand) {
+                self.updating_using_item(id);
+            }
         }
         self.stop_using_item(id);
     }
