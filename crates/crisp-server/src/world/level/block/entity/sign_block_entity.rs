@@ -146,7 +146,7 @@ impl ServerLevel {
         let xd = player_pos.x - (pos.x as f64 + sign_position_offset.x);
         let zd = player_pos.z - (pos.z as f64 + sign_position_offset.z);
         let sign_y_rot = sign.get_y_rotation_degrees(state);
-        let player_y_rot = (mth::atan2(zd, xd) * 180.0f32 as f64 / std::f32::consts::PI as f64) as f32 - 90.0;
+        let player_y_rot = (mth::atan2(zd, xd) * mth::RAD_TO_DEG as f64) as f32 - 90.0;
         if mth::degrees_difference_abs(sign_y_rot, player_y_rot) <= 90.0 { SignTextSlot::Front } else { SignTextSlot::Back }
     }
 

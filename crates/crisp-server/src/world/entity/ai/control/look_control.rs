@@ -58,13 +58,13 @@ impl ServerLevel {
             let xd = look.wanted_x - e.x();
             let zd = look.wanted_z - e.z();
             if (zd.abs() > 1.0e-5f32 as f64) || (xd.abs() > 1.0e-5f32 as f64) {
-                let y_rot_d = (mth::atan2(zd, xd) * 180.0f32 as f64 / std::f32::consts::PI as f64) as f32 - 90.0;
+                let y_rot_d = (mth::atan2(zd, xd) * mth::RAD_TO_DEG as f64) as f32 - 90.0;
                 e.y_head_rot = rotate_towards(e.y_head_rot, y_rot_d, look.y_max_rot_speed);
             }
             let yd = look.wanted_y - e.eye_y();
             let sd = (xd * xd + zd * zd).sqrt();
             if (yd.abs() > 1.0e-5f32 as f64) || (sd.abs() > 1.0e-5f32 as f64) {
-                let x_rot_d = (-(mth::atan2(yd, sd) * 180.0f32 as f64 / std::f32::consts::PI as f64)) as f32;
+                let x_rot_d = (-(mth::atan2(yd, sd) * mth::RAD_TO_DEG as f64)) as f32;
                 let x_rot = rotate_towards(e.x_rot, x_rot_d, look.x_max_rot_angle);
                 e.set_x_rot(x_rot);
             }
