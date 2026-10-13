@@ -151,7 +151,20 @@ impl ServerLevel {
     }
 
     pub fn apply_after_use_component_side_effects(&mut self, id: EntityId, result: ItemStack, before: ItemStack) -> ItemStack {
-        let Some(remainder) = before.get(dc::USE_REMAINDER).map(ItemStackTemplate::from_nbt) else { return result };
+        let result = match before.get(dc::USE_REMAINDER).map(ItemStackTemplate::from_nbt) {
+            Some(remainder) => self.convert_into_remainder(id, remainder, result, &before),
+            None => result,
+        };
+        if let Some(use_cooldown) = before.get(dc::USE_COOLDOWN)
+            && let Some(player) = self.players.get_mut(&id)
+        {
+            let ticks = crate::world::item::item_cooldowns::use_cooldown_ticks(use_cooldown);
+            player.cooldowns.add_cooldown(&before, ticks, &player.connection);
+        }
+        result
+    }
+
+    fn convert_into_remainder(&mut self, id: EntityId, remainder: ItemStackTemplate, result: ItemStack, before: &ItemStack) -> ItemStack {
         if self.player(id).abilities.instabuild || result.count >= before.count {
             return result;
         }

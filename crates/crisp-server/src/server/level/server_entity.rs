@@ -169,6 +169,7 @@ pub struct ServerEntity {
     update_interval: UpdateInterval,
     track_delta: bool,
     is_item: bool,
+    is_arrow: bool,
     interpolation: Option<SteppedInterpolationTracker>,
     position_base: Vec3,
     last_sent_y_rot: i8,
@@ -182,11 +183,12 @@ pub struct ServerEntity {
 }
 
 impl ServerEntity {
-    pub fn new(entity: &Entity, update_interval: UpdateInterval, track_delta: bool, stepped: bool, is_item: bool) -> ServerEntity {
+    pub fn new(entity: &Entity, update_interval: UpdateInterval, track_delta: bool, stepped: bool, is_item: bool, is_arrow: bool) -> ServerEntity {
         ServerEntity {
             update_interval,
             track_delta,
             is_item,
+            is_arrow,
             interpolation: stepped.then(SteppedInterpolationTracker::new),
             position_base: entity.position(),
             last_sent_y_rot: mth::pack_degrees(entity.y_rot),
@@ -260,9 +262,13 @@ impl ServerEntity {
             if let Some(tracker) = &mut self.interpolation {
                 tracker.clear();
             }
-            let position_changed = current.subtract(self.position_base).length_sqr() >= 7.6293945e-6f32 as f64;
-            let should_send_position = position_changed || self.tick_count % 60 == 0;
-            let packet = self.create_move_packet(entity, &path, y_rot, x_rot, should_send_position, should_send_rotation);
+            let packet = if self.is_arrow {
+                self.create_move_packet(entity, &path, y_rot, x_rot, true, true)
+            } else {
+                let position_changed = current.subtract(self.position_base).length_sqr() >= 7.6293945e-6f32 as f64;
+                let should_send_position = position_changed || self.tick_count % 60 == 0;
+                self.create_move_packet(entity, &path, y_rot, x_rot, should_send_position, should_send_rotation)
+            };
             if entity.needs_sync || self.track_delta {
                 let movement = entity.delta_movement;
                 let diff = movement.distance_to_sqr(self.last_sent_movement);

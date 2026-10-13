@@ -435,7 +435,7 @@ impl ServerLevel {
             }
         }
         match item {
-            Some(stack) if stack.count > 0 => {
+            Some(stack) if stack.count > 0 && !self.player(player).cooldowns.is_on_cooldown(&stack) => {
                 let used_item = stack.item;
                 let result = item::use_on(self, player, hand, hit, stack);
                 if let InteractionResult::Success { was_item_interaction: true, .. } = result {
@@ -455,6 +455,9 @@ impl ServerLevel {
             return InteractionResult::Pass;
         }
         let Some(item_stack) = self.player(player).item_in_hand(hand) else { return InteractionResult::Pass };
+        if self.player(player).cooldowns.is_on_cooldown(&item_stack) {
+            return InteractionResult::Pass;
+        }
         let (result, transformed) = item::use_item(self, player, hand, item_stack.clone());
         let held = self.player(player).item_in_hand(hand);
         let result_stack = match result {

@@ -29,6 +29,7 @@ pub mod flint_and_steel_item;
 pub mod throwable_potion_item;
 mod item_stack;
 pub mod honeycomb_item;
+pub mod item_cooldowns;
 pub mod item_provider;
 pub mod item_utils;
 pub mod jukebox_playable;
@@ -128,6 +129,17 @@ pub fn use_on(level: &mut ServerLevel, player: EntityId, hand: InteractionHand, 
 }
 
 pub fn use_item(level: &mut ServerLevel, player: EntityId, hand: InteractionHand, stack: ItemStack) -> (InteractionResult, Option<ItemStack>) {
+    let stack_before_use = stack.copy();
+    let is_instantly_used = get_use_duration(&stack) <= 0;
+    let (result, transformed) = item_use(level, player, hand, stack);
+    if is_instantly_used && let InteractionResult::Success { .. } = result {
+        let transform_to = transformed.or_else(|| level.player(player).item_in_hand(hand)).unwrap_or_else(ItemStack::empty);
+        return (result, Some(level.apply_after_use_component_side_effects(player, transform_to, stack_before_use)));
+    }
+    (result, transformed)
+}
+
+fn item_use(level: &mut ServerLevel, player: EntityId, hand: InteractionHand, stack: ItemStack) -> (InteractionResult, Option<ItemStack>) {
     if stack.item.is_instance_of("SpawnEggItem") {
         return spawn_egg_item::use_item(level, player, hand);
     }
@@ -164,14 +176,7 @@ pub fn use_item(level: &mut ServerLevel, player: EntityId, hand: InteractionHand
     match bucket_item::BucketItem::for_item(stack.item) {
         Some(bucket) => bucket.use_item(level, player, hand),
         None => match &stack.item.info().consumable {
-            Some(consumable) => {
-                let instant = consumable.consume_ticks() <= 0;
-                let (result, transformed) = level.start_consuming(player, hand, stack.clone(), consumable);
-                match (instant, result, transformed) {
-                    (true, InteractionResult::Success { .. }, Some(t)) => (result, Some(level.apply_after_use_component_side_effects(player, t, stack))),
-                    (_, result, transformed) => (result, transformed),
-                }
-            }
+            Some(consumable) => level.start_consuming(player, hand, stack.clone(), consumable),
             None => (InteractionResult::Pass, None),
         },
     }

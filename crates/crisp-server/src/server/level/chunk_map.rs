@@ -363,7 +363,8 @@ impl ServerLevel {
 
     pub fn track_entity(&mut self, id: EntityId, config: TrackingConfig) {
         let entity = self.entity_ref(id).expect("tracked entity exists");
-        let server_entity = ServerEntity::new(entity, config.update_interval, config.track_deltas, config.stepped, config.is_item);
+        let is_arrow = self.as_projectile(id).is_some_and(|projectile| projectile.abstract_arrow().is_some());
+        let server_entity = ServerEntity::new(entity, config.update_interval, config.track_deltas, config.stepped, config.is_item, is_arrow);
         let tracked = TrackedEntity { server_entity, range: config.range, last_section_pos: section_pos(entity), seen_by: FastIndexSet::default() };
         self.chunk_map.tracked.insert(id, tracked);
         let players = self.level_players();

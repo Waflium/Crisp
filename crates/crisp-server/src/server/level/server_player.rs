@@ -140,6 +140,7 @@ pub struct ServerPlayer {
     pub post_effects_dirty: bool,
     pub camera: Option<EntityId>,
     pub ender_pearls: Vec<u128>,
+    pub cooldowns: crate::world::item::item_cooldowns::ItemCooldowns,
 }
 
 impl ServerPlayer {
@@ -221,6 +222,7 @@ impl ServerPlayer {
             post_effects_dirty: true,
             camera: None,
             ender_pearls: Vec::new(),
+            cooldowns: Default::default(),
         };
         player.update_options(client);
         player

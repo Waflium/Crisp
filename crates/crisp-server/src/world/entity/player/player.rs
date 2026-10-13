@@ -75,6 +75,8 @@ impl ServerLevel {
             }
             self.player_mut(id).last_item_in_main_hand = main_hand_item_stack.copy();
         }
+        let p = self.player_mut(id);
+        p.cooldowns.tick(&p.connection);
         self.update_player_pose(id);
     }
 
