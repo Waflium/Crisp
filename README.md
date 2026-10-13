@@ -36,4 +36,4 @@ cargo test --release
 
 ## License
 
-MIT. See [LICENSE](LICENSE).
+[PolyForm Noncommercial License 1.0.0](LICENSE). You may use, change and share Crisp for any noncommercial purpose. Commercial use is not allowed.
