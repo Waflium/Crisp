@@ -72,7 +72,7 @@ impl ServerLevel {
         let creative_player = source.is_creative_player(self);
         if (creative_player || !(get_damage(self.entity(id)) > 40.0)) && !self.should_source_destroy(id, &source) {
             if creative_player {
-                self.set_removed(id, RemovalReason::Discarded);
+                self.remove(id, RemovalReason::Discarded);
             }
         } else {
             self.destroy_by_source(id, &source);
@@ -85,7 +85,7 @@ impl ServerLevel {
     }
 
     pub fn destroy(&mut self, id: EntityId, drop_item: Item) {
-        self.set_removed(id, RemovalReason::Killed);
+        self.remove(id, RemovalReason::Killed);
         if self.game_rules.get_bool(game_rule::ENTITY_DROPS) {
             let mut item_stack = ItemStack::new(drop_item, 1);
             let custom_name = match self.entity(id).data.get(ids::CUSTOM_NAME) {
@@ -97,7 +97,11 @@ impl ServerLevel {
         }
     }
 
-    fn destroy_by_source(&mut self, id: EntityId, _source: &DamageSource) {
+    fn destroy_by_source(&mut self, id: EntityId, source: &DamageSource) {
+        if self.is_container_entity(id) {
+            self.abstract_chest_boat_destroy(id, source);
+            return;
+        }
         let drop_item = self.vehicle_drop_item(id);
         self.destroy(id, drop_item);
     }

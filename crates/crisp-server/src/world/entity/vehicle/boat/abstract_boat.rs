@@ -4,7 +4,9 @@ use crisp_core::{AABB, BlockPos, Vec3, mth};
 use crisp_data::{Item, entity_type_tags, fluid_tags, registry, registry_id};
 
 use crate::server::level::ServerLevel;
+use super::abstract_chest_boat;
 use crate::world::entity::data::DataValue;
+use crate::world::entity::vehicle::container_entity::ContainerEntity;
 use crate::world::entity::vehicle::dismount_helper;
 use crate::world::entity::vehicle::vehicle_entity::{self, vehicle_entity_defaults};
 use crate::world::entity::{Entity, EntityDimensions, EntityId, LevelEntity, MoverType, get_collision_horizontal_escape_vector, sound_event};
@@ -35,11 +37,14 @@ pub enum Status {
 pub enum BoatKind {
     Boat,
     Raft,
+    ChestBoat,
+    ChestRaft,
 }
 
 pub struct AbstractBoat {
     pub entity: Entity,
     pub kind: BoatKind,
+    pub container: Option<ContainerEntity>,
     paddle_positions: [f32; 2],
     out_of_control_ticks: f32,
     delta_rotation: f32,
@@ -58,9 +63,11 @@ impl AbstractBoat {
         let mut data = vehicle_entity_defaults();
         data.extend([DataValue::Boolean(false), DataValue::Boolean(false), DataValue::Int(0)]);
         let entity = Entity::new(registry_id(registry::ENTITY_TYPE, entity_type), DIMENSIONS, data);
+        let container = matches!(kind, BoatKind::ChestBoat | BoatKind::ChestRaft).then(|| ContainerEntity::new(abstract_chest_boat::CONTAINER_SIZE));
         AbstractBoat {
             entity,
             kind,
+            container,
             paddle_positions: [0.0; 2],
             out_of_control_ticks: 0.0,
             delta_rotation: 0.0,
@@ -90,17 +97,17 @@ impl AbstractBoat {
 
     fn ride_height(&self, dimensions: EntityDimensions) -> f64 {
         match self.kind {
-            BoatKind::Boat => (dimensions.height / 3.0) as f64,
-            BoatKind::Raft => (dimensions.height * 0.8888889) as f64,
+            BoatKind::Boat | BoatKind::ChestBoat => (dimensions.height / 3.0) as f64,
+            BoatKind::Raft | BoatKind::ChestRaft => (dimensions.height * 0.8888889) as f64,
         }
     }
 
     fn get_single_passenger_x_offset(&self) -> f32 {
-        0.0
+        if self.container.is_some() { abstract_chest_boat::SINGLE_PASSENGER_X_OFFSET } else { 0.0 }
     }
 
     pub fn get_max_passengers(&self) -> usize {
-        2
+        if self.container.is_some() { abstract_chest_boat::MAX_PASSENGERS } else { 2 }
     }
 
     pub fn set_paddle_state(&mut self, left: bool, right: bool) {

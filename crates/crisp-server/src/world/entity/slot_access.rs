@@ -1,5 +1,6 @@
 use crisp_data::EquipmentSlot;
 
+use super::vehicle::boat::abstract_chest_boat;
 use super::{EntityId, LevelEntity};
 use crate::server::level::ServerLevel;
 use crate::world::container::ContainerRef;
@@ -78,6 +79,9 @@ impl ServerLevel {
         }
         match self.entities.get(&id) {
             Some(LevelEntity::Item(_)) if slot == 0 => Some(LevelSlot::Item(id)),
+            Some(LevelEntity::Boat(boat)) if boat.container.is_some() && (0..abstract_chest_boat::CONTAINER_SIZE as i32).contains(&slot) => {
+                Some(LevelSlot::Container(ContainerRef::ChestVehicle(id), slot as usize))
+            }
             _ => None,
         }
     }

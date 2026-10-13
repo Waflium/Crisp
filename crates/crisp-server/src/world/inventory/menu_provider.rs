@@ -25,6 +25,7 @@ pub enum MenuProvider {
     Grindstone(BlockPos),
     Loom(BlockPos),
     CartographyTable(BlockPos),
+    ChestVehicle(EntityId),
 }
 
 fn menu_kind(entity: &BlockEntity) -> Option<MenuKind> {
@@ -133,6 +134,16 @@ impl ServerLevel {
             MenuProvider::Loom(pos) => Some((AbstractContainerMenu::loom(container_id, pos), Component::translatable("container.loom"))),
             MenuProvider::CartographyTable(pos) => {
                 Some((AbstractContainerMenu::cartography_table(container_id, pos), Component::translatable("container.cartography_table")))
+            }
+            MenuProvider::ChestVehicle(entity) => {
+                if self.container_entity(entity).is_some_and(|container| container.has_loot_table()) && spectator {
+                    return None;
+                }
+                self.unpack_chest_vehicle_loot_table(entity, Some(player));
+                let title = self.entities.get(&entity)?.name();
+                let container = ContainerRef::ChestVehicle(entity);
+                self.container_start_open(container, player);
+                Some((AbstractContainerMenu::new(container_id, MenuKind::Chest { rows: 3 }, Some(container)), title))
             }
             MenuProvider::DoubleChest { first, second } => {
                 let name = self.double_chest_name(first, second);

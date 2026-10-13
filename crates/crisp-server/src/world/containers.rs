@@ -3,14 +3,23 @@ use crisp_core::{BlockPos, Vec3};
 
 use crate::server::level::ServerLevel;
 use crate::world::container::ContainerRef;
-use crate::world::entity::{ItemEntity, LevelEntity};
+use crate::world::entity::{EntityId, ItemEntity, LevelEntity};
 use crate::world::item::ItemStack;
 
 pub fn drop_contents(level: &mut ServerLevel, pos: BlockPos, container: ContainerRef) {
+    drop_contents_at(level, pos.x as f64, pos.y as f64, pos.z as f64, container);
+}
+
+pub fn drop_contents_for_entity(level: &mut ServerLevel, entity: EntityId, container: ContainerRef) {
+    let position = level.entity(entity).position();
+    drop_contents_at(level, position.x, position.y, position.z, container);
+}
+
+fn drop_contents_at(level: &mut ServerLevel, x: f64, y: f64, z: f64, container: ContainerRef) {
     for slot in 0..level.container_size(container) {
         let stack = level.get_item(container, slot);
         level.put_item(container, slot, stack.copy_with_count(0));
-        drop_item_stack(level, pos.x as f64, pos.y as f64, pos.z as f64, stack);
+        drop_item_stack(level, x, y, z, stack);
     }
 }
 

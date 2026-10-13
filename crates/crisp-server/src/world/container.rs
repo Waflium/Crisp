@@ -22,6 +22,7 @@ pub enum ContainerRef {
     Shelf(BlockPos),
     DecoratedPot(BlockPos),
     PlayerEnderChest(EntityId),
+    ChestVehicle(EntityId),
 }
 
 impl ContainerRef {
@@ -92,6 +93,10 @@ impl ServerLevel {
             ContainerRef::ChiseledBookShelf(pos) => self.chiseled_book_shelf(pos).map(|bookshelf| bookshelf.get_items_mut()),
             ContainerRef::Shelf(pos) => self.shelf(pos).map(|shelf| shelf.get_items_mut()),
             ContainerRef::PlayerEnderChest(player) => self.players.get_mut(&player).map(|p| &mut p.ender_chest_inventory.items),
+            ContainerRef::ChestVehicle(entity) => {
+                self.unpack_chest_vehicle_loot_table(entity, None);
+                self.container_entity(entity).map(|container| container.get_item_stacks())
+            }
             _ => None,
         }
     }
@@ -120,6 +125,9 @@ impl ServerLevel {
         if let ContainerRef::Jukebox(_) | ContainerRef::Lectern { .. } | ContainerRef::DecoratedPot(_) = container {
             return 1;
         }
+        if let ContainerRef::ChestVehicle(entity) = container {
+            return self.container_entity(entity).map_or(0, |container| container.get_item_stacks().len());
+        }
         if let ContainerRef::ChiseledBookShelf(_) | ContainerRef::Shelf(_) | ContainerRef::PlayerEnderChest(_) = container {
             return self.list_backed_items(container).map_or(0, |items| items.len());
         }
@@ -138,6 +146,9 @@ impl ServerLevel {
         }
         if let ContainerRef::DecoratedPot(pos) = container {
             return self.decorated_pot_get_the_item(pos).is_empty();
+        }
+        if let ContainerRef::ChestVehicle(entity) = container {
+            return self.container_entity(entity).is_none_or(|container| container.is_chest_vehicle_empty());
         }
         if let ContainerRef::ChiseledBookShelf(_) | ContainerRef::Shelf(_) | ContainerRef::PlayerEnderChest(_) = container {
             return self.list_backed_items(container).is_none_or(|items| items.iter().all(ItemStack::is_empty));
@@ -165,7 +176,7 @@ impl ServerLevel {
         if let ContainerRef::DecoratedPot(pos) = container {
             return if slot == 0 { self.decorated_pot_get_the_item(pos) } else { ItemStack::empty() };
         }
-        if let ContainerRef::ChiseledBookShelf(_) | ContainerRef::Shelf(_) | ContainerRef::PlayerEnderChest(_) = container {
+        if let ContainerRef::ChiseledBookShelf(_) | ContainerRef::Shelf(_) | ContainerRef::PlayerEnderChest(_) | ContainerRef::ChestVehicle(_) = container {
             return self.list_backed_items(container).and_then(|items| items.get(slot).cloned()).unwrap_or_else(ItemStack::empty);
         }
         let Some((pos, slot)) = self.container_part(container, slot) else { return ItemStack::empty() };
@@ -182,7 +193,7 @@ impl ServerLevel {
             }
             return;
         }
-        if let ContainerRef::ChiseledBookShelf(_) | ContainerRef::Shelf(_) | ContainerRef::PlayerEnderChest(_) = container {
+        if let ContainerRef::ChiseledBookShelf(_) | ContainerRef::Shelf(_) | ContainerRef::PlayerEnderChest(_) | ContainerRef::ChestVehicle(_) = container {
             if let Some(items) = self.list_backed_items(container)
                 && slot < items.len()
             {
@@ -227,7 +238,7 @@ impl ServerLevel {
             }
             return self.shelf_set_changed(pos);
         }
-        if let ContainerRef::PlayerEnderChest(_) = container {
+        if let ContainerRef::PlayerEnderChest(_) | ContainerRef::ChestVehicle(_) = container {
             if let Some(items) = self.list_backed_items(container) {
                 stack.limit_size(stack.max_stack_size().min(99));
                 items[slot] = stack;
@@ -276,7 +287,7 @@ impl ServerLevel {
         if let ContainerRef::DecoratedPot(pos) = container {
             return if slot != 0 { ItemStack::empty() } else { self.decorated_pot_split_the_item(pos, count) };
         }
-        if let ContainerRef::Shelf(_) | ContainerRef::PlayerEnderChest(_) = container {
+        if let ContainerRef::Shelf(_) | ContainerRef::PlayerEnderChest(_) | ContainerRef::ChestVehicle(_) = container {
             let result = match self.list_backed_items(container).and_then(|items| items.get_mut(slot)) {
                 Some(stack) if !stack.is_empty() && count > 0 => stack.split(count),
                 _ => ItemStack::empty(),
@@ -314,7 +325,7 @@ impl ServerLevel {
         if let ContainerRef::Lectern { pos, .. } = container {
             return self.lectern_book_access_remove_item_no_update(pos, slot);
         }
-        if let ContainerRef::PlayerEnderChest(_) = container {
+        if let ContainerRef::PlayerEnderChest(_) | ContainerRef::ChestVehicle(_) = container {
             return self.list_backed_items(container).and_then(|items| items.get_mut(slot)).map(|s| std::mem::replace(s, ItemStack::empty())).unwrap_or_else(ItemStack::empty);
         }
         if let ContainerRef::ChiseledBookShelf(_) | ContainerRef::Shelf(_) = container {
@@ -364,7 +375,7 @@ impl ServerLevel {
         if let ContainerRef::Lectern { .. } = container {
             return false;
         }
-        if let ContainerRef::DecoratedPot(_) | ContainerRef::PlayerEnderChest(_) = container {
+        if let ContainerRef::DecoratedPot(_) | ContainerRef::PlayerEnderChest(_) | ContainerRef::ChestVehicle(_) = container {
             return true;
         }
         if let ContainerRef::ChiseledBookShelf(pos) = container {
@@ -443,6 +454,9 @@ impl ServerLevel {
     }
 
     pub fn container_still_valid(&mut self, container: ContainerRef, player: EntityId) -> bool {
+        if let ContainerRef::ChestVehicle(entity) = container {
+            return self.is_chest_vehicle_still_valid(entity, player);
+        }
         if let ContainerRef::PlayerEnderChest(owner) = container {
             let Some((pos, id)) = self.player(owner).ender_chest_inventory.active_chest() else { return true };
             return self.get_block_entity(pos).is_some_and(|e| e.id() == id) && self.is_within_block_interaction_range(player, pos, DEFAULT_DISTANCE_BUFFER);

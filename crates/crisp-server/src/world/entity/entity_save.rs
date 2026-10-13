@@ -220,7 +220,11 @@ impl LevelEntity {
             LevelEntity::AreaEffectCloud(cloud) => cloud.add_additional_save_data(out),
             LevelEntity::Mob(mob) => mob.save(out),
             LevelEntity::Minecart(minecart) => minecart.add_additional_save_data(out),
-            LevelEntity::Boat(_) => {}
+            LevelEntity::Boat(boat) => {
+                if let Some(container) = &boat.container {
+                    container.add_chest_vehicle_save_data(out);
+                }
+            }
         }
     }
 
@@ -282,7 +286,11 @@ impl LevelEntity {
             LevelEntity::AreaEffectCloud(cloud) => cloud.read_additional_save_data(nbt),
             LevelEntity::Mob(mob) => mob.load(nbt),
             LevelEntity::Minecart(minecart) => minecart.read_additional_save_data(nbt),
-            LevelEntity::Boat(_) => {}
+            LevelEntity::Boat(boat) => {
+                if let Some(container) = &mut boat.container {
+                    container.read_chest_vehicle_save_data(nbt);
+                }
+            }
         }
         Ok(())
     }
@@ -358,7 +366,10 @@ impl ServerLevel {
             "minecraft:area_effect_cloud" => LevelEntity::AreaEffectCloud(Box::new(super::area_effect_cloud::AreaEffectCloud::of_type())),
             "minecraft:minecart" => LevelEntity::Minecart(Box::new(super::vehicle::minecart::minecart::Minecart::create())),
             _ => {
-                let boat = super::vehicle::boat::boat::create(entity_type).or_else(|| super::vehicle::boat::raft::create(entity_type))?;
+                let boat = super::vehicle::boat::boat::create(entity_type)
+                    .or_else(|| super::vehicle::boat::raft::create(entity_type))
+                    .or_else(|| super::vehicle::boat::chest_boat::create(entity_type))
+                    .or_else(|| super::vehicle::boat::chest_raft::create(entity_type))?;
                 LevelEntity::Boat(Box::new(boat))
             }
         })

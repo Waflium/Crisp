@@ -40,6 +40,7 @@ mod player_command {
     pub const STOP_SLEEPING: i32 = 0;
     pub const START_SPRINTING: i32 = 1;
     pub const STOP_SPRINTING: i32 = 2;
+    pub const OPEN_INVENTORY: i32 = 5;
 }
 
 pub struct PlayerMovement {
@@ -564,6 +565,13 @@ impl ServerLevel {
             }
             player_command::START_SPRINTING => self.set_sprinting(id, true),
             player_command::STOP_SPRINTING => self.set_sprinting(id, false),
+            player_command::OPEN_INVENTORY => {
+                if let Some(vehicle) = self.vehicle(id)
+                    && self.is_container_entity(vehicle)
+                {
+                    self.open_custom_inventory_screen(vehicle, id);
+                }
+            }
             _ => {}
         }
     }

@@ -1309,8 +1309,12 @@ impl ServerLevel {
     pub fn remove(&mut self, id: EntityId, reason: RemovalReason) {
         if self.is_player(id) {
             self.player_remove(id, reason);
-        } else {
+        } else if self.is_living(id) {
             self.living_entity_remove(id, reason);
+        } else if self.is_container_entity(id) {
+            self.abstract_chest_boat_remove(id, reason);
+        } else {
+            self.set_removed(id, reason);
         }
     }
 
@@ -1321,7 +1325,7 @@ impl ServerLevel {
         if matches!(reason, RemovalReason::Killed | RemovalReason::Discarded) {
             self.trigger_on_death_mob_effects(id, reason);
         }
-        self.entity_mut(id).removal = Some(reason);
+        self.set_removed(id, reason);
         self.get_waypoint_manager().untrack_waypoint(self, id);
     }
 

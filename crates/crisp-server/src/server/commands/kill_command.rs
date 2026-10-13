@@ -23,7 +23,7 @@ fn kill(server: &mut Server, source: &CommandSourceStack, victims: &[EntityId]) 
         if level.is_living(entity) {
             level.kill(entity);
         } else {
-            level.entity_mut(entity).removal = Some(RemovalReason::Killed);
+            level.remove(entity, RemovalReason::Killed);
             level.remove_entity(entity);
         }
     }

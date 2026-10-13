@@ -2126,6 +2126,7 @@ impl ServerLevel {
     pub fn interact(&mut self, id: EntityId, player: EntityId, hand: InteractionHand, location: Vec3) -> InteractionResult {
         match self.entities.get(&id) {
             Some(LevelEntity::Minecart(_)) => return self.minecart_interact(id, player, hand, location),
+            Some(LevelEntity::Boat(boat)) if boat.container.is_some() => return self.abstract_chest_boat_interact(id, player, hand, location),
             Some(LevelEntity::Boat(_)) => return self.abstract_boat_interact(id, player, hand, location),
             _ => {}
         }
@@ -2294,6 +2295,8 @@ impl ServerLevel {
                 Some(LevelEntity::Boat(boat)) => match boat.kind {
                     super::vehicle::boat::abstract_boat::BoatKind::Boat => "Boat",
                     super::vehicle::boat::abstract_boat::BoatKind::Raft => "Raft",
+                    super::vehicle::boat::abstract_boat::BoatKind::ChestBoat => "ChestBoat",
+                    super::vehicle::boat::abstract_boat::BoatKind::ChestRaft => "ChestRaft",
                 },
                 _ => "Entity",
             };
@@ -2856,7 +2859,7 @@ impl ServerLevel {
         !e.is_shift_key_down() && e.boarding_cooldown <= 0
     }
 
-    fn can_add_passenger(&self, id: EntityId, _passenger: EntityId) -> bool {
+    pub fn can_add_passenger(&self, id: EntityId, _passenger: EntityId) -> bool {
         match self.entities.get(&id) {
             Some(LevelEntity::Boat(_)) => self.abstract_boat_can_add_passenger(id),
             _ => self.passengers(id).is_empty(),
