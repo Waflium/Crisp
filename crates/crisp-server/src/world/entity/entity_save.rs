@@ -412,7 +412,7 @@ impl ServerLevel {
 
 impl RemovalReason {
     pub fn should_save(self) -> bool {
-        matches!(self, RemovalReason::UnloadedToChunk | RemovalReason::UnloadedWithPlayer)
+        matches!(self, RemovalReason::UnloadedToChunk)
     }
 
     pub fn should_destroy(self) -> bool {
